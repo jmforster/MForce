@@ -1868,32 +1868,86 @@ static void run_note_reseed_tests() {
 #include "mforce/render/embedded_score.h"
 #include <filesystem>
 
+// A patch file in the scratch folder for the standalone loader, which reads
+// files only: written when made (the folder too, since a fresh clone has
+// none), removed when it goes out of scope.
+struct ScratchPatch {
+    std::string path;
+    ScratchPatch(const char* p, const std::string& text) : path(p) {
+        std::filesystem::create_directories("renders/scratch");
+        std::ofstream f(path);
+        f << text;
+    }
+    ~ScratchPatch() { std::filesystem::remove(path); }
+    ScratchPatch(const ScratchPatch&) = delete;
+    ScratchPatch& operator=(const ScratchPatch&) = delete;
+};
+
+// The voice count of the one instrument channel the standalone loader builds
+// from a patch file; -1, with the reason printed, when the load throws or the
+// mixer is not that shape.
+static int file_voice_count(const char* path, const std::string& text) {
+    ScratchPatch file(path, text);
+    int voices = -1;
+    try {
+        auto built = load_patch_file(file.path);
+        if (built.mixer && built.mixer->channels.size() == 1)
+            if (auto* pi = dynamic_cast<PitchedInstrument*>(built.mixer->channels[0].source.get()))
+                voices = int(pi->voicePool.size());
+    }
+    catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
+    return voices;
+}
+
 // The voice pool's size: the file's "polyphony" (4 when the block has none),
-// floored by the caller's minimum; the standalone loader's floor is 0.
+// floored by the caller's minimum; the standalone loader's floor is 0. The
+// rate is the file's "sampleRate", 48000 when it has none.
 static void run_voice_pool_tests() {
-    std::printf("the voice pool: the file's polyphony, the default, the floor\n");
+    std::printf("the voice pool: the file's polyphony, the default, the floor; the default rate\n");
     const char* two = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    const char* six = R"({"sampleRate":48000,"instrument":{"polyphony":6},"graph":{"output":"osc","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
     const char* unstated = R"({"sampleRate":48000,"instrument":{},"graph":{"output":"osc","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    const char* noRate = R"({"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    const char* none = R"({"sampleRate":48000,"instrument":{"polyphony":0},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
     CHECK(load_instrument_patch_json(two, 5).instrument->voicePool.size() == 5);
     CHECK(load_instrument_patch_json(two, 0).instrument->voicePool.size() == 2);
+    CHECK(load_instrument_patch_json(six, 3).instrument->voicePool.size() == 6);   // a floor below is no cut
     CHECK(load_instrument_patch_json(unstated, 0).instrument->voicePool.size() == 4);
-    // The standalone loader reads files only: the patch is written to the
-    // scratch folder and removed.
-    const char* path = "renders/scratch/_voice_pool_two.json";
-    std::filesystem::create_directories("renders/scratch");
-    { std::ofstream f(path); f << two; }
-    size_t voices = 0;
-    try {
-        auto built = load_patch_file(path);
-        if (built.mixer && built.mixer->channels.size() == 1)
-            if (auto* pi = dynamic_cast<PitchedInstrument*>(built.mixer->channels[0].source.get()))
-                voices = pi->voicePool.size();
-    }
+    auto defaultRate = load_instrument_patch_json(noRate);
+    CHECK(defaultRate.sampleRate == 48000);
+    CHECK(defaultRate.instrument->render_context().sampleRate == 48000);
+    CHECK(file_voice_count("renders/scratch/_voice_pool_two.json", two) == 2);
+    // A file asking for no voices gets none: the standalone floor is 0, not 1.
+    CHECK(file_voice_count("renders/scratch/_voice_pool_none.json", none) == 0);
+}
+
+// The streaming voice's gain is the note's velocity times the instrument's
+// pre-clip volume: a streaming caller never passes through render(), so the
+// volume rides along on the voice.
+static void run_voice_gain_tests() {
+    std::printf("the streaming voice's gain: velocity times the instrument's volume\n");
+    const char* one = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    auto ip = load_instrument_patch_json(one);
+    ip.instrument->volume = 0.5f;
+    CHECK(ip.instrument->prepare_voice_at(0, 60.0f, 0.8f, 0.1f).gain == 0.8f * 0.5f);
+    ip.instrument->volume = 1.0f;
+    CHECK(ip.instrument->prepare_voice_at(0, 60.0f, 0.8f, 0.1f).gain == 0.8f);
+}
+
+// The frame count the standalone loader gives a patch file; -1, with the
+// reason printed, when the load throws.
+static int frames_of(const char* path, const char* text) {
+    ScratchPatch file(path, text);
+    int frames = -1;
+    try { frames = load_patch_file(file.path).frames; }
     catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
-    std::filesystem::remove(path);
-    CHECK(voices == 2);
+    return frames;
 }
 
 // The score a patch file carries under "score": performed at load and its end
@@ -1940,17 +1994,7 @@ static void run_embedded_score_tests() {
         CHECK(named);
     }
     // The loader's frame arithmetic: the render covers at least the score, a
-    // larger "seconds" extends it. Each patch is written to the scratch folder
-    // and removed.
-    auto frames_of = [](const char* path, const char* text) {
-        std::filesystem::create_directories("renders/scratch");
-        { std::ofstream f(path); f << text; }
-        int frames = -1;
-        try { frames = load_patch_file(path).frames; }
-        catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
-        std::filesystem::remove(path);
-        return frames;
-    };
+    // larger "seconds" extends it.
     CHECK(frames_of("renders/scratch/_embedded_score_noseconds.json",
         R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
           {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]},
@@ -1963,6 +2007,90 @@ static void run_embedded_score_tests() {
         R"({"sampleRate":48000,"seconds":1,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
           {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]},
           "score":[{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}]})") == 84000);
+}
+
+// The score's end is double arithmetic on the JSON values, and the loader
+// rounds it to frames; a file with neither a score nor "seconds" renders five
+// seconds.
+static void run_embedded_score_end_tests() {
+    std::printf("the embedded score's end: double, rounded to frames, the five-second default\n");
+    const char* plain = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    {
+        auto ip = load_instrument_patch_json(plain);
+        // 0.1 + 0.2 in double is not 0.1f + 0.2f widened.
+        CHECK(play_embedded_score(*ip.instrument, R"([{"note":60,"time":0.1,"duration":0.2}])") == 0.1 + 0.2);
+    }
+    // 1.0000125 s at 48000 is 48000.6 frames: rounded, not truncated.
+    CHECK(frames_of("renders/scratch/_embedded_score_rounding.json",
+        R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]},
+          "score":[{"note":60,"time":0,"duration":1.0000125}]})") == 48001);
+    CHECK(frames_of("renders/scratch/_embedded_score_none.json", plain) == 240000);
+}
+
+// What the embedded score delivers to the instrument, observed on it: where
+// each note starts, the velocity a note without one gets, which notes are
+// phrased, and the open line finished at the end.
+static void run_embedded_score_delivery_tests() {
+    std::printf("the embedded score's delivery: starts, the velocity default, onset-only, the open line\n");
+    const char* plain = R"({"sampleRate":48000,"instrument":{"polyphony":3},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    // A note with no "time" starts where its predecessor ended.
+    {
+        auto ip = load_instrument_patch_json(plain);
+        (void)play_embedded_score(*ip.instrument,
+            R"([{"note":60,"time":0.25,"duration":0.5},{"note":62,"duration":0.25},{"note":64,"duration":0.5}])");
+        const auto& notes = ip.instrument->renderedNotes;
+        const int sr = ip.instrument->render_context().sampleRate;
+        CHECK(notes.size() == 3);
+        CHECK(notes.size() == 3 && notes[0].startSample == int(0.25 * sr)
+              && notes[1].startSample == int(0.75 * sr) && notes[2].startSample == int(1.0 * sr));
+    }
+    // A note with no "velocity" is played at 0.8.
+    {
+        auto delivered = [&](const char* score) {
+            auto ip = load_instrument_patch_json(plain);
+            (void)play_embedded_score(*ip.instrument, score);
+            const auto& notes = ip.instrument->renderedNotes;
+            return notes.size() == 1 ? notes[0].samples : std::vector<float>{};
+        };
+        const auto unstated = delivered(R"([{"note":60,"time":0,"duration":0.25}])");
+        CHECK(!unstated.empty());
+        CHECK(unstated == delivered(R"([{"note":60,"time":0,"duration":0.25,"velocity":0.8}])"));
+        CHECK(unstated != delivered(R"([{"note":60,"time":0,"duration":0.25,"velocity":0.4}])"));
+    }
+    // A note with an onset and no hold is phrased: articulation is refused on
+    // it, and without the articulation it is delivered.
+    {
+        const char* plucked = R"({"sampleRate":48000,"instrument":{"polyphony":1,"onsets":["pluck"]},"graph":{"output":"osc","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+        bool named = false;
+        try {
+            auto ip = load_instrument_patch_json(plucked);
+            (void)play_embedded_score(*ip.instrument,
+                R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck","articulation":{"type":"Staccato"}}])");
+        }
+        catch (const std::exception& e) { named = std::string(e.what()).find("phrased") != std::string::npos; }
+        CHECK(named);
+        auto ip = load_instrument_patch_json(plucked);
+        (void)play_embedded_score(*ip.instrument, R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck"}])");
+        CHECK(ip.instrument->renderedNotes.size() == 1);
+    }
+    // A score ending on a held note leaves no line open: the line reaches the
+    // timeline at the end.
+    {
+        const char* sustaining = R"({"sampleRate":48000,"instrument":{"polyphony":1,"sustaining":true},"graph":{"output":"osc","nodes":[
+          {"id":"env","type":"Envelope","params":{"stages":[
+            {"startVal":0.0,"endVal":1.0,"type":"Linear","percent":0.05},
+            {"startVal":1.0,"endVal":1.0,"type":"Linear","percent":0.0},
+            {"startVal":1.0,"endVal":0.0,"type":"Linear","percent":0.25}]}},
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"env"}}}]}})";
+        auto ip = load_instrument_patch_json(sustaining);
+        (void)play_embedded_score(*ip.instrument,
+            R"([{"note":60,"time":0,"duration":0.5},{"note":62,"duration":0.5,"hold":true}])");
+        CHECK(ip.instrument->renderedNotes.size() == 2);
+    }
 }
 
 // The loader hands the score over as text. Every score block in
@@ -8512,6 +8640,20 @@ struct ReseedProbe final : Generator {
     const char* type_name() const override { return "ReseedProbe"; }
 };
 
+// Whether the standalone loader refuses a patch file with a message holding
+// `needle`; a refusal for another reason is printed.
+static bool file_fails_naming(const char* path, const char* text, const char* needle) {
+    ScratchPatch file(path, text);
+    bool named = false;
+    try { (void)load_patch_file(file.path); }
+    catch (const std::exception& e) {
+        const std::string msg = e.what();
+        if (msg.find(needle) == std::string::npos) std::printf("  load failed for another reason: %s\n", msg.c_str());
+        named = msg.find(needle) != std::string::npos;
+    }
+    return named;
+}
+
 // The review's gaps, the loader's: a refused slot wire says what the slot
 // takes; the deleted branch's alias key is refused by name; a part in every
 // signal position fails the load with its path's message.
@@ -8539,30 +8681,15 @@ static void run_review_gap_tests() {
     const char* partAsVoiceOutput = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"parts","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})";
     CHECK(load_fails_naming(partAsVoiceOutput, "not a signal"));
-    // The standalone loader reads files only: each patch is written to the
-    // scratch folder (made here, since a fresh clone has none) and removed.
-    auto file_fails_naming = [](const char* path, const char* text, const char* needle) {
-        std::filesystem::create_directories("renders/scratch");
-        { std::ofstream f(path); f << text; }
-        bool named = false;
-        try { (void)load_patch_file(path); }
-        catch (const std::exception& e) {
-            const std::string msg = e.what();
-            if (msg.find(needle) == std::string::npos) std::printf("  load failed for another reason: %s\n", msg.c_str());
-            named = msg.find(needle) != std::string::npos;
-        }
-        std::filesystem::remove(path);
-        return named;
-    };
     CHECK(file_fails_naming("renders/scratch/_part_as_output.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"parts","nodes":[{"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})",
-        "a part, not a signal"));
+        "'parts' is a FullPartials, a part, not a signal"));
     CHECK(file_fails_naming("renders/scratch/_part_as_channel.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
           {"id":"ch1","type":"SoundChannel","inputs":{"source":"parts"},"params":{"volume":1.0,"pan":0.0}},
           {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
-        "a part, not a signal"));
+        "'parts' is a FullPartials, a part, not a signal"));
     // a channel as the output, and a channel whose source names no node
     CHECK(file_fails_naming("renders/scratch/_channel_as_output.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"ch1","nodes":[
@@ -8576,22 +8703,19 @@ static void run_review_gap_tests() {
         "No mono source for"));
 }
 
-// A patch the standalone loader reads from the scratch folder (made here, since
-// a fresh clone has none), rendered for its own frame count into `buf`; the
-// file is removed. False, with the reason printed, when the load or the render
-// throws.
+// A patch the standalone loader reads from the scratch folder, rendered for
+// its own frame count into `buf`. False, with the reason printed, when the
+// load or the render throws.
 static bool render_scratch_patch(const char* path, const std::string& text, std::vector<float>& buf) {
-    std::filesystem::create_directories("renders/scratch");
-    { std::ofstream f(path); f << text; }
+    ScratchPatch file(path, text);
     bool rendered = false;
     try {
-        auto p = load_patch_file(path);
+        auto p = load_patch_file(file.path);
         buf.assign(2 * size_t(p.frames), 0.0f);
         p.mixer->render(buf.data(), p.frames);
         rendered = true;
     }
     catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
-    std::filesystem::remove(path);
     return rendered;
 }
 
@@ -8639,6 +8763,47 @@ static void run_channel_source_tests() {
     CHECK(constant);
 }
 
+// The channel adapter is its graph's pull loop: it gives the graph a clock, so
+// a node two consumers pull computes once a sample, and it starts the graph
+// over the buffer. Two channels cannot share a source.
+static void run_channel_clock_tests() {
+    std::printf("the channel adapter: its clock, its start, one source per channel\n");
+    auto product_of = [](const char* nodes, const char* a, const char* b) {
+        return std::string(R"({"sampleRate":48000,"seconds":0.05,"graph":{"output":"mix","nodes":[)") + nodes
+            + R"(,{"id":"prod","type":"CombinedSource","params":{"operation":1,"gainAdj":0.0,"source1":{"ref":")" + a
+            + R"("},"source2":{"ref":")" + b + R"("}}},)"
+            + R"({"id":"ch1","type":"SoundChannel","inputs":{"source":"prod"},"params":{"volume":1.0,"pan":0.0}},)"
+            + R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})";
+    };
+    // One envelope on both inputs renders as two identical envelopes do.
+    std::vector<float> shared, twin;
+    CHECK(render_scratch_patch("renders/scratch/_channel_shared_env.json",
+        product_of(R"({"id":"env","type":"Envelope","params":{"preset":"ar","attack":0.2}})", "env", "env"), shared));
+    CHECK(render_scratch_patch("renders/scratch/_channel_twin_env.json",
+        product_of(R"({"id":"env1","type":"Envelope","params":{"preset":"ar","attack":0.2}},)"
+                   R"({"id":"env2","type":"Envelope","params":{"preset":"ar","attack":0.2}})", "env1", "env2"), twin));
+    CHECK(!shared.empty() && shared.size() == twin.size()
+          && std::memcmp(shared.data(), twin.data(), shared.size() * sizeof(float)) == 0);
+    // The envelope moves across the buffer: it was started over it.
+    bool moves = false;
+    for (size_t i = 2; i < twin.size(); i += 2) moves = moves || twin[i] != twin[0];
+    CHECK(moves);
+    // Two channels naming one source are refused.
+    CHECK(file_fails_naming("renders/scratch/_channels_one_source.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
+          {"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}},
+          {"id":"ch2","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}},
+          {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1","ch2"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
+        "name one source"));
+}
+
+// Whether a mixer signal is a constant of `v` (prepared, not yet rendered:
+// its current value is the constant's).
+static bool is_constant_of(const std::shared_ptr<ValueSource>& s, float v) {
+    return s && std::string(s->type_name()) == "Constant" && s->current() == v;
+}
+
 // The instrument form's mixer is one unity channel: a node named "mix" that
 // nothing consumes puts no gain on it.
 static void run_instrument_mixer_unity_tests() {
@@ -8656,6 +8821,18 @@ static void run_instrument_mixer_unity_tests() {
     bool silent = true;
     for (float s : plain) if (s != 0.0f) silent = false;
     CHECK(!silent);
+    // The mixer itself: one channel, unity gains and volume, centre pan.
+    ScratchPatch file("renders/scratch/_instrument_unity.json", head + "]}}");
+    bool unity = false;
+    try {
+        auto built = load_patch_file(file.path);
+        const auto& m = *built.mixer;
+        unity = m.channels.size() == 1
+             && is_constant_of(m.gainL, 1.0f) && is_constant_of(m.gainR, 1.0f)
+             && is_constant_of(m.channels[0].volume, 1.0f) && is_constant_of(m.channels[0].pan, 0.0f);
+    }
+    catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
+    CHECK(unity);
 }
 
 // The review's gaps, the lifecycle's: parts nested three deep are prepared and
@@ -8930,6 +9107,7 @@ int main() {
     run_menu_content_tests();
     run_review_gap_tests();
     run_channel_source_tests();
+    run_channel_clock_tests();
     run_instrument_mixer_unity_tests();
     run_review_gap_lifecycle_tests();
     run_pin_tests();
@@ -9003,8 +9181,11 @@ int main() {
     run_param_map_unwired_multiplex_tests();
     run_note_reseed_tests();
     run_embedded_score_tests();
+    run_embedded_score_end_tests();
+    run_embedded_score_delivery_tests();
     run_embedded_score_text_tests();
     run_voice_pool_tests();
+    run_voice_gain_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();
     run_name_gate_tests();

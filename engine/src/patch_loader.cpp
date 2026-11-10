@@ -1356,7 +1356,8 @@ static InstrumentPatch build_instrument_json(const json& root, int minPolyphony)
         inst->voicePool.push_back(std::move(vg));
     }
     // The one place this patch's render context is made: the voices learn
-    // the rate here, once, before any note is played.
+    // the rate here, before any note is played. A host's mixer may prepare
+    // the instrument again with the same rate, which changes nothing.
     inst->prepare(RenderContext{sampleRate});
 
     return {std::move(inst), sampleRate};
@@ -1445,9 +1446,7 @@ BuiltSound load_patch_file(const std::string& path)
     // (CombineTest, ks_morph_*, mux_*). The instrument path above already
     // auto-wraps a bare output in a unity channel; this does the same for the
     // standard path so the two agree. Unity volume + centre pan matches the
-    // instrument path exactly rather than inventing a second convention —
-    // note that centre pan is equal-power, so this inherits the -3dB
-    // CLI-vs-UI level difference that is backlog item 3d.
+    // instrument path exactly rather than inventing a second convention.
     if (outIt->second.at("type").get<std::string>() != "StereoMixer") {
         auto it = graphNodes.find(outputId);
         if (it == graphNodes.end())
@@ -1472,6 +1471,10 @@ BuiltSound load_patch_file(const std::string& path)
 
     const auto& chIds = outIt->second.at("inputs").at("channels");
 
+    // Each channel's adapter is its own pull loop with its own clock. A node
+    // two adapters prepare follows only the second one's clock, so the first
+    // channel would render one held sample: a source feeds one channel.
+    std::unordered_map<std::string, std::string> channelOfSource;
     for (const auto& chIdVal : chIds) {
         std::string chId = chIdVal.get<std::string>();
         const auto& chNode = nodeMap.at(chId);
@@ -1496,6 +1499,10 @@ BuiltSound load_patch_file(const std::string& path)
         auto it = graphNodes.find(srcId);
         if (it == graphNodes.end())
             throw std::runtime_error("No mono source for: " + srcId);
+        const auto [taken, fresh] = channelOfSource.emplace(srcId, chId);
+        if (!fresh)
+            throw std::runtime_error("channels '" + taken->second + "' and '" + chId + "' name one source '"
+                                     + srcId + "': a source feeds one channel");
 
         ch.source = std::make_unique<ValueSourceMono>(as_signal(it->second, srcId));
         mixer->channels.push_back(std::move(ch));

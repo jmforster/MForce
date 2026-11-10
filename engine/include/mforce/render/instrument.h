@@ -621,11 +621,11 @@ struct PitchedInstrument final : Instrument {
       hold = false;
     }
 
-    // The voice-mix gain is per-voice and fixed for the line (its first
-    // note's velocity): it cannot change mid-buffer without a zipper.
-    // Later notes' velocity still reaches the graph through the velocity
-    // face for patches that wire it (the winds do — velocity IS the
-    // breath there).
+    // The voice-mix gain is the note's velocity. For a held line it is
+    // per-voice and fixed for the line (its first note's velocity): it
+    // cannot change mid-buffer without a zipper. Later notes' velocity still
+    // reaches the graph through the velocity face for patches that wire it
+    // (the winds do — velocity IS the breath there).
     float gain = pn.velocity;
 
     // --- 2. Fresh held voice ---------------------------------------------
