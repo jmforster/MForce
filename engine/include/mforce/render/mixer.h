@@ -46,12 +46,12 @@ struct Channel {
   std::shared_ptr<ValueSource> pan; // [-1,1]
 };
 
-struct StereoMixer {
+struct Mixer {
   std::vector<Channel> channels;
   std::shared_ptr<ValueSource> gainL;
   std::shared_ptr<ValueSource> gainR;
 
-  StereoMixer();
+  Mixer();
   // Once, after the channels are assembled: the gains, volumes, pans and
   // sources learn the rate; the gains, volumes and pans also learn this
   // mixer's clock (a channel's source is its own pull loop and completes

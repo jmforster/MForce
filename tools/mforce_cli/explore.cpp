@@ -370,8 +370,8 @@ int run_explore(int argc, char** argv) {
                     }
                     stats = compute_all_stats(mono.data(), frames, sr);
                 } else {
-                    // Render-style: existing path via StereoMixer.
-                    Patch p = load_patch_file(patchPath.string());
+                    // Render-style: existing path via Mixer.
+                    BuiltSound p = load_patch_file(patchPath.string());
                     sr     = p.sampleRate;
                     frames = p.frames;
                     out.resize(size_t(frames) * 2);

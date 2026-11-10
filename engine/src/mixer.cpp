@@ -5,11 +5,11 @@
 
 namespace mforce {
 
-StereoMixer::StereoMixer()
+Mixer::Mixer()
 : gainL(std::make_shared<ConstantSource>(1.0f))
 , gainR(std::make_shared<ConstantSource>(1.0f)) {}
 
-void StereoMixer::prepare(const RenderContext& ctx) {
+void Mixer::prepare(const RenderContext& ctx) {
   ctx_ = ctx.with_clock(&clock_);
   gainL->prepare(ctx_);
   gainR->prepare(ctx_);
@@ -20,7 +20,7 @@ void StereoMixer::prepare(const RenderContext& ctx) {
   }
 }
 
-void StereoMixer::render(float* outLR, int frames) {
+void Mixer::render(float* outLR, int frames) {
   std::fill(outLR, outLR + frames*2, 0.0f);
 
   gainL->start(frames);

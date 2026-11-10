@@ -6,13 +6,13 @@
 
 namespace mforce {
 
-struct Patch {
+struct BuiltSound {
   int sampleRate{48000};
   int frames{48000*5};
-  std::unique_ptr<StereoMixer> mixer;
+  std::unique_ptr<Mixer> mixer;
 };
 
-Patch load_patch_file(const std::string& path);
+BuiltSound load_patch_file(const std::string& path);
 
 // Load a PitchedInstrument from a patch JSON (no score, no mixer wiring).
 // Returns the instrument + sampleRate for external use (e.g. Conductor).

@@ -1362,20 +1362,20 @@ static InstrumentPatch build_instrument_json(const json& root, int minPolyphony)
     return {std::move(inst), sampleRate};
 }
 
-Patch load_patch_file(const std::string& path)
+BuiltSound load_patch_file(const std::string& path)
 {
     json root = json::parse(slurp(path));
 
-    Patch patch;
+    BuiltSound built;
 
     int sampleRate = root.value("sampleRate", 48000);
-    patch.sampleRate = sampleRate;
+    built.sampleRate = sampleRate;
 
     if (root.contains("seconds")) {
         double seconds = root["seconds"].get<double>();
-        patch.frames = static_cast<int>(std::lround(seconds * sampleRate));
+        built.frames = static_cast<int>(std::lround(seconds * sampleRate));
     } else {
-        patch.frames = root.value("frames", sampleRate * 5);
+        built.frames = root.value("frames", sampleRate * 5);
     }
 
     // -------------------------------------------------------------------
@@ -1393,13 +1393,13 @@ Patch load_patch_file(const std::string& path)
             // reverbs finish past the last note instead of clipping at the
             // buffer edge.
             int scoreFrames = int(std::lround(end * sampleRate));
-            patch.frames = root.contains("seconds")
-                ? std::max(patch.frames, scoreFrames)
+            built.frames = root.contains("seconds")
+                ? std::max(built.frames, scoreFrames)
                 : scoreFrames;
         }
 
         // Wire instrument into mixer
-        auto mixer = std::make_unique<StereoMixer>();
+        auto mixer = std::make_unique<Mixer>();
 
         Channel ch;
         ch.source = std::move(inst);
@@ -1408,8 +1408,8 @@ Patch load_patch_file(const std::string& path)
 
         mixer->channels.push_back(std::move(ch));
         mixer->prepare(RenderContext{sampleRate});
-        patch.mixer = std::move(mixer);
-        return patch;
+        built.mixer = std::move(mixer);
+        return built;
     }
 
     // -------------------------------------------------------------------
@@ -1438,7 +1438,7 @@ Patch load_patch_file(const std::string& path)
     if (outIt == nodeMap.end())
         throw std::runtime_error("graph.output not found");
 
-    auto mixer = std::make_unique<StereoMixer>();
+    auto mixer = std::make_unique<Mixer>();
 
     // A bare mono source as graph.output used to be a hard error, which made
     // seven patches unrenderable from the CLI while working fine in the UI
@@ -1460,8 +1460,8 @@ Patch load_patch_file(const std::string& path)
         ch.source = std::make_unique<ValueSourceMono>(as_signal(it->second, outputId));
         mixer->channels.push_back(std::move(ch));
         mixer->prepare(RenderContext{sampleRate});
-        patch.mixer = std::move(mixer);
-        return patch;
+        built.mixer = std::move(mixer);
+        return built;
     }
 
     if (outIt->second.contains("params")) {
@@ -1502,8 +1502,8 @@ Patch load_patch_file(const std::string& path)
     }
 
     mixer->prepare(RenderContext{sampleRate});
-    patch.mixer = std::move(mixer);
-    return patch;
+    built.mixer = std::move(mixer);
+    return built;
 }
 
 // ---------------------------------------------------------------------------

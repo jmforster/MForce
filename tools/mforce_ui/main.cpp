@@ -3417,7 +3417,7 @@ static float g_streamVelocity = 0.5f;
 
 // Node-graph stereo stream (Channel → Mixer graphs, no instrument block).
 // Raw taps into the UI's in-memory DSP graph, pulled per-sample by the audio
-// callback with engine StereoMixer::render semantics (volume, equal-power
+// callback with engine Mixer::render semantics (volume, equal-power
 // pan, gainL/gainR, soft_clip at the mix). Because these are the same live
 // objects the Properties panel mutates (constantSrc->set / update_node_dsp),
 // parameter tweaks during streaming are audible immediately — identical to
@@ -3699,7 +3699,7 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
         float sR = s;
 
         // Node-graph stereo stream: per-sample mirror of the engine's
-        // StereoMixer::render (mixer.cpp) — channel volume, equal-power pan,
+        // Mixer::render (mixer.cpp) — channel volume, equal-power pan,
         // master gainL/gainR, soft_clip at the mix. Mixer output is already
         // stereo, so it lands directly on L/R with no extra panning.
         if (!g_streamChannels.empty()) {

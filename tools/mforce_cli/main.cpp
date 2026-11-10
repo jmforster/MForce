@@ -28,7 +28,7 @@
 
 // After a render: one line per node that reported a fault, or nothing.
 // After a render: what the nodes reported, one line per node id, cleared as
-// read. The host is an Instrument or the patch's StereoMixer.
+// read. The host is an Instrument or the patch's Mixer.
 template <class Host>
 static void report_faults(Host& host) {
     std::vector<mforce::FaultReport> faults;
@@ -784,7 +784,7 @@ static int run_patch(int argc, char** argv) {
     // lands here and the render timer only sees mixing. Stage-1 profiling
     // (run 8) chased a phantom 25x speedup for exactly this reason.
     auto _l0 = std::chrono::steady_clock::now();
-    Patch p = load_patch_file(patchPath);
+    BuiltSound p = load_patch_file(patchPath);
     auto _l1 = std::chrono::steady_clock::now();
     double _loadMs = std::chrono::duration<double, std::milli>(_l1 - _l0).count();
 

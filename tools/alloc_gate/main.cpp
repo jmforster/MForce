@@ -131,9 +131,9 @@ Result gate_instrument(const fs::path& path, const json& root) {
 
 // A mixer-mode graph: each channel's source is a pull loop of its own whose
 // render starts the graph and pulls it once per sample (the loader's
-// adapters). The mix itself — StereoMixer::render, with its scratch buffer —
+// adapters). The mix itself — Mixer::render, with its scratch buffer —
 // is the offline host's and is not armed.
-Result gate_mixer(Patch& p) {
+Result gate_mixer(BuiltSound& p) {
     Result r;
     std::vector<float> mono(size_t(p.frames), 0.0f);
     alloc_probe::reset();
@@ -149,7 +149,7 @@ Result gate_one(const fs::path& path) {
     try {
         const json root = json::parse(slurp(path));
         if (root.contains("instrument")) return gate_instrument(path, root);
-        Patch p = load_patch_file(path.string());          // unarmed: the mixer-mode graph, prepared
+        BuiltSound p = load_patch_file(path.string());          // unarmed: the mixer-mode graph, prepared
         return gate_mixer(p);
     } catch (const std::exception& e) {
         Result r;
