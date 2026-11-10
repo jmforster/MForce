@@ -1868,6 +1868,34 @@ static void run_note_reseed_tests() {
 #include "mforce/render/embedded_score.h"
 #include <filesystem>
 
+// The voice pool's size: the file's "polyphony" (4 when the block has none),
+// floored by the caller's minimum; the standalone loader's floor is 0.
+static void run_voice_pool_tests() {
+    std::printf("the voice pool: the file's polyphony, the default, the floor\n");
+    const char* two = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    const char* unstated = R"({"sampleRate":48000,"instrument":{},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    CHECK(load_instrument_patch_json(two, 5).instrument->voicePool.size() == 5);
+    CHECK(load_instrument_patch_json(two, 0).instrument->voicePool.size() == 2);
+    CHECK(load_instrument_patch_json(unstated, 0).instrument->voicePool.size() == 4);
+    // The standalone loader reads files only: the patch is written to the
+    // scratch folder and removed.
+    const char* path = "renders/scratch/_voice_pool_two.json";
+    std::filesystem::create_directories("renders/scratch");
+    { std::ofstream f(path); f << two; }
+    size_t voices = 0;
+    try {
+        auto built = load_patch_file(path);
+        if (built.mixer && built.mixer->channels.size() == 1)
+            if (auto* pi = dynamic_cast<PitchedInstrument*>(built.mixer->channels[0].source.get()))
+                voices = pi->voicePool.size();
+    }
+    catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
+    std::filesystem::remove(path);
+    CHECK(voices == 2);
+}
+
 // The score a patch file carries under "score": performed at load and its end
 // returned in seconds; the loader turns the end into the frame count.
 static void run_embedded_score_tests() {
@@ -8881,6 +8909,7 @@ int main() {
     run_note_reseed_tests();
     run_embedded_score_tests();
     run_embedded_score_text_tests();
+    run_voice_pool_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();
     run_name_gate_tests();

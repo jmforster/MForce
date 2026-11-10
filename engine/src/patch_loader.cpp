@@ -1290,6 +1290,111 @@ static void attach_perform_source(const json& instJson, const GraphResult& g,
 // Patch loading
 // ---------------------------------------------------------------------------
 
+// The file's nodes by id, their order in the file, and the id the graph
+// names as its output.
+struct IndexedGraph {
+    std::unordered_map<std::string, json> nodeMap;
+    std::vector<std::string> nodeOrder;
+    std::string outputId;
+};
+
+static IndexedGraph index_graph(const json& root)
+{
+    IndexedGraph ig;
+    const json& graph = root.at("graph");
+    const json& nodes = graph.at("nodes");
+    ig.outputId = graph.at("output").get<std::string>();
+
+    // Index nodes by id
+    for (const auto& n : nodes) {
+        std::string id = n.at("id").get<std::string>();
+        ig.nodeMap.emplace(id, n);
+        ig.nodeOrder.push_back(id);
+    }
+    return ig;
+}
+
+// The instrument a patch file's "instrument" block describes: the block read,
+// then the voice pool, each voice its own instance of the graph. The caller
+// has checked that the block is there. minPolyphony floors the pool's size;
+// 0 keeps the file's own "polyphony".
+static InstrumentPatch build_instrument_json(const json& root, int minPolyphony)
+{
+    int sampleRate = root.value("sampleRate", 48000);
+
+    const IndexedGraph ig = index_graph(root);
+    const auto& nodeMap   = ig.nodeMap;
+    const auto& nodeOrder = ig.nodeOrder;
+    const auto& outputId  = ig.outputId;
+
+    const auto& instJson = root.at("instrument");
+    int polyphony = std::max(instJson.value("polyphony", 4), minPolyphony);
+
+    auto inst = std::make_unique<PitchedInstrument>();
+    // Pre-clip master gain (applied before the soft_clip peak guard, so it
+    // is the right knob for keeping hot chains out of the clipper).
+    inst->volume = instJson.value("volume", 1.0f);
+    if (instJson.contains("onsets"))
+        inst->onsetNames =
+            instJson["onsets"].get<std::vector<std::string>>();
+    // Legato retune time (spec 2026-09-20-note-onsets-v2 §4.1).
+    inst->glideSec = instJson.value("glideMs", 15.0f) / 1000.0f;
+    inst->sustaining = instJson.value("sustaining", false);   // §2
+    if (instJson.value("release", 0.0f) != 0.0f)
+        std::fprintf(stderr, "[loader] instrument.release retired "
+                     "(note-contained sound 2026-08-13); ignored\n");
+
+    // Build voice pool: N independent graph instances
+    for (int v = 0; v < polyphony; ++v) {
+        PitchedInstrument::VoiceGraph vg;
+        PerformContext perf = make_perform_context(
+            vg, inst->instrumentState);
+        auto g = build_graph(nodeMap, nodeOrder, &perf,
+                             &inst->onsetNames);
+
+        // Find the top-level source for this voice
+        auto srcIt = g.nodes.find(outputId);
+        if (srcIt == g.nodes.end())
+            throw std::runtime_error("instrument: output node '" + outputId + "' not found");
+        vg.source = as_signal(srcIt->second, outputId);
+
+        // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6):
+        // envelopes with a wired trigger restart at matching Setups.
+        // allEnvelopes (§4/§5): the whole population, for hold-gating
+        // and release re-layout.
+        for (auto& [nid, src] : g.nodes)
+            if (auto* env = dynamic_cast<Envelope*>(src.get())) {
+                vg.allEnvelopes.push_back(env);
+                if (env->trigger.source) vg.triggerBindings.push_back(env);
+            }
+
+        // If the voice's output is a MultiplexSource, capture it so play_note
+        // can fan paramMap changes into each clone.
+        vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
+
+        // Per-voice PerformSource + converted paramMap bindings
+        attach_perform_source(instJson, g, vg);
+        // Legacy paramMap first, then wiring format: a patch carrying both
+        // resolves its legacy entries exactly as today and the wiring pass
+        // appends. No gated patch carries both; the order is fixed so a
+        // hybrid, if one ever appears, is deterministic.
+        bind_wiring(nodeMap, nodeOrder, g, vg);
+        // Loop tails consumed only by tap edges: the voice ticks these
+        // after the root pull (feedback_loop_design.md §3.3).
+        for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
+            vg.advanceList.push_back(as_signal(g.nodes.at(aid), aid));
+
+        adopt_nodes(vg, g);
+
+        inst->voicePool.push_back(std::move(vg));
+    }
+    // The one place this patch's render context is made: the voices learn
+    // the rate here, once, before any note is played.
+    inst->prepare(RenderContext{sampleRate});
+
+    return {std::move(inst), sampleRate};
+}
+
 Patch load_patch_file(const std::string& path)
 {
     json root = json::parse(slurp(path));
@@ -1306,86 +1411,16 @@ Patch load_patch_file(const std::string& path)
         patch.frames = root.value("frames", sampleRate * 5);
     }
 
-    const json& graph = root.at("graph");
-    const json& nodes = graph.at("nodes");
-    std::string outputId = graph.at("output").get<std::string>();
-
-    // Index nodes by id
-    std::unordered_map<std::string, json> nodeMap;
-    std::vector<std::string> nodeOrder;
-    for (const auto& n : nodes) {
-        std::string id = n.at("id").get<std::string>();
-        nodeMap.emplace(id, n);
-        nodeOrder.push_back(id);
-    }
+    const IndexedGraph ig = index_graph(root);
+    const auto& nodeMap   = ig.nodeMap;
+    const auto& nodeOrder = ig.nodeOrder;
+    const auto& outputId  = ig.outputId;
 
     // -------------------------------------------------------------------
     // PitchedInstrument mode: build voices, schedule notes
     // -------------------------------------------------------------------
     if (root.contains("instrument")) {
-        const auto& instJson = root["instrument"];
-        int polyphony = instJson.value("polyphony", 4);
-
-        auto inst = std::make_unique<PitchedInstrument>();
-        // Pre-clip master gain (applied before the soft_clip peak guard, so it
-        // is the right knob for keeping hot chains out of the clipper).
-        inst->volume = instJson.value("volume", 1.0f);
-        if (instJson.contains("onsets"))
-            inst->onsetNames =
-                instJson["onsets"].get<std::vector<std::string>>();
-        // Legato retune time (spec 2026-09-20-note-onsets-v2 §4.1).
-        inst->glideSec = instJson.value("glideMs", 15.0f) / 1000.0f;
-        inst->sustaining = instJson.value("sustaining", false);   // §2
-        if (instJson.value("release", 0.0f) != 0.0f)
-            std::fprintf(stderr, "[loader] instrument.release retired "
-                         "(note-contained sound 2026-08-13); ignored\n");
-
-        // Build voice pool: N independent graph instances
-        for (int v = 0; v < polyphony; ++v) {
-            PitchedInstrument::VoiceGraph vg;
-            PerformContext perf = make_perform_context(
-                vg, inst->instrumentState);
-            auto g = build_graph(nodeMap, nodeOrder, &perf,
-                                 &inst->onsetNames);
-
-            // Find the top-level source for this voice
-            auto srcIt = g.nodes.find(outputId);
-            if (srcIt == g.nodes.end())
-                throw std::runtime_error("instrument: output node '" + outputId + "' not found");
-            vg.source = as_signal(srcIt->second, outputId);
-
-            // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6):
-            // envelopes with a wired trigger restart at matching Setups.
-            // allEnvelopes (§4/§5): the whole population, for hold-gating
-            // and release re-layout.
-            for (auto& [nid, src] : g.nodes)
-                if (auto* env = dynamic_cast<Envelope*>(src.get())) {
-                    vg.allEnvelopes.push_back(env);
-                    if (env->trigger.source) vg.triggerBindings.push_back(env);
-                }
-
-            // If the voice's output is a MultiplexSource, capture it so play_note
-            // can fan paramMap changes into each clone.
-            vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
-
-            // Per-voice PerformSource + converted paramMap bindings
-            attach_perform_source(instJson, g, vg);
-            // Legacy paramMap first, then wiring format: a patch carrying both
-            // resolves its legacy entries exactly as today and the wiring pass
-            // appends. No gated patch carries both; the order is fixed so a
-            // hybrid, if one ever appears, is deterministic.
-            bind_wiring(nodeMap, nodeOrder, g, vg);
-            // Loop tails consumed only by tap edges: the voice ticks these
-            // after the root pull (feedback_loop_design.md §3.3).
-            for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
-                vg.advanceList.push_back(as_signal(g.nodes.at(aid), aid));
-            adopt_nodes(vg, g);
-
-            inst->voicePool.push_back(std::move(vg));
-        }
-        // The one place this patch's render context is made: the voices learn
-        // the rate here, before the embedded score plays a note.
-        inst->prepare(RenderContext{sampleRate});
+        auto inst = build_instrument_json(root, 0).instrument;
 
         // The embedded score is performed and its end in seconds returned;
         // it is handed over as the JSON text of the "score" array.
@@ -1533,72 +1568,10 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
 {
     json root = json::parse(jsonText);
 
-    int sampleRate = root.value("sampleRate", 48000);
-
     if (!root.contains("instrument"))
         throw std::runtime_error("Patch has no 'instrument' section");
 
-    const json& graph = root.at("graph");
-    const json& nodes = graph.at("nodes");
-    std::string outputId = graph.at("output").get<std::string>();
-
-    std::unordered_map<std::string, json> nodeMap;
-    std::vector<std::string> nodeOrder;
-    for (const auto& n : nodes) {
-        std::string id = n.at("id").get<std::string>();
-        nodeMap.emplace(id, n);
-        nodeOrder.push_back(id);
-    }
-
-    const auto& instJson = root["instrument"];
-    int polyphony = std::max(instJson.value("polyphony", 4), minPolyphony);
-
-    auto inst = std::make_unique<PitchedInstrument>();
-    inst->volume = instJson.value("volume", 1.0f);
-    if (instJson.contains("onsets"))
-        inst->onsetNames =
-            instJson["onsets"].get<std::vector<std::string>>();
-    inst->glideSec = instJson.value("glideMs", 15.0f) / 1000.0f;
-    inst->sustaining = instJson.value("sustaining", false);
-    if (instJson.value("release", 0.0f) != 0.0f)
-        std::fprintf(stderr, "[loader] instrument.release retired "
-                     "(note-contained sound 2026-08-13); ignored\n");
-
-    for (int v = 0; v < polyphony; ++v) {
-        PitchedInstrument::VoiceGraph vg;
-        PerformContext perf = make_perform_context(
-            vg, inst->instrumentState);
-        auto g = build_graph(nodeMap, nodeOrder, &perf,
-                             &inst->onsetNames);
-
-        auto srcIt = g.nodes.find(outputId);
-        if (srcIt == g.nodes.end())
-            throw std::runtime_error("instrument: output node '" + outputId + "' not found");
-        vg.source = as_signal(srcIt->second, outputId);
-
-        // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6) +
-        // allEnvelopes (§4/§5) — see the render-path twin above.
-        for (auto& [nid, src] : g.nodes)
-            if (auto* env = dynamic_cast<Envelope*>(src.get())) {
-                vg.allEnvelopes.push_back(env);
-                if (env->trigger.source) vg.triggerBindings.push_back(env);
-            }
-
-        vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
-
-        attach_perform_source(instJson, g, vg);
-        bind_wiring(nodeMap, nodeOrder, g, vg);
-        // Loop tails consumed only by tap edges (see render-path twin above).
-        for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
-            vg.advanceList.push_back(as_signal(g.nodes.at(aid), aid));
-
-        adopt_nodes(vg, g);
-
-        inst->voicePool.push_back(std::move(vg));
-    }
-    inst->prepare(RenderContext{sampleRate});   // the voices learn the rate once, here
-
-    return {std::move(inst), sampleRate};
+    return build_instrument_json(root, minPolyphony);
 }
 
 InstrumentPatch load_instrument_patch(const std::string& path,
