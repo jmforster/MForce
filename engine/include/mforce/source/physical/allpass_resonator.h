@@ -35,8 +35,8 @@ namespace mforce {
 // the loop delay.
 //
 // Per-note behavior: frequency captured at first next() after start()
-// (lazy init, WavetableSource convention); paramMap can retune `frequency`
-// and drive any config per note via frequency->curve entries.
+// (lazy init, WavetableSource convention); a wired note frequency retunes
+// it, and a dynamic pin fed by a frequency curve can drive a config per note.
 // Real-time safe: buffer allocated at construction (sized for ~12 Hz at
 // 48k); start() zero-fills only; next() allocates nothing.
 // ---------------------------------------------------------------------------

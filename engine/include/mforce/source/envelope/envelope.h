@@ -58,8 +58,8 @@ struct Envelope : Generator {
   // ADSR shape; a no-op on any other shape.
   Setting<float> sustainLevel  {this, "sustainLevel",   0.7f, 0.0f, 1.0f};
   // Keyboard tracking of envelope times (classic synth env-KBD-track):
-  // multiplies every stage duration. paramMap-able per note, so a hit
-  // envelope can shorten with pitch (treble hammers contact shorter).
+  // multiplies every stage duration. A dynamic pin drives it per note, so a
+  // hit envelope can shorten with pitch (treble hammers contact shorter).
   Setting<float> timeScale     {this, "timeScale",      1.0f, 0.01f, 10.0f};
 
   Envelope() = default;
@@ -207,8 +207,8 @@ struct Envelope : Generator {
 
   // The knobs clamp to their declared range; sustainLevel is the live
   // rewrite: decay endVal, expand start/end and release startVal all carry
-  // the sustain value, so paramMap can drive sustainLevel per note
-  // (frequency curves). Accepted for adsr-preset envelopes AND for
+  // the sustain value, so a dynamic pin can drive sustainLevel per note
+  // (a frequency curve). Accepted for adsr-preset envelopes AND for
   // stage-form envelopes whose shape satisfies the exact invariant the
   // rewrite relies on — a preset adsr re-saved as stages (UI roundtrip)
   // must not silently kill its residue curve (3n, v6 res_curve patches:

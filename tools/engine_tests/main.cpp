@@ -668,7 +668,7 @@ static void run_curve_node_tests() {
     CHECK_NEAR(lin.map(1.0f),  1.6f, 1e-6f);   // clamp high
     CHECK_NEAR(lin.map(0.925f), 1.3f, 1e-3f);  // midpoint of last segment
 
-    // LogX (default paramMap curve semantics): value linear in log(x)
+    // LogX (a frequency curve's usual interp): value linear in log(x)
     CurveNode logx; logx.interp = CurveNode::CurveInterp::LogX;
     logx.knots = {{100.0f, 0.0f}, {10000.0f, 2.0f}};
     CHECK_NEAR(logx.map(1000.0f), 1.0f, 1e-4f);  // geometric midpoint
@@ -1425,10 +1425,10 @@ static InstrumentPatch load_scoreless(const char* path) {
 
 // A minimal sustaining patch: percent-mode adsr (attack 5%, decay 10%,
 // expand, release 25%) into a sine whose frequency is WIRED to the Note
-// node. The wire matters: a legacy paramMap delivers frequency by a PUSH
-// evaluated once at Setup, which freezes a glide at its first value —
-// only pulled frequency chains (what every taught wind patch uses) see
-// the ramp. %s = the instrument block's glideMs.
+// node. The wire matters: a value pushed once at Setup (a dynamic pin)
+// would freeze a glide at its first value — only pulled frequency chains
+// (what every taught wind patch uses) see the ramp. %s = the instrument
+// block's glideMs.
 static std::string hold_patch_json(float glideMs) {
     char buf[1400];
     std::snprintf(buf, sizeof(buf), R"({
@@ -1615,10 +1615,10 @@ static void run_hold_delivery_tests() {
     }
 }
 
-// Renders notes 60 and 72 of an instrument patch whose paramMap drives `osc`'s
+// Renders notes 60 and 72 of an instrument patch whose Note node drives `osc`'s
 // frequency: the load must succeed, the output be finite and audible, and the
 // octave double the zero crossings, so the note's pitch reached the oscillator.
-static void check_param_map_pitch_reaches_osc(const std::string& patch) {
+static void check_note_pitch_reaches_osc(const std::string& patch) {
     const int n = 12000;
     auto render = [&](float midi) {
         auto ip = load_instrument_patch_json(patch);
@@ -1649,26 +1649,24 @@ static void check_param_map_pitch_reaches_osc(const std::string& patch) {
     CHECK(ratio > 1.8f && ratio < 2.2f);       // an octave up doubles the frequency
 }
 
-// A paramMap target on a param the patch leaves unwired loads and binds: the
-// loader gives the pin a constant to drive, and the note's pitch reaches it.
-static void run_param_map_unwired_pin_tests() {
-    check_param_map_pitch_reaches_osc(R"({
+// A Note node wired to an oscillator's frequency carries the note's pitch to
+// it; and the same wire inside a MultiplexSource's template, where each of
+// the three clones builds its own copy of the Note node, which reads the
+// voice's pitch, so the pitch reaches every clone.
+static void run_note_wire_tests() {
+    check_note_pitch_reaches_osc(R"({
       "sampleRate": 48000,
-      "instrument": { "polyphony": 2, "paramMap": { "frequency": "osc.frequency" } },
-      "graph": { "output": "osc",
-        "nodes": [ { "id": "osc", "type": "SineSource", "params": { "phase": 0.0 } } ] }
+      "instrument": { "polyphony": 2 },
+      "graph": { "output": "osc", "nodes": [
+        { "id": "pf", "type": "PerformNode", "params": { "field": "frequency" } },
+        { "id": "osc", "type": "SineSource", "params": { "frequency": { "ref": "pf" }, "phase": 0.0 } } ] }
     })");
-}
-
-// The same target under a MultiplexSource: the clones are built from the
-// template JSON, so each clone's unwired pin gets its constant when the
-// per-note push fans out, and the pitch reaches every clone.
-static void run_param_map_unwired_multiplex_tests() {
-    check_param_map_pitch_reaches_osc(R"({
+    check_note_pitch_reaches_osc(R"({
       "sampleRate": 48000,
-      "instrument": { "polyphony": 2, "paramMap": { "frequency": "osc.frequency" } },
+      "instrument": { "polyphony": 2 },
       "graph": { "output": "mux", "nodes": [
-        { "id": "osc", "type": "SineSource", "params": { "phase": 0.0 } },
+        { "id": "pf", "type": "PerformNode", "params": { "field": "frequency" } },
+        { "id": "osc", "type": "SineSource", "params": { "frequency": { "ref": "pf" }, "phase": 0.0 } },
         { "id": "mux", "type": "MultiplexSource",
           "params": { "count": 3, "source": { "ref": "osc" } } } ] }
     })");
@@ -7440,7 +7438,7 @@ static void run_allocation_tests_tables() {
 }
 
 // The remaining families: the hybrid table, the stage, segment and basic
-// additive nodes, the Multiplex push delivery.
+// additive nodes, a Multiplex voice whose clones read the voice's pitch.
 static void run_allocation_tests_nodes() {
     // HybridKSSource: the table is reserved at prepare for the floor, the
     // partial arrays sized with the targets; a short hold so the transition
@@ -7469,10 +7467,11 @@ static void run_allocation_tests_nodes() {
     CHECK(allocations_in_one_note(segment) == 0);
     CHECK(allocations_in_one_note(segment, 48.0f) == 0);
 
-    // A Multiplex voice's push delivery: the paramMap fan-out into the clones
-    // at note-on writes a slot registered at prepare, allocating nothing.
-    const char* multiplex = R"({"sampleRate":48000,"instrument":{"paramMap":{"frequency":"Var1.val"},"polyphony":2},"graph":{"output":"Multiplex1","nodes":[
-      {"id":"Var1","type":"VarSource","params":{"absolute":true,"val":1.0,"varPct":0.0}},
+    // A note on a Multiplex voice whose clones read the voice's pitch (each
+    // clone's Note node wired to Var1.val) allocates nothing.
+    const char* multiplex = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"Multiplex1","nodes":[
+      {"id":"__perf_freq","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"Var1","type":"VarSource","params":{"absolute":true,"val":{"ref":"__perf_freq"},"varPct":0.0}},
       {"id":"Triangle1","type":"TriangleSource","params":{"amplitude":0.5,"frequency":{"ref":"Var1"}}},
       {"id":"Multiplex1","type":"MultiplexSource","params":{"count":4,"source":{"ref":"Triangle1"}}}]}})";
     CHECK(allocations_in_one_note(multiplex) == 0);
@@ -7591,9 +7590,9 @@ static void run_structural_setting_tests() {
     }
 }
 
-// The loader refuses a per-note push into a structural setting — the legacy
-// paramMap's and the wiring format's dynamic pin — naming the node, the
-// setting and the reason; a value setting still takes one.
+// The loader refuses a per-note push into a structural setting — the wiring
+// format's dynamic pin — naming the node, the setting and the reason; a value
+// setting still takes one.
 // A load that fails for the reason the needle names; another reason is
 // printed, so a test that expected one refusal and got another says so.
 static bool load_fails_naming(const char* patch, const char* needle) {
@@ -7613,16 +7612,6 @@ static void run_structural_push_refusal_tests() {
         try { (void)load_instrument_patch_json(patch); return true; }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
     };
-    // The legacy paramMap into a shaping float (refused) and a value float (taken).
-    const char* pushShaping = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{"frequency":["add.frequency","parts.evenWeight1"]}},"graph":{"output":"add","nodes":[
-      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
-      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
-    CHECK(load_fails_naming(pushShaping, "parts.evenWeight1"));
-    CHECK(load_fails_naming(pushShaping, "structural"));
-    const char* pushValue = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{"frequency":["add.frequency","parts.rolloff1"]}},"graph":{"output":"add","nodes":[
-      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
-      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
-    CHECK(loads(pushValue));
     // The wiring format's dynamic pin into a shaping float (refused), an int
     // (refused: structural by type) and a value float (taken).
     const char* pinShaping = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
@@ -7641,6 +7630,95 @@ static void run_structural_push_refusal_tests() {
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4},"dynamicPins":{"decayRate":{"ref":"pf"}}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
     CHECK(loads(pinValue));
+}
+
+// An instrument block that carries a paramMap is refused by name, through the
+// text entry point and the file entry point alike, and the message names the
+// converter that rewrites it; an empty map is refused too. The same document
+// without the key loads.
+static void run_param_map_refusal_tests() {
+    std::printf("instrument.paramMap: refused by name, naming the converter\n");
+    const char* withMap = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{"frequency":"osc.frequency"}},"graph":{"output":"osc","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"osc","type":"SineSource","params":{"amplitude":0.5}}]}})";
+    const char* emptyMap = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{}},"graph":{"output":"osc","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5}}]}})";
+    const char* without = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5}}]}})";
+    CHECK(load_fails_naming(withMap, "paramMap"));
+    CHECK(load_fails_naming(withMap, "tools/convert_patch.py"));
+    CHECK(load_fails_naming(emptyMap, "paramMap"));
+    CHECK(load_fails_naming(emptyMap, "tools/convert_patch.py"));
+    {
+        ScratchPatch file("renders/scratch/_param_map_refusal.json", withMap);
+        std::string msg;
+        try { (void)load_patch_file(file.path); }
+        catch (const std::exception& e) { msg = e.what(); }
+        CHECK(msg.find("paramMap") != std::string::npos);
+        CHECK(msg.find("tools/convert_patch.py") != std::string::npos);
+    }
+    bool loaded = true;
+    try { (void)load_instrument_patch_json(without); }
+    catch (const std::exception& e) { loaded = false; std::printf("  load failed: %s\n", e.what()); }
+    CHECK(loaded);
+}
+
+// A dynamic pin: a setting the patch drives once per note, here an envelope's
+// timeScale through a CurveNode reading the note's frequency. The setting takes
+// the curve's value at the note's frequency at Setup; a held line's
+// continuation leaves it at the line's first note; and the curve, which nothing
+// but the binding reaches, reports no fault after a note.
+static std::string dynamic_pin_patch_json() {
+    return R"({"sampleRate":48000,"instrument":{"polyphony":1,"sustaining":true,"glideMs":15.0},"graph":{"output":"sine1","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"ts","type":"CurveNode","params":{"source":{"ref":"pf"},"interp":"logx","knots":[[100.0,0.5],[1000.0,2.0]]}},
+      {"id":"env1","type":"Envelope","params":{"stages":[
+        {"startVal":0.0,"endVal":1.0,"type":"Linear","percent":0.05},
+        {"startVal":1.0,"endVal":0.7,"type":"Linear","percent":0.10},
+        {"startVal":0.7,"endVal":0.7,"type":"Linear","percent":0.0},
+        {"startVal":0.7,"endVal":0.0,"type":"Linear","percent":0.25}]},
+       "dynamicPins":{"timeScale":{"ref":"ts"}}},
+      {"id":"sine1","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"env1"},"phase":0.0}}]}})";
+}
+
+static void run_dynamic_pin_tests() {
+    std::printf("dynamic pins: the note's value at Setup, held across a continuation, no fault\n");
+    CurveNode curve; curve.interp = CurveNode::CurveInterp::LogX;
+    curve.knots = {{100.0f, 0.5f}, {1000.0f, 2.0f}};
+    const float at60 = curve.map(note_to_freq(60.0f));
+    const float at72 = curve.map(note_to_freq(72.0f));
+    CHECK(std::fabs(at60 - at72) > 0.1f);              // the two notes give two values
+    auto timescale = [](PitchedInstrument& pi) {
+        return pi.voicePool[0].nodesById.at("env1")->get_setting("timeScale");
+    };
+    // 1. Each fresh note sets the setting to the curve at its own frequency.
+    {
+        auto ip = load_instrument_patch_json(dynamic_pin_patch_json());
+        PitchedInstrument& pi = *ip.instrument;
+        pi.play_note({60.0f, 0.8f, 0.4f, 0.0f, false}, 0.0f);
+        CHECK_NEAR(timescale(pi), at60, 1e-5f);
+        pi.play_note({72.0f, 0.8f, 0.4f, 0.0f, false}, 1.0f);
+        CHECK_NEAR(timescale(pi), at72, 1e-5f);
+        // 3. The curve was stepped at Setup with the voice's context: no fault.
+        std::vector<FaultReport> faults;
+        pi.collect_faults(faults);
+        bool curveFault = false;
+        for (const auto& f : faults)
+            if (f.nodeId == "ts") { curveFault = true; std::printf("  ts faults: %u\n", unsigned(f.faults)); }
+        CHECK(!curveFault);
+    }
+    // 2. A held line: the second note continues the first, and the setting
+    //    keeps the first note's value.
+    {
+        auto ip = load_instrument_patch_json(dynamic_pin_patch_json());
+        PitchedInstrument& pi = *ip.instrument;
+        pi.play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
+        CHECK_NEAR(timescale(pi), at60, 1e-5f);
+        pi.play_note({72.0f, 0.8f, 0.4f, 0.0f, false}, 0.4f);
+        CHECK_NEAR(timescale(pi), at60, 1e-5f);
+    }
 }
 
 // One wiring door for every pin kind: a Param or Input takes a signal and
@@ -9085,6 +9163,8 @@ int main() {
     run_allocation_tests_pins();
     run_structural_setting_tests();
     run_structural_push_refusal_tests();
+    run_param_map_refusal_tests();
+    run_dynamic_pin_tests();
     run_wiring_door_tests();
     run_formant_part_tests();
     run_segment_walk_twin_tests();
@@ -9179,8 +9259,7 @@ int main() {
     run_passage_parse_tests();
     run_onset_field_tests();
     run_hold_delivery_tests();
-    run_param_map_unwired_pin_tests();
-    run_param_map_unwired_multiplex_tests();
+    run_note_wire_tests();
     run_note_reseed_tests();
     run_embedded_score_tests();
     run_embedded_score_end_tests();

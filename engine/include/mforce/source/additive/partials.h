@@ -102,8 +102,8 @@ struct Partials : PartialSet {
   // faster). Default 0 = feature off (no per-sample multiply).
   //
   // inharmonicity — stiff-string stretch coefficient B: at note-on the
-  // effective multiplier becomes m*sqrt(1 + B*m^2). Per-note B arrives via a
-  // paramMap frequency->curve config entry. Default 0 = off (bit-exact).
+  // effective multiplier becomes m*sqrt(1 + B*m^2). Per-note B arrives as a
+  // dynamic pin fed by a frequency curve. Default 0 = off (bit-exact).
   Setting<float> decayRate    {this, "decayRate",     0.0f,  0.0f, 400.0f};
   Setting<float> decayExp     {this, "decayExp",      0.0f, -2.0f, 4.0f};
   Setting<float> inharmonicity{this, "inharmonicity", 0.0f,  0.0f, 0.1f};

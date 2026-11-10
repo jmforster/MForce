@@ -5,7 +5,6 @@
 #include <memory>
 #include <stdexcept>
 #include <span>
-#include <string_view>
 #include <vector>
 #include "mforce/core/component.h"
 #include "mforce/core/render_context.h"
@@ -202,7 +201,7 @@ protected:
   // part a node makes after its prepare is prepared with render_context().
   // Written only by prepare. Nobody outside reads them: the rate reaches a
   // node only through prepare(ctx), and a host that makes a node late hands
-  // it the context it prepared the owner with (ensure_constant below).
+  // it the context it prepared the owner with.
   const RenderContext& render_context() const { return ctx_; }
   bool prepared() const { return ctx_.sampleRate > 0; }
 
@@ -268,32 +267,6 @@ struct ConstantSource final : Generator {
 private:
   float v_{0.0f};
 };
-
-// A per-note push needs a constant to write into. Returns the Param's source
-// as a ConstantSource, first giving an unwired pin one at the pin's constant;
-// nullptr when the node has no such Param or the pin is wired to another
-// source. This form is for a node nobody has prepared yet (the loader,
-// building a graph): the constant learns the rate when the owner's prepare
-// forwards to its pins.
-inline std::shared_ptr<ConstantSource> ensure_constant(Component& node, std::string_view name) {
-  Param* pin = node.param(name);
-  if (!pin) return nullptr;
-  if (!pin->source) pin->set(std::make_shared<ConstantSource>(pin->constant));
-  return std::dynamic_pointer_cast<ConstantSource>(pin->source);
-}
-
-// The same, for a node the host has already prepared (a Multiplex pushing a
-// clone's setting at note Setup): the caller hands the context it prepared
-// the owner with, and a constant made now is ready before the next start().
-// The caller knows the context; the node is not asked for it.
-inline std::shared_ptr<ConstantSource> ensure_constant(Component& node, std::string_view name,
-                                                       const RenderContext& ctx) {
-  Param* pin = node.param(name);
-  const bool madeNow = pin && !pin->source;
-  auto cs = ensure_constant(node, name);
-  if (cs && madeNow) cs->prepare(ctx);
-  return cs;
-}
 
 // The tap edge (feedback_loop_design.md): a guarded read of another node's
 // memo, never a pull. The source is advanced by its own consumers (or by the

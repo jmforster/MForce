@@ -10,7 +10,6 @@
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
 #include "mforce/render/perform_source.h"
-#include "mforce/source/combiner/multiplex_source.h"
 #include <cstdio>
 #include <memory>
 #include <set>
@@ -127,39 +126,23 @@ struct PitchedInstrument final : Instrument {
   static constexpr float kRingFloor  = 0.001f;
   static constexpr float kMaxRingSec = 8.0f;
 
-  // (ParamSlot retired 2026-08-18 — plan_perform_source_p1.md T7. Its map/
-  // vmap formulas live on verbatim as CurveNode's LogX/LogLog and Linear
-  // interp modes; its delivery loop became apply_note_bindings.)
-
-  // A converted paramMap entry that must be PUSH-delivered at note time
-  // (perform_source_design.md §5): setting targets (set_setting rebuilds
-  // state at prepare — no pointer to pull) and every entry on a Multiplex
-  // voice (clone fan-out keeps push semantics wholesale, bit-safe).
-  // `chain` is the transfer chain rooted at the voice's PerformOut
-  // adapters; evaluated once per note at Realization/Setup.
+  // A dynamic pin (perform_source_design.md §5): a setting this patch
+  // drives once per note. A setting rebuilds state at prepare and has no
+  // pointer to pull, so the value is pushed through set_setting. `chain`
+  // is the signal wired to the pin, evaluated once at the note's Setup.
   struct PushBinding {
     std::shared_ptr<Component>       consumer;
     std::string                      paramName;
-    std::string                      targetNodeId;  // Multiplex clone fan
     std::shared_ptr<ValueSource>     chain;
-    std::shared_ptr<ConstantSource>  cs;            // non-setting delivery
-    bool                             isSetting{false};
-    int                              cloneSlot{-1};  // the Multiplex fan-out's slot, registered at prepare
   };
 
   struct VoiceGraph {
     std::shared_ptr<ValueSource> source;
-    // If this voice's output IS a MultiplexSource, fan paramMap changes
-    // into its clones. Captured at voice-pool build time by casting
-    // `source`. Null for non-Multiplex voices — fan-out is a no-op.
-    std::shared_ptr<MultiplexSource> topMultiplex;
 
-    // --- PerformSource bindings (P1 conversion; ParamSlot path retires
-    // once these are the only model — plan_perform_source_p1.md T7) ---
+    // --- The voice's performance: its PerformSource, the leaf adapters
+    // every PerformNode resolves to, and the dynamic pins ---
     std::shared_ptr<PerformSource> performSource;
-    // Shared leaf adapters (frequency articulates the bend as of P3 —
-    // the PitchBendSource graft and its BendSwap machinery are retired;
-    // plan_perform_source_p3.md T1).
+    // Shared leaf adapters (frequency articulates the bend).
     std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut,
                                    durOut, onsetOut;
     std::vector<PushBinding>       pushBindings;
@@ -215,13 +198,8 @@ struct PitchedInstrument final : Instrument {
       if (vg.performSource) vg.performSource->prepare(vg.ctx);
       // The push-binding chains are nodes of this voice too: stepped at a
       // note's Setup, never pulled by the root, so nothing else prepares them.
-      // A binding that fans into Multiplex clones registers its slot here, so
-      // the note's write allocates nothing.
-      for (auto& b : vg.pushBindings) {
+      for (auto& b : vg.pushBindings)
         if (b.chain) b.chain->prepare(vg.ctx);
-        if (vg.topMultiplex && !b.isSetting && !b.targetNodeId.empty())
-          b.cloneSlot = vg.topMultiplex->clone_param_slot(b.targetNodeId, b.paramName);
-      }
     }
   }
 
@@ -345,9 +323,9 @@ struct PitchedInstrument final : Instrument {
   // poolSize staccato notes cut the held note). Does not advance nextVoice;
   // slot-aware callers manage their own rotation.
   // Realization/Setup delivery (perform_source_design.md §5): one NoteState
-  // write, push-binding evaluation (settings + Multiplex fans), and the P1
-  // bend graft on the swap targets. Push deliveries happen BEFORE
-  // vg.source->prepare — settings rebuild per-note state there.
+  // write and the push-binding evaluation (the dynamic pins). Push
+  // deliveries happen BEFORE vg.source->prepare — settings rebuild
+  // per-note state there.
   // Onset vocabulary (spec 2026-09-20-note-onsets-v2 §6/§8): the
   // instrument block's "onsets" array, in declaration order. Interned
   // ids are 1-based; 0 = none/unknown. Stable, so ordinal use in a Curve
@@ -403,14 +381,7 @@ struct PitchedInstrument final : Instrument {
     // definition (pin_model_design.md §5).
     for (auto& b : vg.pushBindings) {
       b.chain->step();                 // a Setup-time evaluation, between ticks
-      float v = b.chain->current();
-      if (b.isSetting) {
-        b.consumer->set_setting(b.paramName, v);
-      } else {
-        b.cs->set(v);
-        b.consumer->set_param(b.paramName, b.cs);
-        if (b.cloneSlot >= 0) vg.topMultiplex->set_clone_param(b.cloneSlot, v);
-      }
+      b.consumer->set_setting(b.paramName, b.chain->current());
     }
   }
 
@@ -478,9 +449,9 @@ struct PitchedInstrument final : Instrument {
   // frequency() = base * 2^(bend/12) with base = the NEW pitch, so the
   // ramp starts exactly on the old pitch and lands exactly on the new one
   // — no PitchCurve compile needed, and every consumer of the frequency
-  // chain sees it. (A legacy paramMap patch delivers frequency by a push
-  // evaluated once at Setup, so its retune stays instantaneous; only
-  // pulled frequency chains glide.)
+  // chain sees it. (A dynamic pin is evaluated once at a line's first
+  // Setup and holds across the line, so only pulled frequency chains
+  // glide.)
   std::shared_ptr<Envelope> make_glide(const VoiceGraph& vg, float fromFreq,
                                        float toFreq, int durSamples) {
     auto g = std::make_shared<Envelope>();
@@ -544,18 +515,9 @@ struct PitchedInstrument final : Instrument {
     if (vg.performSource)
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
                                  std::move(glide), onsetId);
-    // Non-setting push bindings re-push; isSetting bindings HOLD their
-    // line-start value — set_setting rebuilds per-note state at prepare
-    // and must not run mid-render (v1 decision, unchanged). Pull chains
+    // A dynamic pin HOLDS its line-start value: set_setting rebuilds
+    // per-note state at prepare and must not run mid-render. Pull chains
     // (noteFaces curves) need no delivery: they read the new NoteState.
-    for (auto& b : vg.pushBindings) {
-      if (b.isSetting) continue;
-      b.chain->step();                 // a Setup-time evaluation, between ticks
-      float v = b.chain->current();
-      b.cs->set(v);
-      b.consumer->set_param(b.paramName, b.cs);
-      if (b.cloneSlot >= 0) vg.topMultiplex->set_clone_param(b.cloneSlot, v);
-    }
     fire_triggers(vg);   // the onset gesture restarts from current value
   }
 

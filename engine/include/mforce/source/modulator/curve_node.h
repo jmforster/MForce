@@ -10,12 +10,12 @@
 namespace mforce {
 
 // Transfer node: y = curve(x), knots sorted by x, clamped at the end knots.
-// The runtime (pullable) home of the paramMap curve/vcurve data
-// (docs/perform_source_design.md §2.2). Interp modes:
-//   Linear — y linear in x               (legacy ParamSlot::vmap, verbatim)
-//   LogX   — y linear in log(x)          (legacy ParamSlot::map,  verbatim)
+// A patch's per-note frequency and velocity curves are these nodes, pulled
+// like any signal (docs/perform_source_design.md §2.2). Interp modes:
+//   Linear — y linear in x
+//   LogX   — y linear in log(x)
 //   LogLog — log(y) linear in log(x): a 2-knot segment is exactly y = k*x^n
-// Empty knots = identity (matches ParamSlot's empty-curve behavior).
+// Empty knots = identity.
 //
 // Expressions mode (2026-09-01, Matt's design): each knot's VALUE is a small
 // formula of the input — Linear a*x+b or Power a*x^p — instead of a literal.

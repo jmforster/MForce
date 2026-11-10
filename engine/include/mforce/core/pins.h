@@ -25,11 +25,11 @@ enum class PinKind { Param, Input, Slot, Setting, Array };
 enum class Pull { Auto, Manual };
 
 // What a change to a Setting does. A Value setting is read when the node
-// runs, so a push at note-on (a dynamic pin, a legacy paramMap entry) is
-// honoured for that note. A Structural setting sizes or reshapes the node —
-// a count, a mode, the shape of a table — and is applied by the next
-// prepare(), never per note: it takes no push. Every int and bool setting
-// is structural; a float is when its node declares it so.
+// runs, so a push at note-on (a dynamic pin) is honoured for that note. A
+// Structural setting sizes or reshapes the node — a count, a mode, the
+// shape of a table — and is applied by the next prepare(), never per note:
+// it takes no push. Every int and bool setting is structural; a float is
+// when its node declares it so.
 enum class SettingRole { Value, Structural };
 
 // A pin is a member of a node that registers itself with the node while

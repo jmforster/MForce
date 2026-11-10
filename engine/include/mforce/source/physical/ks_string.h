@@ -48,8 +48,8 @@ namespace mforce {
 // Tuning: comb delay = period - phase delay of the in-loop filters at f0
 // (computed analytically at note init), fractional part via linear-interp
 // read. Frequency is captured at the first next() after start() (per-note
-// lazy init, same convention as WavetableSource); paramMap "frequency"
-// retunes, and paramMap frequency->curve entries can drive the scalar
+// lazy init, same convention as WavetableSource); a wired note frequency
+// retunes it, and dynamic pins fed by frequency curves can drive the scalar
 // configs (dispersion, t60, brightness, inharmGain, ...) per note.
 //
 // Real-time safe: delay buffers allocated once at construction, sized for

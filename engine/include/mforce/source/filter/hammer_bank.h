@@ -22,8 +22,8 @@ namespace mforce {
 // pitched hammer strike. Per-band gain follows harm^bandTilt.
 //
 // Per-note behavior: frequency is captured at the first next() after
-// start() (same lazy-init convention as WavetableSource), so paramMap
-// "frequency" retunes the bank per note. Real-time safe: no heap after
+// start() (same lazy-init convention as WavetableSource), so a wired note
+// frequency retunes the bank per note. Real-time safe: no heap after
 // construction, all state in fixed arrays.
 // ---------------------------------------------------------------------------
 struct HammerBank final : Processor {

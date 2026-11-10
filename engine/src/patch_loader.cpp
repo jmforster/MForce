@@ -6,7 +6,6 @@
 #include "mforce/source/modulator/var_source.h"
 #include "mforce/source/modulator/curve_node.h"
 #include "mforce/render/perform_source.h"
-#include "mforce/source/combiner/combined_source.h"
 #include "mforce/source/envelope/envelope.h"
 #include "mforce/source/envelope/envelope_json.h"
 #include "mforce/render/instrument.h"
@@ -472,8 +471,8 @@ struct PerformContext {
 static json extract_subgraph_json(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::string& rootId);
-// Returns {root source, graphNodes by id} so callers (Multiplex's paramMap
-// fan-out) can reach into the built clone's internals by node id.
+// Returns {root source, graphNodes by id}: the map holds the built clone's
+// nodes by id, and MultiplexSource keeps it per instance.
 static std::pair<std::shared_ptr<ValueSource>,
                  std::unordered_map<std::string, std::shared_ptr<Component>>>
 build_subgraph_with_seed_perturbation(
@@ -625,15 +624,10 @@ static GraphResult build_graph(
                            :                  CurveNode::CurveInterp::Linear;
             }
             // "source" is a param_descriptor, but wire_params_generic is NOT
-            // automatic — every special-cased type calls it explicitly. P1
-            // shipped this branch with a comment claiming the generic pass
-            // handled it and no call, so a CurveNode loaded from JSON silently
-            // had a null source: next() returned 0, and map(0) clamped to the
-            // first knot's value for every note. Invisible until now because
-            // P1's CurveNodes were all built programmatically by
-            // build_bindings, which calls set_param("source", …) directly —
-            // no patch had ever loaded one from JSON, so the 196-patch gate
-            // could not see it.
+            // automatic — every special-cased type calls it explicitly. Without
+            // this call a CurveNode loaded from JSON has a null source: next()
+            // returns 0, and map(0) clamps to the first knot's value for every
+            // note.
             if (pp) wire_params_generic(*cn, id, *pp, graphNodes);
             graphNodes[id] = cn;
         }
@@ -878,9 +872,9 @@ static json extract_subgraph_json(
 
 // Build a fresh root source from a subtree JSON string, XOR'ing every
 // node's seed param by seedPerturbation so N instances diverge
-// deterministically from a shared base seed. Returns {root, graphNodes}
-// so external paramMap fan-out code can reach into the clone's nodes
-// by id.
+// deterministically from a shared base seed. Returns {root, graphNodes}:
+// the map holds the clone's nodes by id, and MultiplexSource keeps it per
+// instance.
 static std::pair<std::shared_ptr<ValueSource>,
                  std::unordered_map<std::string, std::shared_ptr<Component>>>
 build_subgraph_with_seed_perturbation(
@@ -924,171 +918,6 @@ static bool tracks_frequency_live(const Component& node)
 {
     auto* signal = dynamic_cast<const ValueSource*>(&node);
     return !signal || signal->tracks_frequency_live();
-}
-
-// Convert paramMap JSON into PerformSource bindings (perform_source_design.md
-// §5; replaces resolve_param_map as the runtime model — the JSON stays the
-// supported legacy authoring format, converted here at load).
-// Decision matrix per "frequency" entry:
-//   1. setting target            -> PushBinding (isSetting, chain evaluated at
-//                                  note time, delivered via set_setting)
-//   2. voice has topMultiplex   -> PushBinding for EVERY entry (clone fan
-//                                  keeps push semantics wholesale, bit-safe)
-//   3/4. pin target             -> pin wired ONCE to the chain. Bend rides
-//                                  the freqOut leaf itself as of P3
-//                                  (plan_perform_source_p3.md T1) — the
-//                                  PitchBendSource graft and its per-entry
-//                                  BendSwap membership are retired.
-// Chain = freqOut [-> CurveNode(curve, LogX|LogLog)] [* CurveNode(vcurve,
-// Linear)(velOut)]; the multiply is CombinedSource Multiply with gainAdj 0
-// (exact: *1.0f). paramMap names other than "frequency" are parsed and
-// skipped with a warning — the old engine only ever consumed "frequency".
-// ---------------------------------------------------------------------------
-static void build_bindings(const json& paramMapJson, const GraphResult& g,
-                           PitchedInstrument::VoiceGraph& vg)
-{
-    auto make_chain = [&](const std::vector<std::pair<float, float>>& curve,
-                          const std::vector<std::pair<float, float>>& vcurve,
-                          bool loglog) -> std::shared_ptr<ValueSource> {
-        std::shared_ptr<ValueSource> chain = vg.freqOut;
-        if (!curve.empty()) {
-            auto cn = std::make_shared<CurveNode>();
-            cn->knots = curve;
-            cn->interp = loglog ? CurveNode::CurveInterp::LogLog
-                                : CurveNode::CurveInterp::LogX;
-            cn->set_param("source", vg.freqOut);
-            chain = cn;
-        }
-        if (!vcurve.empty()) {
-            auto vn = std::make_shared<CurveNode>();
-            vn->knots = vcurve;
-            vn->interp = CurveNode::CurveInterp::Linear;
-            vn->set_param("source", vg.velOut);
-            chain = std::make_shared<CombinedSource>(chain, vn,
-                                                     CombineOp::Multiply);
-        }
-        return chain;
-    };
-
-    auto bind_one = [&](const std::string& name, const std::string& target,
-                        std::vector<std::pair<float, float>> curve = {},
-                        std::vector<std::pair<float, float>> vcurve = {},
-                        bool loglog = false) {
-        if (name != "frequency") {
-            std::fprintf(stderr,
-                "[loader] paramMap name '%s' ignored (only \"frequency\" was "
-                "ever consumed; wire it in the graph post-PerformSource)\n",
-                name.c_str());
-            return;
-        }
-        std::string nodeId, paramName;
-        auto dot = target.find('.');
-        if (dot != std::string::npos) {
-            nodeId = target.substr(0, dot);
-            paramName = target.substr(dot + 1);
-        } else {
-            nodeId = target;
-            paramName = "frequency";  // default for backward compat
-        }
-        auto nodeIt = g.nodes.find(nodeId);
-        if (nodeIt == g.nodes.end())
-            throw std::runtime_error("paramMap: unknown node '" + nodeId + "'");
-
-        auto paramSrc = nodeIt->second->get_param(paramName);
-        if (!paramSrc) paramSrc = ensure_constant(*nodeIt->second, paramName);
-        if (paramSrc) {
-            // 26a made loud (P3 T2), legacy path: a bend articulated onto a
-            // node that reads its frequency pin once is silently inert.
-            if (paramName == "frequency" &&
-                !tracks_frequency_live(*nodeIt->second))
-                std::fprintf(stderr,
-                    "[loader] bend inert on '%s' (%s reads frequency once at "
-                    "note start; backlog 26a)\n",
-                    nodeId.c_str(), nodeIt->second->type_name());
-            auto cs = std::dynamic_pointer_cast<ConstantSource>(paramSrc);
-            if (!cs)
-                throw std::runtime_error("paramMap: '" + target +
-                    "' is not a ConstantSource (it's wired to a ref)");
-            auto chain = make_chain(curve, vcurve, loglog);
-            if (vg.topMultiplex) {
-                // Matrix case 2: push wholesale (clone fan).
-                PitchedInstrument::PushBinding b;
-                b.consumer = nodeIt->second;
-                b.paramName = paramName;
-                b.targetNodeId = nodeId;
-                b.chain = std::move(chain);
-                b.cs = cs;
-                vg.pushBindings.push_back(std::move(b));
-            } else {
-                // Matrix cases 3/4: wire the pin to the chain. Bend needs no
-                // per-entry membership anymore — as of P3 the freqOut leaf
-                // itself articulates base * 2^(bend/12), so every chain
-                // rooted at it follows the bend (curve-fed ones included,
-                // which the retired graft deliberately skipped — the P3
-                // re-listen item).
-                if (!nodeIt->second->set_param(paramName, chain))
-                    throw std::runtime_error("paramMap: node '" + nodeId + "' ("
-                                             + nodeIt->second->type_name() + ") has no pin '" + paramName + "'");
-            }
-            return;
-        }
-        // Config target (matrix case 1) — same scan as the old resolver. A
-        // structural setting is applied at prepare and never per note, so a
-        // push into it would be silently ignored: the load fails instead.
-        for (const auto& desc : nodeIt->second->setting_descriptors()) {
-            if (paramName == desc.name) {
-                if (desc.structural)
-                    throw std::runtime_error("paramMap: '" + target + "' is a structural setting on "
-                        + nodeIt->second->type_name() + " (it sizes or reshapes the node at prepare), "
-                        "so a per-note push cannot reach it; set it in the node's settings");
-                PitchedInstrument::PushBinding b;
-                b.consumer = nodeIt->second;
-                b.paramName = paramName;
-                b.targetNodeId = nodeId;
-                b.chain = make_chain(curve, vcurve, loglog);
-                b.cs = nullptr;
-                b.isSetting = true;
-                vg.pushBindings.push_back(std::move(b));
-                return;
-            }
-        }
-        throw std::runtime_error("paramMap: cannot resolve '" + target +
-                                 "' (neither param nor setting)");
-    };
-
-    auto bind_entry = [&](const std::string& name, const json& t) {
-        if (t.is_string()) { bind_one(name, t.get<std::string>()); return; }
-        if (t.is_object() && t.contains("target")) {
-            std::vector<std::pair<float, float>> curve;
-            if (t.contains("curve")) {
-                for (const auto& bp : t.at("curve"))
-                    curve.emplace_back(bp.at(0).get<float>(), bp.at(1).get<float>());
-                if (curve.size() < 2)
-                    throw std::runtime_error("paramMap: curve needs >= 2 breakpoints");
-            }
-            std::vector<std::pair<float, float>> vcurve;
-            if (t.contains("vcurve")) {
-                for (const auto& bp : t.at("vcurve"))
-                    vcurve.emplace_back(bp.at(0).get<float>(), bp.at(1).get<float>());
-                if (vcurve.size() < 2)
-                    throw std::runtime_error("paramMap: vcurve needs >= 2 breakpoints");
-            }
-            const bool loglog = t.value("interp", std::string()) == "loglog";
-            bind_one(name, t.at("target").get<std::string>(),
-                     std::move(curve), std::move(vcurve), loglog);
-            return;
-        }
-        throw std::runtime_error("paramMap: '" + name +
-            "' entries must be strings or {target, curve} objects");
-    };
-
-    for (auto& [name, targetJson] : paramMapJson.items()) {
-        if (targetJson.is_array()) {
-            for (const auto& t : targetJson) bind_entry(name, t);
-        } else {
-            bind_entry(name, targetJson);
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1198,10 +1027,7 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
             PitchedInstrument::PushBinding b;
             b.consumer     = consumer;
             b.paramName    = key;
-            b.targetNodeId = id;
             b.chain        = as_signal(srcIt->second, id + ".dynamicPins." + key);
-            b.cs           = nullptr;
-            b.isSetting    = true;
             vg.pushBindings.push_back(std::move(b));
         }
     }
@@ -1220,8 +1046,8 @@ static void adopt_nodes(PitchedInstrument::VoiceGraph& vg, GraphResult& g)
               [](const auto& a, const auto& b) { return a.id < b.id; });
 }
 
-// Create the voice's performance objects. Must run BEFORE build_graph now:
-// a PerformNode in the JSON resolves to these adapters during construction,
+// Create the voice's performance objects. Must run BEFORE build_graph: a
+// PerformNode in the JSON resolves to these adapters during construction,
 // so they cannot be created afterwards.
 static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
                                            std::shared_ptr<InstrumentState> is)
@@ -1242,15 +1068,6 @@ static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
                                                PerformOut::Field::Onset);
     return PerformContext{vg.freqOut, vg.velOut, vg.wheelOut, vg.pressOut,
                           vg.durOut, vg.onsetOut};
-}
-
-// Convert the legacy paramMap, if the patch carries one. Runs after the graph
-// exists, because its targets are resolved node ids.
-static void attach_perform_source(const json& instJson, const GraphResult& g,
-                                  PitchedInstrument::VoiceGraph& vg)
-{
-    if (instJson.contains("paramMap"))
-        build_bindings(instJson["paramMap"], g, vg);
 }
 
 // ---------------------------------------------------------------------------
@@ -1295,6 +1112,8 @@ static InstrumentPatch build_instrument_json(const json& root, int minPolyphony)
     const auto& outputId  = ig.outputId;
 
     const auto& instJson = root.at("instrument");
+    if (instJson.contains("paramMap"))
+        throw std::runtime_error("instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring");
     int polyphony = std::max(instJson.value("polyphony", 4), minPolyphony);
 
     auto inst = std::make_unique<PitchedInstrument>();
@@ -1335,16 +1154,6 @@ static InstrumentPatch build_instrument_json(const json& root, int minPolyphony)
                 if (env->trigger.source) vg.triggerBindings.push_back(env);
             }
 
-        // If the voice's output is a MultiplexSource, capture it so play_note
-        // can fan paramMap changes into each clone.
-        vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
-
-        // Per-voice PerformSource + converted paramMap bindings
-        attach_perform_source(instJson, g, vg);
-        // Legacy paramMap first, then wiring format: a patch carrying both
-        // resolves its legacy entries exactly as today and the wiring pass
-        // appends. No gated patch carries both; the order is fixed so a
-        // hybrid, if one ever appears, is deterministic.
         bind_wiring(nodeMap, nodeOrder, g, vg);
         // Loop tails consumed only by tap edges: the voice ticks these
         // after the root pull (feedback_loop_design.md §3.3).

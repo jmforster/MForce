@@ -27,9 +27,10 @@ struct AdditiveSource final : WaveSource {
   Slot<Formant> formant{this, "formant", "a Formant part"};
   Slot<PartialSet> partials{this, "partials", "a PartialSet part"};
 
-  // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
-  // per register — e.g. the clarinet noise-lead law 0.15/0.10/0.04 s by f0
-  // is expressed as a patch-side curve on noiseBedDelay, never hardcoded).
+  // --- NoiseBed configs (scalar, so a dynamic pin fed by a frequency curve
+  // can drive them per register — e.g. the clarinet noise-lead law
+  // 0.15/0.10/0.04 s by f0 is expressed as a patch-side curve on
+  // noiseBedDelay, never hardcoded).
   Setting<float> noiseBedLevel  {this, "noiseBedLevel",   0.0f,    0.0f,   1.0f};      // linear, rel tone; 0 = inert
   Setting<float> noiseBedFreq   {this, "noiseBedFreq",    2900.0f, 20.0f,  16000.0f};  // bandpass center Hz
   Setting<float> noiseBedWidth  {this, "noiseBedWidth",   1500.0f, 10.0f,  12000.0f};  // bandpass width Hz (Q = freq/width)
