@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import convert_patch
+
 REPO = Path("C:/@dev/repos/mforce")
 CLI = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
 PATCHES_DIR = REPO / "patches/vowels"
@@ -167,6 +169,8 @@ def main():
             with open(patch_copy_path, "w") as f:
                 json.dump(patch, f, indent=2)
             built += 1
+            # Both files carry a paramMap and FormantSpectrums the loader refuses; convert_patch rewrites them.
+            convert_patch.main([str(patch_path), str(patch_copy_path)])
 
             if do_render:
                 res = subprocess.run(

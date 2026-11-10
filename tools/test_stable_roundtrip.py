@@ -76,13 +76,15 @@ def check_one(args):
                        capture_output=True, text=True)
     if r.returncode != 0:
         return pt, ("id", "roundtrip failed: " + r.stderr.strip())
-    # The property is that no PRE-EXISTING id was renamed or lost —
-    # not that the id set is byte-identical. Loading a legacy patch now
-    # converts its paramMap into real graph nodes (P2b), which ADDS
-    # synthesized "__" ids: __perf_freq, __curve_N, __mul_N. That is
-    # the intended behaviour, and counting it as an id change reported
-    # 117 failures against 0 render diffs. Additions in the reserved
-    # namespace are expected; anything else still fails.
+    # The property is that no id in the source file was renamed or lost,
+    # not that the id sets are equal: any source id missing from the
+    # roundtripped file fails, and so does any added id outside the
+    # reserved "__" namespace. An added "__" id passes: the editor's save
+    # (save_patch_graph) writes one PerformNode per wired Note-face pin,
+    # under the id that pin was loaded from, or under a fresh
+    # __perf_<field> when the pin has none or that id is already taken,
+    # and sanitize_unique_id keeps every other node out of the "__"
+    # namespace unless its id arrived from the file already in it.
     before, after = set(ids_of(pt)), set(ids_of(rt))
     lost = before - after
     added = {i2 for i2 in (after - before) if not i2.startswith("__")}

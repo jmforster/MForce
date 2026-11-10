@@ -47,6 +47,8 @@ import math
 import os
 import sys
 
+import convert_patch
+
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA = os.path.join(REPO, "docs", "research", "formants")
 OUT = os.path.join(REPO, "patches", "vowel_grid")
@@ -270,6 +272,8 @@ def main():
         json.dump(entries, fp, indent=1)
     print(f"total {len(manifest)} patches"
           + (f" ({sum(1 for m in manifest if m[6])} f1-retuned)" if retune else ""))
+    # These patches carry a paramMap and FormantSpectrums the loader refuses; convert_patch rewrites them.
+    convert_patch.main([OUT])
 
 
 if __name__ == "__main__":

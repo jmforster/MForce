@@ -19,6 +19,8 @@ renders at f0 110 (speech), 220, 660, 1320 (the chirp test).
 import json
 import os
 
+import convert_patch
+
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT = os.path.join(REPO, "patches", "liar2")
 os.makedirs(OUT, exist_ok=True)
@@ -126,6 +128,8 @@ def main():
             with open(path, "w") as f:
                 json.dump(make_patch(f0, wscale=float(mult)), f, indent=1)
             print("wrote", path)
+    # These patches carry a paramMap and FormantSpectrums the loader refuses; convert_patch rewrites them.
+    convert_patch.main([OUT])
 
 
 if __name__ == "__main__":

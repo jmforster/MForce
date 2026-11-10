@@ -13,6 +13,8 @@ _run_formantseq_sweep.py (same pipeline as the expand sweep).
 import json
 import os
 
+import convert_patch
+
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT = os.path.join(REPO, "patches", "formantseq_sweep")
 os.makedirs(OUT, exist_ok=True)
@@ -137,6 +139,8 @@ def main():
         with open(os.path.join(OUT, fname), "w") as f:
             json.dump(make_patch(spectra, driver, wt, blend), f, indent=1)
     print(f"wrote {len(REGIMES)} formantseq-sweep patches -> {OUT}")
+    # These patches carry FormantSpectrums and Formants the loader refuses; convert_patch rewrites them.
+    convert_patch.main([OUT])
 
 
 if __name__ == "__main__":

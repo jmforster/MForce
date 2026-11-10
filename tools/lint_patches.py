@@ -138,27 +138,6 @@ def lint_file(path, desc, special):
     inst = patch.get("instrument")
     if isinstance(inst, dict) and "release" in inst:
         yield "instrument", "instrument", "release (retired 2026-08-13)"
-    # Curve-endpoint convention (Matt 2026-08-13): paramMap curves span the
-    # full domain (20 Hz..16 kHz frequency, 0..1 velocity) with clamps as
-    # EXPLICIT repeated endpoint values — an implicit end-clamp is how the
-    # unscored exc_level top anchor blasted octave 8 by +24 dB unseen.
-    if isinstance(inst, dict):
-        pm = inst.get("paramMap")
-        entries = pm.get("frequency", []) if isinstance(pm, dict) else []
-        for e in entries:
-            if not isinstance(e, dict):
-                continue
-            tgt = e.get("target", "?")
-            c = e.get("curve")
-            if isinstance(c, list) and c:
-                if c[0][0] > 20.0 or c[-1][0] < 16000.0:
-                    yield "paramMap", tgt, ("curve endpoints %g..%g (want 20..16000)"
-                                            % (c[0][0], c[-1][0]))
-            v = e.get("vcurve")
-            if isinstance(v, list) and v:
-                if v[0][0] > 0.0 or v[-1][0] < 1.0:
-                    yield "paramMap", tgt, ("vcurve endpoints %g..%g (want 0..1)"
-                                            % (v[0][0], v[-1][0]))
     graph = patch.get("graph")
     if not isinstance(graph, dict):
         return

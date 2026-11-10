@@ -1,23 +1,33 @@
 """Fast round-trip smoke — one patch per SHAPE, not the whole library.
 
-tools/test_stable_roundtrip.py walks 199 patches and does ~600 subprocess
-invocations; it takes minutes and belongs at a task boundary. Most edits cannot
-plausibly affect 199 patches, and using the heaviest check as the default turns
-a ten-second question into a five-minute one.
+tools/test_stable_roundtrip.py, over patches/baselines and patches/library as
+gates.py runs it, walks 132 patches and makes up to 342 subprocess invocations;
+it takes minutes and belongs at a task boundary. Most edits cannot plausibly
+affect 132 patches, and using the heaviest check as the default turns a
+ten-second question into a five-minute one.
 
 This covers the shapes that actually differ, and runs in seconds:
-  bare            paramMap target with no curve
-  curve           frequency->curve
-  vcurve+settings piano_default (was Piano_bright until the 2026-08-22 library
-                  curation): vcurve legs as CurveNode chains, dynamicPins
-  formant         voice patch whose paramMap targets an OWNED Formant child
-                  (the unconvertible carve-out)
-  bend            real Bend articulation in the score — graft membership
-  wiring          already in wiring format, incl. a dynamicPins setting
+  bare            a PerformNode's frequency wired straight to a SineSource pin
+  curve           viola_default: the frequency through CurveNodes into two
+                  Envelopes' dynamicPins, and through a Vibrato into the pitch
+  vcurve+settings piano_default: frequency and velocity through CurveNodes
+                  (two pairs multiplied by CombinedSources) into filter
+                  cutoffs and gains, and into the KSString's dynamicPins
+  formant         a FormantPeaks voice: the frequency straight into an
+                  AdditiveSource whose formant is a FormantPeaks
+  bend            Bend articulations in the score over a SawSource whose
+                  frequency is a PerformNode's
+  wiring          a frequency CurveNode on an Envelope's sustainLevel
+                  dynamicPins setting
 
 Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
+
+After the shapes, a patch carrying an instrument.paramMap, written to the temp
+folder, must be refused by mforce_ui --roundtrip: a non-zero exit,
+tools/convert_patch.py named in its output, and no file written. It prints its
+own line and is not counted among the shapes.
 
 Usage: python tools/rt_smoke.py
 """
@@ -36,6 +46,33 @@ CASES = [
     ("bend",            "patches/baselines/bend_test.json"),
     ("wiring",          "patches/baselines/perform/wiring_setting.json"),
 ]
+
+PARAMMAP_FIXTURE = {
+    "sampleRate": 48000,
+    "graph": {"nodes": [{"id": "osc", "type": "SineSource",
+                         "params": {"frequency": 440.0, "amplitude": 0.5}}],
+              "output": "osc"},
+    "instrument": {"polyphony": 1, "paramMap": {"frequency": "osc.frequency"}},
+    "score": [{"note": 60, "velocity": 0.8, "time": 0.0, "duration": 0.5}],
+}
+
+
+def refusal_failures(td, doc):
+    """Write `doc` to `td` and round-trip it; return why the editor did not
+    refuse it (empty when it exited non-zero, named tools/convert_patch.py and
+    wrote nothing)."""
+    src, out = Path(td) / "refusal.json", Path(td) / "refusal_rt.json"
+    src.write_text(json.dumps(doc), encoding="utf-8")
+    r = subprocess.run([str(UI), "--roundtrip", str(src), str(out)],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    why = []
+    if r.returncode == 0:
+        why.append("loaded")
+    if "tools/convert_patch.py" not in r.stdout + r.stderr:
+        why.append("converter not named")
+    if out.exists():
+        why.append("wrote " + out.name)
+    return why
 
 
 def ids_of(path):
@@ -87,8 +124,10 @@ def main():
             if ra != rb or sha(wa) != sha(wb):
                 print(f"{label:<16} RENDER DIFF"); bad += 1; continue
             print(f"{label:<16} ok")
+        refusal = refusal_failures(td, PARAMMAP_FIXTURE)
+        print(f"{'refusal':<16} " + (f"FAIL {', '.join(refusal)}" if refusal else "ok"))
     print(f"{len(CASES) - bad}/{len(CASES)} shapes clean")
-    sys.exit(1 if bad else 0)
+    sys.exit(1 if bad or refusal else 0)
 
 
 main()

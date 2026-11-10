@@ -9,6 +9,8 @@ import copy
 import json
 import os
 
+import convert_patch
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, ".."))
 BASE = os.path.join(REPO, "research", "ml_ears", "patches", "viola_instrument.json")
@@ -189,6 +191,8 @@ def main():
         with open(path, "w") as f:
             json.dump(p, f, indent=2)
         print("wrote", path)
+    # The base patch carries a paramMap and a BandSpectrum the loader refuses; convert_patch rewrites them.
+    convert_patch.main([OUT])
 
 
 if __name__ == "__main__":
