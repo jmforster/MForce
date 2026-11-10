@@ -204,8 +204,6 @@ struct PitchedInstrument final : Instrument {
     std::vector<Envelope*> allEnvelopes;
   };
 
-  float hiBoost{0.0f};
-
   // Once, after the loader built the voice pool: every voice's graph,
   // its tap-only tails and its PerformSource learn the rate. Idempotent.
   void prepare(const RenderContext& c) override {
@@ -426,10 +424,7 @@ struct PitchedInstrument final : Instrument {
 
     apply_note_bindings(vg, freq, velocity, durSamples, duration, curve);
 
-    float boost = hiBoost > 0.0f
-        ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
-        : 0.0f;
-    float gain = velocity * (1.0f + boost) * volume;
+    float gain = velocity * volume;
 
     vg.source->start(durSamples);
     for (auto& a : vg.advanceList) a->start(durSamples);
@@ -626,15 +621,12 @@ struct PitchedInstrument final : Instrument {
       hold = false;
     }
 
-    // Frequency-dependent brightness compensation. The voice-mix gain is
-    // per-voice and fixed for the line (its first note's velocity): it
-    // cannot change mid-buffer without a zipper. Later notes' velocity
-    // still reaches the graph through the velocity face for patches that
-    // wire it (the winds do — velocity IS the breath there).
-    float boost = hiBoost > 0.0f
-        ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
-        : 0.0f;
-    float gain = pn.velocity * (1.0f + boost);
+    // The voice-mix gain is per-voice and fixed for the line (its first
+    // note's velocity): it cannot change mid-buffer without a zipper.
+    // Later notes' velocity still reaches the graph through the velocity
+    // face for patches that wire it (the winds do — velocity IS the
+    // breath there).
+    float gain = pn.velocity;
 
     // --- 2. Fresh held voice ---------------------------------------------
     if (hold) {

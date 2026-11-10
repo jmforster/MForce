@@ -1159,7 +1159,6 @@ int run_render(int argc, char** argv) {
 
     auto ip = load_instrument_patch(patchPath);
     ip.instrument->volume = 0.5f;
-    ip.instrument->hiBoost = 0.3f;
 
     Conductor conductor;
     for (const auto& p : piece.parts) {
