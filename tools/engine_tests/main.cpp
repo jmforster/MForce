@@ -1878,7 +1878,9 @@ struct ScratchPatch {
         std::ofstream f(path);
         f << text;
     }
-    ~ScratchPatch() { std::filesystem::remove(path); }
+    // The error_code overload: a destructor must not throw, and a file that
+    // will not go away is not this test's failure.
+    ~ScratchPatch() { std::error_code ec; std::filesystem::remove(path, ec); }
     ScratchPatch(const ScratchPatch&) = delete;
     ScratchPatch& operator=(const ScratchPatch&) = delete;
 };
