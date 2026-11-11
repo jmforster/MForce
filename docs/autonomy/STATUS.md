@@ -1,5 +1,49 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-10, afternoon (refactor session XVI, Fable 5.2 xhigh; the
+plan written at xhigh as 4.1's and 4.2's were).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.3'S PLAN IS WRITTEN —
+`docs/superpowers/plans/2026-11-10-part4-checkpoint-4.3.md` ("tables, Envelope
+and Curve"), in 4.2's shape, from a survey of the loader's two branches,
+`envelope.h`, `curve_node.h`, the pin kinds, the editor's stage table and its
+74 curve references, the converter, and a census of all 3,146 patch files (its
+Architecture paragraph, ten numbered facts). IT AWAITS MATT'S GO-AHEAD; nothing
+of 4.3 is built and the plan is uncommitted with this file (Task 0 commits
+both). Eight tasks, each a commit that builds every target and passes the
+roundtrip gate: 0 the base, the arms, the census, a synthetic set of about
+twenty; 1 the enum column, one label match, the ragged-table rule for every
+group, the editor writing an enum as its label; 2 the Envelope (eight columns
+the store, `stages_` derived; `timeMode` a setting; the output mapped always;
+the editor's stage table on the array cache); 3 the Curve (six columns, two
+settings; the editor's curve editor on the cache); 4 the converter's two rules;
+5 the tree converted (32 tracked files, 373 audition, 33 pending) under Task 3's
+binary; 6 the old forms refused by name in both hosts and their reading
+deleted; 7 the close. WHAT THE PLAN ASKS MATT TO NOTICE: Ledger 2 (the two
+special editors stay and edit the array cache — the other reading of 8.1's
+sentence deletes them); Ledger 3 (the expression rows' columns are `exprX`,
+`exprForm`, `exprA`, `exprB`, because §3.3's `x` cannot be two columns in one
+bag); Ledger 8 (the editor writes every enum setting as its label from this
+checkpoint, ahead of 4.5's rewrite on disk); Ledger 7 (the `FormantPeaks`
+configurator goes now, not at 4.7); Ledger 24 (the Fable window). CENSUS FACTS
+THE EXECUTION CARRIES: 8.1's row says 180 audition files hold knots and the
+tree holds 291 (4.2's conversion made paramMap curves into CurveNodes); no
+stage-form `sustainLevel` key differs from its slots, so the settings-before-
+arrays order moves no render; only `adsr` presets carry `timeMode`; the dead
+keys are thirteen (CLEANUP 24's twelve and one in audition); one audition node
+says `"timeMode": "percent"`; two baselines hold a non-ASCII character. Usage
+as read Tue 11-10 at about 15:40 HST: weekly all-models 46%, WEEKLY FABLE 80%,
+3d 10h left (reset Saturday 2026-11-14 at 02:00 HST); the survey and the plan
+cost three Fable points; 4.2 cost thirteen, so 4.3 run now ends in the
+mid-nineties or meets the ceiling at its close (Ledger 24: the committed tasks
+stand and the coordinator's seat moves to Opus 5.5, or the execution starts
+Saturday). Execution as 4.2 ran, IN A FRESH SESSION on Fable 5.2 at xhigh
+(this one stands at 440k tokens), with the prompt "Execute
+docs/superpowers/plans/2026-11-10-part4-checkpoint-4.3.md. Go." GIT: main
+level with origin; uncommitted — the plan (new), this file; GOALS.md Matt's
+own, never staged.
+
+---
+
 Updated: 2026-11-10 (refactor session XV, Fable 5.2 xhigh coordinating; Opus
 5.5 executors, reviewer and re-reviewer).
 NEXT SESSION STARTS HERE: CHECKPOINT 4.2 LANDED on main — `496bb42` (one
