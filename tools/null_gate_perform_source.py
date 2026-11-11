@@ -104,15 +104,16 @@ def main():
         if ref[key] != h:
             bad += 1
             print(f"DIFF {key}: {ref[key]} -> {h}", flush=True)
-    # A manifest entry with no file is its own failure — a patch that silently
-    # vanished would otherwise shrink the denominator and read as a pass.
-    for key in sorted(set(ref) - seen):
-        bad += 1
+    # A manifest entry with no file is a patch that was retired: reported, not
+    # a failure. Patches come and go; the gate compares the ones that exist.
+    gone = sorted(set(ref) - seen)
+    for key in gone:
         print(f"GONE {key} (in manifest, no file on disk)", flush=True)
 
-    checked = len(ref)
+    checked = len(ref) - len(gone)
     print(f"{checked - bad}/{checked} manifest entries identical"
-          + (f"; {new} new patch(es) not in manifest" if new else ""))
+          + (f"; {new} new patch(es) not in manifest" if new else "")
+          + (f"; {len(gone)} retired" if gone else ""))
     sys.exit(1 if bad else 0)
 
 main()

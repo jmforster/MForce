@@ -8,9 +8,14 @@ converter, `tools/convert_patch.py` with `tools/convert_rules/`), `eec5aa2`
 (the editor), `e2e442d` (the engine), `0e6648d` (the tools), `82b03f6` and
 `f07c51e` (the review's two fix waves), then the docs commit; base `dc2f9a0`.
 Report R17 (`docs/autonomy/refactor/reports/2026-11-10-checkpoint-4.2.md`)
-awaits Matt in `refactor/REVIEW.md`: nothing for his ears, two non-blocking
-questions (mend `MPXTest3`'s NaN now or after Part 8; must a setting be driven
-through a Curve). THE NEXT THING WRITTEN IS CHECKPOINT 4.3'S PLAN ("tables:
+has Matt's verdicts of 2026-11-10: (1) "delete MPXTest3" — retired to
+`patches/old/baselines_retired_2026-11-10/` and out of the manifest, so THE
+SCOPE IS 131 PATCHES AND THE NULL GATE 77 from here
+(`renders/scratch/ab42/library_baselines_131.txt`; no Multiplex voice is left
+in library or baselines); (2) "we do need a direct path … Frequency to
+Frequency" — which is a pin and is direct already; one question is left in
+`refactor/REVIEW.md` (should a SETTING take the note without a Curve; CLEANUP
+58 has the cost). THE NEXT THING WRITTEN IS CHECKPOINT 4.3'S PLAN ("tables:
 Envelope and Curve, the enum column": Part 4 §8.1 row 4.3, §8.3, §9.1's 4.3
 rows), in 4.2's shape, for Matt's go-ahead before anything is executed; offer
 xhigh/max first. NOTHING OF 4.3 IS BUILT.
@@ -31,8 +36,8 @@ final newline, and writes nothing for an unchanged or refused file; tests in
 `tools/tests/test_convert_*.py` inject the registry table through `Context`
 (its shape is `params`, `inputs`, `settings`, as `mforce_cli
 --dump-descriptors` prints it — use the real shape in tests). (2) THE REUSABLE
-ARMS: `renders/scratch/ab42/old/hashes.txt` with `library_baselines.txt` (the
-132), `scoreless/` (the nine, converted, with `set.txt`), `synth_wired/` (the
+ARMS: `renders/scratch/ab42/old/hashes.txt` with `library_baselines_131.txt`
+(the scope without `MPXTest3`), `scoreless/` (the nine, converted, with `set.txt`), `synth_wired/` (the
 sixteen synthetics in wiring form; `synth/make.py` writes the paramMap forms,
 which now only serve to show the refusal); `renders/scratch/ab_tree/
 cli_post42.exe` is the close CLI. (3) `gates --fast` still prints FAILED on a
@@ -42,7 +47,8 @@ and `__mul_N` nodes have no saved canvas position; the editor places them in a
 strip on first open. (5) What the conversion did NOT preserve, by construction,
 and no file has: a Multiplex voice under a bend follows it (a test pins this);
 a Multiplex that is not the voice's output now gets the note at all. (6) Found
-and left, each booked: `MPXTest3` renders NaN (CLEANUP P3; REVIEW R17 q1);
+and left, each booked: a Triangle with `bias` 0 renders NaN (CLEANUP 66; the
+one file that had it, `MPXTest3`, is retired);
 Convert to Node graph and back drops `volume` and the Output node's
 declarations (CLEANUP 54 — 4.8's plan); a held line on a Multiplex voice is
 silent after its first note (CLEANUP 65, Part 5); a dynamic pin inside a
@@ -66,9 +72,9 @@ tests' registry table had the wrong shape; a second departure (the nested
 Multiplex); and one wrong claim of the coordinator's (that a Multiplex voice
 cannot hold a line), caught by the re-review and then settled by a render.
 MEASURE, DO NOT REASON, when two readings of the engine disagree. Usage,
-measured at the docs commit: weekly all-models 33% → 42%, weekly Fable 61% → 74% for the whole checkpoint (the plan guessed ten Fable points; 4.1 cost eight); both windows reset Saturday 2026-11-14 at 02:00 HST. GIT: main ahead of origin by the
-checkpoint's commits, NOT pushed (ask at close-out); GOALS.md stays Matt's
-uncommitted edit, never staged.
+measured at the docs commit: weekly all-models 33% → 42%, weekly Fable 61% → 74% for the whole checkpoint (the plan guessed ten Fable points; 4.1 cost eight); both windows reset Saturday 2026-11-14 at 02:00 HST. GIT: main PUSHED to origin at the
+close-out (Matt, 2026-11-10: "push"); GOALS.md stays Matt's uncommitted edit,
+never staged.
 
 ---
 

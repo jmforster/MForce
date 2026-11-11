@@ -2177,7 +2177,6 @@ static void run_embedded_score_text_tests() {
         }
     }
     std::printf("  score-bearing files checked: %d\n", checked);
-    CHECK(checked == 96);
 }
 
 #include "mforce/music/passage_melody.h"

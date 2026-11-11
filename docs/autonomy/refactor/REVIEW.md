@@ -20,16 +20,32 @@ given.
 ## Awaiting
 
 **R17 — checkpoint 4.2: the paramMap goes** (2026-11-10, commits
-`496bb42`..`0e6648d`, fix waves `82b03f6` and `f07c51e`). Nothing for your ears:
-no render moved. What you can see is in the editor. Two questions the
-checkpoint turned up are yours and do not block 4.3.
-- Read: `docs/autonomy/refactor/reports/2026-11-10-checkpoint-4.2.md`
-  (fifteen minutes; section 1 — what changed in the editor and in your
-  folders, and what was found in passing; section 2 — the two ways a note
-  drives something now that there is one form; section 4 — how a change with
-  nothing to hear was proved, and the two Multiplex shapes that do play
-  differently and that no file has; section 6 — the session's decisions;
-  section 8 — the review; section 10 — the C++ lessons).
+`496bb42`..`0e6648d`, fix waves `82b03f6` and `f07c51e`; report
+`docs/autonomy/refactor/reports/2026-11-10-checkpoint-4.2.md`). Your verdicts
+of 2026-11-10 are in; one question is left, and it does not block 4.3.
+- Verdict 1, "delete MPXTest3": done. The file is in
+  `patches/old/baselines_retired_2026-11-10/` (patches are moved, never
+  deleted) and out of the null gate's manifest. The scope is 131 patches and
+  the manifest 77. No Multiplex voice is left in library or baselines; the
+  engine tests keep three Multiplex cases (a wired note inside a template, a
+  bend, the allocation count). The oscillator still divides by a `bias` of
+  zero; with the file gone, mending that moves no render in scope (CLEANUP
+  66).
+- Verdict 2, "we do need a direct path … mapping Frequency to Frequency,
+  don't want to have to put a dummy curve in between": that case has a direct
+  path and always had. `frequency` is a pin on every type that has one (15 of
+  75; no type has a `frequency` setting), and a Note node wires straight to a
+  pin, in the editor and in every converted file (83 frequency pins in
+  library, 30 in baselines, 471 in audition, 56 in pending, each fed by the
+  note with nothing between). The converter interposed no curve anywhere: a
+  curve node exists only where the paramMap entry had a `curve`. And no file
+  in any folder drives a *setting* without a curve.
+- Decide, when you like: **do you still want a setting — a gold pin, such as
+  a string's `t60` or an envelope's `timeScale` — to take the note
+  directly?** That is the only place a curve is required, by the editor's
+  rule since 2026-08-19 ("Only a Curve may feed a dynamic pin"). The engine
+  and the file format already take the direct form; the cost is in the editor
+  alone and is in CLEANUP 58.
 - Look, when you next open the editor (none of it was clicked in a running
   editor this session): Edit > Parameter mapping is a view with no Add row;
   Edit > Convert to Patch graph on a plain sound draws a wire from a Note
@@ -37,39 +53,6 @@ checkpoint turned up are yours and do not block 4.3.
   puts `instrument.paramMap is no longer read: python tools/convert_patch.py
   <patch> rewrites it as wiring` on the status line and leaves your graph as
   it was. If File > Open on such a file does anything else, say so.
-- Decide, when you like (non-blocking):
-  1. **`MPXTest3` renders NaN samples and always has.** Its triangle's `bias`
-     is 0, the lower bound of that pin's own range, and the oscillator
-     divides by it: one NaN at each cycle's first sample. Mend it now (a
-     guard at the division; that baseline's render and its manifest hash
-     move; no other Triangle in library, baselines, audition or pending has a
-     bias of exactly 0 or 1), or leave it with the byte-identity
-     preservations until Part 8? It is left (CLEANUP P3).
-  2. **The editor can no longer make a setting follow the note directly.**
-     The Mappings dialog's "Add (follows note)" on a setting was the one way;
-     the gold pin takes a Curve only. No file uses the form, the engine still
-     reads it, and a pass-through curve says the same. Is "a setting is
-     driven through a Curve" the rule, or does Part 7 owe a direct path
-     (CLEANUP 58)?
-- For your information, nothing to decide: nine files in `patches/pending`
-  were converted in place, as section 8.4 decided (all 44 as they stood are
-  in `renders/scratch/ab42/pending_before/`); 326 files in sweep and old need
-  `python tools/convert_patch.py <file>` before they load, and six of old's
-  the converter refuses by name (a formant peak outside a spectrum); Edit >
-  Convert to Node graph and back drops `volume` and the Output node's
-  declarations (older than this checkpoint; 4.8's plan carries it, CLEANUP
-  54); a held line on a Multiplex voice is silent after its first note
-  (older; Part 5, CLEANUP 65); a setting driven per note inside a Multiplex
-  template does nothing (4.6, CLEANUP 56); `gen_liar3.py` and
-  `gen_vowel_baseline.py` write a shape nothing reads or converts (CLEANUP
-  57); `mforce_ui --dump-curve-opts` is gone.
-- Try: `python tools/convert_patch.py --check patches/library
-  patches/baselines patches/audition patches/pending` (0 pending);
-  `python tools/null_gate_perform_source.py --jobs 3` (78/78);
-  `python tools/rt_smoke.py` (five shapes ok, the standing `wiring` diff,
-  `refusal ok`, `make-instrument ok`);
-  `mforce_cli renders/scratch/ab42/synth/a_bare_sine.json out.wav` (the
-  refusal's sentence).
 
 **R16 — checkpoint 4.1: the seam's render half; `hiBoost`** (2026-11-09,
 commits `e5518ef`..`7b32205`, fix waves `e0cb2e2` and `3c012ea`). One pair for your ears, by your 2026-10-05

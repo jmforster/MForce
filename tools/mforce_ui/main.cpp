@@ -12133,8 +12133,8 @@ int main(int argc, char** argv) {
 
     // Start with a Patch Graph — then, if a patch path was passed on the
     // command line, load it so the user can launch the UI with a patch in
-    // one step (e.g. `mforce_ui.exe patches/MPXTest3.json`). Status shows
-    // in the transport panel whether the load succeeded or failed.
+    // one step (`mforce_ui.exe patches/library/winds/oboe1.json`). Status
+    // shows in the transport panel whether the load succeeded or failed.
     new_graph(GraphMode::PatchGraph);
     if (argc >= 2) {
         std::string patchArg = argv[1];

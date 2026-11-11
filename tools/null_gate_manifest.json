@@ -57,7 +57,6 @@
  "patches/baselines/FormantSequence1.json": "824c5f4a49f0238541cf14f4e55ce93e03aa931255b8a8310a8650ba4e1d6f05",
  "patches/baselines/hybrid_breath_horn_test.json": "ef0887180bb8c1f67b73d47feabea98c60cae74be8f0f3284cf328bf99b716d6",
  "patches/baselines/inst_chord_test.json": "f87635a357843536897b315b5d9404468daccfbd8c21cdc5100d809b7d3c8851",
- "patches/baselines/MPXTest3.json": "c0e4e6b2910a9576f3bbdbb66933f940c269def78177751825947d25fc22607d",
  "patches/baselines/perform/wiring_setting.json": "262ab42e2b0dac8a34f71d339603e77d3a6cd374029dea6a92df1044e6623114",
  "patches/baselines/perform/wiring_smoke.json": "bf5d23eb86c7d1fa6a421c84b92ba6ef8a5ed0476e1514076565e19946390610",
  "patches/baselines/phased_test.json": "11b1884775163285ddbd87076877c41f0740352e003a8b1f3aff9695b1143102",

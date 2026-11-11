@@ -23,6 +23,11 @@ and that no file has. Section 6 is what the session decided under the
 2026-11-02 rule. Section 8 is the independent review. Section 10 is the C++
 lessons.
 
+*Verdicts, 2026-11-10 (after this report was written): `MPXTest3` is retired
+to `patches/old/`, so where the report says 132 patches the scope is 131 from
+here; and frequency to frequency is a wire to a pin, direct before and after.
+REVIEW R17 has both, and the one question left.*
+
 ## 1. What changed for you
 
 - **Nothing is audible.** The 132 library and baseline patches render
