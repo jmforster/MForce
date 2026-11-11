@@ -5,13 +5,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2834,
-     2880
+     2631,
+     2677
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3121,
-     3165
+     2916,
+     2960
     ]
    ]
   ],
@@ -275,13 +275,13 @@
    [
     [
      "engine/include/mforce/render/instrument.h",
-     690,
-     708
+     655,
+     673
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     745,
-     757
+     710,
+     722
     ]
    ]
   ],
@@ -415,13 +415,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     554,
-     571
+     553,
+     570
     ],
     [
      "tools/mforce_ui/main.cpp",
-     1257,
-     1272
+     1244,
+     1259
     ]
    ]
   ],
@@ -430,13 +430,33 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11686,
-     11703
+     10928,
+     10945
     ],
     [
      "tools/mforce_ui/main.cpp",
-     11822,
-     11839
+     11064,
+     11081
+    ]
+   ]
+  ],
+  [
+   18,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     82,
+     99
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     163,
+     180
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     721,
+     738
     ]
    ]
   ],
@@ -515,13 +535,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4764,
-     4779
+     4811,
+     4826
     ],
     [
      "tools/engine_tests/main.cpp",
-     5058,
-     5073
+     5105,
+     5120
     ]
    ]
   ],
@@ -547,26 +567,6 @@
      "tools/stk_ref/brass_ref.cpp",
      5,
      20
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     84,
-     99
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     165,
-     180
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     723,
-     738
     ]
    ]
   ],
@@ -615,13 +615,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11504,
-     11518
+     10746,
+     10760
     ],
     [
      "tools/mforce_ui/main.cpp",
-     11704,
-     11718
+     10946,
+     10960
     ]
    ]
   ],
@@ -695,13 +695,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11505,
-     11518
+     10747,
+     10760
     ],
     [
      "tools/mforce_ui/main.cpp",
-     11705,
-     11718
+     10947,
+     10960
     ]
    ]
   ],
@@ -777,6 +777,21 @@
      "tools/mforce_cli/main.cpp",
      737,
      749
+    ]
+   ]
+  ],
+  [
+   13,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     8348,
+     8360
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     8378,
+     8389
     ]
    ]
   ],
@@ -865,13 +880,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12173,
-     12184
+     11415,
+     11426
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12235,
-     12245
+     11477,
+     11487
     ]
    ]
   ],
@@ -897,6 +912,31 @@
      "tools/stk_ref/brass_ref.cpp",
      63,
      74
+    ]
+   ]
+  ],
+  [
+   12,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     82,
+     93
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     163,
+     174
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     721,
+     732
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     792,
+     803
     ]
    ]
   ],
@@ -1060,18 +1100,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4766,
-     4776
+     4813,
+     4823
     ],
     [
      "tools/engine_tests/main.cpp",
-     5060,
-     5070
+     5107,
+     5117
     ],
     [
      "tools/engine_tests/main.cpp",
-     5565,
-     5575
+     5612,
+     5622
     ]
    ]
   ],
@@ -1080,43 +1120,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2739,
-     2749
+     2536,
+     2546
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3079,
-     3088
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     2818,
-     2828
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     3111,
-     3121
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     2968,
-     2978
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     3174,
-     3184
+     2874,
+     2883
     ]
    ]
   ]
@@ -1349,7 +1359,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 351,
+   "lines": 324,
    "longest_function": [
     18,
     "mforce::ValueSource::next"
@@ -2527,10 +2537,10 @@
    "types": []
   },
   "engine/include/mforce/render/instrument.h": {
-   "changelog_comments": 20,
+   "changelog_comments": 19,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 832,
+   "lines": 797,
    "longest_function": [
     131,
     "mforce::PitchedInstrument::play_note"
@@ -2579,7 +2589,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 36,
+   "lines": 40,
    "longest_function": [
     0,
     ""
@@ -2639,7 +2649,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 66,
+   "lines": 67,
    "longest_function": [
     1,
     "mforce::AdditiveSource::type_name"
@@ -2971,9 +2981,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 194,
+   "lines": 119,
    "longest_function": [
-    19,
+    13,
     "mforce::MultiplexSource::rebuild_"
    ],
    "module": "source",
@@ -3226,7 +3236,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 103,
+   "lines": 105,
    "longest_function": [
     22,
     "mforce::CurveNode::map_expr"
@@ -4052,9 +4062,9 @@
    "changelog_comments": 7,
    "const_cast": 0,
    "dynamic_cast": 7,
-   "lines": 1537,
+   "lines": 1346,
    "longest_function": [
-    343,
+    338,
     "mforce::build_graph"
    ],
    "module": "render",
@@ -4320,8 +4330,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 23,
-   "lines": 9227,
+   "dynamic_cast": 24,
+   "lines": 9374,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -4419,16 +4429,16 @@
    "types": []
   },
   "tools/mforce_ui/main.cpp": {
-   "changelog_comments": 123,
+   "changelog_comments": 114,
    "const_cast": 0,
    "dynamic_cast": 21,
-   "lines": 14058,
+   "lines": 13266,
    "longest_function": [
-    1738,
+    1704,
     "main"
    ],
    "module": "ui",
-   "mutable_vars": 88,
+   "mutable_vars": 86,
    "types": [
     "GraphMode",
     "UiPinKind",
@@ -4452,7 +4462,6 @@
     "ShapeEditorState",
     "ShapeEdGenState",
     "ShaperPreset",
-    "TargetOpt",
     "GroupProjection"
    ]
   },
@@ -4724,16 +4733,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 238,
+  "changelog_comments": 228,
   "const_cast": 10,
-  "duplicate_blocks": 156,
-  "dynamic_cast": 64,
-  "file_level_mutable_vars": 120,
+  "duplicate_blocks": 157,
+  "dynamic_cast": 65,
+  "file_level_mutable_vars": 118,
   "files": 223,
   "files_over_limit": 18,
-  "functions_over_limit": 96,
+  "functions_over_limit": 93,
   "include_violations": 12,
-  "lines": 62100,
+  "lines": 61134,
   "unmapped_files": 0
  }
 }

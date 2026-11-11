@@ -1,5 +1,77 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-10 (refactor session XV, Fable 5.2 xhigh coordinating; Opus
+5.5 executors, reviewer and re-reviewer).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.2 LANDED on main — `496bb42` (one
+converter, `tools/convert_patch.py` with `tools/convert_rules/`), `eec5aa2`
+(the tree converted: 82 tracked files, 111 audition, 9 pending), `bef576e`
+(the editor), `e2e442d` (the engine), `0e6648d` (the tools), `82b03f6` and
+`f07c51e` (the review's two fix waves), then the docs commit; base `dc2f9a0`.
+Report R17 (`docs/autonomy/refactor/reports/2026-11-10-checkpoint-4.2.md`)
+awaits Matt in `refactor/REVIEW.md`: nothing for his ears, two non-blocking
+questions (mend `MPXTest3`'s NaN now or after Part 8; must a setting be driven
+through a Curve). THE NEXT THING WRITTEN IS CHECKPOINT 4.3'S PLAN ("tables:
+Envelope and Curve, the enum column": Part 4 §8.1 row 4.3, §8.3, §9.1's 4.3
+rows), in 4.2's shape, for Matt's go-ahead before anything is executed; offer
+xhigh/max first. NOTHING OF 4.3 IS BUILT.
+What 4.2 proved: 0 of the 132 moved, measured three times (the files
+converted under the unchanged engine; the engine's paramMap code deleted; the
+close); the score-less nine identical with a score appended; sixteen synthetic
+patches, one per paramMap form audition holds, identical converted, with one
+built to differ (a Multiplex voice under a bend); the comp gate `post42`
+against `post41`, 21 SAME; the converter's rules equal to the three old tools
+over all 3,146 patch files. `instrument.paramMap` is refused by the engine and
+by the editor with one sentence (`kParamMapRefusal`, `render/patch_loader.h`).
+FACTS THE NEXT PLAN MUST CARRY, each learned here: (1) `tools/convert_patch.py`
+is where 4.3's file rewrite goes: a rule is a module in `tools/convert_rules/`
+with `apply(doc, notes, ctx) -> Counter` (non-empty exactly when it changed the
+document; `ValueError` refuses the file; refuse BEFORE writing anything), added
+to `RULES` in `__init__.py`; the driver keeps a file's indent, writes LF and a
+final newline, and writes nothing for an unchanged or refused file; tests in
+`tools/tests/test_convert_*.py` inject the registry table through `Context`
+(its shape is `params`, `inputs`, `settings`, as `mforce_cli
+--dump-descriptors` prints it — use the real shape in tests). (2) THE REUSABLE
+ARMS: `renders/scratch/ab42/old/hashes.txt` with `library_baselines.txt` (the
+132), `scoreless/` (the nine, converted, with `set.txt`), `synth_wired/` (the
+sixteen synthetics in wiring form; `synth/make.py` writes the paramMap forms,
+which now only serve to show the refusal); `renders/scratch/ab_tree/
+cli_post42.exe` is the close CLI. (3) `gates --fast` still prints FAILED on a
+clean tree; the smoke's tail is now `refusal ok`, `make-instrument ok`, `5/6
+shapes clean` (CLEANUP 60). (4) A converted file's `__perf_freq`, `__curve_N`
+and `__mul_N` nodes have no saved canvas position; the editor places them in a
+strip on first open. (5) What the conversion did NOT preserve, by construction,
+and no file has: a Multiplex voice under a bend follows it (a test pins this);
+a Multiplex that is not the voice's output now gets the note at all. (6) Found
+and left, each booked: `MPXTest3` renders NaN (CLEANUP P3; REVIEW R17 q1);
+Convert to Node graph and back drops `volume` and the Output node's
+declarations (CLEANUP 54 — 4.8's plan); a held line on a Multiplex voice is
+silent after its first note (CLEANUP 65, Part 5); a dynamic pin inside a
+Multiplex template is inert (CLEANUP 56 — 4.6, where the render of such a file
+would move); `instanceNodes_` is written and unread (CLEANUP 55, 4.6). (7)
+`patches/sweep` (103 files) and `patches/old` (223) still carry paramMaps and
+are refused until converted; the converter refuses six of old's.
+THE EXECUTION PATTERN, as 4.1's and refined: a brief FILE per task under
+`renders/scratch/ab<NN>/briefs/` (the executor reads it; the prompt is a
+pointer and the hard rules) — a subagent cannot write a report file, so it
+reports in its final message and keeps raw outputs under `t<N>/`; NO EXECUTOR
+COMMITS; Fable reads each diff (a summariser that prints every added line and
+condenses removed runs: `renders/scratch/ab42/t3/diffsum.txt` shows the form),
+reruns the gates on its own build, edits where the reading calls for it, and
+commits; the reviewer runs IN PARALLEL WITH THE MUTATION RUN (it reads only at
+the commits), then ONE fix wave, then the close's measurements in parallel with
+the SAME reviewer's re-review (SendMessage to its agent id keeps its context).
+What the review and the coordinator's own probes found that no gate did: the
+converter wrote loadable files from maps the engine had refused; the unit
+tests' registry table had the wrong shape; a second departure (the nested
+Multiplex); and one wrong claim of the coordinator's (that a Multiplex voice
+cannot hold a line), caught by the re-review and then settled by a render.
+MEASURE, DO NOT REASON, when two readings of the engine disagree. Usage,
+measured at the docs commit: weekly all-models 33% → 42%, weekly Fable 61% → 74% for the whole checkpoint (the plan guessed ten Fable points; 4.1 cost eight); both windows reset Saturday 2026-11-14 at 02:00 HST. GIT: main ahead of origin by the
+checkpoint's commits, NOT pushed (ask at close-out); GOALS.md stays Matt's
+uncommitted edit, never staged.
+
+---
+
 Updated: 2026-11-09, evening, later (session XIV, after 4.1's close; Matt:
 "Yes, at xhigh").
 NEXT SESSION STARTS HERE: CHECKPOINT 4.2'S PLAN IS WRITTEN —

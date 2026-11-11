@@ -2170,6 +2170,38 @@ channels naming one source are refused by name already, ahead of 4.5's
 refusal of deeper sharing. 5.8's sentence on `frames` is corrected in
 place.
 
+**4.2 landed 2026-11-10** (`496bb42`..`0e6648d`, the review's fix waves
+`82b03f6` and `f07c51e`; plan
+`docs/superpowers/plans/2026-11-09-part4-checkpoint-4.2.md`; report R17,
+`docs/autonomy/refactor/reports/2026-11-10-checkpoint-4.2.md`). As the
+row says, with these facts the execution added. On disk as counted: 82,
+111 and 9 files, 714 entries; 0 of the 132 moved, measured with the files
+converted under the unchanged engine, again with the engine's paramMap
+code gone, and at the close; the eight score-less paramMap files with a
+score appended, identical. The converter is a driver and a folder of
+rules (`tools/convert_patch.py`, `tools/convert_rules/`), born with
+three rules, not one: the deleted-type and string-evolution rewrites
+moved in beside the paramMap's, each proved equal to its tool over all
+3,146 patch files. Besides the three scripts the row names,
+`migrate_fullAdditive.py`, `migrate_legacy_additive_params.py` (9.6 Q4,
+by measurement) and `mforce_ui --dump-curve-opts` went, the last ahead
+of 7.6's table because its subject did. The refusal is one sentence in
+one constant, thrown by the loader and by the editor. **The departures
+by construction are two, and a third difference has nothing to hear.**
+A Multiplex voice under a bend follows it, as the row says. A Multiplex
+that is *not* the voice's output never received a paramMap entry in its
+clones at all (the fan-out ran only when the voice's output was the
+Multiplex), and converted its clones follow the note: the conversion
+mends that shape, and no file in any folder has it. The row's "or a
+glide" is a difference of mechanism only: a held line on a Multiplex
+voice is silent after its first note in both forms, a fault older than
+this checkpoint and booked for Part 5. Two facts for 4.6: a dynamic pin
+on a node inside a Multiplex template is inert today, so 5.5's template
+moves the render of any file with that shape (none in the four folders);
+and `MultiplexSource::instanceNodes_` is written and read by nothing.
+The nine formant generators of 7.5: seven pipe through the converter;
+two write a shape 3.9 removed, which the converter refuses.
+
 ### 8.2 Why this order (proposed)
 
 - **4.1 first** because it holds the part's one listening change, and a
