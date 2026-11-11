@@ -127,9 +127,10 @@ struct PitchedInstrument final : Instrument {
   static constexpr float kMaxRingSec = 8.0f;
 
   // A dynamic pin (perform_source_design.md §5): a setting this patch
-  // drives once per note. A setting rebuilds state at prepare and has no
-  // pointer to pull, so the value is pushed through set_setting. `chain`
-  // is the signal wired to the pin, evaluated once at the note's Setup.
+  // drives once per note. A setting is a number its node reads as the note
+  // starts; it has no source to pull, so the value is pushed through
+  // set_setting. `chain` is the signal wired to the pin, evaluated once at
+  // the note's Setup.
   struct PushBinding {
     std::shared_ptr<Component>       consumer;
     std::string                      paramName;
@@ -324,8 +325,8 @@ struct PitchedInstrument final : Instrument {
   // slot-aware callers manage their own rotation.
   // Realization/Setup delivery (perform_source_design.md §5): one NoteState
   // write and the push-binding evaluation (the dynamic pins). Push
-  // deliveries happen BEFORE vg.source->prepare — settings rebuild
-  // per-note state there.
+  // deliveries happen BEFORE vg.source->start — a node lays out its
+  // per-note state from its settings there.
   // Onset vocabulary (spec 2026-09-20-note-onsets-v2 §6/§8): the
   // instrument block's "onsets" array, in declaration order. Interned
   // ids are 1-based; 0 = none/unknown. Stable, so ordinal use in a Curve
@@ -515,9 +516,11 @@ struct PitchedInstrument final : Instrument {
     if (vg.performSource)
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
                                  std::move(glide), onsetId);
-    // A dynamic pin HOLDS its line-start value: set_setting rebuilds
-    // per-note state at prepare and must not run mid-render. Pull chains
-    // (noteFaces curves) need no delivery: they read the new NoteState.
+    // A dynamic pin HOLDS its line-start value: its node laid the line out
+    // from it when the line started, and a setting changed mid-render would
+    // at best do nothing and at worst rewrite a stage that is playing. Pull
+    // chains (noteFaces curves) need no delivery: they read the new
+    // NoteState.
     fire_triggers(vg);   // the onset gesture restarts from current value
   }
 

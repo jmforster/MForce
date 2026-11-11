@@ -23,8 +23,9 @@ in "params" when it names a fixed pin. The registry decides, via
 Refused, naming the id or the target, for a human to resolve by hand: a
 paramMap that is not an object; an entry, under any name, that is neither a
 string nor an object with a string target, or whose curve or vcurve is not a
-list of two or more [number, number] knots; a target whose node type has no
-pin or setting of that name; an id the rule synthesizes for this document
+list of two or more [number, number] knots; a target that ends in a dot, or
+whose node type has no pin or setting of that name; an id the rule synthesizes
+for this document
 (__perf_freq, __perf_vel, __curve_N, __mul_N) that is already a node id in it;
 a target that already holds an object or a list (a {"ref"}, a {"tap"}, a
 multi-input list) in its slot, or that an earlier entry of the same paramMap
@@ -144,7 +145,9 @@ def convert(doc, notes, ctx):
             continue
         for entry in (entries if isinstance(entries, list) else [entries]):
             target, head = chain_for(entry)
-            node_id, _, pin = target.partition(".")
+            node_id, dot, pin = target.partition(".")
+            if dot and not pin:
+                raise ValueError("paramMap target %r names no pin after the dot" % target)
             pin = pin or "frequency"
             if node_id not in by_id:
                 raise ValueError("paramMap target %r: no node %r" % (target, node_id))

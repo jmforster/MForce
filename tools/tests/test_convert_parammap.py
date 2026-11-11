@@ -269,6 +269,14 @@ class RefusalTests(unittest.TestCase):
         counts, _ = apply(doc)
         self.assertEqual(counts["paramMap entry"], 1)
 
+    def test_a_target_that_ends_in_a_dot(self):
+        doc = instrument({"frequency": "osc."}, sine(frequency=440.0))
+        before = copy.deepcopy(doc)
+        with self.assertRaises(ValueError) as cm:
+            apply(doc)
+        self.assertIn("no pin after the dot", str(cm.exception))
+        self.assertEqual(doc, before)
+
     def test_a_target_with_no_pin_or_setting_of_that_name(self):
         for pm in ({"frequency": "osc.cutoff"},
                    {"frequency": ["osc.frequency", {"target": "f.mode", "curve": [[1, 1], [2, 2]]}]},
