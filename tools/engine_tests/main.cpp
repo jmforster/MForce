@@ -7586,8 +7586,9 @@ static void run_envelope_table_tests() {
     }
 
     // (8) A rebuild sizes the layout by the shortest column and never writes
-    // a column: the six columns left at the default's four cells do not grow
-    // or shrink to meet the two that were set.
+    // a column: startVal at three cells and endVal at two leave no stage
+    // while the default's six other columns are empty, and two stages once
+    // those six hold two cells each; neither startVal nor endVal is resized.
     {
         Envelope e;
         e.set_array("startVal", {0.0f, 1.0f, 2.0f});

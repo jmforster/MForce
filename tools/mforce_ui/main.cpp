@@ -207,9 +207,12 @@ static mforce::SampleClock g_editorClock;
 static mforce::RenderContext g_renderContext{AUDIO_SAMPLE_RATE, &g_editorClock};
 
 static std::string unique_node_label(const std::string& typeName);
-// The row of a node's stage table that the stream's hold appended, while it
-// is still recognisably the hold's; -1 for any other node or state.
+// The row of a node's stage table that the stream's hold appended, while the
+// node's table still holds it; -1 for any other node or state.
 static int stream_hold_row(const Component* node);
+// The editor replaced this node's stage table: the hold's row is gone from
+// it, and the hold has none to remove.
+static void stream_hold_forget(const Component* node);
 
 struct GraphNode {
     int id;
@@ -859,6 +862,7 @@ void GraphNode::push_table(const char* group) {
     for (auto& [d, v] : arrayValues)
         if (d.groupName && std::string_view(d.groupName) == group)
             dspSource->set_array(d.name, v);
+    stream_hold_forget(dspSource.get());
 }
 
 // A CurveNode in the editor: its rows are the cached columns (arrayValues:
@@ -1036,6 +1040,7 @@ static void update_node_dsp(GraphNode& node) {
 static void apply_envelope_preset(GraphNode& node, Envelope& env, const char* presetName) {
     std::lock_guard<std::mutex> lock(g_audioMutex);
     env.replace_stages(std::move(*envelope_from_preset_json(nlohmann::json{{"preset", presetName}})));
+    stream_hold_forget(&env);
     for (auto& [desc, val] : node.settingValues)
         val = env.get_setting(desc.name);
     node.pull_arrays();
@@ -1194,9 +1199,10 @@ static bool s_needsLayout = false;
 // callback is pulling them is a use-after-free.
 static void stop_playback();
 
-static void new_graph(GraphMode mode) {
-    stop_playback();
-    s_currentFilePath.clear();
+// The editor's graph state emptied: no nodes, links or groups, nothing loaded
+// stashed, ids from 1. The current path, the dirty flag, the selection and
+// the mode are the caller's.
+static void clear_graph_state() {
     s_nodes.clear();
     s_links.clear();
     s_loadedScore    = nlohmann::json();
@@ -1209,8 +1215,14 @@ static void new_graph(GraphMode mode) {
     s_listenTapNode = -1;
     invalidate_instrument_cache();
     conv_stash_clear();
-    s_graphMode = mode;
     s_nextId = 1;
+}
+
+static void new_graph(GraphMode mode) {
+    stop_playback();
+    s_currentFilePath.clear();
+    clear_graph_state();
+    s_graphMode = mode;
     g_selectedNodeId = -1;
     // Default boot/New nodes need a grid layout — load_graph_from_path
     // will reset this to false if the loaded patch has saved positions.
@@ -1388,6 +1400,9 @@ static nlohmann::json array_to_json(const ArrayDescriptor& desc, const std::vect
 // transport status line instead of silently creating inert nodes.
 static void transport_set_status(const char* msg, bool isError);
 
+// The graph built from a parsed file over the cleared editor; defined below.
+static void load_graph_json(nlohmann::json& root, const std::string& path);
+
 static void load_graph_from_path(const std::string& path) {
     using json = nlohmann::json;
 
@@ -1396,8 +1411,9 @@ static void load_graph_from_path(const std::string& path) {
     std::ifstream f(path);
     if (!f) return;
     json root = json::parse(f);
-    // Refused before anything touches the open graph: the caller reports the
-    // throw and the graph on screen stays as it was.
+    // A file that does not parse and the two refusals below leave the open
+    // graph untouched: the caller reports the throw and the graph on screen
+    // stays as it was. A failure after them leaves an empty graph.
     if (root.contains("instrument") && root["instrument"].contains("paramMap"))
         throw std::runtime_error(mforce::kParamMapRefusal);
     // A table's row form the engine no longer reads (an Envelope's stages, a
@@ -1414,22 +1430,25 @@ static void load_graph_from_path(const std::string& path) {
                     throw std::runtime_error("node '" + id + "' (" + type + "): " + retired);
             }
         }
-    stop_playback();  // stream paths hold raw pointers into s_nodes' DSP
+    // From here a throw leaves the editor empty, unnamed (a Save is a Save
+    // As) and clean, and goes on to the caller unchanged: a half-built graph
+    // under the refused file's name would be saved over it.
+    try {
+        stop_playback();  // stream paths hold raw pointers into s_nodes' DSP
+        load_graph_json(root, path);
+    } catch (...) {
+        clear_graph_state();
+        s_currentFilePath.clear();
+        s_graphDirty = false;
+        g_selectedNodeId = -1;
+        throw;
+    }
+}
+
+static void load_graph_json(nlohmann::json& root, const std::string& path) {
     s_currentFilePath = path;
     s_graphDirty = false;
-
-    s_nodes.clear();
-    s_links.clear();
-    s_groups.clear();
-    s_groupPath.clear();
-    s_groupListen.clear();
-    s_listenTapNode = -1;
-    invalidate_instrument_cache();
-    s_loadedScore    = nlohmann::json();
-    s_loadedInstrumentExtras = nlohmann::json::object();
-    s_loadedSeconds  = nlohmann::json();
-    conv_stash_clear();
-    s_nextId = 1;
+    clear_graph_state();
 
     bool hasInstrument = root.contains("instrument");
     s_graphMode = hasInstrument ? GraphMode::PatchGraph : GraphMode::NodeGraph;
@@ -3832,18 +3851,21 @@ struct StreamEnvHold {
 };
 static std::vector<StreamEnvHold> g_streamEnvHolds;
 
+// The hold's row is known, not recognised: addedStageIdx stays set until a
+// door that replaces the node's table (push_table, apply_envelope_preset)
+// forgets it. The UI thread alone reads and writes g_streamEnvHolds.
 static int stream_hold_row(const Component* node) {
     for (const auto& h : g_streamEnvHolds) {
         if (h.env != node) continue;
-        // Matched to a live node's object, so h.env is alive here. Still
-        // the hold's while it is the last stage and an expand: a stage edit
-        // during the stream pushes the cached table over the envelope's, and
-        // then nothing of the hold's is left.
-        const int last = h.env->stage_count() - 1;
-        return h.addedStageIdx >= 0 && h.addedStageIdx == last &&
-               h.env->stage(last).percent == 0.0f ? last : -1;
+        // Matched to a live node's object, so h.env is alive here.
+        return h.addedStageIdx >= 0 && h.addedStageIdx < h.env->stage_count() ? h.addedStageIdx : -1;
     }
     return -1;
+}
+
+static void stream_hold_forget(const Component* node) {
+    for (auto& h : g_streamEnvHolds)
+        if (h.env == node) h.addedStageIdx = -1;
 }
 
 void GraphNode::pull_arrays() {
@@ -3858,11 +3880,11 @@ void GraphNode::pull_arrays() {
 
 // The editor's cache is the truth for what the stream changed: each held
 // envelope takes its timeMode from its node's cached setting (an edit during
-// the stream set both the cache and the node), loses the hold stage if it is
-// still the hold's, and its node's cached table is re-pulled. An envelope
+// the stream set both the cache and the node), loses the hold stage unless an
+// edit replaced its table, and its node's cached table is re-pulled. An envelope
 // whose node was deleted during the stream went with it, and is not touched.
 static void stream_envelopes_restore() {
-    for (const auto& h : g_streamEnvHolds) {
+    for (auto& h : g_streamEnvHolds) {
         GraphNode* owner = nullptr;
         for (auto& n : s_nodes)
             if (n.dspSource.get() == h.env) { owner = &n; break; }
@@ -3870,7 +3892,10 @@ static void stream_envelopes_restore() {
         for (const auto& [desc, val] : owner->settingValues)
             if (std::string_view(desc.name) == "timeMode") h.env->set_setting("timeMode", val);
         const int row = stream_hold_row(h.env);
-        if (row >= 0) h.env->remove_stage(row);
+        if (row >= 0) {
+            h.env->remove_stage(row);
+            h.addedStageIdx = -1;
+        }
         owner->pull_arrays();
     }
     g_streamEnvHolds.clear();

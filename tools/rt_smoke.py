@@ -1,9 +1,10 @@
 """Fast round-trip smoke — one patch per SHAPE, not the whole library.
 
 tools/test_stable_roundtrip.py, over patches/baselines and patches/library as
-gates.py runs it, walks 132 patches and makes up to 342 subprocess invocations;
-it takes minutes and belongs at a task boundary. Most edits cannot plausibly
-affect 132 patches, and using the heaviest check as the default turns a
+gates.py runs it, walks every patch in both folders and makes up to three
+subprocess invocations for each (the roundtrip and two renders); it takes
+minutes and belongs at a task boundary. Most edits cannot plausibly affect
+every patch, and using the heaviest check as the default turns a
 ten-second question into a five-minute one.
 
 This covers the shapes that actually differ, and runs in seconds:
@@ -24,7 +25,7 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, eleven cases, each on its own line and not counted among
+After the shapes, ten cases, each on its own line and not counted among
 the shapes. Three fixtures written to the temp folder must be refused by
 mforce_ui --roundtrip, each with a non-zero exit, tools/convert_patch.py named
 in its output, and no file written: a patch carrying an instrument.paramMap
