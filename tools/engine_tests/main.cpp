@@ -659,29 +659,32 @@ static void run_dsp_performer_smoother_tests() {
     CHECK(bad == 0);
 }
 
+using CurveKnots = std::vector<std::pair<float, float>>;
+using CurveRows = std::vector<CurveNode::ExprKnot>;
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
-    lin.knots = {{0.0f, 0.3f}, {0.2f, 0.3f}, {0.85f, 1.0f}, {1.0f, 1.6f}};
+    lin.set_knots(CurveKnots{{0.0f, 0.3f}, {0.2f, 0.3f}, {0.85f, 1.0f}, {1.0f, 1.6f}});
     CHECK_NEAR(lin.map(-1.0f), 0.3f, 1e-6f);   // clamp low
     CHECK_NEAR(lin.map(0.1f),  0.3f, 1e-6f);   // flat segment
     CHECK_NEAR(lin.map(1.0f),  1.6f, 1e-6f);   // clamp high
     CHECK_NEAR(lin.map(0.925f), 1.3f, 1e-3f);  // midpoint of last segment
 
     // LogX (a frequency curve's usual interp): value linear in log(x)
-    CurveNode logx; logx.interp = CurveNode::CurveInterp::LogX;
-    logx.knots = {{100.0f, 0.0f}, {10000.0f, 2.0f}};
+    CurveNode logx; logx.interp.value = int(CurveNode::CurveInterp::LogX);
+    logx.set_knots(CurveKnots{{100.0f, 0.0f}, {10000.0f, 2.0f}});
     CHECK_NEAR(logx.map(1000.0f), 1.0f, 1e-4f);  // geometric midpoint
 
     // LogLog: 2 knots == exact power law (y = x^2 through (10,100),(100,10000))
-    CurveNode ll; ll.interp = CurveNode::CurveInterp::LogLog;
-    ll.knots = {{10.0f, 100.0f}, {100.0f, 10000.0f}};
+    CurveNode ll; ll.interp.value = int(CurveNode::CurveInterp::LogLog);
+    ll.set_knots(CurveKnots{{10.0f, 100.0f}, {100.0f, 10000.0f}});
     CHECK_NEAR(ll.map(31.6227766f), 1000.0f, 0.5f);
 
     // Pull path: source wired, evaluates on change
     auto cs = std::make_shared<ConstantSource>(0.5f);
     CurveNode wired;
-    wired.knots = {{0.0f, 0.0f}, {1.0f, 10.0f}};
+    wired.set_knots(CurveKnots{{0.0f, 0.0f}, {1.0f, 10.0f}});
     wired.set_param("source", cs);
     wired.next();
     CHECK_NEAR(wired.current(), 5.0f, 1e-6f);
@@ -696,8 +699,8 @@ static void run_curve_expr_tests() {
     using KF = CurveNode::KnotForm;
     // One Linear knot = global formula with live extrapolation on both sides
     // (the keytrack case: cutoff = 8*f0 everywhere, no 16000-knot needed).
-    CurveNode kt; kt.exprMode = true;
-    kt.exprKnots = {{440.0f, KF::Linear, 8.0f, 0.0f}};
+    CurveNode kt; kt.mode.value = 1;
+    kt.set_expr_knots(CurveRows{{440.0f, KF::Linear, 8.0f, 0.0f}});
     CHECK_NEAR(kt.map(100.0f),  800.0f,   1e-3f);
     CHECK_NEAR(kt.map(440.0f),  3520.0f,  1e-2f);
     CHECK_NEAR(kt.map(5000.0f), 40000.0f, 1e-1f);
@@ -705,10 +708,10 @@ static void run_curve_expr_tests() {
     // Matt's 3-point example: flat 0.1 low, 0.1 - x/50000 high, smooth
     // morph between; equal formulas on the top knots pin the formula exactly
     // over [3200,16000] and keep extrapolating above.
-    CurveNode m; m.exprMode = true;
-    m.exprKnots = {{20.0f,    KF::Linear, 0.0f,      0.1f},
-                   {3200.0f,  KF::Linear, -2e-5f,    0.1f},
-                   {16000.0f, KF::Linear, -2e-5f,    0.1f}};
+    CurveNode m; m.mode.value = 1;
+    m.set_expr_knots(CurveRows{{20.0f,    KF::Linear, 0.0f,      0.1f},
+                               {3200.0f,  KF::Linear, -2e-5f,    0.1f},
+                               {16000.0f, KF::Linear, -2e-5f,    0.1f}});
     CHECK_NEAR(m.map(10.0f),     0.1f,    1e-6f);   // edge: constant holds
     CHECK_NEAR(m.map(8000.0f),  -0.06f,   1e-5f);   // formula exact mid-span
     CHECK_NEAR(m.map(20000.0f), -0.3f,    1e-5f);   // extrapolates past last
@@ -716,15 +719,15 @@ static void run_curve_expr_tests() {
     CHECK_NEAR(m.map(1610.0f),   0.0839f, 1e-4f);
 
     // Power form: y = 2 * x^0.5
-    CurveNode pw; pw.exprMode = true;
-    pw.exprKnots = {{100.0f, KF::Power, 2.0f, 0.5f}};
+    CurveNode pw; pw.mode.value = 1;
+    pw.set_expr_knots(CurveRows{{100.0f, KF::Power, 2.0f, 0.5f}});
     CHECK_NEAR(pw.map(100.0f),  20.0f, 1e-4f);
     CHECK_NEAR(pw.map(2500.0f), 100.0f, 1e-3f);
 
-    // exprMode off leaves points behavior untouched even with exprKnots set
+    // Points mode leaves points behavior untouched even with expression rows set
     CurveNode off;
-    off.exprKnots = {{440.0f, KF::Linear, 8.0f, 0.0f}};
-    off.knots = {{0.0f, 0.0f}, {1.0f, 10.0f}};
+    off.set_expr_knots(CurveRows{{440.0f, KF::Linear, 8.0f, 0.0f}});
+    off.set_knots(CurveKnots{{0.0f, 0.0f}, {1.0f, 10.0f}});
     CHECK_NEAR(off.map(0.5f), 5.0f, 1e-6f);
 }
 
@@ -805,8 +808,8 @@ static void run_perform_source_tests() {
 
     // Chain: PerformOut freq -> LogX CurveNode, re-evaluates on re-strike
     auto fo = std::make_shared<PerformOut>(ps, PerformOut::Field::Frequency);
-    CurveNode cn; cn.interp = CurveNode::CurveInterp::LogX;
-    cn.knots = {{100.0f, 0.0f}, {10000.0f, 2.0f}};
+    CurveNode cn; cn.interp.value = int(CurveNode::CurveInterp::LogX);
+    cn.set_knots(CurveKnots{{100.0f, 0.0f}, {10000.0f, 2.0f}});
     cn.set_param("source", fo);
     cn.next();
     CHECK_NEAR(cn.current(), cn.map(440.0f), 1e-6f);
@@ -1225,19 +1228,19 @@ static void run_curve_shared_tests() {
 
     // Parity vs CurveNode::map — Linear domain
     CurveNode lin;
-    lin.knots = {{0.0f, 0.3f}, {0.2f, 0.3f}, {0.85f, 1.0f}, {1.0f, 1.6f}};
+    lin.set_knots(CurveKnots{{0.0f, 0.3f}, {0.2f, 0.3f}, {0.85f, 1.0f}, {1.0f, 1.6f}});
     for (float x : {-1.0f, 0.0f, 0.1f, 0.2f, 0.5f, 0.925f, 1.0f, 2.0f})
-        CHECK_NEAR(Curve::eval(lin.knots, {}, Curve::Domain::Linear, 0.5f, x),
+        CHECK_NEAR(Curve::eval(lin.knots(), {}, Curve::Domain::Linear, 0.5f, x),
                    lin.map(x), 1e-7f);
 
     // Parity vs CurveNode::map — LogX and LogLog domains
-    CurveNode logx; logx.interp = CurveNode::CurveInterp::LogX;
-    logx.knots = {{100.0f, 0.0f}, {10000.0f, 2.0f}};
-    CHECK_NEAR(Curve::eval(logx.knots, {}, Curve::Domain::LogX, 0.5f, 1000.0f),
+    CurveNode logx; logx.interp.value = int(CurveNode::CurveInterp::LogX);
+    logx.set_knots(CurveKnots{{100.0f, 0.0f}, {10000.0f, 2.0f}});
+    CHECK_NEAR(Curve::eval(logx.knots(), {}, Curve::Domain::LogX, 0.5f, 1000.0f),
                logx.map(1000.0f), 1e-6f);
-    CurveNode ll; ll.interp = CurveNode::CurveInterp::LogLog;
-    ll.knots = {{10.0f, 100.0f}, {100.0f, 10000.0f}};
-    CHECK_NEAR(Curve::eval(ll.knots, {}, Curve::Domain::LogLog, 0.5f,
+    CurveNode ll; ll.interp.value = int(CurveNode::CurveInterp::LogLog);
+    ll.set_knots(CurveKnots{{10.0f, 100.0f}, {100.0f, 10000.0f}});
+    CHECK_NEAR(Curve::eval(ll.knots(), {}, Curve::Domain::LogLog, 0.5f,
                            31.6227766f),
                ll.map(31.6227766f), 0.5f);
 
@@ -7583,6 +7586,288 @@ static void run_envelope_table_tests() {
     }
 }
 
+// The curves of the Curve's twin test, each under one interp in one mode, and
+// the grid of x it is read over: below the first knot, at each knot, between,
+// above the last, 0 and a negative x.
+struct CurveCase {
+    const char* name;
+    int interp;                                    // CurveNode::CurveInterp
+    bool expr;                                     // expressions mode
+    CurveKnots pts;
+    CurveRows rows;
+};
+static std::vector<CurveCase> curve_cases() {
+    using KF = CurveNode::KnotForm;
+    const CurveKnots p2 = {{100.0f, 0.5f}, {1000.0f, 2.0f}};
+    const CurveKnots p5 = {{20.0f, 0.1f}, {200.0f, 0.8f}, {1000.0f, 0.3f}, {5000.0f, 1.5f}, {16000.0f, 4.0f}};
+    const CurveKnots p1 = {{440.0f, 3.0f}};
+    const CurveKnots pz = {{100.0f, 0.0f}, {1000.0f, 1.0f}, {10000.0f, 4.0f}};
+    const CurveRows e1 = {{440.0f, KF::Linear, 8.0f, 0.0f}};
+    const CurveRows e4 = {{0.0f, KF::Linear, 0.0f, 0.1f},
+                          {200.0f, KF::Power, 0.01f, 1.5f},
+                          {2000.0f, KF::Linear, -2e-5f, 0.5f},
+                          {12000.0f, KF::Power, 3.0f, 0.25f}};
+    static const char* const in[] = {"linear", "logx", "loglog"};
+    std::vector<CurveCase> cases;
+    for (int i = 0; i < 3; ++i) {
+        cases.push_back({in[i], i, false, p2, {}});
+        cases.push_back({in[i], i, false, p5, {}});
+        cases.push_back({in[i], i, false, p1, {}});
+        cases.push_back({in[i], i, false, {}, {}});
+    }
+    cases.push_back({"loglog, a y of 0", 2, false, pz, {}});
+    cases.push_back({"linear", 0, true, {}, e1});
+    for (int i = 0; i < 3; ++i) cases.push_back({in[i], i, true, {}, e4});
+    cases.push_back({"linear", 0, true, {}, {}});
+    return cases;
+}
+static constexpr float kCurveGrid[] = {-50.0f, 0.0f, 10.0f, 20.0f, 50.0f, 100.0f, 150.0f, 200.0f, 440.0f,
+                                       500.0f, 1000.0f, 1500.0f, 2000.0f, 5000.0f, 7500.0f, 10000.0f,
+                                       12000.0f, 16000.0f, 20000.0f};
+// map(x) over kCurveGrid for each of curve_cases(), as float bits, recorded
+// from the node that held its knots as public vectors.
+static constexpr uint32_t kCurveBaseMap[][std::size(kCurveGrid)] = {
+    {0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F155555u, 0x3F2AAAABu, 0x3F888888u, 0x3F955556u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u},  // 0: points, linear, 2 knots, 0 rows
+    {0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DCCCCCDu, 0x3E5DDDDEu, 0x3ED27D28u, 0x3F1B05B0u, 0x3F4CCCCDu, 0x3F266666u, 0x3F1CCCCDu, 0x3E99999Au, 0x3EE66667u, 0x3F19999Au, 0x3FC00000u, 0x40045D17u, 0x4028BA2Eu, 0x4045D174u, 0x40800000u, 0x40800000u},  // 1: points, linear, 5 knots, 0 rows
+    {0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u},  // 2: points, linear, 1 knots, 0 rows
+    {0xC2480000u, 0x00000000u, 0x41200000u, 0x41A00000u, 0x42480000u, 0x42C80000u, 0x43160000u, 0x43480000u, 0x43DC0000u, 0x43FA0000u, 0x447A0000u, 0x44BB8000u, 0x44FA0000u, 0x459C4000u, 0x45EA6000u, 0x461C4000u, 0x463B8000u, 0x467A0000u, 0x469C4000u},  // 3: points, linear, 0 knots, 0 rows
+    {0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F439E7Au, 0x3F739874u, 0x3FBB8AFDu, 0x3FC633C6u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u},  // 4: points, logx, 2 knots, 0 rows
+    {0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DCCCCCDu, 0x3EC1D25Bu, 0x3F16DAFDu, 0x3F366936u, 0x3F4CCCCDu, 0x3F0E17E2u, 0x3F03ED36u, 0x3E99999Au, 0x3F1A315Au, 0x3F511A96u, 0x3FC00000u, 0x4017C654u, 0x403F58F8u, 0x40586D5Eu, 0x40800000u, 0x40800000u},  // 5: points, logx, 5 knots, 0 rows
+    {0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u},  // 6: points, logx, 1 knots, 0 rows
+    {0xC2480000u, 0x00000000u, 0x41200000u, 0x41A00000u, 0x42480000u, 0x42C80000u, 0x43160000u, 0x43480000u, 0x43DC0000u, 0x43FA0000u, 0x447A0000u, 0x44BB8000u, 0x44FA0000u, 0x459C4000u, 0x45EA6000u, 0x461C4000u, 0x463B8000u, 0x467A0000u, 0x469C4000u},  // 7: points, logx, 0 knots, 0 rows
+    {0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F000000u, 0x3F236408u, 0x3F4249F8u, 0x3F9C29A2u, 0x3FA8A7F1u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u, 0x40000000u},  // 8: points, loglog, 2 knots, 0 rows
+    {0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DCCCCCDu, 0x3E6A3F73u, 0x3EDB0793u, 0x3F1DF149u, 0x3F4CCCCDu, 0x3EFD536Bu, 0x3EEA56FAu, 0x3E99999Au, 0x3EE66666u, 0x3F19999Au, 0x3FC00000u, 0x400721FAu, 0x402C3B8Du, 0x4048DB2Cu, 0x40800000u, 0x40800000u},  // 9: points, loglog, 5 knots, 0 rows
+    {0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u, 0x40400000u},  // 10: points, loglog, 1 knots, 0 rows
+    {0xC2480000u, 0x00000000u, 0x41200000u, 0x41A00000u, 0x42480000u, 0x42C80000u, 0x43160000u, 0x43480000u, 0x43DC0000u, 0x43FA0000u, 0x447A0000u, 0x44BB8000u, 0x44FA0000u, 0x459C4000u, 0x45EA6000u, 0x461C4000u, 0x463B8000u, 0x467A0000u, 0x469C4000u},  // 11: points, loglog, 0 knots, 0 rows
+    {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x3E345144u, 0x3E9A209Au, 0x3F24B951u, 0x3F32EFB3u, 0x3F800000u, 0x3FA36408u, 0x3FC249F8u, 0x4028A7F1u, 0x405749ABu, 0x40800000u, 0x40800000u, 0x40800000u, 0x40800000u},  // 12: points, loglog, a y of 0, 3 knots, 0 rows
+    {0xC3C80000u, 0x00000000u, 0x42A00000u, 0x43200000u, 0x43C80000u, 0x44480000u, 0x44960000u, 0x44C80000u, 0x455C0000u, 0x457A0000u, 0x45FA0000u, 0x463B8000u, 0x467A0000u, 0x471C4000u, 0x476A6000u, 0x479C4000u, 0x47BB8000u, 0x47FA0000u, 0x481C4000u},  // 13: expressions, linear, 0 knots, 1 rows
+    {0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DE2F115u, 0x3E37BFD5u, 0x3F757964u, 0x40A19999u, 0x415CDAA4u, 0x41E24630u, 0x42A01BFAu, 0x42BA8098u, 0x432FE53Au, 0x4321B6B8u, 0x3EEB8800u, 0x40FB2360u, 0x4178331Eu, 0x41C07AE1u, 0x41FB3144u, 0x4206F640u, 0x420EB471u},  // 14: expressions, linear, 0 knots, 4 rows
+    {0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DE2F115u, 0x3E37BFD5u, 0x3F757964u, 0x40A19999u, 0x415CDAA4u, 0x41E24630u, 0x4273700Au, 0x428703C2u, 0x42BF0F20u, 0x4291FCFCu, 0x3EEB8800u, 0x41518A4Cu, 0x41A57E3Au, 0x41D7D2A7u, 0x41FB3144u, 0x4206F640u, 0x420EB471u},  // 15: expressions, logx, 0 knots, 4 rows
+    {0x3DCCCCCDu, 0x3DCCCCCDu, 0x3DD8EF67u, 0x3DFEF7A0u, 0x3E79B27Du, 0x3F800000u, 0x409FAE47u, 0x41E24630u, 0x4175D7ADu, 0x414E1FD9u, 0x4058BF1Bu, 0x3F926D7Eu, 0x3EEB851Fu, 0x40552143u, 0x410D9F69u, 0x419635DCu, 0x41FB3144u, 0x4206F640u, 0x420EB471u},  // 16: expressions, loglog, 0 knots, 4 rows
+    {0xC2480000u, 0x00000000u, 0x41200000u, 0x41A00000u, 0x42480000u, 0x42C80000u, 0x43160000u, 0x43480000u, 0x43DC0000u, 0x43FA0000u, 0x447A0000u, 0x44BB8000u, 0x44FA0000u, 0x459C4000u, 0x45EA6000u, 0x461C4000u, 0x463B8000u, 0x467A0000u, 0x469C4000u},  // 17: expressions, linear, 0 knots, 0 rows
+};
+
+static void run_curve_table_tests() {
+    std::printf("the Curve's tables: the twin for the knot lookup, the columns, interp and mode, the loader\n");
+    using KF = CurveNode::KnotForm;
+    static const char* const kColumns[] = {"x", "y", "exprX", "exprForm", "exprA", "exprB"};
+    auto expr_cell = [](const CurveNode::ExprKnot& e, int c) {
+        return c == 0 ? e.x : c == 1 ? float(int(e.form)) : c == 2 ? e.a : e.b;
+    };
+    // Column c of a case's rows: 0 and 1 the knots, 2 to 5 the expression rows.
+    auto column = [&](const CurveCase& k, int c) {
+        std::vector<float> col;
+        if (c < 2) for (const auto& p : k.pts) col.push_back(c == 0 ? p.first : p.second);
+        else       for (const auto& e : k.rows) col.push_back(expr_cell(e, c - 2));
+        return col;
+    };
+    auto by_setters = [](const CurveCase& k) {
+        auto n = std::make_shared<CurveNode>();
+        n->set_setting("interp", float(k.interp));
+        n->set_setting("mode", k.expr ? 1.0f : 0.0f);
+        n->set_knots(k.pts);
+        n->set_expr_knots(k.rows);
+        return n;
+    };
+    // The same curve written as the six columns, in declaration order or reversed.
+    auto by_columns = [&](const CurveCase& k, bool reverse) {
+        auto n = std::make_shared<CurveNode>();
+        n->set_setting("interp", float(k.interp));
+        n->set_setting("mode", k.expr ? 1.0f : 0.0f);
+        for (int j = 0; j < 6; ++j) {
+            const int c = reverse ? 5 - j : j;
+            n->set_array(kColumns[c], column(k, c));
+        }
+        return n;
+    };
+    auto same_knots = [](const CurveKnots& a, const CurveKnots& b) {
+        if (a.size() != b.size()) return false;
+        for (size_t i = 0; i < a.size(); ++i)
+            if (!same_bits(a[i].first, b[i].first) || !same_bits(a[i].second, b[i].second)) return false;
+        return true;
+    };
+    auto same_rows = [](const CurveRows& a, const CurveRows& b) {
+        if (a.size() != b.size()) return false;
+        for (size_t i = 0; i < a.size(); ++i)
+            if (!same_bits(a[i].x, b[i].x) || a[i].form != b[i].form || !same_bits(a[i].a, b[i].a)
+                || !same_bits(a[i].b, b[i].b))
+                return false;
+        return true;
+    };
+    auto same_map = [](const CurveNode& a, const CurveNode& b) {
+        for (float x : kCurveGrid)
+            if (!same_bits(a.map(x), b.map(x))) return false;
+        return true;
+    };
+
+    // (1) The twin for the knot lookup: the setters and set_array give the
+    // recorded map(x), bit for bit, and next() through a wired constant agrees.
+    const auto cases = curve_cases();
+    CHECK(cases.size() == std::size(kCurveBaseMap));
+    for (size_t c = 0; c < cases.size() && c < std::size(kCurveBaseMap); ++c) {
+        const auto a = by_setters(cases[c]), b = by_columns(cases[c], false), r = by_columns(cases[c], true);
+        int bad = 0;
+        for (size_t i = 0; i < std::size(kCurveGrid); ++i) {
+            const float x = kCurveGrid[i];
+            const float v = a->map(x);
+            if (std::bit_cast<uint32_t>(v) != kCurveBaseMap[c][i]) ++bad;
+            if (!same_bits(v, b->map(x)) || !same_bits(v, r->map(x))) ++bad;
+            auto wired = by_columns(cases[c], false);
+            wired->set_param("source", std::make_shared<ConstantSource>(x));
+            wired->next();
+            if (!same_bits(wired->current(), v)) ++bad;
+        }
+        if (bad) std::printf("  curve case %zu (%s, %s): %d of %zu differ\n", c,
+                             cases[c].expr ? "expressions" : "points", cases[c].name, bad, std::size(kCurveGrid));
+        CHECK(bad == 0);
+    }
+
+    // (2) The columns follow the setters, and the rows follow the columns.
+    for (const CurveCase& k : cases) {
+        const auto a = by_setters(k);
+        bool ok = true;
+        for (int c = 0; c < 6; ++c) {
+            const std::vector<float> want = column(k, c), got = a->get_array(kColumns[c]);
+            ok = ok && want.size() == got.size();
+            for (size_t i = 0; ok && i < want.size(); ++i) ok = same_bits(want[i], got[i]);
+        }
+        CHECK(ok);
+        CHECK(same_knots(a->knots(), k.pts) && same_rows(a->expr_knots(), k.rows));
+        const auto b = by_columns(k, true);
+        CHECK(same_knots(b->knots(), k.pts) && same_rows(b->expr_knots(), k.rows));
+    }
+    {
+        // A form cell is truncated and clamped: 1 and above Power, below 1 Linear.
+        CurveNode n;
+        n.set_array("exprX", {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
+        n.set_array("exprForm", {1.0f, 0.0f, 2.7f, -1.0f, 0.9f, 1.5f});
+        n.set_array("exprA", {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+        n.set_array("exprB", {2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f});
+        const auto& rows = n.expr_knots();
+        CHECK(rows.size() == 6);
+        if (rows.size() == 6)
+            CHECK(rows[0].form == KF::Power && rows[1].form == KF::Linear && rows[2].form == KF::Power
+                  && rows[3].form == KF::Linear && rows[4].form == KF::Linear && rows[5].form == KF::Power);
+        // A group's rows are as many as its shortest column has cells.
+        CurveNode m;
+        m.set_array("x", {1.0f, 2.0f, 3.0f});
+        m.set_array("y", {4.0f, 5.0f});
+        CHECK(same_knots(m.knots(), CurveKnots{{1.0f, 4.0f}, {2.0f, 5.0f}}));
+        m.set_array("exprX", {1.0f, 2.0f});
+        CHECK(m.expr_knots().empty());
+        // The setters replace the columns whole.
+        m.set_knots(CurveKnots{{7.0f, 8.0f}});
+        CHECK(m.get_array("x") == std::vector<float>{7.0f} && m.get_array("y") == std::vector<float>{8.0f});
+        m.set_knots(CurveKnots{});
+        CHECK(m.knots().empty() && m.get_array("x").empty() && m.get_array("y").empty());
+    }
+
+    // (3) interp and mode are settings; their labels are the words the files hold.
+    {
+        CurveNode n;
+        CHECK(n.interp.value == int(CurveNode::CurveInterp::Linear) && n.mode.value == 0);
+        n.set_setting("interp", 2.0f);
+        CHECK(n.interp.value == int(CurveNode::CurveInterp::LogLog));
+        n.set_setting("mode", 1.0f);
+        CHECK(n.mode.value == 1 && n.get_setting("mode") == 1.0f);
+        auto labels_are = [](const char* const* got, std::initializer_list<const char*> want) {
+            if (!got) return false;
+            size_t i = 0;
+            for (const char* w : want) {
+                if (!got[i] || std::strcmp(got[i], w) != 0) return false;
+                ++i;
+            }
+            return got[i] == nullptr;
+        };
+        int found = 0;
+        for (const auto& d : n.setting_descriptors()) {
+            if (std::strcmp(d.name, "interp") == 0) { ++found; CHECK(labels_are(d.enum_labels, {"linear", "logx", "loglog"})); }
+            if (std::strcmp(d.name, "mode") == 0)   { ++found; CHECK(labels_are(d.enum_labels, {"points", "expressions"})); }
+        }
+        CHECK(found == 2);
+        std::string arrays;
+        for (const auto& d : n.array_descriptors()) {
+            arrays += std::string(arrays.empty() ? "" : " ") + d.name + "/" + (d.groupName ? d.groupName : "-");
+            if (std::strcmp(d.name, "exprForm") == 0) CHECK(labels_are(d.enum_labels, {"linear", "power"}));
+            else CHECK(d.enum_labels == nullptr);
+        }
+        CHECK(arrays == "x/knots y/knots exprX/exprKnots exprForm/exprKnots exprA/exprKnots exprB/exprKnots");
+    }
+
+    // (4) The loader: each old key and its columns; labels in any case; the refusals.
+    {
+        auto patch = [](const std::string& curveParams) {
+            return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+                {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+                {"id":"cv","type":"CurveNode","params":{"source":{"ref":"pf"},)") + curveParams + R"(}},
+                {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"cv"}}}]}})";
+        };
+        auto curve_of = [](const std::string& json) {
+            auto ip = load_instrument_patch_json(json);
+            auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+            return std::dynamic_pointer_cast<CurveNode>(pi->voicePool.at(0).nodesById.at("cv"));
+        };
+        auto refusal = [](const std::string& json) {
+            try { load_instrument_patch_json(json); } catch (const std::exception& e) { return std::string(e.what()); }
+            return std::string();
+        };
+        const std::string knots = R"("interp":"logx","knots":[[100.0,0.002],[1000.0,0.2],[5000.0,0.05]])";
+        const std::string xy = R"("interp":"logx","x":[100.0,1000.0,5000.0],"y":[0.002,0.2,0.05])";
+        const auto fromKnots = curve_of(patch(knots)), fromXY = curve_of(patch(xy));
+        CHECK(fromKnots && fromXY && fromKnots->knots().size() == 3);
+        CHECK(same_knots(fromKnots->knots(), fromXY->knots()) && same_map(*fromKnots, *fromXY));
+        CHECK(same_knots(fromKnots->knots(), CurveKnots{{100.0f, 0.002f}, {1000.0f, 0.2f}, {5000.0f, 0.05f}}));
+        CHECK(fromKnots->interp.value == int(CurveNode::CurveInterp::LogX) && fromKnots->mode.value == 0);
+        CHECK(same_bits(render_loaded_note(patch(knots).c_str(), 4800), render_loaded_note(patch(xy).c_str(), 4800)));
+
+        const std::string rows = R"("mode":"expressions","interp":"loglog","exprKnots":[{"x":0.0,"form":"linear","a":0.0,"b":0.001},)"
+                                 R"({"x":200.0,"form":"power","a":0.0001,"b":1.5},{"x":2000.0,"a":-2e-5,"b":0.05},)"
+                                 R"({"x":12000.0,"form":"power","a":0.03,"b":0.25}])";
+        const std::string labels = R"("mode":"expressions","interp":"loglog","exprX":[0.0,200.0,2000.0,12000.0],)"
+                                   R"("exprForm":["linear","POWER","Linear","power"],"exprA":[0.0,0.0001,-2e-5,0.03],)"
+                                   R"("exprB":[0.001,1.5,0.05,0.25])";
+        const std::string indices = R"("mode":"expressions","interp":"loglog","exprX":[0.0,200.0,2000.0,12000.0],)"
+                                    R"("exprForm":[0,1,0,1],"exprA":[0.0,0.0001,-2e-5,0.03],"exprB":[0.001,1.5,0.05,0.25])";
+        const auto fromRows = curve_of(patch(rows)), fromLabels = curve_of(patch(labels)), fromIndices = curve_of(patch(indices));
+        CHECK(fromRows && fromLabels && fromIndices && fromRows->expr_knots().size() == 4);
+        CHECK(same_rows(fromRows->expr_knots(), fromLabels->expr_knots()) && same_rows(fromRows->expr_knots(), fromIndices->expr_knots()));
+        CHECK(same_map(*fromRows, *fromLabels) && same_map(*fromRows, *fromIndices));
+        CHECK(fromRows->mode.value == 1 && fromRows->interp.value == int(CurveNode::CurveInterp::LogLog));
+        CHECK(fromRows->expr_knots().size() == 4 && fromRows->expr_knots()[2].form == KF::Linear
+              && fromRows->expr_knots()[1].form == KF::Power);
+        CHECK(same_bits(render_loaded_note(patch(rows).c_str(), 4800), render_loaded_note(patch(labels).c_str(), 4800)));
+
+        // interp and mode as labels in any case; a label that matches none keeps the default.
+        const auto cased = curve_of(patch(R"("interp":"LogLog","mode":"EXPRESSIONS")"));
+        CHECK(cased->interp.value == int(CurveNode::CurveInterp::LogLog) && cased->mode.value == 1);
+        const auto unknownSetting = curve_of(patch(R"("interp":"cubic","mode":"spline")"));
+        CHECK(unknownSetting->interp.value == int(CurveNode::CurveInterp::Linear) && unknownSetting->mode.value == 0);
+        const auto absent = curve_of(patch(R"("x":[0.0,1.0],"y":[0.0,1.0])"));
+        CHECK(absent->interp.value == 0 && absent->mode.value == 0);
+
+        // An old key beside a column of its table is refused naming the node and both keys.
+        CHECK(refusal(patch(knots + R"(,"x":[100.0,1000.0,5000.0])")).find(
+                  "node 'cv' (CurveNode): holds both 'knots' and 'x'; a table is given once") != std::string::npos);
+        CHECK(refusal(patch(knots + R"(,"y":[0.002,0.2,0.05])")).find(
+                  "node 'cv' (CurveNode): holds both 'knots' and 'y'; a table is given once") != std::string::npos);
+        CHECK(refusal(patch(rows + R"(,"exprB":[0.001,1.5,0.05,0.25])")).find(
+                  "node 'cv' (CurveNode): holds both 'exprKnots' and 'exprB'; a table is given once") != std::string::npos);
+        CHECK(refusal(patch(rows + R"(,"exprForm":["linear","power","linear","power"])")).find(
+                  "node 'cv' (CurveNode): holds both 'exprKnots' and 'exprForm'; a table is given once") != std::string::npos);
+        // The other table's columns beside an old key load: knots with the expression columns.
+        const auto mixed = curve_of(patch(knots + R"(,"exprX":[0.0],"exprForm":["power"],"exprA":[1.0],"exprB":[2.0])"));
+        CHECK(mixed && mixed->knots().size() == 3 && mixed->expr_knots().size() == 1);
+        // A table missing a column is ragged.
+        const std::string ragged = refusal(patch(R"("x":[100.0,1000.0])"));
+        CHECK(ragged.find("node 'cv' (CurveNode): table 'knots' takes its columns at one length, all present or all absent")
+              != std::string::npos);
+        CHECK(ragged.find("y absent") != std::string::npos);
+        // An exprForm label outside the two is refused.
+        const std::string badForm = refusal(patch(R"("exprX":[0.0],"exprForm":["cubic"],"exprA":[1.0],"exprB":[0.0])"));
+        CHECK(badForm.find("node 'cv' (CurveNode): 'exprForm' holds \"cubic\"") != std::string::npos);
+    }
+}
+
 // A type this engine no longer has fails the load naming the tool that
 // rewrites it; a name it never had does not.
 static void run_retired_type_message_tests() {
@@ -8041,8 +8326,8 @@ static std::string dynamic_pin_patch_json(int polyphony) {
 
 static void run_dynamic_pin_tests() {
     std::printf("dynamic pins: the note's value at Setup, held across a continuation, no fault\n");
-    CurveNode curve; curve.interp = CurveNode::CurveInterp::LogX;
-    curve.knots = {{100.0f, 0.5f}, {1000.0f, 2.0f}};
+    CurveNode curve; curve.interp.value = int(CurveNode::CurveInterp::LogX);
+    curve.set_knots(CurveKnots{{100.0f, 0.5f}, {1000.0f, 2.0f}});
     const float at60 = curve.map(note_to_freq(60.0f));
     const float at72 = curve.map(note_to_freq(72.0f));
     CHECK(std::fabs(at60 - at72) > 0.1f);              // the two notes give two values
@@ -9711,6 +9996,7 @@ int main() {
     run_envelope_form_tests();
     run_envelope_form_loader_tests();
     run_envelope_table_tests();
+    run_curve_table_tests();
     run_retired_type_message_tests();
     run_hybrid_ks_tests();
     run_evolution_shape_tests();

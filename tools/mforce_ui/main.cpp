@@ -297,15 +297,6 @@ struct GraphNode {
     // with no entry gets a fresh __perf_* id at save.
     std::map<std::string, std::string> perfFieldIds;
 
-    // CurveNode: knots and interp, edited in the node's Properties pane.
-    // interp: 0 = linear, 1 = logx, 2 = loglog — matches CurveNode::CurveInterp.
-    std::vector<std::pair<float, float>> curveKnots;
-    int curveInterp{0};
-    // Expressions mode (curve_node.h header comment): knot values are
-    // Linear a*x+b / Power a*x^p rows instead of literals.
-    bool curveExprMode{false};
-    std::vector<CurveNode::ExprKnot> curveExprKnots;
-
     // Dynamic pins: the SETTINGS this node instance drives once per note
     // (pin_model_design.md §3). {"sustainLevel": {"ref": "__curve_sus"}}.
     // A sibling of "params", not a member of it, because node construction
@@ -862,6 +853,115 @@ void GraphNode::push_table(const char* group) {
     for (auto& [d, v] : arrayValues)
         if (d.groupName && std::string_view(d.groupName) == group)
             dspSource->set_array(d.name, v);
+}
+
+// A CurveNode in the editor: its rows are the cached columns (arrayValues:
+// x, y in the table "knots"; exprX, exprForm, exprA, exprB in "exprKnots")
+// and its interp and mode are the cached settings. The accessors read and
+// write the cache; push_curve hands the cache to the node. The curve editor
+// (draw_curve_node), the shape editor's Curve client, the load and the two
+// identity seeds use them.
+static const std::vector<float>& curve_column(const GraphNode& node, const char* name) {
+    static const std::vector<float> kNone;
+    for (const auto& [d, v] : node.arrayValues)
+        if (std::string_view(d.name) == name) return v;
+    return kNone;
+}
+static void set_curve_column(GraphNode& node, const char* name, std::vector<float> col) {
+    for (auto& [d, v] : node.arrayValues)
+        if (std::string_view(d.name) == name) { v = std::move(col); return; }
+}
+
+// The knots, as many as the shorter of x and y.
+static std::vector<std::pair<float, float>> curve_points(const GraphNode& node) {
+    const auto& x = curve_column(node, "x");
+    const auto& y = curve_column(node, "y");
+    std::vector<std::pair<float, float>> pts;
+    for (size_t i = 0; i < std::min(x.size(), y.size()); ++i) pts.emplace_back(x[i], y[i]);
+    return pts;
+}
+static void set_curve_points(GraphNode& node, const std::vector<std::pair<float, float>>& pts) {
+    std::vector<float> x, y;
+    for (const auto& [px, py] : pts) { x.push_back(px); y.push_back(py); }
+    set_curve_column(node, "x", std::move(x));
+    set_curve_column(node, "y", std::move(y));
+}
+
+// The expression rows, as many as the shortest of the four columns; a form
+// cell of 1 or more is Power, as the node reads it.
+static std::vector<CurveNode::ExprKnot> curve_expr_rows(const GraphNode& node) {
+    const auto& x = curve_column(node, "exprX");
+    const auto& f = curve_column(node, "exprForm");
+    const auto& a = curve_column(node, "exprA");
+    const auto& b = curve_column(node, "exprB");
+    std::vector<CurveNode::ExprKnot> rows;
+    for (size_t i = 0; i < std::min({x.size(), f.size(), a.size(), b.size()}); ++i)
+        rows.push_back({x[i], f[i] >= 1.0f ? CurveNode::KnotForm::Power : CurveNode::KnotForm::Linear,
+                        a[i], b[i]});
+    return rows;
+}
+static void set_curve_expr_rows(GraphNode& node, const std::vector<CurveNode::ExprKnot>& rows) {
+    std::vector<float> x, f, a, b;
+    for (const auto& k : rows) {
+        x.push_back(k.x);
+        f.push_back(float(int(k.form)));
+        a.push_back(k.a);
+        b.push_back(k.b);
+    }
+    set_curve_column(node, "exprX", std::move(x));
+    set_curve_column(node, "exprForm", std::move(f));
+    set_curve_column(node, "exprA", std::move(a));
+    set_curve_column(node, "exprB", std::move(b));
+}
+
+// The cached interp (CurveNode::CurveInterp as an int) and mode.
+static int curve_cached_setting(const GraphNode& node, const char* name) {
+    for (const auto& [d, v] : node.settingValues)
+        if (std::string_view(d.name) == name) return int(v);
+    return 0;
+}
+static void set_curve_cached_setting(GraphNode& node, const char* name, int value) {
+    for (auto& [d, v] : node.settingValues)
+        if (std::string_view(d.name) == name) v = float(value);
+}
+static int curve_interp(const GraphNode& node) { return curve_cached_setting(node, "interp"); }
+static void set_curve_interp(GraphNode& node, int interp) { set_curve_cached_setting(node, "interp", interp); }
+static bool curve_expr_mode(const GraphNode& node) {
+    return curve_cached_setting(node, "mode") == CurveNode::kExpressionsMode;
+}
+static void set_curve_expr_mode(GraphNode& node, bool expr) {
+    set_curve_cached_setting(node, "mode", expr ? CurveNode::kExpressionsMode : CurveNode::kPointsMode);
+}
+
+// Hands the cached curve to the node under one lock: the six columns, each
+// table's rows sorted by x (stable) into copies, the cache left in its own
+// order, and interp and mode.
+static void push_curve(GraphNode& node) {
+    auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get());
+    if (!cn) return;
+    auto pts = curve_points(node);
+    std::stable_sort(pts.begin(), pts.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    auto rows = curve_expr_rows(node);
+    std::stable_sort(rows.begin(), rows.end(),
+                     [](const auto& a, const auto& b) { return a.x < b.x; });
+    std::vector<float> x, y, ex, ef, ea, eb;
+    for (const auto& [px, py] : pts) { x.push_back(px); y.push_back(py); }
+    for (const auto& k : rows) {
+        ex.push_back(k.x);
+        ef.push_back(float(int(k.form)));
+        ea.push_back(k.a);
+        eb.push_back(k.b);
+    }
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    cn->set_array("x", std::move(x));
+    cn->set_array("y", std::move(y));
+    cn->set_array("exprX", std::move(ex));
+    cn->set_array("exprForm", std::move(ef));
+    cn->set_array("exprA", std::move(ea));
+    cn->set_array("exprB", std::move(eb));
+    cn->set_setting("interp", float(curve_interp(node)));
+    cn->set_setting("mode", float(curve_cached_setting(node, "mode")));
 }
 
 static void update_node_dsp_unlocked(GraphNode& node) {
@@ -1469,18 +1569,27 @@ static void load_graph_from_path(const std::string& path) {
                          gn.paramName.c_str());
             }
 
+            // A CurveNode's two row lists, knots and exprKnots, are read into
+            // the cached columns; a table-form file's columns arrive through
+            // the array restore below, interp and mode through the settings
+            // restore, and push_curve follows both. Each table is given
+            // once: a row list beside one of its columns fails the load with
+            // the engine loader's sentence.
             if (gn.typeName == "CurveNode") {
-                gn.curveKnots.clear();
-                if (params.contains("knots") && params["knots"].is_array())
+                for (const auto& [desc, vec] : gn.arrayValues)
+                    if (desc.groupName && params.contains(desc.groupName) && params.contains(desc.name))
+                        throw std::runtime_error("node '" + id + "' (CurveNode): holds both '"
+                                                 + desc.groupName + "' and '" + desc.name
+                                                 + "'; a table is given once");
+                if (params.contains("knots") && params["knots"].is_array()) {
+                    std::vector<std::pair<float, float>> pts;
                     for (const auto& k : params["knots"])
                         if (k.is_array() && k.size() >= 2)
-                            gn.curveKnots.emplace_back(k[0].get<float>(), k[1].get<float>());
-                const std::string in = params.value("interp", std::string("linear"));
-                gn.curveInterp = (in == "loglog") ? 2 : (in == "logx") ? 1 : 0;
-                gn.curveExprMode =
-                    params.value("mode", std::string("points")) == "expressions";
-                gn.curveExprKnots.clear();
-                if (params.contains("exprKnots") && params["exprKnots"].is_array())
+                            pts.emplace_back(k[0].get<float>(), k[1].get<float>());
+                    set_curve_points(gn, pts);
+                }
+                if (params.contains("exprKnots") && params["exprKnots"].is_array()) {
+                    std::vector<CurveNode::ExprKnot> rows;
                     for (const auto& k : params["exprKnots"]) {
                         CurveNode::ExprKnot ek;
                         ek.x = k.value("x", 100.0f);
@@ -1489,13 +1598,9 @@ static void load_graph_from_path(const std::string& path) {
                                   : CurveNode::KnotForm::Linear;
                         ek.a = k.value("a", 0.0f);
                         ek.b = k.value("b", 0.0f);
-                        gn.curveExprKnots.push_back(ek);
+                        rows.push_back(ek);
                     }
-                if (auto* cn = dynamic_cast<CurveNode*>(gn.dspSource.get())) {
-                    cn->knots = gn.curveKnots;
-                    cn->interp = static_cast<CurveNode::CurveInterp>(gn.curveInterp);
-                    cn->exprMode = gn.curveExprMode;
-                    cn->exprKnots = gn.curveExprKnots;
+                    set_curve_expr_rows(gn, rows);
                 }
             }
 
@@ -1606,6 +1711,10 @@ static void load_graph_from_path(const std::string& path) {
             if (gn.typeName == NT_ENVELOPE)
                 for (auto& [desc, vec] : gn.arrayValues)
                     vec = gn.dspSource->get_array(desc.name);
+            // A CurveNode's cached rows, in whichever form the file gave
+            // them, and its interp and mode reach the node in one push.
+            if (gn.typeName == "CurveNode")
+                push_curve(gn);
             // Arrays can change derived configs (set_array updates
             // maxPartials from array length) — sync the UI table back from
             // the DSP object so the inspector shows live values, not stale
@@ -1640,13 +1749,11 @@ static void load_graph_from_path(const std::string& path) {
                 for (auto& [k, v] : params.items()) {
                     if (k == "seed") continue;
                     if (gn.typeName == NT_ENVELOPE && is_envelope_key(k)) continue;
-                    // CurveNode knots/interp are modeled (curveKnots /
-                    // curveInterp) so the Properties curve editor can edit them. They
-                    // rode jsonExtras verbatim until P2b; a verbatim copy
-                    // would win over an edit on save.
+                    // A CurveNode's row lists are read into its cached
+                    // columns above; a verbatim copy would win over an edit
+                    // on save. Its interp and mode are settings.
                     if (gn.typeName == "CurveNode" &&
-                        (k == "knots" || k == "interp" ||
-                         k == "mode" || k == "exprKnots"))
+                        (k == "knots" || k == "exprKnots"))
                         continue;
                     if (gn.typeName == NT_PERFORM && k == "field") continue;
                     bool pinConsumed = is_pin(k) &&
@@ -2570,29 +2677,6 @@ static nlohmann::json serialize_patch_graph(
         jnode["type"] = node.typeName;
 
         json params = json::object();
-
-        // CurveNode knots/interp are modeled, not carried — emitted from the
-        // node so an edit in the curve editor survives the save.
-        if (node.typeName == "CurveNode") {
-            json knots = json::array();
-            for (const auto& [x, y] : node.curveKnots)
-                knots.push_back(json::array({x, y}));
-            params["knots"] = knots;
-            params["interp"] = node.curveInterp == 2 ? "loglog"
-                             : node.curveInterp == 1 ? "logx" : "linear";
-            // Expressions mode rides its own keys; the typed coefficients
-            // round-trip, never evaluated values (the 3n fidelity lesson).
-            if (node.curveExprMode || !node.curveExprKnots.empty()) {
-                params["mode"] = node.curveExprMode ? "expressions" : "points";
-                json ek = json::array();
-                for (const auto& k : node.curveExprKnots)
-                    ek.push_back({{"x", k.x},
-                                  {"form", k.form == CurveNode::KnotForm::Power
-                                           ? "power" : "linear"},
-                                  {"a", k.a}, {"b", k.b}});
-                params["exprKnots"] = ek;
-            }
-        }
 
         for (auto& pin : node.inputs) {
             bool isChannelPin = (pin.name.substr(0, 3) == "ch ");
@@ -5427,7 +5511,7 @@ static void shape_editor_open_curve(GraphNode& node) {
     s_shapeEd.nodeId = node.id;
     s_shapeEd.client = ShapeEditorState::Client::Curve;
     // logx/loglog curves default to a log x-axis; linear curves to linear.
-    s_shapeEd.logX = node.curveInterp != 0;
+    s_shapeEd.logX = curve_interp(node) != 0;
     s_shapeEd.fitPending = true;
     ImGui::SetWindowFocus("###shapeEditor");
 }
@@ -5598,18 +5682,18 @@ static void shape_editor_apply_segment(
     mark_graph_dirty();
 }
 
-// Push the (sorted) points into the live CurveNode — same semantics as the
-// Properties-pane table editor.
-static void shape_editor_apply_curve(GraphNode& node) {
-    std::stable_sort(node.curveKnots.begin(), node.curveKnots.end(),
+// Sort the edited points, write them back as the cached knots and push the
+// curve into the live CurveNode — same semantics as the Properties-pane
+// table editor.
+static void shape_editor_apply_curve(
+        GraphNode& node, std::vector<std::pair<float, float>>& pts) {
+    std::stable_sort(pts.begin(), pts.end(),
                      [](const std::pair<float, float>& a,
                         const std::pair<float, float>& b) {
                          return a.first < b.first;
                      });
-    if (auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get())) {
-        cn->knots  = node.curveKnots;
-        cn->interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
-    }
+    set_curve_points(node, pts);
+    push_curve(node);
     mark_graph_dirty();
 }
 
@@ -5653,7 +5737,10 @@ static void draw_shape_editor() {
         }
         s_shapeEd.readOnly = (int)segPts.size() > kShapeEdMaxPoints;
     }
-    auto& pts = (isSeg || isShaper) ? segPts : node.curveKnots;
+    // The Curve client edits a copy of the cached knots: every edit sets
+    // `changed`, and the apply at the end writes the copy back and pushes.
+    if (!isSeg && !isShaper) segPts = curve_points(node);
+    auto& pts = segPts;
     std::vector<Curve::Seg> segs;
     if (isShaper) {
         segs = shape_ed_segs_load(node, pts.size(),
@@ -6098,14 +6185,14 @@ static void draw_shape_editor() {
         std::stable_sort(sorted.begin(), sorted.end(),
                          [](auto& a, auto& b) { return a.first < b.first; });
         CurveNode probe;
-        probe.knots = sorted;
-        probe.interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        probe.set_knots(sorted);
+        probe.set_setting("interp", float(curve_interp(node)));
         const int N = std::max(64, int(cs.x / 3.0f));
         ImVec2 prev{};
         for (int i = 0; i < N; ++i) {
             float sx = cp.x + cs.x * float(i) / float(N - 1);
             float x = fx(sx);
-            if (node.curveInterp != 0 && x <= 0.0f) continue;
+            if (curve_interp(node) != 0 && x <= 0.0f) continue;
             ImVec2 p(sx, ty(probe.map(x)));
             if (i > 0) dl->AddLine(prev, p, IM_COL32(120, 200, 220, 255), 1.6f);
             prev = p;
@@ -6307,7 +6394,7 @@ static void draw_shape_editor() {
                 } else if (isShaper) {
                     nx = std::clamp(nx, -2.0f, 2.0f);  // array descriptor range
                     ny = std::clamp(ny, -2.0f, 2.0f);
-                } else if (node.curveInterp != 0) {
+                } else if (curve_interp(node) != 0) {
                     nx = std::max(nx, 1e-4f);
                 }
                 auto it = std::lower_bound(pts.begin(), pts.end(), nx,
@@ -6485,7 +6572,7 @@ static void draw_shape_editor() {
             } else if (isShaper) {
                 nx = std::clamp(nx, -2.0f, 2.0f);  // array descriptor range
                 ny = std::clamp(ny, -2.0f, 2.0f);
-            } else if (node.curveInterp != 0) {
+            } else if (curve_interp(node) != 0) {
                 nx = std::max(nx, 1e-4f);
             }
             const float dxTail = nx - pts[di].first;
@@ -6531,7 +6618,7 @@ static void draw_shape_editor() {
         if (isSeg)         shape_editor_apply_segment(node, pts);
         else if (isShaper) shape_editor_apply_shaper_named(node, pts,
                                                            activePtsName);
-        else               shape_editor_apply_curve(node);
+        else               shape_editor_apply_curve(node, pts);
     }
     if (isShaper && (changed || segsChanged))
         shape_editor_apply_segs(node, segs, activeSegsName);
@@ -6571,15 +6658,17 @@ static std::string curve_node_destination(const GraphNode& curve) {
 }
 
 // Expressions-mode row table: x | form | a | b(=p) | remove. Coefficients
-// like keytrack slopes can be ~1e-5, hence %.8g. Returns true on change and
-// pushes the edited rows into the live node + draws the extrapolating plot.
+// like keytrack slopes can be ~1e-5, hence %.8g. Edits a copy of the cached
+// rows and writes it back on a change or a commit's sort; returns true on
+// change (draw_curve_node pushes) and draws the extrapolating plot.
 static bool draw_curve_expr_rows(GraphNode& node) {
     bool changed = false;
     int removeIdx = -1;
     bool needSort = false;
+    auto rows = curve_expr_rows(node);
     if (ImGui::BeginTable("exprknots", 5, ImGuiTableFlags_SizingFixedFit)) {
-        for (int r = 0; r < (int)node.curveExprKnots.size(); ++r) {
-            auto& k = node.curveExprKnots[r];
+        for (int r = 0; r < (int)rows.size(); ++r) {
+            auto& k = rows[r];
             ImGui::TableNextRow();
             ImGui::PushID(r);
             ImGui::TableNextColumn();
@@ -6619,23 +6708,23 @@ static bool draw_curve_expr_rows(GraphNode& node) {
                                   : "b — the offset in a*x+b");
             ImGui::TableNextColumn();
             // One knot is legitimate here — it's the global-formula case.
-            if (node.curveExprKnots.size() > 1 && ImGui::SmallButton("x"))
+            if (rows.size() > 1 && ImGui::SmallButton("x"))
                 removeIdx = r;
             ImGui::PopID();
         }
         ImGui::EndTable();
     }
     if (removeIdx >= 0) {
-        node.curveExprKnots.erase(node.curveExprKnots.begin() + removeIdx);
+        rows.erase(rows.begin() + removeIdx);
         changed = true;
         needSort = true;
     }
     if (ImGui::SmallButton("+ point")) {
-        auto k = node.curveExprKnots.empty()
+        auto k = rows.empty()
                  ? CurveNode::ExprKnot{100.0f, CurveNode::KnotForm::Linear, 1.0f, 0.0f}
-                 : node.curveExprKnots.back();
-        k.x = node.curveExprKnots.empty() ? 100.0f : k.x * 2.0f;
-        node.curveExprKnots.push_back(k);
+                 : rows.back();
+        k.x = rows.empty() ? 100.0f : k.x * 2.0f;
+        rows.push_back(k);
         changed = true;
         needSort = true;
     }
@@ -6644,26 +6733,18 @@ static bool draw_curve_expr_rows(GraphNode& node) {
         return a.x < b.x;
     };
     if (needSort)
-        std::stable_sort(node.curveExprKnots.begin(), node.curveExprKnots.end(), by_x);
-    auto sorted = node.curveExprKnots;
+        std::stable_sort(rows.begin(), rows.end(), by_x);
+    if (changed || needSort) set_curve_expr_rows(node, rows);
+    auto sorted = rows;
     std::stable_sort(sorted.begin(), sorted.end(), by_x);
-
-    if (changed) {
-        if (auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get())) {
-            cn->exprMode = true;
-            cn->exprKnots = sorted;
-            cn->interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
-        }
-        mark_graph_dirty();
-    }
 
     // Plot through the engine's own map_expr; extend an octave past the end
     // knots so the live extrapolation — the point of this mode — is visible.
     if (!sorted.empty()) {
         CurveNode probe;
-        probe.exprMode = true;
-        probe.exprKnots = sorted;
-        probe.interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        probe.set_setting("mode", float(CurveNode::kExpressionsMode));
+        probe.set_expr_knots(sorted);
+        probe.set_setting("interp", float(curve_interp(node)));
         float lo = std::max(0.0001f, sorted.front().x * 0.5f);
         float hi = std::max(lo * 4.0f, sorted.back().x * 2.0f);
         constexpr int N = 128;
@@ -6679,7 +6760,8 @@ static bool draw_curve_expr_rows(GraphNode& node) {
     return changed;
 }
 
-// Returns true if anything changed.
+// Returns true if anything changed. Every change — a row, the mode, the
+// interp — is pushed to the live node with push_curve.
 static bool draw_curve_node(GraphNode& node) {
     bool changed = false;
     char header[256];
@@ -6690,15 +6772,15 @@ static bool draw_curve_node(GraphNode& node) {
 
     ImGui::PushID(node.id);
     ImGui::SetNextItemWidth(120.0f);
-    int mode = node.curveExprMode ? 1 : 0;
+    int mode = curve_expr_mode(node) ? 1 : 0;
     const char* kMode[] = {"points", "expressions"};
     if (ImGui::Combo("mode", &mode, kMode, 2)) {
-        node.curveExprMode = (mode == 1);
+        set_curve_expr_mode(node, mode == 1);
         // First switch into expressions: seed one identity-ish row so the
         // node maps something instead of going silent.
-        if (node.curveExprMode && node.curveExprKnots.empty())
-            node.curveExprKnots.push_back({100.0f, CurveNode::KnotForm::Linear,
-                                           1.0f, 0.0f});
+        if (mode == 1 && curve_expr_rows(node).empty())
+            set_curve_expr_rows(node, {{100.0f, CurveNode::KnotForm::Linear,
+                                        1.0f, 0.0f}});
         changed = true;
     }
     if (ImGui::IsItemHovered())
@@ -6711,15 +6793,23 @@ static bool draw_curve_node(GraphNode& node) {
     ImGui::SameLine();
     ImGui::SetNextItemWidth(120.0f);
     const char* kInterp[] = {"linear", "logx", "loglog"};
-    if (ImGui::Combo("interp", &node.curveInterp, kInterp, 3)) changed = true;
+    int interp = curve_interp(node);
+    if (ImGui::Combo("interp", &interp, kInterp, 3)) {
+        set_curve_interp(node, interp);
+        changed = true;
+    }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("logx: value linear in log(x) — this is exactly\n"
                           "linear in semitones, which is why pitch curves use it.\n"
                           "loglog: a 2-point segment is exactly y = k*x^n.\n"
                           "In expressions mode this weights the blend between knots.");
 
-    if (node.curveExprMode) {
+    if (curve_expr_mode(node)) {
         changed |= draw_curve_expr_rows(node);
+        if (changed) {
+            push_curve(node);
+            mark_graph_dirty();
+        }
         ImGui::PopID();
         ImGui::Spacing();
         return changed;
@@ -6727,62 +6817,61 @@ static bool draw_curve_node(GraphNode& node) {
 
     int removeIdx = -1;
     bool needSort = false;
+    auto pts = curve_points(node);
     if (ImGui::BeginTable("knots", 3, ImGuiTableFlags_SizingFixedFit)) {
-        for (int r = 0; r < (int)node.curveKnots.size(); ++r) {
+        for (int r = 0; r < (int)pts.size(); ++r) {
             ImGui::TableNextRow();
             ImGui::PushID(r);
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(90.0f);
-            float x = node.curveKnots[r].first;
+            float x = pts[r].first;
             if (ImGui::InputFloat("##x", &x, 0.0f, 0.0f, "%.6g")) {
-                node.curveKnots[r].first = std::max(0.0001f, x);  // log-x needs > 0
+                pts[r].first = std::max(0.0001f, x);  // log-x needs > 0
                 changed = true;
             }
             // Re-sort only when the X edit is COMMITTED. Sorting on every
             // keystroke moved the row being typed out from under the active
-            // widget, so the digits landed in a previously created knot
-            // (Matt, 2026-08-22).
+            // widget, so the digits landed in a previously created knot.
             if (ImGui::IsItemDeactivatedAfterEdit()) needSort = true;
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(90.0f);
-            float y = node.curveKnots[r].second;
+            float y = pts[r].second;
             if (ImGui::InputFloat("##y", &y, 0.0f, 0.0f, "%.6g")) {
-                node.curveKnots[r].second = y;
+                pts[r].second = y;
                 changed = true;
             }
             ImGui::TableNextColumn();
             // The engine needs >= 2 knots; below that CurveNode is identity.
-            if (node.curveKnots.size() > 2 && ImGui::SmallButton("x")) removeIdx = r;
+            if (pts.size() > 2 && ImGui::SmallButton("x")) removeIdx = r;
             ImGui::PopID();
         }
         ImGui::EndTable();
     }
     if (removeIdx >= 0) {
-        node.curveKnots.erase(node.curveKnots.begin() + removeIdx);
+        pts.erase(pts.begin() + removeIdx);
         changed = true;
         needSort = true;
     }
     if (ImGui::SmallButton("+ point")) {
-        float lastX = node.curveKnots.empty() ? 100.0f : node.curveKnots.back().first;
-        float lastY = node.curveKnots.empty() ? 0.0f   : node.curveKnots.back().second;
-        node.curveKnots.emplace_back(lastX * 2.0f, lastY);
+        float lastX = pts.empty() ? 100.0f : pts.back().first;
+        float lastY = pts.empty() ? 0.0f   : pts.back().second;
+        pts.emplace_back(lastX * 2.0f, lastY);
         changed = true;
         needSort = true;
     }
 
     auto by_x = [](const auto& a, const auto& b) { return a.first < b.first; };
     if (needSort)
-        std::stable_sort(node.curveKnots.begin(), node.curveKnots.end(), by_x);
+        std::stable_sort(pts.begin(), pts.end(), by_x);
+    if (changed || needSort) set_curve_points(node, pts);
     // The engine (and the plot) assume ascending knots; while the table is
-    // mid-edit the editor order may lag, so hand them a sorted copy.
-    auto sortedKnots = node.curveKnots;
+    // mid-edit the editor order may lag, so the plot takes a sorted copy and
+    // push_curve hands the node one.
+    auto sortedKnots = pts;
     std::stable_sort(sortedKnots.begin(), sortedKnots.end(), by_x);
 
     if (changed) {
-        if (auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get())) {
-            cn->knots = sortedKnots;
-            cn->interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
-        }
+        push_curve(node);
         mark_graph_dirty();
     }
 
@@ -6790,8 +6879,8 @@ static bool draw_curve_node(GraphNode& node) {
     // it — the node is right here, so there is nothing to keep in sync.
     if (sortedKnots.size() >= 2) {
         CurveNode probe;
-        probe.knots = sortedKnots;
-        probe.interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        probe.set_knots(sortedKnots);
+        probe.set_setting("interp", float(curve_interp(node)));
         float lo = sortedKnots.front().first;
         float hi = sortedKnots.back().first;
         if (lo > 0.0f && hi > lo) {
@@ -9674,7 +9763,7 @@ static void create_source_at_menu(const char* typeName) {
     // Identity seed — an empty knot list maps everything to 0, which reads
     // as a broken node. Edit in the node's Properties.
     if (std::string_view(typeName) == "CurveNode")
-        n.curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+        set_curve_points(n, {{0.0f, 0.0f}, {1.0f, 1.0f}});
     ImNodes::SetNodeScreenSpacePos(n.id, s_createMenuPos);
     // A node created while drilled into a group belongs to that group.
     if (!s_groupPath.empty())
@@ -9965,7 +10054,7 @@ static void replace_node_with(int nodeId, const char* newType) {
     }
     if (!oldN || !newN) return;
     if (std::string_view(newType) == "CurveNode")
-        newN->curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};  // identity seed
+        set_curve_points(*newN, {{0.0f, 0.0f}, {1.0f, 1.0f}});  // identity seed
 
     // State copy by name: pin defaults, settings, dynamic-pin promotions.
     for (auto& np : newN->inputs)

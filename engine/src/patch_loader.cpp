@@ -673,15 +673,26 @@ static GraphResult build_graph(
             auto cn = std::make_shared<CurveNode>();
             if (pp) {
                 const auto& p = *pp;
-                if (p.contains("knots"))
+                // Each table is given once: as its row list, under the key
+                // that is the table's name (knots, exprKnots), or as its
+                // columns.
+                for (const auto& d : cn->array_descriptors())
+                    if (d.groupName && p.contains(d.groupName) && p.contains(d.name))
+                        throw std::runtime_error("node '" + id + "' (CurveNode): holds both '"
+                                                 + d.groupName + "' and '" + d.name
+                                                 + "'; a table is given once");
+                if (p.contains("knots")) {
+                    std::vector<std::pair<float, float>> knots;
                     for (const auto& k : p["knots"])
-                        cn->knots.emplace_back(k.at(0).get<float>(),
-                                               k.at(1).get<float>());
-                // Expressions mode: knot values are formulas of x, stored as
+                        knots.emplace_back(k.at(0).get<float>(),
+                                           k.at(1).get<float>());
+                    cn->set_knots(knots);
+                }
+                // Expression rows: knot values are formulas of x, stored as
                 // {"x":..,"form":"linear"|"power","a":..,"b":..} rows (b is
                 // the exponent p for power). See curve_node.h header comment.
-                cn->exprMode = p.value("mode", std::string("points")) == "expressions";
-                if (p.contains("exprKnots"))
+                if (p.contains("exprKnots")) {
+                    std::vector<CurveNode::ExprKnot> rows;
                     for (const auto& k : p["exprKnots"]) {
                         CurveNode::ExprKnot ek;
                         ek.x = k.at("x").get<float>();
@@ -690,18 +701,17 @@ static GraphResult build_graph(
                                   : CurveNode::KnotForm::Linear;
                         ek.a = k.value("a", 0.0f);
                         ek.b = k.value("b", 0.0f);
-                        cn->exprKnots.push_back(ek);
+                        rows.push_back(ek);
                     }
-                const std::string in = p.value("interp", std::string("linear"));
-                cn->interp = in == "loglog" ? CurveNode::CurveInterp::LogLog
-                           : in == "logx"   ? CurveNode::CurveInterp::LogX
-                           :                  CurveNode::CurveInterp::Linear;
+                    cn->set_expr_knots(rows);
+                }
             }
             // "source" is a param_descriptor, but wire_params_generic is NOT
             // automatic — every special-cased type calls it explicitly. Without
             // this call a CurveNode loaded from JSON has a null source: next()
             // returns 0, and map(0) clamps to the first knot's value for every
-            // note.
+            // note. It also reads interp and mode as their labels and the two
+            // tables' columns.
             if (pp) wire_params_generic(*cn, id, *pp, graphNodes);
             graphNodes[id] = cn;
         }
