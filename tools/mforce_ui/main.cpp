@@ -460,6 +460,11 @@ struct GraphNode {
         if (!dspSource) return;
         for (auto& [desc, val] : settingValues)
             dspSource->set_setting(desc.name, val);
+        // An Envelope's sustainLevel writes its table's four sustain slots:
+        // the cached table follows the object.
+        if (typeName == NT_ENVELOPE)
+            for (auto& [desc, vec] : arrayValues)
+                vec = dspSource->get_array(desc.name);
     }
 
     void build_pins() {
@@ -915,16 +920,20 @@ static void update_node_dsp(GraphNode& node) {
 }
 
 // The Envelope's Preset combo (and the headless --apply-preset): lay this
-// node's stage list out as the named preset with its defaults, under the
+// node's stage table out as the named preset with its defaults, under the
 // audio lock (the stream may be mid-next() on the same object), then re-pull
-// the cached settings from the new layout. Never push the cache back: its
-// sustainLevel is the four-slot view, 0 on a two- or three-stage shape, and
-// pushing it would write 0 over the fresh layout's four sustain slots.
+// the cached settings and the cached stage columns from the new layout, so
+// the table, the save and the next push all hold the preset. Never push the
+// settings cache back: its sustainLevel is the four-slot view, 0 on a two-
+// or three-stage shape, and pushing it would write 0 over the fresh
+// layout's four sustain slots.
 static void apply_envelope_preset(GraphNode& node, Envelope& env, const char* presetName) {
     std::lock_guard<std::mutex> lock(g_audioMutex);
     env.replace_stages(std::move(*envelope_from_preset_json(nlohmann::json{{"preset", presetName}})));
     for (auto& [desc, val] : node.settingValues)
         val = env.get_setting(desc.name);
+    for (auto& [desc, vec] : node.arrayValues)
+        vec = env.get_array(desc.name);
 }
 
 // Cycle legality (feedback_loop_design.md §2): a NORMAL wire src->dst is
@@ -1221,39 +1230,9 @@ static std::string text_open_dialog(const char* feature, const char* filter) {
 
 // json_type_to_node removed — typeName strings are used directly
 
-// Envelope stage-list (de)serialization — the params.stages form shared by
-// save_patch_graph, save_node_graph, load_graph_from_path, and the node
-// clipboard. Factored so all four stay byte-identical.
-static nlohmann::json envelope_stages_to_json(const Envelope& env) {
-    nlohmann::json stages = nlohmann::json::array();
-    for (int i = 0; i < env.stage_count(); ++i) {
-        const auto& s = env.stage(i);
-        const char* t = (s.ramp.type == RampType::Expo)        ? "Expo"
-                      : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
-                      : (s.ramp.type == RampType::Sine)        ? "Sine"
-                      : (s.ramp.type == RampType::Hold)        ? "Hold"
-                                                                : "Linear";
-        nlohmann::json sj = {
-            {"percent",  s.percent},
-            {"startVal", s.ramp.startVal},
-            {"endVal",   s.ramp.endVal},
-            {"type",     t},
-            {"power",    s.ramp.power},
-            {"minSec",   s.minSec},
-            {"maxSec",   s.maxSec},
-        };
-        // Stage.nominal — the stage's authored length for LIVE playback, added
-        // by P1 and never taught to this serializer. Omitted at its default so
-        // no existing patch's bytes move; emitted when set, so a re-save stops
-        // silently discarding it. That was the standing "don't hand-author
-        // these fields before P2b" warning in BACKLOG 20.
-        if (s.nominal != 0.0f) sj["nominal"] = s.nominal;
-        stages.push_back(std::move(sj));
-    }
-    return stages;
-}
-
-// Replaces env's stage list with the one described by `stages`.
+// The stage-list form of an Envelope (params.stages, a list of stage
+// objects), read by load_graph_from_path. Replaces env's stage table with
+// the one described by `stages`.
 static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stages) {
     env = Envelope();
     for (const auto& sj : stages) {
@@ -1520,6 +1499,28 @@ static void load_graph_from_path(const std::string& path) {
                 }
             }
 
+            // An Envelope takes one form: a stage list, the stage columns
+            // (any of its arrays in the group "stages"), or a preset. Two on
+            // one node fail the load with the engine loader's sentence.
+            if (gn.typeName == NT_ENVELOPE) {
+                const char* column = nullptr;
+                for (const auto& [desc, vec] : gn.arrayValues)
+                    if (desc.groupName && std::string_view(desc.groupName) == "stages" &&
+                        params.contains(desc.name)) {
+                        column = desc.name;
+                        break;
+                    }
+                const bool hasStages = params.contains("stages");
+                const bool hasPreset = params.contains("preset");
+                auto two_forms = [&](const std::string& a, const std::string& b) {
+                    return std::runtime_error("node '" + id + "' (Envelope): holds both '" + a + "' and '" + b
+                                              + "'; an Envelope takes one form: a stage list, the stage columns, or a preset");
+                };
+                if (hasStages && column) throw two_forms("stages", column);
+                if (hasStages && hasPreset) throw two_forms("stages", "preset");
+                if (hasPreset && column) throw two_forms("preset", column);
+            }
+
             // Restore preset-form Envelopes (params.preset + attack/decay/…).
             // Previously the preset params were IGNORED — the node kept its
             // constructor default make_adsr(0.05, 0.1, 0.7, 0.2) and only
@@ -1547,8 +1548,6 @@ static void load_graph_from_path(const std::string& path) {
             if (gn.typeName == NT_ENVELOPE && params.contains("stages")) {
                 if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
                     envelope_stages_from_json(*env, params["stages"]);
-                    env->absolute_time =
-                        params.value("timeMode", std::string("fraction")) == "seconds";
                     // Sync the cached sustainLevel to the stages' actual slot
                     // value: apply_config below pushes EVERY cached config,
                     // and the 0.7 descriptor default would rewrite the four
@@ -1601,6 +1600,12 @@ static void load_graph_from_path(const std::string& path) {
                 }
                 gn.dspSource->set_array(desc.name, vec);
             }
+            // An Envelope's cached table is what the object now holds, in
+            // whichever form the file gave it: a preset or a stage list built
+            // the object above, and the columns arrived through the restore.
+            if (gn.typeName == NT_ENVELOPE)
+                for (auto& [desc, vec] : gn.arrayValues)
+                    vec = gn.dspSource->get_array(desc.name);
             // Arrays can change derived configs (set_array updates
             // maxPartials from array length) — sync the UI table back from
             // the DSP object so the inspector shows live values, not stale
@@ -2671,19 +2676,6 @@ static nlohmann::json serialize_patch_graph(
             jnode["dynamicPins"] = dp;
         }
 
-        // Envelope: emit multi-stage form
-        if (node.typeName == NT_ENVELOPE) {
-            if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
-                if (!jnode.contains("params")) jnode["params"] = json::object();
-                jnode["params"]["stages"] = envelope_stages_to_json(*env);
-                // Literal-seconds envelopes (make_adsr_abs) must round-trip:
-                // without this key the reload treats percent as a fraction of
-                // note duration (2 ms attack -> 0.2% of the note; the
-                // 2026-08-10 live-audition click + stretched-tail bug).
-                jnode["params"]["timeMode"] = env->absolute_time ? "seconds" : "fraction";
-            }
-        }
-
         // NameGate: the onset-name string (spec 2026-09-20 §6).
         if (node.typeName == "NameGate" && !node.paramName.empty()) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
@@ -2692,11 +2684,9 @@ static nlohmann::json serialize_patch_graph(
 
         // Config values
         for (auto& [desc, val] : node.settingValues) {
-            // Envelope sustain lives INSIDE the emitted stages (slot
-            // values); writing the config too made reload rewrite the slots
-            // through set_setting's [0,1] clamp, breaking >1.0 test
-            // envelopes (_envacc_test) — and 0.0 artifacts of the old
-            // get_setting broke three library patches (3n).
+            // An Envelope's sustainLevel is a view of its table's four
+            // sustain slots, which the stage columns carry: the setting is
+            // not written, so a reload cannot rewrite the slots with it.
             if (node.typeName == NT_ENVELOPE &&
                 std::string_view(desc.name) == "sustainLevel")
                 continue;
@@ -2704,9 +2694,12 @@ static nlohmann::json serialize_patch_graph(
             jnode["params"][desc.name] = setting_to_json(desc, val);
         }
 
-        // Array values (ExplicitPartials mult/ampl, FormantBands gains, …)
+        // Array values (ExplicitPartials mult/ampl, FormantBands gains, …).
+        // An empty array is skipped, but for an Envelope's stage columns: a
+        // table with no rows is written, so it reloads with no stages rather
+        // than the default layout.
         for (auto& [desc, vec] : node.arrayValues) {
-            if (vec.empty()) continue;
+            if (vec.empty() && node.typeName != NT_ENVELOPE) continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"][desc.name] = array_to_json(desc, vec);
         }
@@ -2958,24 +2951,10 @@ static void save_node_graph(const std::string& path) {
         }
         if (!params.empty()) jnode["params"] = params;
 
-        if (node.typeName == NT_ENVELOPE) {
-            if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
-                if (!jnode.contains("params")) jnode["params"] = json::object();
-                jnode["params"]["stages"] = envelope_stages_to_json(*env);
-                // Literal-seconds envelopes (make_adsr_abs) must round-trip:
-                // without this key the reload treats percent as a fraction of
-                // note duration (2 ms attack -> 0.2% of the note; the
-                // 2026-08-10 live-audition click + stretched-tail bug).
-                jnode["params"]["timeMode"] = env->absolute_time ? "seconds" : "fraction";
-            }
-        }
-
         for (auto& [desc, val] : node.settingValues) {
-            // Envelope sustain lives INSIDE the emitted stages (slot
-            // values); writing the config too made reload rewrite the slots
-            // through set_setting's [0,1] clamp, breaking >1.0 test
-            // envelopes (_envacc_test) — and 0.0 artifacts of the old
-            // get_setting broke three library patches (3n).
+            // An Envelope's sustainLevel is a view of its table's four
+            // sustain slots, which the stage columns carry: the setting is
+            // not written, so a reload cannot rewrite the slots with it.
             if (node.typeName == NT_ENVELOPE &&
                 std::string_view(desc.name) == "sustainLevel")
                 continue;
@@ -2983,9 +2962,12 @@ static void save_node_graph(const std::string& path) {
             jnode["params"][desc.name] = setting_to_json(desc, val);
         }
 
-        // Array values (ExplicitPartials mult/ampl, FormantBands gains, …)
+        // Array values (ExplicitPartials mult/ampl, FormantBands gains, …).
+        // An empty array is skipped, but for an Envelope's stage columns: a
+        // table with no rows is written, so it reloads with no stages rather
+        // than the default layout.
         for (auto& [desc, vec] : node.arrayValues) {
-            if (vec.empty()) continue;
+            if (vec.empty() && node.typeName != NT_ENVELOPE) continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"][desc.name] = array_to_json(desc, vec);
         }
@@ -3818,7 +3800,7 @@ static void prepare_graph(int samples) {
 // Streaming fix, UI-side only (Envelope's public API, no engine change):
 //  1. prepare for STREAM_PREP_SECONDS (hours, not seconds) so end-of-
 //     envelope is beyond any real session;
-//  2. flip each node Envelope to absolute_time for the stream so its
+//  2. set each node Envelope's timeMode to seconds for the stream so its
 //     attack/decay/release stay literal seconds instead of stretching with
 //     the huge duration (percent 0.05 → 50 ms attack, not 6 min), with the
 //     expand stage soaking up the rest as sustain;
@@ -3833,21 +3815,30 @@ static constexpr int STREAM_PREP_SECONDS = 7200;  // 2 h; int-safe at 48 kHz
 
 struct StreamEnvHold {
     Envelope* env;
-    bool prevAbsolute;
+    float prevTimeMode;  // the timeMode setting before the stream
     int addedStageIdx;   // -1 = no hold stage appended
 };
 static std::vector<StreamEnvHold> g_streamEnvHolds;
 
 static void stream_envelopes_restore() {
     for (auto& h : g_streamEnvHolds) {
-        h.env->absolute_time = h.prevAbsolute;
+        h.env->set_setting("timeMode", h.prevTimeMode);
         // Remove the appended hold stage only if it's still recognizably
-        // ours (last stage, expand). A mid-stream stage edit rebuilds the
-        // envelope's stage list wholesale, in which case there is nothing
+        // ours (last stage, expand). A mid-stream stage edit pushes the
+        // cached table over the envelope's, in which case there is nothing
         // of ours left to remove.
         if (h.addedStageIdx >= 0 && h.addedStageIdx == h.env->stage_count() - 1 &&
-            h.env->stage(h.addedStageIdx).percent == 0.0f)
+            h.env->stage(h.addedStageIdx).percent == 0.0f) {
             h.env->remove_stage(h.addedStageIdx);
+            // The owning node's cached table re-pulled: a cache that took
+            // the hold stage up mid-stream must not keep it.
+            for (auto& n : s_nodes)
+                if (n.dspSource.get() == h.env) {
+                    for (auto& [desc, vec] : n.arrayValues)
+                        vec = h.env->get_array(desc.name);
+                    break;
+                }
+        }
     }
     g_streamEnvHolds.clear();
 }
@@ -3857,8 +3848,8 @@ static void stream_envelopes_hold() {
     for (auto& n : s_nodes) {
         auto* env = dynamic_cast<Envelope*>(n.dspSource.get());
         if (!env) continue;
-        StreamEnvHold h{env, env->absolute_time, -1};
-        env->absolute_time = true;
+        StreamEnvHold h{env, env->get_setting("timeMode"), -1};
+        env->set_setting("timeMode", 1.0f);
         bool hasExpand = false;
         for (int i = 0; i < env->stage_count(); ++i)
             if (env->stage(i).percent == 0.0f) { hasExpand = true; break; }
@@ -8687,8 +8678,16 @@ static void draw_properties_panel() {
         }
     }
 
-    // Array values — grouped into parallel-columns tables by groupName.
-    if (!node->arrayValues.empty()) {
+    // Array values — grouped into parallel-columns tables by groupName. An
+    // Envelope's group "stages" is skipped: its own stage table follows.
+    auto envelope_stage_column = [&](const ArrayDescriptor& d) {
+        return node->typeName == NT_ENVELOPE && d.groupName &&
+               std::string_view(d.groupName) == "stages";
+    };
+    bool anyGenericArray = false;
+    for (const auto& [d, v] : node->arrayValues)
+        anyGenericArray = anyGenericArray || !envelope_stage_column(d);
+    if (anyGenericArray) {
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
         size_t i = 0;
@@ -8705,6 +8704,7 @@ static void draw_properties_panel() {
                            firstDesc.groupName)
                     ++groupEnd;
             }
+            if (envelope_stage_column(firstDesc)) { i = groupEnd; continue; }
 
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "%s",
                                grouped ? firstDesc.groupName : firstDesc.name);
@@ -8908,18 +8908,43 @@ static void draw_properties_panel() {
         if (node->typeName == NT_ENVELOPE) {
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Stages");
-            bool absTime = env->absolute_time;
-            if (ImGui::Checkbox("seconds (timeMode)", &absTime)) {
-                env->absolute_time = absTime;
-                mark_graph_dirty();
-            }
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("off: stage Pct is a fraction of note duration\n"
-                                  "on:  stage Pct is literal seconds (timeMode=seconds)");
 
-            const char* typeNames[] = { "Linear", "Expo", "InverseExpo", "Sine",
-                                        "Hold" };
+            // The table's cells are the node's cached stage columns
+            // (arrayValues); an edit pushes the whole group under one lock,
+            // and the Envelope object derives its layout from it.
+            std::vector<float>* pct = nullptr;
+            std::vector<float>* startV = nullptr;
+            std::vector<float>* endV = nullptr;
+            std::vector<float>* type = nullptr;
+            std::vector<float>* power = nullptr;
+            std::vector<float>* minS = nullptr;
+            std::vector<float>* maxS = nullptr;
+            const ArrayDescriptor* typeDesc = nullptr;
+            for (auto& [d, v] : node->arrayValues) {
+                if (!envelope_stage_column(d)) continue;
+                const std::string_view n = d.name;
+                if      (n == "percent")  pct = &v;
+                else if (n == "startVal") startV = &v;
+                else if (n == "endVal")   endV = &v;
+                else if (n == "type")     { type = &v; typeDesc = &d; }
+                else if (n == "power")    power = &v;
+                else if (n == "minSec")   minS = &v;
+                else if (n == "maxSec")   maxS = &v;
+            }
+            int typeCount = 0;
+            if (typeDesc && typeDesc->enum_labels)
+                while (typeDesc->enum_labels[typeCount]) ++typeCount;
+            const bool haveTable = pct && startV && endV && type && power && minS && maxS && typeCount > 0;
+            int rows = 0;
+            if (haveTable) {
+                size_t r = pct->size();
+                for (auto& [d, v] : node->arrayValues)
+                    if (envelope_stage_column(d)) r = std::min(r, v.size());
+                rows = int(r);
+            }
+
             bool changed = false;
+            bool tableChanged = false;
             int  removeIdx = -1;
 
             // Preset: the layouts the engine's one dispatch knows, laid out
@@ -8983,40 +9008,41 @@ static void draw_properties_panel() {
                     }
                 }
 
-                for (int i = 0; i < env->stage_count(); ++i) {
-                    auto& s = env->stage(i);
+                for (int i = 0; i < rows; ++i) {
+                    const size_t r = size_t(i);
                     ImGui::TableNextRow();
                     ImGui::PushID(i);
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                    changed |= ImGui::DragFloat("##pct", &s.percent,        0.005f, 0.0f, 1.0f, "%.3f");
+                    tableChanged |= ImGui::DragFloat("##pct", &(*pct)[r],      0.005f, 0.0f, 1.0f, "%.3f");
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                    changed |= ImGui::DragFloat("##start", &s.ramp.startVal, 0.01f, -10.0f, 10.0f, "%.3f");
+                    tableChanged |= ImGui::DragFloat("##start", &(*startV)[r], 0.01f, -10.0f, 10.0f, "%.3f");
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                    changed |= ImGui::DragFloat("##end",   &s.ramp.endVal,   0.01f, -10.0f, 10.0f, "%.3f");
+                    tableChanged |= ImGui::DragFloat("##end",   &(*endV)[r],   0.01f, -10.0f, 10.0f, "%.3f");
                     ImGui::PopItemWidth();
 
+                    // The Curve names and their count are the type column's labels.
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(90);
-                    int curType = int(s.ramp.type);
-                    if (ImGui::Combo("##type", &curType, typeNames, IM_ARRAYSIZE(typeNames))) {
-                        s.ramp.type = RampType(curType); changed = true;
+                    int curType = std::clamp(int((*type)[r]), 0, typeCount - 1);
+                    if (ImGui::Combo("##type", &curType, typeDesc->enum_labels, typeCount)) {
+                        (*type)[r] = float(curType); tableChanged = true;
                     }
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                    changed |= ImGui::DragFloat("##pow", &s.ramp.power,   0.05f, 0.0f, 10.0f, "%.2f");
+                    tableChanged |= ImGui::DragFloat("##pow", &(*power)[r],    0.05f, 0.0f, 10.0f, "%.2f");
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                    changed |= ImGui::DragFloat("##min", &s.minSec, 0.005f, 0.0f, 99.0f, "%.3f");
+                    tableChanged |= ImGui::DragFloat("##min", &(*minS)[r], 0.005f, 0.0f, 99.0f, "%.3f");
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                    changed |= ImGui::DragFloat("##max", &s.maxSec, 0.05f,  0.0f, 99.0f, "%.2f");
+                    tableChanged |= ImGui::DragFloat("##max", &(*maxS)[r], 0.05f,  0.0f, 99.0f, "%.2f");
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn();
@@ -9027,9 +9053,35 @@ static void draw_properties_panel() {
                 ImGui::EndTable();
             }
 
-            if (removeIdx >= 0) { env->remove_stage(removeIdx); changed = true; }
-            if (ImGui::SmallButton(" + Add Stage ")) { env->add_stage_default(); changed = true; }
+            // Remove: the row leaves all eight cached columns.
+            if (removeIdx >= 0) {
+                for (auto& [d, v] : node->arrayValues)
+                    if (envelope_stage_column(d) && size_t(removeIdx) < v.size())
+                        v.erase(v.begin() + removeIdx);
+                tableChanged = true;
+            }
+            // Add: one row of each column's default, but startVal, which
+            // continues the previous row's endVal (0 on an empty table).
+            if (haveTable && ImGui::SmallButton(" + Add Stage ")) {
+                const float prevEnd = rows > 0 ? (*endV)[size_t(rows - 1)] : 0.0f;
+                for (auto& [d, v] : node->arrayValues) {
+                    if (!envelope_stage_column(d)) continue;
+                    v.resize(size_t(rows));
+                    v.push_back(std::string_view(d.name) == "startVal" ? prevEnd : d.default_value);
+                }
+                tableChanged = true;
+            }
             ImGui::EndGroup();
+            if (tableChanged) {
+                node->push_table("stages");
+                // sustainLevel is a view of the table: the cached value
+                // follows it, or the next apply_config would push a stale
+                // value over the four slots.
+                for (auto& [d, val] : node->settingValues)
+                    if (std::string_view(d.name) == "sustainLevel")
+                        val = env->get_setting("sustainLevel");
+                changed = true;
+            }
             envChanged = changed;
         }
 
@@ -9174,9 +9226,9 @@ static void draw_properties_panel() {
 // Node clipboard — Edit > Cut/Copy/Paste, Ctrl+X/C/V.
 //
 // Copy serializes the imnodes selection into an in-memory JSON clipboard:
-// per-node state (pin defaults, configs, arrays, Envelope
-// stages via the shared envelope_stages_* helpers, seed, polyphony,
-// paramName) plus the links whose BOTH endpoints are inside the selection.
+// per-node state (pin defaults, configs, arrays — an Envelope's stage
+// columns among them — seed, polyphony, paramName) plus the links whose
+// BOTH endpoints are inside the selection.
 // Paste instantiates fresh nodes (fresh ids) from that state, rewires the
 // intra-selection links by pin name, and offsets positions a little further
 // on each successive paste. Cut = Copy + delete. The clipboard is process-
@@ -9221,15 +9273,10 @@ static nlohmann::json clip_node_state(const GraphNode& node) {
         for (const auto& [desc, val] : node.settingValues) cfg[desc.name] = val;
         j["settings"] = cfg;
     }
+    // An Envelope's stage columns go even when empty, so a pasted Envelope
+    // with no stages has none.
     for (const auto& [desc, vec] : node.arrayValues)
-        if (!vec.empty()) j["arrays"][desc.name] = vec;
-
-    if (node.typeName == NT_ENVELOPE) {
-        if (const auto* env = dynamic_cast<const Envelope*>(node.dspSource.get())) {
-            j["stages"] = envelope_stages_to_json(*env);
-            j["timeMode"] = env->absolute_time ? "seconds" : "fraction";
-        }
-    }
+        if (!vec.empty() || node.typeName == NT_ENVELOPE) j["arrays"][desc.name] = vec;
     return j;
 }
 
@@ -9281,13 +9328,6 @@ static int clip_instantiate(const nlohmann::json& j) {
         // sync the UI table back from the DSP object, mirroring load.
         for (auto& [desc, val] : gn.settingValues)
             val = gn.dspSource->get_setting(desc.name);
-    }
-
-    if (j.contains("stages")) {
-        if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
-            envelope_stages_from_json(*env, j["stages"]);
-            env->absolute_time = j.value("timeMode", std::string("fraction")) == "seconds";
-        }
     }
 
     return gn.id;
@@ -10280,6 +10320,11 @@ static void show_node_context_menu() {
             if (dup.dspSource)
                 dup.dspSource->set_setting(dup.settingValues[i].first.name, dup.settingValues[i].second);
         }
+        // An Envelope's sustainLevel wrote its table's four sustain slots:
+        // the cached table follows the object.
+        if (dup.typeName == NT_ENVELOPE && dup.dspSource)
+            for (auto& [desc, vec] : dup.arrayValues)
+                vec = dup.dspSource->get_array(desc.name);
 
         // Offset position
         ImVec2 pos = ImNodes::GetNodeScreenSpacePos(node->id);

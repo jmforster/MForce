@@ -605,7 +605,29 @@ static GraphResult build_graph(
             const auto& p = *pp;
             std::shared_ptr<Envelope> env;
 
-            if (p.contains("stages")) {
+            // Three forms, at most one per node: a stage list, the stage
+            // columns (any array of a default Envelope's group "stages"), or
+            // a preset (also what a node with none of the three gets).
+            const char* column = nullptr;
+            {
+                const Envelope probe;
+                for (const auto& d : probe.array_descriptors())
+                    if (d.groupName && std::string_view(d.groupName) == "stages" && p.contains(d.name)) {
+                        column = d.name;
+                        break;
+                    }
+            }
+            const bool hasStages = p.contains("stages");
+            const bool hasPreset = p.contains("preset");
+            auto two_forms = [&](const std::string& a, const std::string& b) {
+                return std::runtime_error("node '" + id + "' (Envelope): holds both '" + a + "' and '" + b
+                                          + "'; an Envelope takes one form: a stage list, the stage columns, or a preset");
+            };
+            if (hasStages && column) throw two_forms("stages", column);
+            if (hasStages && hasPreset) throw two_forms("stages", "preset");
+            if (hasPreset && column) throw two_forms("preset", column);
+
+            if (hasStages) {
                 env = std::make_shared<Envelope>();
                 for (const auto& sj : p["stages"]) {
                     Envelope::Stage s;
@@ -630,10 +652,10 @@ static GraphResult build_graph(
                     env->stage_accuracy.value = std::clamp(p["stage_accuracy"].get<float>(), 0.0f, 1.0f);
                 if (p.contains("ramp_accuracy") && p["ramp_accuracy"].is_number())
                     env->ramp_accuracy.value = std::clamp(p["ramp_accuracy"].get<float>(), 0.0f, 1.0f);
-                // Literal-seconds stage times (percent = seconds; see envelope.h
-                // absolute_time). Same key as the adsr preset form.
-                if (p.value("timeMode", std::string("fraction")) == "seconds")
-                    env->absolute_time = true;
+            } else if (column) {
+                // The stage columns: the generic array pass below fills them,
+                // and its table rule refuses a node that lacks one.
+                env = std::make_shared<Envelope>();
             } else {
                 // Shared preset dispatch (envelope_json.h) — the UI graph
                 // loader calls the same function, so the two cannot drift.
@@ -643,13 +665,8 @@ static GraphResult build_graph(
             if (p.contains("seed") && p["seed"].is_number())
                 env->set_seed(uint32_t(p["seed"].get<int64_t>()));
             graphNodes[id] = env;
-            // Pullable range params (minValue / maxValue, PerformSource P1,
-            // envelope.h param_descriptors). This explicit branch never ran
-            // the generic wiring, so from 2026-08-18 to 2026-08-22 the keys
-            // were silently IGNORED on every stage-form and preset-form
-            // Envelope — proved by A/B, maxValue 0.25 rendered byte-identical
-            // to the control. Registry-path envelope types (ADSREnvelope…)
-            // were always wired. Null when absent → identity, unchanged.
+            // The pins (minValue, maxValue, trigger), the settings (timeMode
+            // read as its label) and the stage columns, as for any node.
             wire_params_generic(*env, id, p, graphNodes);
         }
         else if (type == "CurveNode") {

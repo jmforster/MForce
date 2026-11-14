@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/ramp.h"
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <random>
@@ -29,12 +30,14 @@ struct Envelope : Generator {
     float nominal{0.0f};
   };
 
-  // Output range mapping (PerformSource P1, perform_source_design.md §2.4):
-  // returned value = lo + (hi - lo) * raw, raw being the 0..1-domain stage
-  // value. Unwired = 0/1 = identity (bit-compatible). Pullable params per the
-  // credo — velocity→maxValue is the garden velocity wiring once
-  // PerformSource lands. ALL internal state (gate anchor, sustain rewrite)
-  // stays in the raw domain; only compute()/current() report mapped values.
+  // Output range mapping (perform_source_design.md §2.4): the returned value
+  // is lo + (hi - lo) * raw, raw being the stage value, whether or not
+  // anything is wired. Unwired, the pins read 0 and 1, and 0 + (1 - 0) * raw
+  // is raw: a product with 1 and a sum with 0 are exact in float, so the
+  // value leaves as the stage computed it, but for a raw -0.0, which leaves
+  // as +0.0. Both are pullable (velocity into maxValue, say). All internal
+  // state (gate anchor, sustain rewrite) stays in the raw domain; only
+  // compute()/current() report mapped values.
   Param minValue{this, "minValue", 0.0f, -100000.0f, 100000.0f};
   Param maxValue{this, "maxValue", 1.0f, -100000.0f, 100000.0f};
 
@@ -61,23 +64,43 @@ struct Envelope : Generator {
   // multiplies every stage duration. A dynamic pin drives it per note, so a
   // hit envelope can shorten with pitch (treble hammers contact shorter).
   Setting<float> timeScale     {this, "timeScale",      1.0f, 0.01f, 10.0f};
+  // Stage timing. "fraction" (0, the default): a stage's percent is a
+  // fraction of the note's duration, clamped to [minSec, maxSec]. "seconds"
+  // (1; make_adsr_abs, or "timeMode": "seconds" in a file): percent is a
+  // literal duration in seconds, minSec/maxSec are ignored and the only
+  // clamp is the physical one to [0, note duration], so an 8 ms attack
+  // renders as 8 ms whether the note lasts 0.5 s or 10 s, and a fixed decay
+  // does not vary with note length. The expand stage (percent == 0) fills
+  // the remainder in both modes.
+  static constexpr const char* const kTimeModeLabels[] = {"fraction", "seconds", nullptr};
+  Setting<int>   timeMode      {this, "timeMode",       0, 0, 1, kTimeModeLabels};
+
+  // The stage table: one row per stage, one column per field. The columns
+  // are what the node holds and what a patch file and the editor see;
+  // stages_ is the layout the render walks, derived from them by
+  // rebuild_stages_() and by nothing else. Every door that changes a stage
+  // writes the columns and then derives.
+  static constexpr const char* const kStageTypeLabels[] = {"Linear", "Expo", "InverseExpo",
+                                                           "Sine", "Hold", nullptr};
+  static_assert(int(RampType::Linear) == 0 && int(RampType::Expo) == 1 &&
+                int(RampType::InverseExpo) == 2 && int(RampType::Sine) == 3 &&
+                int(RampType::Hold) == 4, "kStageTypeLabels is in RampType's order");
+  Array colStartVal{this, "startVal", "stages", 0.0f, -100000.0f, 100000.0f};
+  Array colEndVal  {this, "endVal",   "stages", 0.0f, -100000.0f, 100000.0f};
+  Array colPower   {this, "power",    "stages", 0.0f, 0.0f, 100.0f};
+  Array colType    {this, "type",     "stages", 0.0f, 0.0f, 4.0f, kStageTypeLabels};
+  Array colPercent {this, "percent",  "stages", 0.2f, 0.0f, 1000.0f};
+  Array colMinSec  {this, "minSec",   "stages", 0.0f, 0.0f, 1000.0f};
+  Array colMaxSec  {this, "maxSec",   "stages", 0.0f, 0.0f, 1000.0f};
+  Array colNominal {this, "nominal",  "stages", 0.0f, 0.0f, 1000.0f};
 
   Envelope() = default;
 
   Range range() const override { return Range::Unipolar; }
   const char* type_name() const override { return "Envelope"; }
 
-  // Stage-timing semantics (2026-08-06, piano-chuff fix). Default false:
-  // Stage.percent is a FRACTION of note duration, clamped to
-  // [minSec, maxSec] — the semantics every pre-existing patch was authored
-  // against (bit-exact preserved). Opt-in true (JSON "timeMode":"seconds"
-  // on the adsr preset, or make_adsr_abs): Stage.percent is a LITERAL
-  // duration in seconds; minSec/maxSec are ignored and the only clamp is
-  // the physical one to [0, note duration]. An 8 ms attack renders as 8 ms
-  // whether the note lasts 0.5 s or 10 s, and a fixed decay no longer
-  // varies with note length. The expand stage (percent == 0) still fills
-  // the remainder in both modes.
-  bool absolute_time{false};
+  // True when the stages are timed in seconds (timeMode).
+  bool absolute_time() const { return timeMode.value == 1; }
 
   // Engine-wide reflection allowance: envelopes lay their stages out over
   // (frames - allowance) so bounded internal-reflection dispersal (piano
@@ -120,7 +143,7 @@ struct Envelope : Generator {
     if (expandIdx_ == last) return 0;
     int relStage = (expandIdx_ >= 0 && expandIdx_ < last) ? expandIdx_ + 1
                                                           : last;
-    if (releaseRefFrames >= 0 && !absolute_time) {
+    if (releaseRefFrames >= 0 && !absolute_time()) {
       const float refSec = float(releaseRefFrames) / float(sample_rate());
       for (int i = relStage; i < int(stages_.size()); ++i) {
         if (stages_[i].percent == 0.0f) continue;   // expand keeps its fill
@@ -181,6 +204,7 @@ struct Envelope : Generator {
   // Replace this envelope's stage layout with `fresh` while keeping every
   // knob that lives OUTSIDE the layout: the accuracy knobs, seed, timeScale,
   // sustainLevel, the minValue/maxValue/trigger wires and the live-gate flag.
+  // The stage columns and timeMode are the layout's, and come from `fresh`.
   // The editor's preset combo calls this on a wired, prepared node, so the
   // wires have to outlive the new layout: without them the envelope falls
   // back to its raw 0..1 range.
@@ -202,6 +226,7 @@ struct Envelope : Generator {
     minValue.set(std::move(minSrc));
     maxValue.set(std::move(maxSrc));
     trigger.set(std::move(trigSrc));
+    rebuild_stages_();
     stageCounts_.assign(stages_.size(), 0);
   }
 
@@ -224,20 +249,27 @@ struct Envelope : Generator {
       // No [0,1] clamp: sustain is a ramp amplitude and legitimately
       // exceeds 1 in test envelopes (_envacc_test holds 2.6); the old
       // clamp corrupted them the moment anything pushed the value back.
+      // Four cells in place, the same four rows: the rebuild allocates
+      // nothing (this runs at the note start of a per-note push).
       const float value = sustainLevel.value;
-      stages_[1].ramp.endVal   = value;
-      stages_[2].ramp.startVal = value;
-      stages_[2].ramp.endVal   = value;
-      stages_[3].ramp.startVal = value;
+      colEndVal.values[1]   = value;
+      colStartVal.values[2] = value;
+      colEndVal.values[2]   = value;
+      colStartVal.values[3] = value;
+      rebuild_stages_();
     }
   }
+
+  // A column changed by name (the loader, the editor's table): derive the
+  // layout again.
+  void on_array_changed(std::string_view) override { rebuild_stages_(); }
 
   // The four-slot sustain invariant: 4 stages, the third is the expand
   // (percent 0), and decay-end / expand-start / expand-end / release-start
   // hold one equal value. When it holds, the sustain rewrite is safe by
-  // construction whether the envelope came from make_adsr or a stage list.
+  // construction whether the envelope came from make_adsr or a stage list;
+  // both adsr factories lay it out, and no door writes one slot alone.
   bool has_adsr_shape_() const {
-    if (adsrLayout_ && stages_.size() == 4) return true;
     return stages_.size() == 4 &&
            stages_[2].percent == 0.0f &&
            stages_[1].ramp.endVal   == stages_[2].ramp.startVal &&
@@ -253,31 +285,40 @@ struct Envelope : Generator {
     return Component::get_setting(name);
   }
 
-  void add_stage(Stage s) { stages_.push_back(s); stageCounts_.push_back(0); }
+  // Append a stage: its eight cells go on the end of the columns (cells
+  // past the layout's last row, which only a ragged set_array leaves, are
+  // dropped first).
+  void add_stage(Stage s) {
+    const size_t n = stages_.size();
+    for (Array* c : columns_())
+      if (c->values.size() > n) c->values.resize(n);
+    colStartVal.values.push_back(s.ramp.startVal);
+    colEndVal.values.push_back(s.ramp.endVal);
+    colPower.values.push_back(s.ramp.power);
+    colType.values.push_back(float(int(s.ramp.type)));
+    colPercent.values.push_back(s.percent);
+    colMinSec.values.push_back(s.minSec);
+    colMaxSec.values.push_back(s.maxSec);
+    colNominal.values.push_back(s.nominal);
+    rebuild_stages_();
+  }
 
   int stage_count() const { return int(stages_.size()); }
-  Stage&       stage(int i)       { return stages_[i]; }
   const Stage& stage(int i) const { return stages_[i]; }
-
-  // Append a stage with sensible defaults. startVal continues the prior
-  // stage's endVal (or 0 if empty).
-  void add_stage_default() {
-    Stage s;
-    s.ramp.type     = RampType::Linear;
-    s.ramp.power    = 0.0f;
-    s.ramp.startVal = stages_.empty() ? 0.0f : stages_.back().ramp.endVal;
-    s.ramp.endVal   = 0.0f;
-    s.percent = 0.2f;
-    s.minSec  = 0.0f;
-    s.maxSec  = 0.0f;  // 0 = unbounded (engine sentinel)
-    stages_.push_back(s);
-    stageCounts_.push_back(0);
-  }
 
   void remove_stage(int i) {
     if (i < 0 || i >= int(stages_.size())) return;
-    stages_.erase(stages_.begin() + i);
+    for (Array* c : columns_()) c->values.erase(c->values.begin() + i);
     if (i < int(stageCounts_.size())) stageCounts_.erase(stageCounts_.begin() + i);
+    rebuild_stages_();
+  }
+
+  // The one door to a single stage's cells: its curve and power.
+  void set_curve(int i, RampType t, float power) {
+    if (i < 0 || i >= int(stages_.size())) return;
+    colType.values[size_t(i)]  = float(int(t));
+    colPower.values[size_t(i)] = power;
+    rebuild_stages_();
   }
 
   // Sized to the stage list; on_start writes the counts.
@@ -313,7 +354,7 @@ struct Envelope : Generator {
         continue;
       }
 
-      float stgDur = absolute_time ? stages_[i].percent          // literal seconds
+      float stgDur = absolute_time() ? stages_[i].percent        // literal seconds
                                    : duration * stages_[i].percent;
       // Gated (live) notes: a stage with an authored nominal takes that
       // length outright — patch-intrinsic live layout (§2.4). The expand
@@ -327,7 +368,7 @@ struct Envelope : Generator {
         std::uniform_real_distribution<float> dist(stage_accuracy.value, 1.0f);
         stgDur *= dist(rng_);
       }
-      stgDur = absolute_time
+      stgDur = absolute_time()
         ? std::clamp(stgDur, 0.0f, duration)                     // physical clamp only
         : std::clamp(stgDur, stages_[i].minSec, stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
       stageCounts_[i] = int(std::lround(stgDur * sample_rate()));
@@ -358,12 +399,9 @@ struct Envelope : Generator {
 
   float compute() override {
     const float raw = next_raw_();
-    if (minValue.source || maxValue.source) {
-      const float lo = minValue.current();
-      const float hi = maxValue.current();
-      return lo + (hi - lo) * raw;
-    }
-    return raw;
+    const float lo = minValue.current();
+    const float hi = maxValue.current();
+    return lo + (hi - lo) * raw;
   }
 
   // Raw 0..1-domain stage evaluation. raw_ and the gate anchor live HERE,
@@ -453,12 +491,11 @@ struct Envelope : Generator {
     env->add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decayPct, decayMin, decayMax});
     env->add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
     env->add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releasePct, releaseMin, releaseMax});
-    env->adsrLayout_ = true;  // enables live sustainLevel rewrites via set_setting
     return env;
   }
 
   // Attack → Decay → Sustain (expand) → Release with LITERAL-SECONDS stage
-  // times (absolute_time = true; JSON: preset "adsr" + "timeMode":"seconds").
+  // times (timeMode "seconds"; JSON: preset "adsr" + "timeMode":"seconds").
   // No min/max stage clamps — the fractional preset's 0.05 s attack floor is
   // what smeared the piano's locked 8 ms attack into a 50 ms chuff and made
   // knock decay vary with note duration (dsp run 22 diagnosis). A 0-second
@@ -473,8 +510,7 @@ struct Envelope : Generator {
     env->add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decaySec, 0.0f, 0.0f});
     env->add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
     env->add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releaseSec, 0.0f, 0.0f});
-    env->adsrLayout_ = true;
-    env->absolute_time = true;
+    env->timeMode.value = 1;
     return env;
   }
 
@@ -524,6 +560,34 @@ struct Envelope : Generator {
   // drift bug class the patch linter exists for). See gen_v6m.py.
 
 private:
+  // The eight columns in declaration order.
+  std::array<Array*, 8> columns_() {
+    return {&colStartVal, &colEndVal, &colPower, &colType,
+            &colPercent, &colMinSec, &colMaxSec, &colNominal};
+  }
+
+  // The one derivation of the layout from the columns: as many stages as
+  // the shortest column has cells, every field from its cell, the type
+  // clamped into RampType. The stage counts follow the size and keep the
+  // counts they held. Allocates only when the number of stages changes.
+  void rebuild_stages_() {
+    size_t n = colStartVal.values.size();
+    for (Array* c : columns_()) n = std::min(n, c->values.size());
+    stages_.resize(n);
+    for (size_t i = 0; i < n; ++i) {
+      Stage& s = stages_[i];
+      s.ramp.startVal = colStartVal.values[i];
+      s.ramp.endVal   = colEndVal.values[i];
+      s.ramp.power    = colPower.values[i];
+      s.ramp.type     = RampType(std::clamp(int(colType.values[i]), 0, int(RampType::Hold)));
+      s.percent       = colPercent.values[i];
+      s.minSec        = colMinSec.values[i];
+      s.maxSec        = colMaxSec.values[i];
+      s.nominal       = colNominal.values[i];
+    }
+    stageCounts_.resize(n, 0);
+  }
+
   // What the settings surface reports as sustainLevel: the stage list's
   // four-slot value, 0 when the list is not that shape.
   float sustain_level() const {
@@ -557,10 +621,7 @@ private:
   int stageStart_{0};
   int stageEnd_{0};
   float raw_{0.0f};      // raw 0..1-domain stage value (gate anchor domain)
-  std::vector<Stage> stages_;
-  // True when stages were built by make_adsr — the fixed 4-stage layout that
-  // sustainLevel set_setting knows how to rewrite.
-  bool adsrLayout_{false};
+  std::vector<Stage> stages_;   // derived from the columns: rebuild_stages_()
   // Note-contained sound (2026-08-13 spec):
   // gated_: live-note mode — the expand stage holds until gate_release().
   // endHold_: past the last stage, hold its endVal instead of emitting 0.

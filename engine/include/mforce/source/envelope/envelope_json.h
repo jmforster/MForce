@@ -31,8 +31,7 @@ inline RampType curve(const json& p, const std::string& key, int fallback) {
 
 // Stage `i` takes "<name>Curve" (default `fallback`) and "<name>Power" (default 0).
 inline void shape(Envelope& env, int i, const json& p, const std::string& name, int fallback) {
-  env.stage(i).ramp.type  = curve(p, name + "Curve", fallback);
-  env.stage(i).ramp.power = p.value(name + "Power", 0.0f);
+  env.set_curve(i, curve(p, name + "Curve", fallback), p.value(name + "Power", 0.0f));
 }
 
 inline std::shared_ptr<Envelope> ar(const json& p) {

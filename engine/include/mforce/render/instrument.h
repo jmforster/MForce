@@ -456,7 +456,7 @@ struct PitchedInstrument final : Instrument {
   std::shared_ptr<Envelope> make_glide(const VoiceGraph& vg, float fromFreq,
                                        float toFreq, int durSamples) {
     auto g = std::make_shared<Envelope>();
-    g->absolute_time = true;
+    g->timeMode.value = 1;                         // seconds
     const float semis = 12.0f * std::log2(fromFreq / toFreq);
     g->add_stage({{semis, 0.0f, RampType::Linear, 0.0f}, glideSec, 0.0f, 0.0f});
     g->add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
