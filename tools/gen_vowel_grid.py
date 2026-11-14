@@ -273,7 +273,8 @@ def main():
     print(f"total {len(manifest)} patches"
           + (f" ({sum(1 for m in manifest if m[6])} f1-retuned)" if retune else ""))
     # These patches carry a paramMap and FormantSpectrums the loader refuses; convert_patch rewrites them.
-    convert_patch.main([OUT])
+    if convert_patch.main([OUT]) != 0:
+        sys.exit("convert_patch.py refused or could not read a file in %s" % [OUT])
 
 
 if __name__ == "__main__":

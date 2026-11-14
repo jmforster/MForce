@@ -12,6 +12,7 @@ _run_formantseq_sweep.py (same pipeline as the expand sweep).
 """
 import json
 import os
+import sys
 
 import convert_patch
 
@@ -140,7 +141,8 @@ def main():
             json.dump(make_patch(spectra, driver, wt, blend), f, indent=1)
     print(f"wrote {len(REGIMES)} formantseq-sweep patches -> {OUT}")
     # These patches carry FormantSpectrums and Formants the loader refuses; convert_patch rewrites them.
-    convert_patch.main([OUT])
+    if convert_patch.main([OUT]) != 0:
+        sys.exit("convert_patch.py refused or could not read a file in %s" % [OUT])
 
 
 if __name__ == "__main__":

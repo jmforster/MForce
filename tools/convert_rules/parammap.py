@@ -35,20 +35,10 @@ invent a meaning.
 import json
 from collections import Counter, OrderedDict
 
+from ._nodes import node_container
+
 PERF_F = "__perf_freq"
 PERF_V = "__perf_vel"
-
-
-def node_container(doc):
-    """Patches come in two shapes: instrument patches nest the graph under a
-    "graph" key, NodeGraph-mode patches put nodes at top level. Returns the
-    dict that OWNS the "nodes" list, so callers can read and replace it."""
-    g = doc.get("graph")
-    if isinstance(g, dict) and isinstance(g.get("nodes"), list):
-        return g
-    if isinstance(doc.get("nodes"), list):
-        return doc
-    raise ValueError("patch has no node list at doc['nodes'] or doc['graph']['nodes']")
 
 
 def is_number(x):
@@ -92,7 +82,9 @@ def convert(doc, notes, ctx):
             check_entry(entry)
 
     container = node_container(doc)
-    by_id = {n["id"]: n for n in container["nodes"]}
+    if container is None:
+        raise ValueError("patch has no node list at doc['nodes'] or doc['graph']['nodes']")
+    by_id = {n.get("id"): n for n in container["nodes"] if isinstance(n, dict)}
     new_nodes = OrderedDict()
     counter = [0]
 
@@ -152,7 +144,7 @@ def convert(doc, notes, ctx):
             if node_id not in by_id:
                 raise ValueError("paramMap target %r: no node %r" % (target, node_id))
             node = by_id[node_id]
-            ntype = node["type"]
+            ntype = node.get("type")
             if ntype not in desc:
                 raise ValueError("node %r has unregistered type %r — cannot tell "
                                  "a setting from a fixed pin" % (node_id, ntype))

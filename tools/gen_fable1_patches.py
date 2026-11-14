@@ -8,6 +8,7 @@ onset/trade/expand/bandwidth techniques per docs/superpowers/specs/
 import copy
 import json
 import os
+import sys
 
 import convert_patch
 
@@ -192,7 +193,8 @@ def main():
             json.dump(p, f, indent=2)
         print("wrote", path)
     # The base patch carries a paramMap and a BandSpectrum the loader refuses; convert_patch rewrites them.
-    convert_patch.main([OUT])
+    if convert_patch.main([OUT]) != 0:
+        sys.exit("convert_patch.py refused or could not read a file in %s" % [OUT])
 
 
 if __name__ == "__main__":

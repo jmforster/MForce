@@ -1,7 +1,9 @@
 """The driver: --check's exit codes, the rule order on a document that needs
 two rules, the not-written rule for an unchanged and a refused file, the
 file's indent step and line endings, idempotence on disk, the folder walk and
-its sorted order."""
+its sorted order, a paramMap curve leaving as columns, a non-ASCII character
+and a byte-order mark kept, a node with no id, a failed descriptor dump."""
+import codecs
 import contextlib
 import io
 import json
@@ -14,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import convert_patch as drv  # noqa: E402
+import convert_rules  # noqa: E402
 from convert_rules import Context  # noqa: E402
 
 DESC = {
@@ -200,6 +203,84 @@ class DriverTests(unittest.TestCase):
         visited = [os.path.basename(os.path.dirname(line.split(": ", 1)[0]))
                    for line in out.splitlines() if line.split(": ", 1)[0].endswith("p.json")]
         self.assertEqual(visited, ["a", "b"])
+
+    def test_a_parammap_curve_leaves_the_driver_as_columns(self):
+        # The paramMap rule writes the curve as a CurveNode with a knot list;
+        # the curve-table rule, after it, rewrites that list as x and y.
+        doc = {"sampleRate": 48000,
+               "instrument": {"polyphony": 1,
+                              "paramMap": {"frequency": {"target": "osc.frequency",
+                                                         "curve": [[100, 200], [1000, 2000]]}}},
+               "graph": {"nodes": [{"id": "osc", "type": "SineSource", "params": {"amplitude": 0.5}}],
+                         "output": "osc"}}
+        path = self.write("p.json", doc)
+        changed = drv.convert_file(path, ctx=self.ctx)
+        self.assertEqual(list(changed), ["parammap", "curve_table"])
+        self.assertEqual(changed["curve_table"], {"knots": 1})
+        nodes = {n["id"]: n for n in json.load(open(path, encoding="utf-8"))["graph"]["nodes"]}
+        self.assertEqual(nodes["__curve_1"]["params"], {"interp": "logx", "x": [100.0, 1000.0],
+                                                        "y": [200.0, 2000.0],
+                                                        "source": {"ref": "__perf_freq"}})
+        self.assertEqual(drv.convert_file(path, ctx=self.ctx), {})
+
+    def raw_file(self, name, data):
+        path = os.path.join(self.dir.name, name)
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
+    def test_a_non_ascii_character_survives_a_rewrite_byte_for_byte(self):
+        doc = ks_piano()
+        doc["comment"] = "wiring \u2014 caf\u00e9"
+        path = self.raw_file("u.json", json.dumps(doc, indent=2, ensure_ascii=False).encode("utf-8") + b"\n")
+        self.assertEqual(self.run_main([path])[0], 0)
+        data = open(path, "rb").read()
+        self.assertIn('"comment": "wiring \u2014 caf\u00e9"'.encode("utf-8"), data)
+        self.assertNotIn(b"\\u", data)
+        self.assertFalse(data.startswith(codecs.BOM_UTF8))                      # none added
+        self.assertNotIn("paramMap", json.loads(data.decode("utf-8"))["instrument"])
+
+    def test_a_byte_order_mark_is_read_and_kept(self):
+        path = self.raw_file("bom.json", codecs.BOM_UTF8 + json.dumps(ks_piano(), indent=2).encode("utf-8"))
+        rc, out = self.run_main([path])
+        self.assertEqual(rc, 0)
+        self.assertIn("1 file(s) rewritten, 0 refused", out)
+        data = open(path, "rb").read()
+        self.assertTrue(data.startswith(codecs.BOM_UTF8))
+        self.assertFalse(data[len(codecs.BOM_UTF8):].startswith(codecs.BOM_UTF8))
+        self.assertNotIn("paramMap", json.loads(data.decode("utf-8-sig"))["instrument"])
+        self.assertEqual(self.run_main(["--check", path])[0], 0)
+
+    def test_a_node_with_no_id_is_named_in_a_refusal(self):
+        bad = self.write("a.json", {"graph": {"nodes": [{"type": "Envelope", "params": {"stages": "x"}}],
+                                              "output": "e"}})
+        no_id = ks_piano()
+        no_id["graph"]["nodes"].append({"type": "SineSource", "params": {}})   # beside a paramMap
+        good = self.write("b.json", no_id)
+        rc, out = self.run_main([bad, good])
+        self.assertEqual(rc, 1)
+        self.assertIn("a.json: NOT rewritten: node <no id> (Envelope)", out)
+        self.assertIn("1 file(s) rewritten, 1 refused", out)
+        self.assertNotIn("paramMap", json.load(open(good, encoding="utf-8"))["instrument"])
+
+    def test_a_failed_descriptor_dump_is_a_refusal(self):
+        needs = self.write("a.json", ks_piano())                                 # the paramMap rule asks
+        free = self.write("b.json", {"graph": {"nodes": [{"id": "c", "type": "CurveNode",
+                                                          "params": {"knots": [[0, 0], [1, 1]]}}],
+                                               "output": "c"}})
+        before = open(needs, "rb").read()
+        failure = RuntimeError("mforce_cli --dump-descriptors failed: no exe")
+        with mock.patch.object(convert_rules, "descriptors", side_effect=failure):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = drv.main([needs, free], Context())
+        out = out.getvalue()
+        self.assertEqual(rc, 1)
+        self.assertIn("a.json: NOT rewritten: mforce_cli --dump-descriptors failed: no exe", out)
+        self.assertIn("1 file(s) rewritten, 1 refused", out)
+        self.assertEqual(open(needs, "rb").read(), before)
+        self.assertEqual(json.load(open(free, encoding="utf-8"))["graph"]["nodes"][0]["params"],
+                         {"x": [0, 1], "y": [0, 1]})
 
 
 if __name__ == "__main__":

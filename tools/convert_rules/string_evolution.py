@@ -18,6 +18,8 @@ explicit period) has no node form and is refused.
 """
 from collections import Counter
 
+from ._nodes import node_container, node_label
+
 FORMS = {
     "pluck":     ("PluckEvolution",     ("muting",)),
     "averaging": ("AveragingEvolution", ("sampleCount", "speed", "decayFactor", "leading", "autoAdjust")),
@@ -30,17 +32,6 @@ BRANCH_DEFAULTS = {
     "averaging": {"sampleCount": 2.0, "decayFactor": 0.996},
 }
 DEFAULT_SEED = 42          # uint32_t(p.value("evolutionSeed", 42)) in the deleted loader branch
-
-
-def node_container(doc):
-    """The dict that owns the "nodes" list: "graph" in an instrument patch, the
-    document itself in a node-graph patch; None when there is neither."""
-    g = doc.get("graph")
-    if isinstance(g, dict) and isinstance(g.get("nodes"), list):
-        return g
-    if isinstance(doc.get("nodes"), list):
-        return doc
-    return None
 
 
 def _fresh_id(base, taken):
@@ -72,10 +63,10 @@ def convert(doc):
             continue
         form = params["evolution"]
         if form not in FORMS:
-            raise ValueError("node '%s': evolution \"%s\" has no node form" % (node.get("id"), form))
+            raise ValueError("node %s: evolution \"%s\" has no node form" % (node_label(node), form))
         if "targetWave" in params:
-            raise ValueError("node '%s': targetWave (an explicit period) has no node form; "
-                             "express the target as targetPartials" % node.get("id"))
+            raise ValueError("node %s: targetWave (an explicit period) has no node form; "
+                             "express the target as targetPartials" % node_label(node))
         type_name, keys = FORMS[form]
         ev_id = _fresh_id("%s_evolution" % node.get("id"), taken)
         taken.add(ev_id)

@@ -189,7 +189,8 @@ def main():
             json.dump(patch, f, indent=2)
         built += 1
         # Both files carry a paramMap and a FormantSpectrum the loader refuses; convert_patch rewrites them.
-        convert_patch.main([str(patch_path), str(patch_copy_path)])
+        if convert_patch.main([str(patch_path), str(patch_copy_path)]) != 0:
+            sys.exit("convert_patch.py refused or could not read a file in %s" % [str(patch_path), str(patch_copy_path)])
 
         if do_render:
             res = subprocess.run(

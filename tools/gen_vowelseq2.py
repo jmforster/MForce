@@ -9,6 +9,7 @@ Sequences: OO-EE, O-OO-EE, AH-O-OO, EE-AH-OO, OO-AH-EE at f0 110 and 220.
 import json
 import math
 import os
+import sys
 
 import convert_patch
 
@@ -105,7 +106,8 @@ def main():
                 json.dump(make_patch(seq, f0), f, indent=1)
             print("wrote", path)
     # These patches carry a paramMap and FormantSpectrums the loader refuses; convert_patch rewrites them.
-    convert_patch.main([OUT])
+    if convert_patch.main([OUT]) != 0:
+        sys.exit("convert_patch.py refused or could not read a file in %s" % [OUT])
 
 
 if __name__ == "__main__":

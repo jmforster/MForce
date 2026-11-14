@@ -12,26 +12,33 @@ each on the one document the previous left:
   deleted_types     the node types this engine no longer has
   string_evolution  a wavetable's string-typed evolution, as an evolution node
   parammap          instrument.paramMap, as graph wiring
+  envelope_table    an Envelope's stage list, as the eight columns of its table
+  curve_table       a CurveNode's knots and expression rows, as columns
 
 The deleted-type rule runs before the paramMap rule because its formant fold
 reads paramMap entries aimed at the peaks it consumes and it renames types the
-paramMap rule looks up in the registry. Each rule's own docstring says what it
-does to a document. Each rule's notes are printed prefixed by the path, and a
-changed file gets one line with each rule's counts.
+paramMap rule looks up in the registry. The two table rules run after the
+paramMap rule, whose curves are CurveNodes with knot lists. Each rule's own
+docstring says what it does to a document. Each rule's notes are printed
+prefixed by the path, and a changed file gets one line with each rule's counts.
 
 A file is written only when a rule changed it: in place, with the file's own
 indent step (an inline object or array is laid out one value per line), LF
-line endings, a final newline and key order kept. A file with nothing to
-rewrite is not written, so a second run changes nothing. A file that does not
-read or parse, or that any rule refuses (each rule's docstring says what it
-refuses), is not written at all, even when an earlier rule changed the document:
-it is reported as "NOT rewritten" with the reason, and the run goes on.
+line endings, a final newline and key order kept; a non-ASCII character is
+written as itself, and a UTF-8 byte-order mark the file began with is kept.
+A file with nothing to rewrite is not written, so a second run changes
+nothing. A file that does not read or parse, or that any rule refuses (each
+rule's docstring says what it refuses), is not written at all, even when an
+earlier rule changed the document: it is reported as "NOT rewritten" with the
+reason, and the run goes on. So is a file whose rule asked for the registry's
+descriptors when `mforce_cli --dump-descriptors` failed.
 
 Exit 1 if any file was refused or unreadable, else 0. With --check nothing is
 written, and the exit is 1 while any rewrite is pending or any file is
 refused, else 0. With no file or folder: this text, exit 2. A later rewrite
 adds a rule, not a tool.
 """
+import codecs
 import json
 import os
 import sys
@@ -71,7 +78,9 @@ def convert_file(path, check=False, ctx=None):
     written; the notes are printed only for a file every rule accepted."""
     if ctx is None:
         ctx = Context()
-    text = Path(path).read_text(encoding="utf-8")
+    raw = Path(path).read_bytes()
+    bom = raw.startswith(codecs.BOM_UTF8)
+    text = raw.decode("utf-8-sig")
     doc = json.loads(text)
     if not isinstance(doc, dict):
         return {}                      # a folder's manifest, say: not a patch
@@ -84,8 +93,8 @@ def convert_file(path, check=False, ctx=None):
     for line in notes:
         print("%s: %s" % (path, line))
     if changed and not check:
-        Path(path).write_text(json.dumps(doc, indent=indent_of(text)) + "\n",
-                              encoding="utf-8", newline="\n")
+        out = json.dumps(doc, indent=indent_of(text), ensure_ascii=False) + "\n"
+        Path(path).write_bytes((codecs.BOM_UTF8 if bom else b"") + out.encode("utf-8"))
     return changed
 
 
@@ -102,7 +111,7 @@ def main(argv, ctx=None):
     for path in json_files(roots):
         try:
             changed = convert_file(path, check, ctx)
-        except (ValueError, OSError, json.JSONDecodeError) as e:
+        except (ValueError, OSError, json.JSONDecodeError, RuntimeError) as e:   # RuntimeError: a failed --dump-descriptors
             print("%s: NOT rewritten: %s" % (path, e))
             failed += 1
             continue

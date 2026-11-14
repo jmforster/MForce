@@ -18,6 +18,7 @@ renders at f0 110 (speech), 220, 660, 1320 (the chirp test).
 """
 import json
 import os
+import sys
 
 import convert_patch
 
@@ -129,7 +130,8 @@ def main():
                 json.dump(make_patch(f0, wscale=float(mult)), f, indent=1)
             print("wrote", path)
     # These patches carry a paramMap and FormantSpectrums the loader refuses; convert_patch rewrites them.
-    convert_patch.main([OUT])
+    if convert_patch.main([OUT]) != 0:
+        sys.exit("convert_patch.py refused or could not read a file in %s" % [OUT])
 
 
 if __name__ == "__main__":

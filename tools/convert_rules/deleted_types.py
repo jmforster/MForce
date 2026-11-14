@@ -57,6 +57,8 @@ changes nothing. A later deletion adds a row to RULES, not a tool.
 import json
 from collections import Counter
 
+from ._nodes import node_label
+
 
 LAYOUT_KNOBS = {"attack", "attackCurve", "attackPower", "decay", "decayCurve", "decayPower",
                 "decayLevel", "release", "releaseCurve", "releasePower", "reverse"}
@@ -77,8 +79,8 @@ class Refuse:
         self.hint = hint
 
     def apply(self, node, notes):
-        raise ValueError("node '%s' (%s): deleted; %s; no mechanical rewrite"
-                         % (node.get("id"), node.get("type"), self.hint))
+        raise ValueError("node %s (%s): deleted; %s; no mechanical rewrite"
+                         % (node_label(node), node.get("type"), self.hint))
 
 
 class Preset:
@@ -93,9 +95,9 @@ class Preset:
         pins = node.get("dynamicPins") or {}
         bad = sorted(k for k in pins if k in LAYOUT_KNOBS)
         if bad:
-            raise ValueError("node '%s' (%s): dynamicPins names %s, a setting the class had; "
+            raise ValueError("node %s (%s): dynamicPins names %s, a setting the class had; "
                              "the Envelope preset form has no pin for it"
-                             % (node.get("id"), node.get("type"), ", ".join(bad)))
+                             % (node_label(node), node.get("type"), ", ".join(bad)))
         params = node.get("params") or {}
         dropped = sorted(k for k in params if k in self.dead)
         if dropped:
@@ -213,7 +215,7 @@ def fold_spectrum(spec, by_id, refs, aims, notes):
     sid = spec.get("id")
 
     def refuse(why):
-        raise ValueError("node '%s' (FormantSpectrum): %s; no mechanical rewrite" % (sid, why))
+        raise ValueError("node %s (FormantSpectrum): %s; no mechanical rewrite" % (node_label(spec), why))
 
     stray = sorted(k for k in spec if k not in ("id", "type", "params"))
     if stray:
@@ -301,8 +303,8 @@ def fold_formant_spectra(doc, notes):
             rows, consumed, folds = fold_spectrum(spec, by_id, refs, aims, notes)
             for cid in consumed:
                 if cid in taken:
-                    raise ValueError("node '%s' (FormantSpectrum): peak '%s' is referenced by another "
-                                     "node too; no mechanical rewrite" % (spec.get("id"), cid))
+                    raise ValueError("node %s (FormantSpectrum): peak '%s' is referenced by another "
+                                     "node too; no mechanical rewrite" % (node_label(spec), cid))
                 taken.add(cid)
             plans.append((g, spec, rows, consumed, folds))
     counts = Counter()

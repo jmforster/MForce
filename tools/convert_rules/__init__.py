@@ -10,7 +10,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from . import deleted_types, parammap, string_evolution
+from . import curve_table, deleted_types, envelope_table, parammap, string_evolution
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CLI = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
@@ -19,8 +19,11 @@ DESC_CACHE = ROOT / "renders/scratch/descriptors.json"
 # The deleted-type rule's formant fold reads the paramMap entries aimed at the
 # peaks it consumes, and it renames types the paramMap rule looks up in the
 # registry, so the paramMap rule runs after it. The string-evolution rule is
-# independent of both.
-RULES = (deleted_types, string_evolution, parammap)
+# independent of both. The two table rules run last: the deleted-type rule
+# turns the six preset classes into preset-form Envelopes the envelope-table
+# rule reads, and the paramMap rule writes each curve as a CurveNode with a
+# knot list, which the curve-table rule rewrites as columns.
+RULES = (deleted_types, string_evolution, parammap, envelope_table, curve_table)
 
 
 def rule_name(rule):
