@@ -1443,12 +1443,11 @@ static std::string hold_patch_json(float glideMs) {
           { "id": "pf", "type": "PerformNode",
             "params": { "field": "frequency" } },
           { "id": "env1", "type": "Envelope",
-            "params": { "stages": [
-              { "startVal": 0.0, "endVal": 1.0, "type": "Linear", "percent": 0.05 },
-              { "startVal": 1.0, "endVal": 0.7, "type": "Linear", "percent": 0.10 },
-              { "startVal": 0.7, "endVal": 0.7, "type": "Linear", "percent": 0.0 },
-              { "startVal": 0.7, "endVal": 0.0, "type": "Linear", "percent": 0.25 }
-            ] } },
+            "params": {
+              "startVal": [0.0, 1.0, 0.7, 0.7], "endVal": [1.0, 0.7, 0.7, 0.0],
+              "power": [0.0, 0.0, 0.0, 0.0], "type": ["Linear", "Linear", "Linear", "Linear"],
+              "percent": [0.05, 0.1, 0.0, 0.25], "minSec": [0.0, 0.0, 0.0, 0.0],
+              "maxSec": [0.0, 0.0, 0.0, 0.0], "nominal": [0.0, 0.0, 0.0, 0.0] } },
           { "id": "sine1", "type": "SineSource",
             "params": { "frequency": { "ref": "pf" },
                         "amplitude": { "ref": "env1" }, "phase": 0.0 } }
@@ -1822,11 +1821,10 @@ static void run_onset_trigger_tests() {
           { "id": "gest1", "type": "Envelope",
             "params": { "timeMode": "seconds",
                         "trigger": { "ref": "ng1" },
-                        "stages": [
-              { "startVal": 1.0, "endVal": 0.1, "type": "Linear", "percent": 0.010 },
-              { "startVal": 0.1, "endVal": 1.0, "type": "Linear", "percent": 0.020 },
-              { "startVal": 1.0, "endVal": 1.0, "type": "Linear", "percent": 0.0 }
-            ] } },
+              "startVal": [1.0, 0.1, 1.0], "endVal": [0.1, 1.0, 1.0],
+              "power": [0.0, 0.0, 0.0], "type": ["Linear", "Linear", "Linear"],
+              "percent": [0.01, 0.02, 0.0], "minSec": [0.0, 0.0, 0.0],
+              "maxSec": [0.0, 0.0, 0.0], "nominal": [0.0, 0.0, 0.0] } },
           { "id": "sine1", "type": "SineSource",
             "params": { "frequency": 220.0, "amplitude": { "ref": "gest1" },
                         "phase": 0.0 } }
@@ -1883,12 +1881,11 @@ static void run_note_reseed_tests() {
         "output": "wn1",
         "nodes": [
           { "id": "env1", "type": "Envelope",
-            "params": { "stages": [
-              { "startVal": 0.0, "endVal": 1.0, "type": "Linear", "percent": 0.10 },
-              { "startVal": 1.0, "endVal": 0.7, "type": "Linear", "percent": 0.10 },
-              { "startVal": 0.7, "endVal": 0.7, "type": "Linear", "percent": 0.0 },
-              { "startVal": 0.7, "endVal": 0.0, "type": "Linear", "percent": 0.15 }
-            ] } },
+            "params": {
+              "startVal": [0.0, 1.0, 0.7, 0.7], "endVal": [1.0, 0.7, 0.7, 0.0],
+              "power": [0.0, 0.0, 0.0, 0.0], "type": ["Linear", "Linear", "Linear", "Linear"],
+              "percent": [0.1, 0.1, 0.0, 0.15], "minSec": [0.0, 0.0, 0.0, 0.0],
+              "maxSec": [0.0, 0.0, 0.0, 0.0], "nominal": [0.0, 0.0, 0.0, 0.0] } },
           { "id": "wn1", "type": "WhiteNoiseSource",
             "params": { "amplitude": { "ref": "env1" } } }
         ]
@@ -2133,10 +2130,9 @@ static void run_embedded_score_delivery_tests() {
     // timeline at the end.
     {
         const char* sustaining = R"({"sampleRate":48000,"instrument":{"polyphony":1,"sustaining":true},"graph":{"output":"osc","nodes":[
-          {"id":"env","type":"Envelope","params":{"stages":[
-            {"startVal":0.0,"endVal":1.0,"type":"Linear","percent":0.05},
-            {"startVal":1.0,"endVal":1.0,"type":"Linear","percent":0.0},
-            {"startVal":1.0,"endVal":0.0,"type":"Linear","percent":0.25}]}},
+          {"id":"env","type":"Envelope","params":{"startVal":[0.0,1.0,1.0],"endVal":[1.0,1.0,0.0],
+            "power":[0.0,0.0,0.0],"type":["Linear","Linear","Linear"],"percent":[0.05,0.0,0.25],
+            "minSec":[0.0,0.0,0.0],"maxSec":[0.0,0.0,0.0],"nominal":[0.0,0.0,0.0]}},
           {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"env"}}}]}})";
         auto ip = load_instrument_patch_json(sustaining);
         (void)play_embedded_score(*ip.instrument,
@@ -3369,13 +3365,13 @@ static void run_tap_reads_live_tests() {
 // duplicated, however the file orders the consumers.
 static std::string shared_env_patch_json(bool duplicated) {
     using nlohmann::json;
-    const json stages = json::array({
-        json{{"startVal", 0.0}, {"endVal", 1.0}, {"type", "Linear"}, {"percent", 0.05}},
-        json{{"startVal", 1.0}, {"endVal", 0.7}, {"type", "Linear"}, {"percent", 0.10}},
-        json{{"startVal", 0.7}, {"endVal", 0.7}, {"type", "Linear"}, {"percent", 0.0}},
-        json{{"startVal", 0.7}, {"endVal", 0.0}, {"type", "Linear"}, {"percent", 0.25}}});
+    const json table = {
+        {"startVal", {0.0, 1.0, 0.7, 0.7}}, {"endVal", {1.0, 0.7, 0.7, 0.0}},
+        {"power", {0.0, 0.0, 0.0, 0.0}}, {"type", {"Linear", "Linear", "Linear", "Linear"}},
+        {"percent", {0.05, 0.1, 0.0, 0.25}}, {"minSec", {0.0, 0.0, 0.0, 0.0}},
+        {"maxSec", {0.0, 0.0, 0.0, 0.0}}, {"nominal", {0.0, 0.0, 0.0, 0.0}}};
     auto env = [&](const char* id) {
-        return json{{"id", id}, {"type", "Envelope"}, {"params", {{"stages", stages}}}};
+        return json{{"id", id}, {"type", "Envelope"}, {"params", table}};
     };
     auto sine = [](const char* id, const char* envId) {
         return json{{"id", id}, {"type", "SineSource"},
@@ -7257,9 +7253,9 @@ static void run_envelope_form_tests() {
           && std::string(kEnvelopePresets[5].name) == "adsr");
 }
 
-// Through the loader: a form node and the stages node it lays out as render
-// the same bytes; a seed and the accuracy knobs reach the form node as they
-// reach the stages node.
+// Through the loader: a form node and the stage table it lays out, given as
+// columns, render the same bytes; a seed and the accuracy knobs reach the
+// form node as they reach the table node.
 static std::vector<float> render_loaded_note(const char* json, int n) {
     auto ip = load_instrument_patch_json(json);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
@@ -7274,7 +7270,7 @@ static void run_envelope_form_loader_tests() {
         {"id":"Env","type":"Envelope","params":{"preset":"as","attack":0.3,"attackCurve":1,"attackPower":2.0,"reverse":true,"sustainLevel":0.6,"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
         {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
     const char* stages = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
-        {"id":"Env","type":"Envelope","params":{"stages":[{"startVal":0.6,"endVal":0.0,"type":"Expo","power":2.0,"percent":0.3,"maxSec":1.0},{"startVal":0.0,"endVal":0.0}],"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
+        {"id":"Env","type":"Envelope","params":{"startVal":[0.6,0.0],"endVal":[0.0,0.0],"power":[2.0,0.0],"type":["Expo","Linear"],"percent":[0.3,0.0],"minSec":[0.0,0.0],"maxSec":[1.0,0.0],"nominal":[0.0,0.0],"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
         {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
     const auto a = render_loaded_note(form, 9600), b = render_loaded_note(stages, 9600);
     CHECK(same_bits(a, b));
@@ -7529,8 +7525,8 @@ static void run_envelope_table_tests() {
                     CHECK(columns_match_layout(*e));
                 }
 
-    // (7) The loader: a stage list and the same table as columns; labels in
-    // any case; the refusals; an empty table; timeMode on either form.
+    // (7) The loader: the table as columns; labels in any case and indices;
+    // the refusals; an empty table; timeMode on either form.
     {
         auto patch = [](const std::string& envParams) {
             return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -7546,29 +7542,20 @@ static void run_envelope_table_tests() {
             try { load_instrument_patch_json(json); } catch (const std::exception& e) { return std::string(e.what()); }
             return std::string();
         };
-        const std::string list = R"("stages":[{"startVal":0.0,"endVal":1.0,"type":"Expo","power":2.0,"percent":0.3,"minSec":0.0,"maxSec":1.0},)"
-                                 R"({"startVal":1.0,"endVal":0.2,"type":"Sine","percent":0.0},)"
-                                 R"({"startVal":0.2,"endVal":0.0,"type":"Hold","percent":0.2,"nominal":0.1}])";
         const std::string table = R"("startVal":[0.0,1.0,0.2],"endVal":[1.0,0.2,0.0],"power":[2.0,0.0,0.0],)"
                                   R"("type":["expo","SINE","Hold"],"percent":[0.3,0.0,0.2],"minSec":[0.0,0.0,0.0],)"
                                   R"("maxSec":[1.0,0.0,0.0],"nominal":[0.0,0.0,0.1])";
-        const auto fromList = env_of(patch(list)), fromTable = env_of(patch(table));
-        CHECK(fromList && fromTable && fromList->stage_count() == 3 && same_layout(*fromList, *fromTable));
+        const auto fromTable = env_of(patch(table));
+        CHECK(fromTable && fromTable->stage_count() == 3);
         CHECK(fromTable->stage(0).ramp.type == E && fromTable->stage(1).ramp.type == S && fromTable->stage(2).ramp.type == H);
-        CHECK(same_bits(render_loaded_note(patch(list).c_str(), 9600), render_loaded_note(patch(table).c_str(), 9600)));
         const std::string indices = R"("startVal":[0.0,1.0,0.2],"endVal":[1.0,0.2,0.0],"power":[2.0,0.0,0.0],)"
                                     R"("type":[1,3,4],"percent":[0.3,0.0,0.2],"minSec":[0.0,0.0,0.0],)"
                                     R"("maxSec":[1.0,0.0,0.0],"nominal":[0.0,0.0,0.1])";
-        CHECK(same_layout(*fromList, *env_of(patch(indices))));
+        CHECK(same_layout(*fromTable, *env_of(patch(indices))));
 
         const std::string unknown = refusal(patch(R"("startVal":[0.0],"endVal":[1.0],"power":[0.0],"type":["Squiggle"],)"
                                                   R"("percent":[0.0],"minSec":[0.0],"maxSec":[0.0],"nominal":[0.0])"));
         CHECK(unknown.find("node 'Env' (Envelope): 'type' holds \"Squiggle\"") != std::string::npos);
-        const std::string listAndColumns = refusal(patch(list + "," + table));
-        CHECK(listAndColumns.find("node 'Env' (Envelope): holds both 'stages' and 'startVal'; an Envelope takes one form: "
-                                  "a stage list, the stage columns, or a preset") != std::string::npos);
-        const std::string listAndPreset = refusal(patch(list + R"(,"preset":"adsr")"));
-        CHECK(listAndPreset.find("node 'Env' (Envelope): holds both 'stages' and 'preset'") != std::string::npos);
         const std::string presetAndColumn = refusal(patch(R"("preset":"ar","type":["Linear"])"));
         CHECK(presetAndColumn.find("node 'Env' (Envelope): holds both 'preset' and 'type'") != std::string::npos);
         const std::string ragged = refusal(patch(R"("startVal":[0.0],"endVal":[1.0],"power":[0.0],"type":["Linear"],)"
@@ -7579,9 +7566,8 @@ static void run_envelope_table_tests() {
 
         const auto empty = env_of(patch(R"("startVal":[],"endVal":[],"power":[],"type":[],"percent":[],"minSec":[],"maxSec":[],"nominal":[])"));
         CHECK(empty && empty->stage_count() == 0);
-        CHECK(env_of(patch(list + R"(,"timeMode":"seconds")"))->absolute_time());
         CHECK(env_of(patch(table + R"(,"timeMode":"Seconds")"))->absolute_time());
-        CHECK(!env_of(patch(table))->absolute_time() && !env_of(patch(list))->absolute_time());
+        CHECK(!env_of(patch(table))->absolute_time());
         CHECK(env_of(patch(R"("preset":"adsr","timeMode":"seconds")"))->absolute_time());
     }
 }
@@ -7794,7 +7780,7 @@ static void run_curve_table_tests() {
         CHECK(arrays == "x/knots y/knots exprX/exprKnots exprForm/exprKnots exprA/exprKnots exprB/exprKnots");
     }
 
-    // (4) The loader: each old key and its columns; labels in any case; the refusals.
+    // (4) The loader: each table as its columns; labels in any case; the refusals.
     {
         auto patch = [](const std::string& curveParams) {
             return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -7811,31 +7797,24 @@ static void run_curve_table_tests() {
             try { load_instrument_patch_json(json); } catch (const std::exception& e) { return std::string(e.what()); }
             return std::string();
         };
-        const std::string knots = R"("interp":"logx","knots":[[100.0,0.002],[1000.0,0.2],[5000.0,0.05]])";
         const std::string xy = R"("interp":"logx","x":[100.0,1000.0,5000.0],"y":[0.002,0.2,0.05])";
-        const auto fromKnots = curve_of(patch(knots)), fromXY = curve_of(patch(xy));
-        CHECK(fromKnots && fromXY && fromKnots->knots().size() == 3);
-        CHECK(same_knots(fromKnots->knots(), fromXY->knots()) && same_map(*fromKnots, *fromXY));
-        CHECK(same_knots(fromKnots->knots(), CurveKnots{{100.0f, 0.002f}, {1000.0f, 0.2f}, {5000.0f, 0.05f}}));
-        CHECK(fromKnots->interp.value == int(CurveNode::CurveInterp::LogX) && fromKnots->mode.value == 0);
-        CHECK(same_bits(render_loaded_note(patch(knots).c_str(), 4800), render_loaded_note(patch(xy).c_str(), 4800)));
+        const auto fromXY = curve_of(patch(xy));
+        CHECK(fromXY && fromXY->knots().size() == 3);
+        CHECK(same_knots(fromXY->knots(), CurveKnots{{100.0f, 0.002f}, {1000.0f, 0.2f}, {5000.0f, 0.05f}}));
+        CHECK(fromXY->interp.value == int(CurveNode::CurveInterp::LogX) && fromXY->mode.value == 0);
 
-        const std::string rows = R"("mode":"expressions","interp":"loglog","exprKnots":[{"x":0.0,"form":"linear","a":0.0,"b":0.001},)"
-                                 R"({"x":200.0,"form":"power","a":0.0001,"b":1.5},{"x":2000.0,"a":-2e-5,"b":0.05},)"
-                                 R"({"x":12000.0,"form":"power","a":0.03,"b":0.25}])";
         const std::string labels = R"("mode":"expressions","interp":"loglog","exprX":[0.0,200.0,2000.0,12000.0],)"
                                    R"("exprForm":["linear","POWER","Linear","power"],"exprA":[0.0,0.0001,-2e-5,0.03],)"
                                    R"("exprB":[0.001,1.5,0.05,0.25])";
         const std::string indices = R"("mode":"expressions","interp":"loglog","exprX":[0.0,200.0,2000.0,12000.0],)"
                                     R"("exprForm":[0,1,0,1],"exprA":[0.0,0.0001,-2e-5,0.03],"exprB":[0.001,1.5,0.05,0.25])";
-        const auto fromRows = curve_of(patch(rows)), fromLabels = curve_of(patch(labels)), fromIndices = curve_of(patch(indices));
-        CHECK(fromRows && fromLabels && fromIndices && fromRows->expr_knots().size() == 4);
-        CHECK(same_rows(fromRows->expr_knots(), fromLabels->expr_knots()) && same_rows(fromRows->expr_knots(), fromIndices->expr_knots()));
-        CHECK(same_map(*fromRows, *fromLabels) && same_map(*fromRows, *fromIndices));
-        CHECK(fromRows->mode.value == 1 && fromRows->interp.value == int(CurveNode::CurveInterp::LogLog));
-        CHECK(fromRows->expr_knots().size() == 4 && fromRows->expr_knots()[2].form == KF::Linear
-              && fromRows->expr_knots()[1].form == KF::Power);
-        CHECK(same_bits(render_loaded_note(patch(rows).c_str(), 4800), render_loaded_note(patch(labels).c_str(), 4800)));
+        const auto fromLabels = curve_of(patch(labels)), fromIndices = curve_of(patch(indices));
+        CHECK(fromLabels && fromIndices && fromLabels->expr_knots().size() == 4);
+        CHECK(same_rows(fromLabels->expr_knots(), fromIndices->expr_knots()));
+        CHECK(same_map(*fromLabels, *fromIndices));
+        CHECK(fromLabels->mode.value == 1 && fromLabels->interp.value == int(CurveNode::CurveInterp::LogLog));
+        CHECK(fromLabels->expr_knots().size() == 4 && fromLabels->expr_knots()[2].form == KF::Linear
+              && fromLabels->expr_knots()[1].form == KF::Power);
 
         // interp and mode as labels in any case; a label that matches none keeps the default.
         const auto cased = curve_of(patch(R"("interp":"LogLog","mode":"EXPRESSIONS")"));
@@ -7845,18 +7824,6 @@ static void run_curve_table_tests() {
         const auto absent = curve_of(patch(R"("x":[0.0,1.0],"y":[0.0,1.0])"));
         CHECK(absent->interp.value == 0 && absent->mode.value == 0);
 
-        // An old key beside a column of its table is refused naming the node and both keys.
-        CHECK(refusal(patch(knots + R"(,"x":[100.0,1000.0,5000.0])")).find(
-                  "node 'cv' (CurveNode): holds both 'knots' and 'x'; a table is given once") != std::string::npos);
-        CHECK(refusal(patch(knots + R"(,"y":[0.002,0.2,0.05])")).find(
-                  "node 'cv' (CurveNode): holds both 'knots' and 'y'; a table is given once") != std::string::npos);
-        CHECK(refusal(patch(rows + R"(,"exprB":[0.001,1.5,0.05,0.25])")).find(
-                  "node 'cv' (CurveNode): holds both 'exprKnots' and 'exprB'; a table is given once") != std::string::npos);
-        CHECK(refusal(patch(rows + R"(,"exprForm":["linear","power","linear","power"])")).find(
-                  "node 'cv' (CurveNode): holds both 'exprKnots' and 'exprForm'; a table is given once") != std::string::npos);
-        // The other table's columns beside an old key load: knots with the expression columns.
-        const auto mixed = curve_of(patch(knots + R"(,"exprX":[0.0],"exprForm":["power"],"exprA":[1.0],"exprB":[2.0])"));
-        CHECK(mixed && mixed->knots().size() == 3 && mixed->expr_knots().size() == 1);
         // A table missing a column is ragged.
         const std::string ragged = refusal(patch(R"("x":[100.0,1000.0])"));
         CHECK(ragged.find("node 'cv' (CurveNode): table 'knots' takes its columns at one length, all present or all absent")
@@ -8305,6 +8272,95 @@ static void run_param_map_refusal_tests() {
     CHECK(loaded);
 }
 
+// A key of a table's row form — an Envelope's stages, a CurveNode's knots and
+// exprKnots — fails the load through the text entry point and the file entry
+// point alike, naming the node, the key and the converter: the message is the
+// node's prefix and the sentence retired_key_refusal holds for the pair. The
+// refusal is per type and key: a PhasedValueSource's stages loads, and so do
+// the table forms of the three.
+static void run_retired_key_refusal_tests() {
+    std::printf("retired keys: an Envelope's stages, a CurveNode's knots and exprKnots refused by name\n");
+    auto patch = [](const std::string& node) {
+        return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      )") + node + R"(,
+      {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"n"}}}]}})";
+    };
+    auto text_refusal = [](const std::string& json) {
+        try { (void)load_instrument_patch_json(json); } catch (const std::exception& e) { return std::string(e.what()); }
+        return std::string();
+    };
+    auto file_refusal = [](const char* path, const std::string& json) {
+        ScratchPatch file(path, json);
+        try { (void)load_patch_file(file.path); } catch (const std::exception& e) { return std::string(e.what()); }
+        return std::string();
+    };
+    auto loads = [](const std::string& json) {
+        try { (void)load_instrument_patch_json(json); return true; }
+        catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
+    };
+
+    struct Retired { const char* type; const char* key; const char* file; std::string node; };
+    const Retired retired[] = {
+        {"Envelope", "stages", "renders/scratch/_retired_stages.json",
+         R"({"id":"n","type":"Envelope","params":{"stages":[{"startVal":0.0,"endVal":1.0,"type":"Linear","percent":0.5},)"
+         R"({"startVal":1.0,"endVal":0.0,"type":"Linear","percent":0.5}]}})"},
+        {"CurveNode", "knots", "renders/scratch/_retired_knots.json",
+         R"({"id":"n","type":"CurveNode","params":{"source":{"ref":"pf"},"knots":[[100.0,0.2],[1000.0,0.8]]}})"},
+        {"CurveNode", "exprKnots", "renders/scratch/_retired_expr_knots.json",
+         R"({"id":"n","type":"CurveNode","params":{"source":{"ref":"pf"},"mode":"expressions",)"
+         R"("exprKnots":[{"x":440.0,"form":"linear","a":0.001,"b":0.0}]}})"},
+    };
+    for (const auto& r : retired) {
+        const std::string sentence = retired_key_refusal(r.type, r.key);
+        const std::string want = std::string("node 'n' (") + r.type + "): " + sentence;
+        for (const std::string& msg : {text_refusal(patch(r.node)), file_refusal(r.file, patch(r.node))}) {
+            if (msg != want) std::printf("  %s.%s: got \"%s\"\n", r.type, r.key, msg.c_str());
+            CHECK(msg.find(std::string("node 'n' (") + r.type + ")") != std::string::npos);
+            CHECK(msg.find(std::string("'") + r.key + "'") != std::string::npos);
+            CHECK(msg.find("no longer read") != std::string::npos);
+            CHECK(msg.find("python tools/convert_patch.py") != std::string::npos);
+            CHECK(msg.size() >= sentence.size() && msg.compare(msg.size() - sentence.size(), sentence.size(), sentence) == 0);
+            CHECK(msg == want);
+        }
+    }
+    // The sentence for each retired pair, and none for any other pair.
+    CHECK(retired_key_refusal("Envelope", "stages")
+          == "'stages' is no longer read: python tools/convert_patch.py <patch> rewrites it as the eight stage columns");
+    CHECK(retired_key_refusal("CurveNode", "knots")
+          == "'knots' is no longer read: python tools/convert_patch.py <patch> rewrites it as the columns x and y");
+    CHECK(retired_key_refusal("CurveNode", "exprKnots")
+          == "'exprKnots' is no longer read: python tools/convert_patch.py <patch> rewrites it as the columns exprX, exprForm, exprA and exprB");
+    CHECK(retired_key_refusal("PhasedValueSource", "stages").empty());
+    CHECK(retired_key_refusal("Envelope", "knots").empty());
+    CHECK(retired_key_refusal("CurveNode", "stages").empty());
+    CHECK(retired_key_refusal("Envelope", "startVal").empty());
+
+    // The table forms beside them load, and a PhasedValueSource keeps its stages.
+    CHECK(loads(patch(R"({"id":"n","type":"Envelope","params":{"startVal":[0.0,1.0],"endVal":[1.0,0.0],"power":[0.0,0.0],)"
+                      R"("type":["Linear","Linear"],"percent":[0.5,0.5],"minSec":[0.0,0.0],"maxSec":[0.0,0.0],"nominal":[0.0,0.0]}})")));
+    CHECK(loads(patch(R"({"id":"n","type":"CurveNode","params":{"source":{"ref":"pf"},"x":[100.0,1000.0],"y":[0.2,0.8]}})")));
+    CHECK(loads(patch(R"({"id":"n","type":"CurveNode","params":{"source":{"ref":"pf"},"mode":"expressions",)"
+                      R"("exprX":[440.0],"exprForm":["linear"],"exprA":[0.001],"exprB":[0.0]}})")));
+    CHECK(loads(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"phased","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"saw","type":"SawSource","params":{"frequency":{"ref":"pf"},"amplitude":1.0}},
+      {"id":"sin","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":1.0}},
+      {"id":"phased","type":"PhasedValueSource","params":{"overlap":0.15,"amplitude":0.8,"stages":[
+        {"source":{"ref":"saw"},"percent":0.5,"min":0.5,"max":3.0,"gain":1.0},
+        {"source":{"ref":"sin"},"percent":0,"min":0.0,"max":0.0,"gain":1.0}]}}]}})"));
+
+    // A stage list beside a preset gets the retired key's sentence, not the
+    // two forms'; a preset beside a stage column gets the two forms'.
+    const std::string listAndPreset = text_refusal(patch(
+        R"({"id":"n","type":"Envelope","params":{"preset":"adsr","stages":[{"startVal":0.0,"endVal":1.0,"type":"Linear","percent":0.5}]}})"));
+    CHECK(listAndPreset == "node 'n' (Envelope): " + retired_key_refusal("Envelope", "stages"));
+    CHECK(listAndPreset.find("one form") == std::string::npos);
+    const std::string presetAndColumn = text_refusal(patch(R"({"id":"n","type":"Envelope","params":{"preset":"ar","type":["Linear"]}})"));
+    CHECK(presetAndColumn.find("node 'n' (Envelope): holds both 'preset' and 'type'; an Envelope takes one form: "
+                               "the stage columns or a preset") != std::string::npos);
+}
+
 // A dynamic pin: a setting the patch drives once per note, here an envelope's
 // timeScale through a CurveNode reading the note's frequency. The setting takes
 // the curve's value at the note's frequency at Setup; a held line's
@@ -8314,12 +8370,10 @@ static std::string dynamic_pin_patch_json(int polyphony) {
     return R"({"sampleRate":48000,"instrument":{"polyphony":)" + std::to_string(polyphony)
          + R"(,"sustaining":true,"glideMs":15.0},"graph":{"output":"sine1","nodes":[
       {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
-      {"id":"ts","type":"CurveNode","params":{"source":{"ref":"pf"},"interp":"logx","knots":[[100.0,0.5],[1000.0,2.0]]}},
-      {"id":"env1","type":"Envelope","params":{"stages":[
-        {"startVal":0.0,"endVal":1.0,"type":"Linear","percent":0.05},
-        {"startVal":1.0,"endVal":0.7,"type":"Linear","percent":0.10},
-        {"startVal":0.7,"endVal":0.7,"type":"Linear","percent":0.0},
-        {"startVal":0.7,"endVal":0.0,"type":"Linear","percent":0.25}]},
+      {"id":"ts","type":"CurveNode","params":{"source":{"ref":"pf"},"interp":"logx","x":[100.0,1000.0],"y":[0.5,2.0]}},
+      {"id":"env1","type":"Envelope","params":{"startVal":[0.0,1.0,0.7,0.7],"endVal":[1.0,0.7,0.7,0.0],
+        "power":[0.0,0.0,0.0,0.0],"type":["Linear","Linear","Linear","Linear"],"percent":[0.05,0.1,0.0,0.25],
+        "minSec":[0.0,0.0,0.0,0.0],"maxSec":[0.0,0.0,0.0,0.0],"nominal":[0.0,0.0,0.0,0.0]},
        "dynamicPins":{"timeScale":{"ref":"ts"}}},
       {"id":"sine1","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"env1"},"phase":0.0}}]}})";
 }
@@ -9595,7 +9649,7 @@ static void run_channel_source_tests() {
         {"renders/scratch/_channel_envelope.json",
          R"({"id":"env","type":"Envelope","params":{"preset":"ar","attack":0.2}})", "env"},
         {"renders/scratch/_channel_curve.json",
-         R"({"id":"cv","type":"CurveNode","params":{"knots":[[0.0,0.25],[1.0,0.75]],"source":0.5}})", "cv"},
+         R"({"id":"cv","type":"CurveNode","params":{"x":[0.0,1.0],"y":[0.25,0.75],"source":0.5}})", "cv"},
         {"renders/scratch/_channel_range.json",
          R"({"id":"rng","type":"RangeSource","params":{"min":0.0,"max":1.0,"var":0.5}})", "rng"},
         {"renders/scratch/_channel_vibrato.json",
@@ -9941,6 +9995,7 @@ int main() {
     run_structural_setting_tests();
     run_structural_push_refusal_tests();
     run_param_map_refusal_tests();
+    run_retired_key_refusal_tests();
     run_dynamic_pin_tests();
     run_wiring_door_tests();
     run_formant_part_tests();

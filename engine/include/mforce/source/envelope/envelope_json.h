@@ -14,8 +14,8 @@ namespace mforce {
 // through the factory, then shapes each curved stage from its "<stage>Curve"
 // (0 Linear, 1 Expo, 2 InverseExpo, 3 Sine) and "<stage>Power" keys. Throws
 // on an unknown preset, a curve outside 0..3, and on key combinations that
-// would otherwise be silently dead knobs. The stage-list form
-// ({"stages": [...]}) is the callers' to handle.
+// would otherwise be silently dead knobs. The table form (the eight stage
+// columns) is read by the generic array pass.
 
 namespace envelope_form {
 

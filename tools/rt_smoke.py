@@ -24,13 +24,17 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, a patch carrying an instrument.paramMap, written to the temp
-folder, must be refused by mforce_ui --roundtrip: a non-zero exit,
-tools/convert_patch.py named in its output, and no file written. It prints its
-own line and is not counted among the shapes. So does make-instrument: mforce_ui
+After the shapes, five cases, each on its own line and not counted among the
+shapes. Two fixtures written to the temp folder must be refused by mforce_ui
+--roundtrip, each with a non-zero exit, tools/convert_patch.py named in its
+output, and no file written: a patch carrying an instrument.paramMap (refusal)
+and an Envelope holding a stage list (retired-key). make-instrument: mforce_ui
 --convert-roundtrip on patches/baselines/distortion_test.json must exit 0 and
 write an instrument block with no paramMap and a PerformNode whose field is
-frequency wired into the sin node's frequency.
+frequency wired into the sin node's frequency. Two Envelopes in table form must
+round-trip through mforce_ui --roundtrip as the file gave them: the type column
+as its labels and timeMode as its label (table-labels), and eight empty columns
+as eight empty columns (empty-table).
 
 Usage: python tools/rt_smoke.py
 """
@@ -59,12 +63,41 @@ PARAMMAP_FIXTURE = {
     "score": [{"note": 60, "velocity": 0.8, "time": 0.0, "duration": 0.5}],
 }
 
+STAGE_COLUMNS = ("startVal", "endVal", "power", "type", "percent", "minSec", "maxSec", "nominal")
 
-def refusal_failures(td, doc):
+
+def envelope_doc(env_params):
+    """An instrument patch whose sine's amplitude is the Envelope `env` with
+    `env_params`."""
+    return {
+        "sampleRate": 48000,
+        "graph": {"nodes": [{"id": "env", "type": "Envelope", "params": env_params},
+                            {"id": "osc", "type": "SineSource",
+                             "params": {"frequency": 440.0, "amplitude": {"ref": "env"}}}],
+                  "output": "osc"},
+        "instrument": {"polyphony": 1},
+        "score": [{"note": 60, "velocity": 0.8, "time": 0.0, "duration": 0.5}],
+    }
+
+
+RETIRED_FIXTURE = envelope_doc({"stages": [
+    {"startVal": 0.0, "endVal": 1.0, "type": "Linear", "percent": 0.1},
+    {"startVal": 1.0, "endVal": 0.0, "type": "Expo", "power": 2.0, "percent": 0.0}]})
+
+LABELS_FIXTURE = envelope_doc({
+    "timeMode": "seconds",
+    "startVal": [0.0, 1.0], "endVal": [1.0, 0.0], "power": [0.0, 2.0],
+    "type": ["Linear", "Expo"], "percent": [0.01, 0.0], "minSec": [0.0, 0.0],
+    "maxSec": [0.0, 0.0], "nominal": [0.0, 0.0]})
+
+EMPTY_TABLE_FIXTURE = envelope_doc({c: [] for c in STAGE_COLUMNS})
+
+
+def refusal_failures(td, doc, name="refusal"):
     """Write `doc` to `td` and round-trip it; return why the editor did not
     refuse it (empty when it exited non-zero, named tools/convert_patch.py and
     wrote nothing)."""
-    src, out = Path(td) / "refusal.json", Path(td) / "refusal_rt.json"
+    src, out = Path(td) / (name + ".json"), Path(td) / (name + "_rt.json")
     src.write_text(json.dumps(doc), encoding="utf-8")
     r = subprocess.run([str(UI), "--roundtrip", str(src), str(out)],
                        capture_output=True, text=True, cwd=str(ROOT))
@@ -76,6 +109,46 @@ def refusal_failures(td, doc):
     if out.exists():
         why.append("wrote " + out.name)
     return why
+
+
+def roundtrip_env_params(td, doc, name):
+    """Write `doc` to `td` and round-trip it; return (why it failed, the saved
+    Envelope's params)."""
+    src, out = Path(td) / (name + ".json"), Path(td) / (name + "_rt.json")
+    src.write_text(json.dumps(doc), encoding="utf-8")
+    r = subprocess.run([str(UI), "--roundtrip", str(src), str(out)],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    if r.returncode != 0:
+        return ["exit %d %s" % (r.returncode, r.stderr.strip()[:70])], None
+    if not out.exists():
+        return ["wrote nothing"], None
+    nodes = json.loads(out.read_text(encoding="utf-8"))["graph"]["nodes"]
+    env = next((n for n in nodes if n.get("id") == "env"), None)
+    if env is None:
+        return ["no env node"], None
+    return [], env.get("params") or {}
+
+
+def table_labels_failures(td):
+    """Round-trip LABELS_FIXTURE; return why its Envelope did not keep the type
+    column as its labels and timeMode as its label."""
+    why, params = roundtrip_env_params(td, LABELS_FIXTURE, "table_labels")
+    if why:
+        return why
+    if params.get("type") != ["Linear", "Expo"]:
+        why.append("type is %s" % json.dumps(params.get("type")))
+    if params.get("timeMode") != "seconds":
+        why.append("timeMode is %s" % json.dumps(params.get("timeMode")))
+    return why
+
+
+def empty_table_failures(td):
+    """Round-trip EMPTY_TABLE_FIXTURE; return why its Envelope did not keep
+    eight empty columns."""
+    why, params = roundtrip_env_params(td, EMPTY_TABLE_FIXTURE, "empty_table")
+    if why:
+        return why
+    return ["%s is %s" % (c, json.dumps(params.get(c))) for c in STAGE_COLUMNS if params.get(c) != []]
 
 
 MAKE_INSTRUMENT_SOURCE = "patches/baselines/distortion_test.json"
@@ -168,12 +241,17 @@ def main():
             if ra != rb or sha(wa) != sha(wb):
                 print(f"{label:<16} RENDER DIFF"); bad += 1; continue
             print(f"{label:<16} ok")
-        refusal = refusal_failures(td, PARAMMAP_FIXTURE)
-        print(f"{'refusal':<16} " + (f"FAIL {', '.join(refusal)}" if refusal else "ok"))
-        make = make_instrument_failures(td)
-        print(f"{'make-instrument':<16} " + (f"FAIL {', '.join(make)}" if make else "ok"))
+        failed = False
+        for label, why in (("refusal", lambda: refusal_failures(td, PARAMMAP_FIXTURE)),
+                           ("retired-key", lambda: refusal_failures(td, RETIRED_FIXTURE, "retired_key")),
+                           ("make-instrument", lambda: make_instrument_failures(td)),
+                           ("table-labels", lambda: table_labels_failures(td)),
+                           ("empty-table", lambda: empty_table_failures(td))):
+            reasons = why()
+            failed = failed or bool(reasons)
+            print(f"{label:<16} " + (f"FAIL {', '.join(reasons)}" if reasons else "ok"))
     print(f"{len(CASES) - bad}/{len(CASES)} shapes clean")
-    sys.exit(1 if bad or refusal or make else 0)
+    sys.exit(1 if bad or failed else 0)
 
 
 main()

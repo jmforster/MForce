@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <string_view>
 #include "mforce/render/mixer.h"
 #include "mforce/render/instrument.h"
 
@@ -9,6 +10,13 @@ namespace mforce {
 // The sentence a file that carries instrument.paramMap is refused with, by the
 // loader and by the editor, which refuses before it touches its open graph.
 inline constexpr char kParamMapRefusal[] = "instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring";
+
+// The sentence a node's params key is refused with when it is a table's row
+// form the engine no longer reads (an Envelope's stages, a CurveNode's knots
+// and exprKnots), naming the converter that rewrites it as columns; empty for
+// any other type and key. The loader throws it after the node's id and type,
+// and so does the editor, before it touches its open graph.
+std::string retired_key_refusal(std::string_view type, std::string_view key);
 
 struct BuiltSound {
   int sampleRate{48000};

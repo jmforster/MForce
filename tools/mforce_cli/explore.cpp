@@ -7,14 +7,14 @@
 //     "axes": [
 //       { "param": "fm.frequency",   "short": "f",  "min": 1000, "max": 100000, "steps": 10, "scale": "log" },
 //       { "param": "fm.modRatio",    "short": "mr", "values": [0.5, 1.0, 1.4, 2.0, 2.5] },
-//       { "param": "depthEnv.stages.0.endVal", "short": "d", "min": 0, "max": 10, "steps": 5 }
+//       { "param": "depthEnv.endVal.0", "short": "d", "min": 0, "max": 10, "steps": 5 }
 //     ]
 //   }
 //
 // Param paths take the form "<nodeId>.<sub.path>". The sub.path walks into
 // the node's "params" object; numeric segments index into arrays. So
-// "depthEnv.stages.0.endVal" means: find node id="depthEnv", set
-// params.stages[0].endVal = <value>.
+// "depthEnv.endVal.0" means: find node id="depthEnv", set
+// params.endVal[0] = <value>.
 //
 // "scale": "log" makes the sweep geometric (each step multiplies by the
 // same ratio); default "linear" makes it arithmetic. "values" overrides

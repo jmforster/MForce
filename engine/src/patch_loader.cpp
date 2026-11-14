@@ -4,7 +4,6 @@
 #include "mforce/source/modulator/name_gate.h"
 #include "mforce/source/modulator/range_source.h"
 #include "mforce/source/modulator/var_source.h"
-#include "mforce/source/modulator/curve_node.h"
 #include "mforce/render/perform_source.h"
 #include "mforce/source/envelope/envelope.h"
 #include "mforce/source/envelope/envelope_json.h"
@@ -229,6 +228,22 @@ struct GraphResult {
                              + (isSignal ? "" : ", a part, not a signal") + takes);
 }
 
+std::string retired_key_refusal(std::string_view type, std::string_view key)
+{
+    // A table's row form, by node type and key, and the columns it became.
+    struct Retired { std::string_view type, key, columns; };
+    static constexpr Retired kRetired[] = {
+        {"Envelope",  "stages",    "the eight stage columns"},
+        {"CurveNode", "knots",     "the columns x and y"},
+        {"CurveNode", "exprKnots", "the columns exprX, exprForm, exprA and exprB"},
+    };
+    for (const auto& r : kRetired)
+        if (r.type == type && r.key == key)
+            return "'" + std::string(key) + "' is no longer read: python tools/convert_patch.py <patch> rewrites it as "
+                 + std::string(r.columns);
+    return {};
+}
+
 // Every key of a node's params is one the engine reads: a descriptor of
 // the node, or one of the keys the hand-written branches and configurators
 // consume (the allowlist below, grown until the whole gate corpus loads
@@ -246,26 +261,26 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
     // never invent one. The structure meter's tests fail when the scrape
     // gains a key this list lacks.
     static const std::unordered_set<std::string> kBranchKeys = {
-        "a", "absolute", "attack", "attackCurve", "attackMax",
-        "attackMin", "attackPower", "b", "baseValue", "bias", "channels",
+        "absolute", "attack", "attackCurve", "attackMax",
+        "attackMin", "attackPower", "baseValue", "bias", "channels",
         "count", "curve", "cutoff", "decay", "decayCurve", "decayLevel",
         "decayMax", "decayMin", "decayPower", "delay", "dt1", "dt2",
-        "durVarPct", "duration", "dynamicPins", "endVal", "expandRule",
-        "exprKnots", "field", "form", "formants", "frames", "frequency", "gain",
+        "durVarPct", "duration", "dynamicPins", "expandRule",
+        "field", "formants", "frames", "frequency", "gain",
         "gainAdj", "gains", "gap", "gapVarPct", "glideMs", "graph",
-        "id", "inputs", "instrument", "interp", "interpolate", "knots",
-        "loPct1", "loPct2", "max", "maxSec", "min", "minSec", "mode", "morph",
-        "name", "nodes", "nominal", "normalized", "oneShot",
+        "id", "inputs", "instrument", "interp", "interpolate",
+        "loPct1", "loPct2", "max", "min", "mode", "morph",
+        "name", "nodes", "normalized", "oneShot",
         "onsets", "operation", "output", "overlap", "paramMap",
-        "percent", "po1", "po2", "polyphony", "power", "power1", "power2",
-        "powers", "powers2", "preset", "ramp_accuracy", "ratio", "recurse",
+        "percent", "po1", "po2", "polyphony", "power1", "power2",
+        "powers", "powers2", "preset", "ratio", "recurse",
         "ref", "release", "releaseCurve", "releaseMax", "releaseMin",
         "releasePower", "reverse", "sampleRate", "score", "seconds", "sections",
         "seed", "segs", "segs2", "source", "spacing1", "spacing2",
-        "stage_accuracy", "stages", "startVal", "sustain", "sustainLevel",
+        "stages", "sustain", "sustainLevel",
         "sustaining", "tap", "target", "targetPartials", "timeMode",
         "type", "values", "values2", "varPct", "vcurve", "volume",
-        "weight", "x",
+        "weight",
     };
     auto known = [&](const std::string& k) {
         if (kBranchKeys.count(k)) return true;
@@ -279,10 +294,17 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
             if (k == d.name) return true;
         return false;
     };
-    for (auto it = params.begin(); it != params.end(); ++it)
+    // A table's row form the engine no longer reads is refused by its own
+    // sentence first: kBranchKeys holds "stages" for PhasedValueSource, so
+    // the unknown-key test alone would let an Envelope's stages through.
+    for (auto it = params.begin(); it != params.end(); ++it) {
+        const std::string retired = retired_key_refusal(src.type_name(), it.key());
+        if (!retired.empty())
+            throw std::runtime_error("node '" + id + "' (" + src.type_name() + "): " + retired);
         if (!known(it.key()))
             throw std::runtime_error("node '" + id + "' (" + src.type_name()
                                      + "): unknown key '" + it.key() + "'");
+    }
 }
 
 // A table is the columns of one group, a row per index: its columns are all
@@ -605,9 +627,9 @@ static GraphResult build_graph(
             const auto& p = *pp;
             std::shared_ptr<Envelope> env;
 
-            // Three forms, at most one per node: a stage list, the stage
-            // columns (any array of a default Envelope's group "stages"), or
-            // a preset (also what a node with none of the three gets).
+            // Two forms, at most one per node: the stage columns (any array
+            // of a default Envelope's group "stages"), or a preset (also what
+            // a node with neither gets).
             const char* column = nullptr;
             {
                 const Envelope probe;
@@ -617,42 +639,11 @@ static GraphResult build_graph(
                         break;
                     }
             }
-            const bool hasStages = p.contains("stages");
-            const bool hasPreset = p.contains("preset");
-            auto two_forms = [&](const std::string& a, const std::string& b) {
-                return std::runtime_error("node '" + id + "' (Envelope): holds both '" + a + "' and '" + b
-                                          + "'; an Envelope takes one form: a stage list, the stage columns, or a preset");
-            };
-            if (hasStages && column) throw two_forms("stages", column);
-            if (hasStages && hasPreset) throw two_forms("stages", "preset");
-            if (hasPreset && column) throw two_forms("preset", column);
+            if (column && p.contains("preset"))
+                throw std::runtime_error("node '" + id + "' (Envelope): holds both 'preset' and '" + column
+                                         + "'; an Envelope takes one form: the stage columns or a preset");
 
-            if (hasStages) {
-                env = std::make_shared<Envelope>();
-                for (const auto& sj : p["stages"]) {
-                    Envelope::Stage s;
-                    s.ramp.startVal = sj.value("startVal", 0.0f);
-                    s.ramp.endVal   = sj.value("endVal",   0.0f);
-                    s.ramp.power    = sj.value("power",    0.0f);
-                    // holdPct removed 2026-09-05 (curve-morph spec §3): a
-                    // stale key in old JSON is simply ignored here.
-                    std::string t   = sj.value("type", std::string("Linear"));
-                    s.ramp.type = (t == "Expo")        ? RampType::Expo
-                                : (t == "InverseExpo") ? RampType::InverseExpo
-                                : (t == "Sine")        ? RampType::Sine
-                                : (t == "Hold")        ? RampType::Hold
-                                                       : RampType::Linear;
-                    s.percent = sj.value("percent", 0.0f);
-                    s.minSec  = sj.value("minSec",  0.0f);
-                    s.maxSec  = sj.value("maxSec",  0.0f);
-                    s.nominal = sj.value("nominal", 0.0f);
-                    env->add_stage(s);
-                }
-                if (p.contains("stage_accuracy") && p["stage_accuracy"].is_number())
-                    env->stage_accuracy.value = std::clamp(p["stage_accuracy"].get<float>(), 0.0f, 1.0f);
-                if (p.contains("ramp_accuracy") && p["ramp_accuracy"].is_number())
-                    env->ramp_accuracy.value = std::clamp(p["ramp_accuracy"].get<float>(), 0.0f, 1.0f);
-            } else if (column) {
+            if (column) {
                 // The stage columns: the generic array pass below fills them,
                 // and its table rule refuses a node that lacks one.
                 env = std::make_shared<Envelope>();
@@ -668,52 +659,6 @@ static GraphResult build_graph(
             // The pins (minValue, maxValue, trigger), the settings (timeMode
             // read as its label) and the stage columns, as for any node.
             wire_params_generic(*env, id, p, graphNodes);
-        }
-        else if (type == "CurveNode") {
-            auto cn = std::make_shared<CurveNode>();
-            if (pp) {
-                const auto& p = *pp;
-                // Each table is given once: as its row list, under the key
-                // that is the table's name (knots, exprKnots), or as its
-                // columns.
-                for (const auto& d : cn->array_descriptors())
-                    if (d.groupName && p.contains(d.groupName) && p.contains(d.name))
-                        throw std::runtime_error("node '" + id + "' (CurveNode): holds both '"
-                                                 + d.groupName + "' and '" + d.name
-                                                 + "'; a table is given once");
-                if (p.contains("knots")) {
-                    std::vector<std::pair<float, float>> knots;
-                    for (const auto& k : p["knots"])
-                        knots.emplace_back(k.at(0).get<float>(),
-                                           k.at(1).get<float>());
-                    cn->set_knots(knots);
-                }
-                // Expression rows: knot values are formulas of x, stored as
-                // {"x":..,"form":"linear"|"power","a":..,"b":..} rows (b is
-                // the exponent p for power). See curve_node.h header comment.
-                if (p.contains("exprKnots")) {
-                    std::vector<CurveNode::ExprKnot> rows;
-                    for (const auto& k : p["exprKnots"]) {
-                        CurveNode::ExprKnot ek;
-                        ek.x = k.at("x").get<float>();
-                        ek.form = k.value("form", std::string("linear")) == "power"
-                                  ? CurveNode::KnotForm::Power
-                                  : CurveNode::KnotForm::Linear;
-                        ek.a = k.value("a", 0.0f);
-                        ek.b = k.value("b", 0.0f);
-                        rows.push_back(ek);
-                    }
-                    cn->set_expr_knots(rows);
-                }
-            }
-            // "source" is a param_descriptor, but wire_params_generic is NOT
-            // automatic — every special-cased type calls it explicitly. Without
-            // this call a CurveNode loaded from JSON has a null source: next()
-            // returns 0, and map(0) clamps to the first knot's value for every
-            // note. It also reads interp and mode as their labels and the two
-            // tables' columns.
-            if (pp) wire_params_generic(*cn, id, *pp, graphNodes);
-            graphNodes[id] = cn;
         }
         else if (type == "PerformNode") {
             // Leaf: resolves to the voice's shared PerformOut adapter. Several

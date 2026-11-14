@@ -1330,30 +1330,6 @@ static std::string text_open_dialog(const char* feature, const char* filter) {
 
 // json_type_to_node removed — typeName strings are used directly
 
-// The stage-list form of an Envelope (params.stages, a list of stage
-// objects), read by load_graph_from_path. Replaces env's stage table with
-// the one described by `stages`.
-static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stages) {
-    env = Envelope();
-    for (const auto& sj : stages) {
-        Envelope::Stage s;
-        s.ramp.startVal = sj.value("startVal", 0.0f);
-        s.ramp.endVal   = sj.value("endVal",   0.0f);
-        s.ramp.power    = sj.value("power",    0.0f);
-        std::string t   = sj.value("type", std::string("Linear"));
-        s.ramp.type = (t == "Expo")        ? RampType::Expo
-                    : (t == "InverseExpo") ? RampType::InverseExpo
-                    : (t == "Sine")        ? RampType::Sine
-                    : (t == "Hold")        ? RampType::Hold
-                                            : RampType::Linear;
-        s.percent = sj.value("percent", 0.0f);
-        s.minSec  = sj.value("minSec",  0.0f);
-        s.maxSec  = sj.value("maxSec",  0.0f);
-        s.nominal = sj.value("nominal", 0.0f);   // P1 live-playback stage length
-        env.add_stage(s);
-    }
-}
-
 // An element of a column with labels, as the file holds it: one of the
 // labels or a whole-number index into them; anything else fails the load
 // with the engine loader's sentence.
@@ -1419,6 +1395,20 @@ static void load_graph_from_path(const std::string& path) {
     // throw and the graph on screen stays as it was.
     if (root.contains("instrument") && root["instrument"].contains("paramMap"))
         throw std::runtime_error(mforce::kParamMapRefusal);
+    // A table's row form the engine no longer reads (an Envelope's stages, a
+    // CurveNode's knots and exprKnots) is refused with the engine loader's
+    // sentence, before anything is cleared.
+    if (root.contains("graph") && root["graph"].contains("nodes") && root["graph"]["nodes"].is_array())
+        for (const auto& jnode : root["graph"]["nodes"]) {
+            if (!jnode.contains("params") || !jnode["params"].is_object()) continue;
+            const std::string id = jnode.value("id", std::string());
+            const std::string type = jnode.value("type", std::string());
+            for (auto it = jnode["params"].begin(); it != jnode["params"].end(); ++it) {
+                const std::string retired = mforce::retired_key_refusal(type, it.key());
+                if (!retired.empty())
+                    throw std::runtime_error("node '" + id + "' (" + type + "): " + retired);
+            }
+        }
     stop_playback();  // stream paths hold raw pointers into s_nodes' DSP
     s_currentFilePath = path;
     s_graphDirty = false;
@@ -1569,62 +1559,15 @@ static void load_graph_from_path(const std::string& path) {
                          gn.paramName.c_str());
             }
 
-            // A CurveNode's two row lists, knots and exprKnots, are read into
-            // the cached columns; a table-form file's columns arrive through
-            // the array restore below, interp and mode through the settings
-            // restore, and push_curve follows both. Each table is given
-            // once: a row list beside one of its columns fails the load with
-            // the engine loader's sentence.
-            if (gn.typeName == "CurveNode") {
-                for (const auto& [desc, vec] : gn.arrayValues)
-                    if (desc.groupName && params.contains(desc.groupName) && params.contains(desc.name))
-                        throw std::runtime_error("node '" + id + "' (CurveNode): holds both '"
-                                                 + desc.groupName + "' and '" + desc.name
-                                                 + "'; a table is given once");
-                if (params.contains("knots") && params["knots"].is_array()) {
-                    std::vector<std::pair<float, float>> pts;
-                    for (const auto& k : params["knots"])
-                        if (k.is_array() && k.size() >= 2)
-                            pts.emplace_back(k[0].get<float>(), k[1].get<float>());
-                    set_curve_points(gn, pts);
-                }
-                if (params.contains("exprKnots") && params["exprKnots"].is_array()) {
-                    std::vector<CurveNode::ExprKnot> rows;
-                    for (const auto& k : params["exprKnots"]) {
-                        CurveNode::ExprKnot ek;
-                        ek.x = k.value("x", 100.0f);
-                        ek.form = k.value("form", std::string("linear")) == "power"
-                                  ? CurveNode::KnotForm::Power
-                                  : CurveNode::KnotForm::Linear;
-                        ek.a = k.value("a", 0.0f);
-                        ek.b = k.value("b", 0.0f);
-                        rows.push_back(ek);
-                    }
-                    set_curve_expr_rows(gn, rows);
-                }
-            }
-
-            // An Envelope takes one form: a stage list, the stage columns
-            // (any of its arrays in the group "stages"), or a preset. Two on
-            // one node fail the load with the engine loader's sentence.
-            if (gn.typeName == NT_ENVELOPE) {
-                const char* column = nullptr;
+            // An Envelope takes one form: the stage columns (any of its arrays
+            // in the group "stages") or a preset. Both on one node fail the
+            // load with the engine loader's sentence.
+            if (gn.typeName == NT_ENVELOPE && params.contains("preset"))
                 for (const auto& [desc, vec] : gn.arrayValues)
                     if (desc.groupName && std::string_view(desc.groupName) == "stages" &&
-                        params.contains(desc.name)) {
-                        column = desc.name;
-                        break;
-                    }
-                const bool hasStages = params.contains("stages");
-                const bool hasPreset = params.contains("preset");
-                auto two_forms = [&](const std::string& a, const std::string& b) {
-                    return std::runtime_error("node '" + id + "' (Envelope): holds both '" + a + "' and '" + b
-                                              + "'; an Envelope takes one form: a stage list, the stage columns, or a preset");
-                };
-                if (hasStages && column) throw two_forms("stages", column);
-                if (hasStages && hasPreset) throw two_forms("stages", "preset");
-                if (hasPreset && column) throw two_forms("preset", column);
-            }
+                        params.contains(desc.name))
+                        throw std::runtime_error("node '" + id + "' (Envelope): holds both 'preset' and '"
+                                                 + desc.name + "'; an Envelope takes one form: the stage columns or a preset");
 
             // Restore preset-form Envelopes (params.preset + attack/decay/…).
             // Previously the preset params were IGNORED — the node kept its
@@ -1635,8 +1578,7 @@ static void load_graph_from_path(const std::string& path) {
             // the last 0%-stage is the Envelope's expand stage, so an adsr
             // with release 0 is really "slow release fills the sustain
             // region" — swapping in release 0.2 changes the entire decay.
-            if (gn.typeName == NT_ENVELOPE && !params.contains("stages") &&
-                params.contains("preset")) {
+            if (gn.typeName == NT_ENVELOPE && params.contains("preset")) {
                 if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
                     // Shared preset dispatch (envelope_json.h) — same
                     // function the engine loader uses, so the two cannot
@@ -1645,22 +1587,6 @@ static void load_graph_from_path(const std::string& path) {
                     // — the 2026-08-13 damper-fires-on-attack bug — and
                     // dropped the fraction-adsr min/max jitter args.)
                     *env = std::move(*envelope_from_preset_json(params));
-                }
-            }
-
-            // Restore Envelope stages. For NT_ENVELOPE nodes saved with
-            // params.stages, replace the live Envelope's stage list.
-            if (gn.typeName == NT_ENVELOPE && params.contains("stages")) {
-                if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
-                    envelope_stages_from_json(*env, params["stages"]);
-                    // Sync the cached sustainLevel to the stages' actual slot
-                    // value: apply_config below pushes EVERY cached config,
-                    // and the 0.7 descriptor default would rewrite the four
-                    // sustain slots now that set_setting recognizes the adsr
-                    // shape (it was a silent no-op before — 3n).
-                    for (auto& [desc, val] : gn.settingValues)
-                        if (std::string_view(desc.name) == "sustainLevel")
-                            val = env->get_setting("sustainLevel");
                 }
             }
 
@@ -1706,13 +1632,13 @@ static void load_graph_from_path(const std::string& path) {
                 gn.dspSource->set_array(desc.name, vec);
             }
             // An Envelope's cached table is what the object now holds, in
-            // whichever form the file gave it: a preset or a stage list built
-            // the object above, and the columns arrived through the restore.
+            // whichever form the file gave it: a preset built the object
+            // above, and the columns arrived through the restore.
             if (gn.typeName == NT_ENVELOPE)
                 for (auto& [desc, vec] : gn.arrayValues)
                     vec = gn.dspSource->get_array(desc.name);
-            // A CurveNode's cached rows, in whichever form the file gave
-            // them, and its interp and mode reach the node in one push.
+            // A CurveNode's cached columns and its interp and mode reach the
+            // node in one push.
             if (gn.typeName == "CurveNode")
                 push_curve(gn);
             // Arrays can change derived configs (set_array updates
@@ -1740,21 +1666,15 @@ static void load_graph_from_path(const std::string& path) {
                         if (k == desc.name) return true;
                     return false;
                 };
-                // The Envelope node's own keys: its stage list and the preset
-                // form's keys, the engine's one list of them.
+                // The Envelope node's own keys: the preset form's keys, the
+                // engine's one list of them.
                 auto is_envelope_key = [](const std::string& k) {
                     const auto& keys = envelope_preset_keys();
-                    return k == "stages" || std::find(keys.begin(), keys.end(), k) != keys.end();
+                    return std::find(keys.begin(), keys.end(), k) != keys.end();
                 };
                 for (auto& [k, v] : params.items()) {
                     if (k == "seed") continue;
                     if (gn.typeName == NT_ENVELOPE && is_envelope_key(k)) continue;
-                    // A CurveNode's row lists are read into its cached
-                    // columns above; a verbatim copy would win over an edit
-                    // on save. Its interp and mode are settings.
-                    if (gn.typeName == "CurveNode" &&
-                        (k == "knots" || k == "exprKnots"))
-                        continue;
                     if (gn.typeName == NT_PERFORM && k == "field") continue;
                     bool pinConsumed = is_pin(k) &&
                         (v.is_number() ||
