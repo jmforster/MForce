@@ -307,14 +307,10 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
     }
 }
 
-// A table is the columns of one group, a row per index: its columns are all
-// absent from params or all present at one length, for every type. A key
-// present but not an array counts as absent, as the array pass skips it.
-// Runs for every node the generic wiring runs for.
-static void reject_ragged_tables(const Component& src, const std::string& id,
-                                 const json& params)
+std::string ragged_table_refusal(const Component& node,
+                                 const std::function<int(const char* column)>& length)
 {
-    const auto arrays = src.array_descriptors();
+    const auto arrays = node.array_descriptors();
     for (size_t g = 0; g < arrays.size(); ++g) {
         if (!arrays[g].groupName) continue;
         const std::string_view group = arrays[g].groupName;
@@ -323,25 +319,38 @@ static void reject_ragged_tables(const Component& src, const std::string& id,
             first = !(arrays[k].groupName && group == arrays[k].groupName);
         if (!first) continue;
         std::string got;
-        size_t columns = 0, present = 0, length = 0;
+        size_t columns = 0, present = 0;
+        int firstLength = 0;
         bool oneLength = true;
         for (const auto& d : arrays) {
             if (!d.groupName || group != d.groupName) continue;
             ++columns;
-            const bool has = params.contains(d.name) && params.at(d.name).is_array();
-            if (has) {
-                const size_t n = params.at(d.name).size();
-                if (present++ == 0) length = n;
-                else oneLength = oneLength && n == length;
+            const int n = length(d.name);
+            if (n >= 0) {
+                if (present++ == 0) firstLength = n;
+                else oneLength = oneLength && n == firstLength;
             }
             got += std::string(got.empty() ? "" : ", ") + d.name + " "
-                 + (has ? std::to_string(params.at(d.name).size()) : std::string("absent"));
+                 + (n >= 0 ? std::to_string(n) : std::string("absent"));
         }
         if (present != 0 && (present != columns || !oneLength))
-            throw std::runtime_error("node '" + id + "' (" + src.type_name() + "): table '"
-                                     + std::string(group) + "' takes its columns at one length, "
-                                     "all present or all absent (got " + got + ")");
+            return "table '" + std::string(group) + "' takes its columns at one length, "
+                   "all present or all absent (got " + got + ")";
     }
+    return {};
+}
+
+// The table rule over a node's params: a key present but not an array counts
+// as absent, as the array pass skips it. Runs for every node the generic
+// wiring runs for.
+static void reject_ragged_tables(const Component& src, const std::string& id,
+                                 const json& params)
+{
+    const std::string refusal = ragged_table_refusal(src, [&](const char* column) {
+        return params.contains(column) && params.at(column).is_array() ? int(params.at(column).size()) : -1;
+    });
+    if (!refusal.empty())
+        throw std::runtime_error("node '" + id + "' (" + src.type_name() + "): " + refusal);
 }
 
 // An element of a column with labels: one of the labels, or a whole-number

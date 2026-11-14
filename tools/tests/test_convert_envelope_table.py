@@ -5,6 +5,7 @@ dropped, the dead preset keys by form, the sustainLevel cases, the refusals
 shapes and a nested node list, idempotence."""
 import copy
 import os
+import re
 import sys
 import unittest
 from collections import Counter
@@ -13,6 +14,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from convert_rules import envelope_table  # noqa: E402
 
 COLUMNS = ["startVal", "endVal", "power", "type", "percent", "minSec", "maxSec", "nominal"]
+
+ENVELOPE_JSON_H = os.path.join(os.path.dirname(__file__), "..", "..", "engine", "include", "mforce",
+                               "source", "envelope", "envelope_json.h")
+
+
+def header_preset_keys():
+    """The names in envelope_preset_keys()' brace list, read off
+    envelope_json.h, in its order."""
+    with open(ENVELOPE_JSON_H, encoding="utf-8") as f:
+        text = f.read()
+    body = text[text.index("envelope_preset_keys()"):]
+    braces = re.search(r"for \(const char\* k : \{(.*?)\}\)", body, re.S)
+    return re.findall(r'"([^"]*)"', braces.group(1))
 
 
 class NoContext:
@@ -247,6 +261,23 @@ class SustainLevelTests(unittest.TestCase):
             self.assertEqual(counts, Counter({"stage list": 1}))
             self.assertEqual(notes, [])
 
+    def test_a_bool_key_on_a_four_slot_shape_is_read_as_one_or_zero(self):
+        for flag, slots in ((True, 1), (False, 0)):
+            doc = patch(env({"stages": adsr_stages(slots), "sustainLevel": flag}))
+            counts, _ = apply(doc)
+            self.assertIs(params_of(doc)["sustainLevel"], flag)
+            self.assertEqual(counts, Counter({"stage list": 1}))
+
+    def test_a_bool_key_differing_from_a_four_slot_shape_is_refused(self):
+        for flag, slots in ((True, 0.6), (False, 0.6), (True, 0), (False, 1)):
+            doc = patch(env({"stages": adsr_stages(slots), "sustainLevel": flag}))
+            before = copy.deepcopy(doc)
+            with self.assertRaises(ValueError) as cm:
+                apply(doc)
+            self.assertIn("'e'", str(cm.exception))
+            self.assertIn("sustainLevel", str(cm.exception))
+            self.assertEqual(doc, before)
+
     def test_a_wired_sustain_level_is_left_alone(self):
         doc = patch(env({"stages": adsr_stages(0.6), "sustainLevel": {"ref": "c"}}))
         apply(doc)
@@ -254,10 +285,7 @@ class SustainLevelTests(unittest.TestCase):
 
 
 class PresetTests(unittest.TestCase):
-    PRESET_KEYS = ["preset", "attack", "attackCurve", "attackPower", "attackMin", "attackMax",
-                   "decay", "decayCurve", "decayPower", "decayMin", "decayMax", "decayLevel",
-                   "release", "releaseCurve", "releasePower", "releaseMin", "releaseMax",
-                   "reverse", "sustainLevel", "timeMode"]
+    PRESET_KEYS = header_preset_keys()
 
     # What each builder in envelope_json.h reads, besides "preset".
     READS = {
@@ -277,6 +305,7 @@ class PresetTests(unittest.TestCase):
     }
 
     def test_the_table_matches_the_builders(self):
+        self.assertEqual(len(self.PRESET_KEYS), 20)
         self.assertEqual(list(envelope_table.PRESET_KEYS), self.PRESET_KEYS)
         self.assertEqual({k: set(v) for k, v in envelope_table.PRESET_READS.items()}, self.READS)
 
@@ -339,16 +368,41 @@ class PresetTests(unittest.TestCase):
             self.assertIn(col, str(cm.exception))
             self.assertEqual(doc, before)
 
-    def test_neither_form_is_untouched(self):
-        for params in ({}, {"startVal": [0.0, 1.0], "endVal": [1.0, 0.0], "timeMode": "percent",
-                            "attack": 0.1}):
+    def test_neither_form_is_the_ar_form(self):
+        # No stages, no preset and no column key: the loader builds ar, so
+        # such a node keeps what ar reads and loses the rest with a note.
+        for params in ({}, {"attack": 0.1, "attackMax": 0.5, "sustainLevel": 0.4, "seed": 3}):
             doc = patch(env(params))
             before = copy.deepcopy(doc)
             counts, notes = apply(doc)
             self.assertEqual(counts, Counter())
             self.assertEqual(doc, before)
+            self.assertEqual(notes, [])
         doc = patch({"id": "e", "type": "Envelope"})
         self.assertEqual(apply(doc)[0], Counter())
+        doc = patch(env({"attack": 0.1, "timeMode": "seconds", "seed": 3}))
+        counts, notes = apply(doc)
+        self.assertEqual(counts, Counter({"dead key": 1}))
+        self.assertEqual(params_of(doc), {"attack": 0.1, "seed": 3})
+        self.assertEqual(len(notes), 1)
+        self.assertIn("timeMode", notes[0])
+        self.assertIn("ar", notes[0])
+        for key in self.PRESET_KEYS:
+            if key in ("preset", "sustainLevel") or key in self.READS["ar"]:
+                continue
+            doc = patch(env({key: 0.0}))
+            self.assertEqual(apply(doc)[0], Counter({"dead key": 1}), key)
+            self.assertEqual(params_of(doc), {}, key)
+
+    def test_a_table_form_node_is_not_the_ar_form(self):
+        # Any of the eight column keys puts a node in table form.
+        for col in COLUMNS:
+            doc = patch(env({col: [0.0, 1.0], "timeMode": "percent", "attack": 0.1}))
+            before = copy.deepcopy(doc)
+            counts, notes = apply(doc)
+            self.assertEqual(counts, Counter(), col)
+            self.assertEqual(doc, before)
+            self.assertEqual(notes, [])
 
 
 class RefusalTests(unittest.TestCase):

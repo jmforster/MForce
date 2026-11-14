@@ -7569,6 +7569,66 @@ static void run_envelope_table_tests() {
         CHECK(env_of(patch(table + R"(,"timeMode":"Seconds")"))->absolute_time());
         CHECK(!env_of(patch(table))->absolute_time());
         CHECK(env_of(patch(R"("preset":"adsr","timeMode":"seconds")"))->absolute_time());
+
+        // The order of a load: the settings pass runs before the array pass,
+        // so a sustainLevel beside a four-slot table leaves the table as the
+        // file wrote it.
+        const std::string slots09 = R"("startVal":[0.0,1.0,0.9,0.9],"endVal":[1.0,0.9,0.9,0.0],"power":[0.0,0.0,0.0,0.0],)"
+                                    R"("type":["Linear","Linear","Linear","Sine"],"percent":[0.2,0.1,0.0,0.2],)"
+                                    R"("minSec":[0.0,0.0,0.0,0.0],"maxSec":[1.0,0.5,0.0,0.0],"nominal":[0.0,0.0,0.0,0.0],)"
+                                    R"("sustainLevel":0.3)";
+        const auto ordered = env_of(patch(slots09));
+        const std::vector<float> start = ordered->get_array("startVal"), end = ordered->get_array("endVal");
+        CHECK(start.size() == 4 && end.size() == 4);
+        if (start.size() == 4 && end.size() == 4)
+            CHECK(end[1] == 0.9f && start[2] == 0.9f && end[2] == 0.9f && start[3] == 0.9f);
+        CHECK(ordered->get_setting("sustainLevel") == 0.9f);
+    }
+
+    // (8) A rebuild sizes the layout by the shortest column and never writes
+    // a column: the six columns left at the default's four cells do not grow
+    // or shrink to meet the two that were set.
+    {
+        Envelope e;
+        e.set_array("startVal", {0.0f, 1.0f, 2.0f});
+        e.set_array("endVal", {1.0f, 0.0f});
+        CHECK(e.stage_count() == 0);
+        for (const char* c : {"power", "type", "percent", "minSec", "maxSec", "nominal"})
+            e.set_array(c, {0.0f, 0.0f});
+        CHECK(e.stage_count() == 2);
+        CHECK(e.get_array("startVal").size() == 3);
+        CHECK(e.get_array("endVal").size() == 2);
+    }
+
+    // (9) A table set shorter under a sounding note keeps the walk inside the
+    // layout. The note is in its last stage (the adsr's release, from 0.8)
+    // when the table becomes two Sine rows between -1 and -3, which stay in
+    // their range at any position; past the last stage the walk reads 0. So
+    // every value must be finite and in [-3, 0]. What this can see: a walk
+    // that reads a stage past the layout through the cells the shrink left in
+    // the vectors' capacity, the old release's positive values. What it
+    // cannot: a read past the end whose value happens to fall in the range.
+    {
+        auto e = Envelope::make_adsr(0.1f, 0.1f, 0.8f, 0.2f);
+        e->prepare(RenderContext{48000});
+        e->start(4800);
+        for (int i = 0; i < 3500; ++i) e->next();
+        e->set_array("startVal", {-1.0f, -2.0f});
+        e->set_array("endVal", {-2.0f, -3.0f});
+        e->set_array("power", {0.0f, 0.0f});
+        e->set_array("type", {float(int(S)), float(int(S))});
+        e->set_array("percent", {0.2f, 0.2f});
+        e->set_array("minSec", {0.0f, 0.0f});
+        e->set_array("maxSec", {0.0f, 0.0f});
+        e->set_array("nominal", {0.0f, 0.0f});
+        CHECK(e->stage_count() == 2);
+        int outside = 0;
+        for (int i = 3500; i < 4800; ++i) {
+            const float v = e->next();
+            if (!std::isfinite(v) || v < -3.0f || v > 0.0f) ++outside;
+        }
+        if (outside) std::printf("  shorter table under a note: %d of 1300 values outside [-3, 0]\n", outside);
+        CHECK(outside == 0);
     }
 }
 
@@ -7778,6 +7838,16 @@ static void run_curve_table_tests() {
             else CHECK(d.enum_labels == nullptr);
         }
         CHECK(arrays == "x/knots y/knots exprX/exprKnots exprForm/exprKnots exprA/exprKnots exprB/exprKnots");
+
+        // An interp outside the labels' range reads as linear in both modes.
+        for (const CurveCase& k : cases) {
+            if (k.interp != 0) continue;
+            const auto linear = by_setters(k);
+            auto five = by_setters(k);
+            five->set_setting("interp", 5.0f);
+            CHECK(five->interp.value == 5);
+            CHECK(same_map(*five, *linear));
+        }
     }
 
     // (4) The loader: each table as its columns; labels in any case; the refusals.

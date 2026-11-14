@@ -75,24 +75,13 @@ struct Envelope : Generator {
   static constexpr const char* const kTimeModeLabels[] = {"fraction", "seconds", nullptr};
   Setting<int>   timeMode      {this, "timeMode",       0, 0, 1, kTimeModeLabels};
 
-  // The stage table: one row per stage, one column per field. The columns
-  // are what the node holds and what a patch file and the editor see;
-  // stages_ is the layout the render walks, derived from them by
-  // rebuild_stages_() and by nothing else. Every door that changes a stage
-  // writes the columns and then derives.
+  // The labels of the stage table's type column (the table itself is
+  // private, below).
   static constexpr const char* const kStageTypeLabels[] = {"Linear", "Expo", "InverseExpo",
                                                            "Sine", "Hold", nullptr};
   static_assert(int(RampType::Linear) == 0 && int(RampType::Expo) == 1 &&
                 int(RampType::InverseExpo) == 2 && int(RampType::Sine) == 3 &&
                 int(RampType::Hold) == 4, "kStageTypeLabels is in RampType's order");
-  Array colStartVal{this, "startVal", "stages", 0.0f, -100000.0f, 100000.0f};
-  Array colEndVal  {this, "endVal",   "stages", 0.0f, -100000.0f, 100000.0f};
-  Array colPower   {this, "power",    "stages", 0.0f, 0.0f, 100.0f};
-  Array colType    {this, "type",     "stages", 0.0f, 0.0f, 4.0f, kStageTypeLabels};
-  Array colPercent {this, "percent",  "stages", 0.2f, 0.0f, 1000.0f};
-  Array colMinSec  {this, "minSec",   "stages", 0.0f, 0.0f, 1000.0f};
-  Array colMaxSec  {this, "maxSec",   "stages", 0.0f, 0.0f, 1000.0f};
-  Array colNominal {this, "nominal",  "stages", 0.0f, 0.0f, 1000.0f};
 
   Envelope() = default;
 
@@ -560,6 +549,21 @@ struct Envelope : Generator {
   // drift bug class the patch linter exists for). See gen_v6m.py.
 
 private:
+  // The stage table: one row per stage, one column per field. The columns
+  // are what the node holds and what a patch file and the editor see,
+  // through set_array and get_array; stages_ is the layout the render walks,
+  // derived from them by rebuild_stages_() and by nothing else. Every door
+  // that changes a stage writes the columns and then derives. They are the
+  // last pins the node declares, so they register after the settings.
+  Array colStartVal{this, "startVal", "stages", 0.0f, -100000.0f, 100000.0f};
+  Array colEndVal  {this, "endVal",   "stages", 0.0f, -100000.0f, 100000.0f};
+  Array colPower   {this, "power",    "stages", 0.0f, 0.0f, 100.0f};
+  Array colType    {this, "type",     "stages", 0.0f, 0.0f, 4.0f, kStageTypeLabels};
+  Array colPercent {this, "percent",  "stages", 0.2f, 0.0f, 1000.0f};
+  Array colMinSec  {this, "minSec",   "stages", 0.0f, 0.0f, 1000.0f};
+  Array colMaxSec  {this, "maxSec",   "stages", 0.0f, 0.0f, 1000.0f};
+  Array colNominal {this, "nominal",  "stages", 0.0f, 0.0f, 1000.0f};
+
   // The eight columns in declaration order.
   std::array<Array*, 8> columns_() {
     return {&colStartVal, &colEndVal, &colPower, &colType,
@@ -570,6 +574,10 @@ private:
   // the shortest column has cells, every field from its cell, the type
   // clamped into RampType. The stage counts follow the size and keep the
   // counts they held. Allocates only when the number of stages changes.
+  // A layout shorter than the walk's indices (a table pushed shorter under
+  // a sounding note) moves the current stage to the last one (0 on an empty
+  // table) and drops an expand or gate stage past the end, so next_raw_
+  // indexes inside the layout.
   void rebuild_stages_() {
     size_t n = colStartVal.values.size();
     for (Array* c : columns_()) n = std::min(n, c->values.size());
@@ -586,6 +594,9 @@ private:
       s.nominal       = colNominal.values[i];
     }
     stageCounts_.resize(n, 0);
+    if (currStage_ >= int(n)) currStage_ = n ? int(n) - 1 : 0;
+    if (expandIdx_ >= int(n)) expandIdx_ = -1;
+    if (gateStage_ >= int(n)) gateStage_ = -1;
   }
 
   // What the settings surface reports as sustainLevel: the stage list's

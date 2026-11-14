@@ -24,17 +24,25 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, five cases, each on its own line and not counted among the
-shapes. Two fixtures written to the temp folder must be refused by mforce_ui
---roundtrip, each with a non-zero exit, tools/convert_patch.py named in its
-output, and no file written: a patch carrying an instrument.paramMap (refusal)
-and an Envelope holding a stage list (retired-key). make-instrument: mforce_ui
+After the shapes, eleven cases, each on its own line and not counted among
+the shapes. Three fixtures written to the temp folder must be refused by
+mforce_ui --roundtrip, each with a non-zero exit, tools/convert_patch.py named
+in its output, and no file written: a patch carrying an instrument.paramMap
+(refusal), an Envelope holding a stage list (retired-key) and a CurveNode
+holding a knot list (retired-knots). An Envelope whose stage table lacks a
+column must be refused the same way, with the engine's table sentence named
+in place of the converter (ragged-table). make-instrument: mforce_ui
 --convert-roundtrip on patches/baselines/distortion_test.json must exit 0 and
 write an instrument block with no paramMap and a PerformNode whose field is
-frequency wired into the sin node's frequency. Two Envelopes in table form must
-round-trip through mforce_ui --roundtrip as the file gave them: the type column
-as its labels and timeMode as its label (table-labels), and eight empty columns
-as eight empty columns (empty-table).
+frequency wired into the sin node's frequency. Envelopes must round-trip
+through mforce_ui --roundtrip as the file gave them: the type column as its
+labels and timeMode as its label (table-labels); eight empty columns as eight
+empty columns (empty-table); four sustain slots at 0.9 beside a sustainLevel
+of 0.3, which the load applies before the table (settings-order); and an asr
+preset as that preset's three rows in columns, with no preset key
+(preset-form). apply-preset: mforce_ui --apply-preset lays a table-form
+Envelope out as the adsr preset, and the saved node's eight columns are that
+preset's defaults.
 
 Usage: python tools/rt_smoke.py
 """
@@ -92,11 +100,57 @@ LABELS_FIXTURE = envelope_doc({
 
 EMPTY_TABLE_FIXTURE = envelope_doc({c: [] for c in STAGE_COLUMNS})
 
+RETIRED_KNOTS_FIXTURE = {
+    "sampleRate": 48000,
+    "graph": {"nodes": [{"id": "pf", "type": "PerformNode", "params": {"field": "frequency"}},
+                        {"id": "cv", "type": "CurveNode",
+                         "params": {"source": {"ref": "pf"}, "knots": [[100.0, 0.2], [1000.0, 0.8]]}},
+                        {"id": "osc", "type": "SineSource",
+                         "params": {"frequency": 440.0, "amplitude": {"ref": "cv"}}}],
+              "output": "osc"},
+    "instrument": {"polyphony": 1},
+    "score": [{"note": 60, "velocity": 0.8, "time": 0.0, "duration": 0.5}],
+}
 
-def refusal_failures(td, doc, name="refusal"):
+RAGGED_FIXTURE = envelope_doc({
+    "startVal": [0.0, 1.0], "endVal": [1.0, 0.0], "power": [0.0, 0.0],
+    "type": ["Linear", "Sine"], "percent": [0.2, 0.0], "minSec": [0.0, 0.0],
+    "maxSec": [1.0, 0.0]})
+RAGGED_SENTENCE = "node 'env' (Envelope): table 'stages' takes its columns at one length"
+
+SETTINGS_ORDER_FIXTURE = envelope_doc({
+    "sustainLevel": 0.3,
+    "startVal": [0.0, 1.0, 0.9, 0.9], "endVal": [1.0, 0.9, 0.9, 0.0], "power": [0.0, 0.0, 0.0, 0.0],
+    "type": ["Linear", "Linear", "Linear", "Sine"], "percent": [0.2, 0.1, 0.0, 0.2],
+    "minSec": [0.0, 0.0, 0.0, 0.0], "maxSec": [1.0, 0.5, 0.0, 0.0], "nominal": [0.0, 0.0, 0.0, 0.0]})
+
+PRESET_FORM_FIXTURE = envelope_doc({"preset": "asr", "attack": 0.05, "sustainLevel": 0.4, "release": 0.3})
+
+# make_asr(0.05, 0.4, 0.3): the attack 0 -> 0.4 over 0.05 (max 1), the
+# expand at 0.4, the release 0.4 -> 0 (Sine) over 0.3.
+ASR_COLUMNS = {
+    "startVal": [0.0, 0.4, 0.4], "endVal": [0.4, 0.4, 0.0], "power": [0.0, 0.0, 0.0],
+    "type": ["Linear", "Linear", "Sine"], "percent": [0.05, 0.0, 0.3], "minSec": [0.0, 0.0, 0.0],
+    "maxSec": [1.0, 0.0, 0.0], "nominal": [0.0, 0.0, 0.0]}
+
+APPLY_PRESET_FIXTURE = envelope_doc({
+    "startVal": [0.0, 0.5, 0.25], "endVal": [0.5, 0.25, 0.0], "power": [2.0, 0.0, 0.0],
+    "type": ["Expo", "Hold", "Linear"], "percent": [0.3, 0.3, 0.0], "minSec": [0.01, 0.0, 0.0],
+    "maxSec": [0.2, 0.0, 0.0], "nominal": [0.0, 0.1, 0.0]})
+
+# make_adsr's defaults, the adsr preset with no knob given: the attack 0 -> 1
+# over 0.2 (max 1), the decay 1 -> 0.7 over 0.1 (max 0.5), the expand at 0.7,
+# the release 0.7 -> 0 (Sine) at 0.
+ADSR_COLUMNS = {
+    "startVal": [0.0, 1.0, 0.7, 0.7], "endVal": [1.0, 0.7, 0.7, 0.0], "power": [0.0, 0.0, 0.0, 0.0],
+    "type": ["Linear", "Linear", "Linear", "Sine"], "percent": [0.2, 0.1, 0.0, 0.0],
+    "minSec": [0.0, 0.0, 0.0, 0.0], "maxSec": [1.0, 0.5, 0.0, 0.0], "nominal": [0.0, 0.0, 0.0, 0.0]}
+
+
+def refusal_failures(td, doc, name="refusal", needle="tools/convert_patch.py"):
     """Write `doc` to `td` and round-trip it; return why the editor did not
-    refuse it (empty when it exited non-zero, named tools/convert_patch.py and
-    wrote nothing)."""
+    refuse it (empty when it exited non-zero, named `needle` and wrote
+    nothing)."""
     src, out = Path(td) / (name + ".json"), Path(td) / (name + "_rt.json")
     src.write_text(json.dumps(doc), encoding="utf-8")
     r = subprocess.run([str(UI), "--roundtrip", str(src), str(out)],
@@ -104,8 +158,8 @@ def refusal_failures(td, doc, name="refusal"):
     why = []
     if r.returncode == 0:
         why.append("loaded")
-    if "tools/convert_patch.py" not in r.stdout + r.stderr:
-        why.append("converter not named")
+    if needle not in r.stdout + r.stderr:
+        why.append("'%s' not named" % needle)
     if out.exists():
         why.append("wrote " + out.name)
     return why
@@ -140,6 +194,67 @@ def table_labels_failures(td):
     if params.get("timeMode") != "seconds":
         why.append("timeMode is %s" % json.dumps(params.get("timeMode")))
     return why
+
+
+def columns_failures(params, want):
+    """Why the Envelope `params` do not hold the columns `want` (empty when
+    they do): the type column word for word, a number column within 1e-6, as
+    the editor writes a float cell as the double nearest it."""
+    why = []
+    for c, w in want.items():
+        got = params.get(c)
+        if c == "type":
+            ok = got == w
+        else:
+            ok = (isinstance(got, list) and len(got) == len(w)
+                  and all(isinstance(g, (int, float)) and abs(g - x) <= 1e-6 for g, x in zip(got, w)))
+        if not ok:
+            why.append("%s is %s" % (c, json.dumps(got)))
+    return why
+
+
+def settings_order_failures(td):
+    """Round-trip SETTINGS_ORDER_FIXTURE; return why its four sustain slots
+    are not the table's 0.9."""
+    why, params = roundtrip_env_params(td, SETTINGS_ORDER_FIXTURE, "settings_order")
+    if why:
+        return why
+    s, e = params.get("startVal") or [], params.get("endVal") or []
+    if len(s) != 4 or len(e) != 4:
+        return ["startVal is %s, endVal is %s" % (json.dumps(s), json.dumps(e))]
+    return ["%s is %r" % (n, v) for n, v in (("endVal[1]", e[1]), ("startVal[2]", s[2]),
+                                            ("endVal[2]", e[2]), ("startVal[3]", s[3]))
+            if abs(v - 0.9) > 1e-6]
+
+
+def preset_form_failures(td):
+    """Round-trip PRESET_FORM_FIXTURE; return why its Envelope is not the asr
+    preset's three rows as columns, with no preset key."""
+    why, params = roundtrip_env_params(td, PRESET_FORM_FIXTURE, "preset_form")
+    if why:
+        return why
+    if "preset" in params:
+        why.append("preset is %s" % json.dumps(params["preset"]))
+    return why + columns_failures(params, ASR_COLUMNS)
+
+
+def apply_preset_failures(td):
+    """Lay APPLY_PRESET_FIXTURE's Envelope out as the adsr preset through
+    mforce_ui --apply-preset; return why the saved node's eight columns are
+    not the preset's defaults."""
+    src, out = Path(td) / "apply_preset.json", Path(td) / "apply_preset_out.json"
+    src.write_text(json.dumps(APPLY_PRESET_FIXTURE), encoding="utf-8")
+    r = subprocess.run([str(UI), "--apply-preset", str(src), "env", "adsr", str(out)],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    if r.returncode != 0:
+        return ["exit %d %s" % (r.returncode, r.stderr.strip()[:70])]
+    if not out.exists():
+        return ["wrote nothing"]
+    nodes = json.loads(out.read_text(encoding="utf-8"))["graph"]["nodes"]
+    env = next((n for n in nodes if n.get("id") == "env"), None)
+    if env is None:
+        return ["no env node"]
+    return columns_failures(env.get("params") or {}, ADSR_COLUMNS)
 
 
 def empty_table_failures(td):
@@ -244,9 +359,15 @@ def main():
         failed = False
         for label, why in (("refusal", lambda: refusal_failures(td, PARAMMAP_FIXTURE)),
                            ("retired-key", lambda: refusal_failures(td, RETIRED_FIXTURE, "retired_key")),
+                           ("retired-knots", lambda: refusal_failures(td, RETIRED_KNOTS_FIXTURE, "retired_knots")),
+                           ("ragged-table", lambda: refusal_failures(td, RAGGED_FIXTURE, "ragged_table",
+                                                                     RAGGED_SENTENCE)),
                            ("make-instrument", lambda: make_instrument_failures(td)),
                            ("table-labels", lambda: table_labels_failures(td)),
-                           ("empty-table", lambda: empty_table_failures(td))):
+                           ("empty-table", lambda: empty_table_failures(td)),
+                           ("settings-order", lambda: settings_order_failures(td)),
+                           ("preset-form", lambda: preset_form_failures(td)),
+                           ("apply-preset", lambda: apply_preset_failures(td))):
             reasons = why()
             failed = failed or bool(reasons)
             print(f"{label:<16} " + (f"FAIL {', '.join(reasons)}" if reasons else "ok"))

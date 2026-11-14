@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -17,6 +18,16 @@ inline constexpr char kParamMapRefusal[] = "instrument.paramMap is no longer rea
 // any other type and key. The loader throws it after the node's id and type,
 // and so does the editor, before it touches its open graph.
 std::string retired_key_refusal(std::string_view type, std::string_view key);
+
+// The table rule, the one both hosts ask: for each array group of `node`,
+// its columns are all absent or all present at one length. `length` gives a
+// column's length, or -1 when the file gives no array under that name.
+// Returns the sentence's tail for the first group that breaks the rule,
+// "table '<group>' takes its columns at one length, all present or all
+// absent (got ...)", else empty. The loader and the editor throw it after
+// the node's id and type.
+std::string ragged_table_refusal(const Component& node,
+                                 const std::function<int(const char* column)>& length);
 
 struct BuiltSound {
   int sampleRate{48000};

@@ -15,22 +15,28 @@ preset form on a stage list (every one but sustainLevel and timeMode, which
 the stage list reads too) was never read there and is dropped with a note.
 sustainLevel is a view of a four-slot stage list (four stages, the third of
 percent 0, the decay's end, the third's start and end and the release's start
-equal in float32): on that shape a number equal to the slots is kept; on any
-other shape the key is left as it is.
+equal in float32): on that shape a number equal to the slots is kept, and so
+is a bool equal to them as the 1 or 0 the loader read it as; on any other
+shape the key is left as it is.
 
 On a preset-form Envelope ("preset" one of the six forms, no "stages"), a key
 of the preset form that the node's form does not read is dropped with a note:
 PRESET_READS is read off envelope_json.h builder by builder. sustainLevel is
 a setting on every Envelope and is never dropped; timeMode is dead on every
 form but adsr. A preset name outside the six is the loader's to refuse, and
-the node is left as it is; so is an Envelope with neither form.
+the node is left as it is. An Envelope with neither form (no stages, no
+preset, none of the eight column keys) is the ar form, which the loader
+builds for it, and is planned as that preset: its dead keys, timeMode among
+them, are dropped with a note, and no preset key is written. A node holding
+any column key is in table form and is not touched.
 
 Refused, naming the node, before anything in the document changes: "stages"
 that is not a list of objects; a stage key outside the eight and holdPct; a
 holdPct that is not 0; a value that is not a number where a number goes (a
 bool is not one); a type or timeMode that is not a string; "stages" beside
-"preset" or beside a column key; a numeric sustainLevel on a four-slot list
-that differs from its slots; a column key on a preset-form node.
+"preset" or beside a column key; a numeric or bool sustainLevel on a
+four-slot list that differs from its slots; a column key on a preset-form
+node.
 """
 import math
 import struct
@@ -136,6 +142,8 @@ def plan_stages(node, params):
                           "'fraction', which it read" % (name, tm))
             time_mode = "fraction"
     sustain = params.get("sustainLevel")
+    if isinstance(sustain, bool):
+        sustain = 1.0 if sustain else 0.0                 # as the settings pass reads it
     if is_number(sustain) and four_slot(cols) and f32(sustain) != f32(cols["endVal"][1]):
         refuse("sustainLevel %r differs from the sustain slots of its four-slot stage list (%r)"
                % (sustain, cols["endVal"][1]))
@@ -165,13 +173,17 @@ def plan_stages(node, params):
     return write
 
 
-def plan_preset(node, params):
-    """Check one preset-form node; returns its write, None when there is
-    nothing to write, or raises ValueError."""
-    preset = params["preset"]
+def plan_preset(node, params, preset=None):
+    """Check one preset-form node, or with `preset` given a node of neither
+    form read as that preset; returns its write, None when there is nothing
+    to write, or raises ValueError."""
+    given = preset is None
+    if given:
+        preset = params["preset"]
     if not (isinstance(preset, str) and preset in PRESET_READS):
         return None
     name = "node %s (Envelope)" % node_label(node)
+    form = "the %s form" % preset if given else "the %s form, which a node of neither form is," % preset
     clash = [c for c in COLUMNS if c in params]
     if clash:
         raise ValueError("%s: preset %r beside the column%s %s; a node takes one form"
@@ -185,7 +197,7 @@ def plan_preset(node, params):
     def write(notes, counts):
         for k in dead:
             del params[k]
-            notes.append("%s: %s dropped: the %s form never read it" % (name, k, preset))
+            notes.append("%s: %s dropped: %s never read it" % (name, k, form))
         counts["dead key"] += len(dead)
     return write
 
@@ -205,6 +217,10 @@ def apply(doc, notes, ctx):
             writes.append(plan_stages(node, params))
         elif "preset" in params:
             w = plan_preset(node, params)
+            if w is not None:
+                writes.append(w)
+        elif not any(c in params for c in COLUMNS):
+            w = plan_preset(node, params, "ar")
             if w is not None:
                 writes.append(w)
     counts = Counter()

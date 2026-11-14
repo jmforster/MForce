@@ -207,6 +207,9 @@ static mforce::SampleClock g_editorClock;
 static mforce::RenderContext g_renderContext{AUDIO_SAMPLE_RATE, &g_editorClock};
 
 static std::string unique_node_label(const std::string& typeName);
+// The row of a node's stage table that the stream's hold appended, while it
+// is still recognisably the hold's; -1 for any other node or state.
+static int stream_hold_row(const Component* node);
 
 struct GraphNode {
     int id;
@@ -446,16 +449,19 @@ struct GraphNode {
     // Push every column of a table (an array group) under one lock, so the
     // stream never reads the table at two lengths.
     void push_table(const char* group);
+    // The one re-pull of the cached arrays from the node. A row the stream's
+    // hold appended to an Envelope's table stays out of the cache, so a save
+    // or a Generate during a stream writes the table without it.
+    void pull_arrays();
 
     void apply_config() {
         if (!dspSource) return;
         for (auto& [desc, val] : settingValues)
             dspSource->set_setting(desc.name, val);
-        // An Envelope's sustainLevel writes its table's four sustain slots:
-        // the cached table follows the object.
-        if (typeName == NT_ENVELOPE)
-            for (auto& [desc, vec] : arrayValues)
-                vec = dspSource->get_array(desc.name);
+        // An Envelope's cached table follows the object: sustainLevel writes
+        // the table's four sustain slots, and at load a preset form has built
+        // the object before its settings are applied.
+        if (typeName == NT_ENVELOPE) pull_arrays();
     }
 
     void build_pins() {
@@ -1032,8 +1038,7 @@ static void apply_envelope_preset(GraphNode& node, Envelope& env, const char* pr
     env.replace_stages(std::move(*envelope_from_preset_json(nlohmann::json{{"preset", presetName}})));
     for (auto& [desc, val] : node.settingValues)
         val = env.get_setting(desc.name);
-    for (auto& [desc, vec] : node.arrayValues)
-        vec = env.get_array(desc.name);
+    node.pull_arrays();
 }
 
 // Cycle legality (feedback_loop_design.md §2): a NORMAL wire src->dst is
@@ -1619,6 +1624,15 @@ static void load_graph_from_path(const std::string& path) {
             // JSON arrays then overwrite that. Previously arrays were never
             // restored at all, so any ExplicitPartials patch loaded into the
             // UI silently played 16 default harmonics.
+            // A table's columns are all absent or all present at one length:
+            // the engine's rule and its sentence, asked before any array is set.
+            if (gn.dspSource) {
+                const std::string ragged = ragged_table_refusal(*gn.dspSource, [&](const char* column) {
+                    return params.contains(column) && params[column].is_array() ? int(params[column].size()) : -1;
+                });
+                if (!ragged.empty())
+                    throw std::runtime_error("node '" + id + "' (" + gn.dspSource->type_name() + "): " + ragged);
+            }
             for (auto& [desc, vec] : gn.arrayValues) {
                 if (!params.contains(desc.name)) continue;
                 const auto& jv = params[desc.name];
@@ -1631,12 +1645,6 @@ static void load_graph_from_path(const std::string& path) {
                 }
                 gn.dspSource->set_array(desc.name, vec);
             }
-            // An Envelope's cached table is what the object now holds, in
-            // whichever form the file gave it: a preset built the object
-            // above, and the columns arrived through the restore.
-            if (gn.typeName == NT_ENVELOPE)
-                for (auto& [desc, vec] : gn.arrayValues)
-                    vec = gn.dspSource->get_array(desc.name);
             // A CurveNode's cached columns and its interp and mode reach the
             // node in one push.
             if (gn.typeName == "CurveNode")
@@ -3810,8 +3818,9 @@ static void prepare_graph(int samples) {
 //     expand stage soaking up the rest as sustain;
 //  3. envelopes with no expand stage get a temporary hold stage appended so
 //     they sustain their final value instead of cutting to 0.
-// stop_streams() restores every envelope to its pre-stream state, so note
-// renders / Generate are untouched. True forever-streaming (and streams
+// stop_streams() restores every envelope to the editor's cached state (its
+// timeMode setting, its table without the hold stage), so note renders /
+// Generate are untouched. True forever-streaming (and streams
 // >2 h) needs an engine-side Envelope hold/loop mode — engine is owned by
 // another agent this run.
 // ---------------------------------------------------------------------------
@@ -3819,30 +3828,50 @@ static constexpr int STREAM_PREP_SECONDS = 7200;  // 2 h; int-safe at 48 kHz
 
 struct StreamEnvHold {
     Envelope* env;
-    float prevTimeMode;  // the timeMode setting before the stream
     int addedStageIdx;   // -1 = no hold stage appended
 };
 static std::vector<StreamEnvHold> g_streamEnvHolds;
 
+static int stream_hold_row(const Component* node) {
+    for (const auto& h : g_streamEnvHolds) {
+        if (h.env != node) continue;
+        // Matched to a live node's object, so h.env is alive here. Still
+        // the hold's while it is the last stage and an expand: a stage edit
+        // during the stream pushes the cached table over the envelope's, and
+        // then nothing of the hold's is left.
+        const int last = h.env->stage_count() - 1;
+        return h.addedStageIdx >= 0 && h.addedStageIdx == last &&
+               h.env->stage(last).percent == 0.0f ? last : -1;
+    }
+    return -1;
+}
+
+void GraphNode::pull_arrays() {
+    if (!dspSource) return;
+    // Every array of an Envelope is a column of its stage table.
+    const int holdRow = stream_hold_row(dspSource.get());
+    for (auto& [desc, vec] : arrayValues) {
+        vec = dspSource->get_array(desc.name);
+        if (holdRow >= 0 && holdRow < int(vec.size())) vec.erase(vec.begin() + holdRow);
+    }
+}
+
+// The editor's cache is the truth for what the stream changed: each held
+// envelope takes its timeMode from its node's cached setting (an edit during
+// the stream set both the cache and the node), loses the hold stage if it is
+// still the hold's, and its node's cached table is re-pulled. An envelope
+// whose node was deleted during the stream went with it, and is not touched.
 static void stream_envelopes_restore() {
-    for (auto& h : g_streamEnvHolds) {
-        h.env->set_setting("timeMode", h.prevTimeMode);
-        // Remove the appended hold stage only if it's still recognizably
-        // ours (last stage, expand). A mid-stream stage edit pushes the
-        // cached table over the envelope's, in which case there is nothing
-        // of ours left to remove.
-        if (h.addedStageIdx >= 0 && h.addedStageIdx == h.env->stage_count() - 1 &&
-            h.env->stage(h.addedStageIdx).percent == 0.0f) {
-            h.env->remove_stage(h.addedStageIdx);
-            // The owning node's cached table re-pulled: a cache that took
-            // the hold stage up mid-stream must not keep it.
-            for (auto& n : s_nodes)
-                if (n.dspSource.get() == h.env) {
-                    for (auto& [desc, vec] : n.arrayValues)
-                        vec = h.env->get_array(desc.name);
-                    break;
-                }
-        }
+    for (const auto& h : g_streamEnvHolds) {
+        GraphNode* owner = nullptr;
+        for (auto& n : s_nodes)
+            if (n.dspSource.get() == h.env) { owner = &n; break; }
+        if (!owner) continue;
+        for (const auto& [desc, val] : owner->settingValues)
+            if (std::string_view(desc.name) == "timeMode") h.env->set_setting("timeMode", val);
+        const int row = stream_hold_row(h.env);
+        if (row >= 0) h.env->remove_stage(row);
+        owner->pull_arrays();
     }
     g_streamEnvHolds.clear();
 }
@@ -3852,7 +3881,7 @@ static void stream_envelopes_hold() {
     for (auto& n : s_nodes) {
         auto* env = dynamic_cast<Envelope*>(n.dspSource.get());
         if (!env) continue;
-        StreamEnvHold h{env, env->get_setting("timeMode"), -1};
+        StreamEnvHold h{env, -1};
         env->set_setting("timeMode", 1.0f);
         bool hasExpand = false;
         for (int i = 0; i < env->stage_count(); ++i)
@@ -8569,8 +8598,7 @@ static void draw_properties_panel() {
                 node->jsonExtras.erase(desc.name);  // edit wins over carried value
                 // set_setting may have mutated internal arrays (e.g. ExplicitPartials
                 // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
-                for (auto& [d, v] : node->arrayValues)
-                    v = node->dspSource->get_array(d.name);
+                node->pull_arrays();
                 mark_graph_dirty();
             }
         };
@@ -9327,17 +9355,21 @@ static int clip_instantiate(const nlohmann::json& j) {
         gn.apply_config();
     }
 
+    // A CurveNode's columns fill the cache alone; the curve then reaches the
+    // node in one push, as at load.
+    const bool curve = gn.typeName == "CurveNode";
     if (j.contains("arrays") && gn.dspSource) {
         for (auto& [desc, vec] : gn.arrayValues) {
             if (!j["arrays"].contains(desc.name)) continue;
             vec = j["arrays"][desc.name].get<std::vector<float>>();
-            gn.dspSource->set_array(desc.name, vec);
+            if (!curve) gn.dspSource->set_array(desc.name, vec);
         }
         // set_array can update derived configs (maxPartials from length) —
         // sync the UI table back from the DSP object, mirroring load.
         for (auto& [desc, val] : gn.settingValues)
             val = gn.dspSource->get_setting(desc.name);
     }
+    if (curve) push_curve(gn);
 
     return gn.id;
 }
@@ -9680,10 +9712,14 @@ static std::function<void(const char*)> s_menuSourceAction;
 static void create_source_at_menu(const char* typeName) {
     s_nodes.emplace_back(std::string(typeName));
     auto& n = s_nodes.back();
-    // Identity seed — an empty knot list maps everything to 0, which reads
-    // as a broken node. Edit in the node's Properties.
-    if (std::string_view(typeName) == "CurveNode")
+    // Seed knots (0, 0) and (1, 1): two points to drag in the node's
+    // Properties, mapping 0..1 to itself and clamping outside it (an empty
+    // knot list is the identity everywhere). Pushed, so the live node maps
+    // what the cache and a save hold.
+    if (std::string_view(typeName) == "CurveNode") {
         set_curve_points(n, {{0.0f, 0.0f}, {1.0f, 1.0f}});
+        push_curve(n);
+    }
     ImNodes::SetNodeScreenSpacePos(n.id, s_createMenuPos);
     // A node created while drilled into a group belongs to that group.
     if (!s_groupPath.empty())
@@ -9988,6 +10024,8 @@ static void replace_node_with(int nodeId, const char* newType) {
         for (auto& [od, ov] : oldN->settingValues)
             if (std::string_view(nd.name) == od.name) { nv = ov; break; }
     newN->apply_config();
+    // A CurveNode's seed and its settings reach the node in one push.
+    if (std::string_view(newType) == "CurveNode") push_curve(*newN);
     for (auto& [setting, val] : oldN->dynamicPins.items())
         for (auto& [nd, nv] : newN->settingValues)
             if (setting == nd.name) { newN->dynamicPins[setting] = val; break; }
@@ -10331,9 +10369,7 @@ static void show_node_context_menu() {
         }
         // An Envelope's sustainLevel wrote its table's four sustain slots:
         // the cached table follows the object.
-        if (dup.typeName == NT_ENVELOPE && dup.dspSource)
-            for (auto& [desc, vec] : dup.arrayValues)
-                vec = dup.dspSource->get_array(desc.name);
+        if (dup.typeName == NT_ENVELOPE) dup.pull_arrays();
 
         // Offset position
         ImVec2 pos = ImNodes::GetNodeScreenSpacePos(node->id);

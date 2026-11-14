@@ -62,16 +62,6 @@ struct CurveNode final : Generator {
   Setting<int> interp{this, "interp", 0, 0, 2, kInterpLabels};
   Setting<int> mode{this, "mode", kPointsMode, kPointsMode, kExpressionsMode, kModeLabels};
 
-  // The two tables: one row per knot, one column per field. The columns are
-  // what the node holds and what a patch file and the editor see; knots_ and
-  // exprKnots_ are derived from them by rebuild_().
-  Array knotX{this, "x", "knots", 0.0f, -1.0e9f, 1.0e9f};
-  Array knotY{this, "y", "knots", 0.0f, -1.0e9f, 1.0e9f};
-  Array exprX{this, "exprX", "exprKnots", 100.0f, -1.0e9f, 1.0e9f};
-  Array exprForm{this, "exprForm", "exprKnots", 0.0f, 0.0f, 1.0f, kFormLabels};
-  Array exprA{this, "exprA", "exprKnots", 0.0f, -1.0e9f, 1.0e9f};
-  Array exprB{this, "exprB", "exprKnots", 0.0f, -1.0e9f, 1.0e9f};
-
   // The rows map() reads, in column order.
   const std::vector<std::pair<float, float>>& knots() const { return knots_; }
   const std::vector<ExprKnot>& expr_knots() const { return exprKnots_; }
@@ -152,7 +142,24 @@ struct CurveNode final : Generator {
   const char* type_name() const override { return "CurveNode"; }
 
 private:
-  CurveInterp interp_() const { return CurveInterp(interp.value); }
+  // The two tables: one row per knot, one column per field. The columns are
+  // what the node holds and what a patch file and the editor see, through
+  // set_array and get_array and the setters above; knots_ and exprKnots_ are
+  // derived from them by rebuild_(). They are the last pins the node
+  // declares, so they register after the settings.
+  Array knotX{this, "x", "knots", 0.0f, -1.0e9f, 1.0e9f};
+  Array knotY{this, "y", "knots", 0.0f, -1.0e9f, 1.0e9f};
+  Array exprX{this, "exprX", "exprKnots", 100.0f, -1.0e9f, 1.0e9f};
+  Array exprForm{this, "exprForm", "exprKnots", 0.0f, 0.0f, 1.0f, kFormLabels};
+  Array exprA{this, "exprA", "exprKnots", 0.0f, -1.0e9f, 1.0e9f};
+  Array exprB{this, "exprB", "exprKnots", 0.0f, -1.0e9f, 1.0e9f};
+
+  // Total over the setting's int: a value outside the labels reads as Linear.
+  CurveInterp interp_() const {
+    return interp.value == 1 ? CurveInterp::LogX
+         : interp.value == 2 ? CurveInterp::LogLog
+         :                     CurveInterp::Linear;
+  }
   bool expr_mode_() const { return mode.value == kExpressionsMode; }
 
   // The one derivation of the rows from the columns: each group has as many
