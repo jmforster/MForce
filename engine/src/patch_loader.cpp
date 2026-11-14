@@ -285,6 +285,66 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
                                      + "): unknown key '" + it.key() + "'");
 }
 
+// A table is the columns of one group, a row per index: its columns are all
+// absent from params or all present at one length, for every type. A key
+// present but not an array counts as absent, as the array pass skips it.
+// Runs for every node the generic wiring runs for.
+static void reject_ragged_tables(const Component& src, const std::string& id,
+                                 const json& params)
+{
+    const auto arrays = src.array_descriptors();
+    for (size_t g = 0; g < arrays.size(); ++g) {
+        if (!arrays[g].groupName) continue;
+        const std::string_view group = arrays[g].groupName;
+        bool first = true;                      // the group is checked at its first column
+        for (size_t k = 0; k < g && first; ++k)
+            first = !(arrays[k].groupName && group == arrays[k].groupName);
+        if (!first) continue;
+        std::string got;
+        size_t columns = 0, present = 0, length = 0;
+        bool oneLength = true;
+        for (const auto& d : arrays) {
+            if (!d.groupName || group != d.groupName) continue;
+            ++columns;
+            const bool has = params.contains(d.name) && params.at(d.name).is_array();
+            if (has) {
+                const size_t n = params.at(d.name).size();
+                if (present++ == 0) length = n;
+                else oneLength = oneLength && n == length;
+            }
+            got += std::string(got.empty() ? "" : ", ") + d.name + " "
+                 + (has ? std::to_string(params.at(d.name).size()) : std::string("absent"));
+        }
+        if (present != 0 && (present != columns || !oneLength))
+            throw std::runtime_error("node '" + id + "' (" + src.type_name() + "): table '"
+                                     + std::string(group) + "' takes its columns at one length, "
+                                     "all present or all absent (got " + got + ")");
+    }
+}
+
+// An element of a column with labels: one of the labels, or a whole-number
+// index into them. Anything else fails the load naming the node, the column
+// and the value.
+static float enum_column_element(const Component& src, const std::string& id,
+                                 const ArrayDescriptor& desc, const json& item)
+{
+    int count = 0;
+    while (desc.enum_labels[count]) ++count;
+    int index = -1;
+    if (item.is_string())
+        index = enum_index(desc.enum_labels, item.get<std::string>());
+    else if (item.is_number()) {
+        const double v = item.get<double>();
+        if (v >= 0.0 && v < double(count) && v == std::floor(v)) index = int(v);
+    }
+    if (index >= 0) return float(index);
+    std::string labels;
+    for (int k = 0; k < count; ++k) labels += std::string(k ? ", " : "") + desc.enum_labels[k];
+    throw std::runtime_error("node '" + id + "' (" + src.type_name() + "): '" + desc.name
+                             + "' holds " + item.dump() + ", which is not one of its labels ("
+                             + labels + ") or an index into them");
+}
+
 // A string where a pin takes a value. The one legacy string form, the
 // wavetable's evolution by name, is gone, and a string anywhere else was never
 // read: the load fails naming the node, the pin and the string, and for
@@ -336,26 +396,13 @@ static void wire_params_generic(
         if      (v.is_boolean()) fv = v.get<bool>() ? 1.0f : 0.0f;
         else if (v.is_number())  fv = v.get<float>();
         else if (v.is_string() && desc.enum_labels) {
-            // Enum settings arrive as strings in hand-written patches
-            // ("mode": "Highpass"). Match display labels case-
-            // insensitively; a miss keeps the default LOUDLY — silently
-            // skipping strings is how SVFSource's mode no-opped on first
-            // use (same drop class as the UI-side 2026-08-13 fix).
+            // An enum setting may be given as its label ("mode": "Highpass"),
+            // matched ignoring case; a label that matches none keeps the
+            // default, with a line on stderr.
             const std::string s = v.get<std::string>();
-            bool matched = false;
-            for (int li = 0; desc.enum_labels[li]; ++li) {
-                if (s.size() == std::strlen(desc.enum_labels[li]) &&
-                    std::equal(s.begin(), s.end(), desc.enum_labels[li],
-                               [](char a, char b) {
-                                   return std::tolower((unsigned char)a) ==
-                                          std::tolower((unsigned char)b);
-                               })) {
-                    fv = float(li);
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
+            const int li = enum_index(desc.enum_labels, s);
+            if (li >= 0) fv = float(li);
+            else {
                 std::fprintf(stderr,
                     "[load] %s.%s: enum string '%s' matches no label; "
                     "keeping default\n", src.type_name(), desc.name, s.c_str());
@@ -366,12 +413,22 @@ static void wire_params_generic(
         src.set_setting(desc.name, fv);
     }
     // User-editable float arrays — ExplicitPartials multipliers, spectrum gains, etc.
+    // A column with labels holds indices, given in the file as labels or as
+    // indices.
     for (const auto& desc : src.array_descriptors()) {
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
         if (!v.is_array()) continue;
-        src.set_array(desc.name, v.get<std::vector<float>>());
+        if (!desc.enum_labels) {
+            src.set_array(desc.name, v.get<std::vector<float>>());
+            continue;
+        }
+        std::vector<float> indices;
+        indices.reserve(v.size());
+        for (const auto& item : v) indices.push_back(enum_column_element(src, id, desc, item));
+        src.set_array(desc.name, std::move(indices));
     }
+    reject_ragged_tables(src, id, params);
     // Shaper morph invariants (curve-morph spec §5): curve B must have the
     // same point count as A (point-space morph needs correspondence), and
     // segs2's TYPE column must equal segs' (types are shared structure;

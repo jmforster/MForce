@@ -449,16 +449,12 @@ struct GraphNode {
             arrayValues.push_back({desc, dspSource->get_array(desc.name)});
     }
 
-    // Push a single array's UI state back to the DSP object.
-    void push_array(const char* name) {
-        if (!dspSource) return;
-        for (auto& [d, v] : arrayValues) {
-            if (std::string_view(d.name) == name) {
-                dspSource->set_array(name, v);
-                return;
-            }
-        }
-    }
+    // Push a single array's UI state back to the DSP object, under the audio
+    // lock: a pushed column replaces a vector the stream may be reading.
+    void push_array(const char* name);
+    // Push every column of a table (an array group) under one lock, so the
+    // stream never reads the table at two lengths.
+    void push_table(const char* group);
 
     void apply_config() {
         if (!dspSource) return;
@@ -843,6 +839,25 @@ static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {
 // stream taps dereference per sample — an unlocked rewire during streaming
 // is a torn pointer read on the audio thread (backlog 3k).
 static std::mutex g_audioMutex;
+
+void GraphNode::push_array(const char* name) {
+    if (!dspSource) return;
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    for (auto& [d, v] : arrayValues) {
+        if (std::string_view(d.name) == name) {
+            dspSource->set_array(name, v);
+            return;
+        }
+    }
+}
+
+void GraphNode::push_table(const char* group) {
+    if (!dspSource || !group) return;
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    for (auto& [d, v] : arrayValues)
+        if (d.groupName && std::string_view(d.groupName) == group)
+            dspSource->set_array(d.name, v);
+}
 
 static void update_node_dsp_unlocked(GraphNode& node) {
     if (!node.dspSource) return;
@@ -1260,6 +1275,54 @@ static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stage
     }
 }
 
+// An element of a column with labels, as the file holds it: one of the
+// labels or a whole-number index into them; anything else fails the load
+// with the engine loader's sentence.
+static float enum_column_element(const std::string& id, const std::string& type,
+                                 const ArrayDescriptor& desc, const nlohmann::json& item) {
+    int count = 0;
+    while (desc.enum_labels[count]) ++count;
+    int index = -1;
+    if (item.is_string())
+        index = enum_index(desc.enum_labels, item.get<std::string>());
+    else if (item.is_number()) {
+        const double v = item.get<double>();
+        if (v >= 0.0 && v < double(count) && v == std::floor(v)) index = int(v);
+    }
+    if (index >= 0) return float(index);
+    std::string labels;
+    for (int k = 0; k < count; ++k) labels += std::string(k ? ", " : "") + desc.enum_labels[k];
+    throw std::runtime_error("node '" + id + "' (" + type + "): '" + desc.name + "' holds "
+                             + item.dump() + ", which is not one of its labels (" + labels
+                             + ") or an index into them");
+}
+
+// A setting as both savers write it: a bool as a bool; an int with labels as
+// its label, or as the int when the index has none; any other int as the
+// int; a float as the float.
+static nlohmann::json setting_to_json(const SettingDescriptor& desc, float val) {
+    if (desc.type == SettingType::Bool) return val != 0.0f;
+    if (desc.type == SettingType::Int) {
+        if (const char* label = enum_label(desc.enum_labels, int(val))) return label;
+        return int(val);
+    }
+    return val;
+}
+
+// A column as both savers write it: the floats, or for a column with labels
+// each index as its label, a value outside the labels as the number.
+static nlohmann::json array_to_json(const ArrayDescriptor& desc, const std::vector<float>& vec) {
+    if (!desc.enum_labels) return vec;
+    int count = 0;
+    while (desc.enum_labels[count]) ++count;
+    nlohmann::json out = nlohmann::json::array();
+    for (float v : vec) {
+        if (v >= 0.0f && v < float(count) && v == std::floor(v)) out.push_back(desc.enum_labels[int(v)]);
+        else out.push_back(v);
+    }
+    return out;
+}
+
 // Defined with the transport helpers below — loads report unknown node
 // types (patch authored against an engine branch this build lacks) in the
 // transport status line instead of silently creating inert nodes.
@@ -1504,22 +1567,14 @@ static void load_graph_from_path(const std::string& path) {
                 if (jval.is_boolean()) val = jval.get<bool>() ? 1.0f : 0.0f;
                 else if (jval.is_number()) val = jval.get<float>();
                 else if (jval.is_string() && desc.enum_labels) {
-                    // Enum configs arrive as strings in hand-written patches
-                    // ("operation": "multiply"). Match display labels
-                    // case-insensitively; a miss keeps the default LOUDLY —
-                    // skipping strings silently is how every CombinedSource
-                    // loaded as Mix (the 2026-08-13 edit-then-play
-                    // volume-drop bug).
+                    // An enum setting may be given as its label
+                    // ("operation": "multiply"), matched ignoring case; a
+                    // label that matches none keeps the default, with a line
+                    // on stderr.
                     std::string s = jval.get<std::string>();
-                    bool matched = false;
-                    for (int li = 0; desc.enum_labels[li]; ++li) {
-                        if (_stricmp(s.c_str(), desc.enum_labels[li]) == 0) {
-                            val = float(li);
-                            matched = true;
-                            break;
-                        }
-                    }
-                    if (!matched)
+                    const int li = enum_index(desc.enum_labels, s);
+                    if (li >= 0) val = float(li);
+                    else
                         std::fprintf(stderr,
                             "[load] %s.%s: enum string '%s' matches no label; "
                             "keeping default\n", id.c_str(), desc.name, s.c_str());
@@ -1538,7 +1593,12 @@ static void load_graph_from_path(const std::string& path) {
                 if (!params.contains(desc.name)) continue;
                 const auto& jv = params[desc.name];
                 if (!jv.is_array()) continue;
-                vec = jv.get<std::vector<float>>();
+                if (!desc.enum_labels) vec = jv.get<std::vector<float>>();
+                else {
+                    vec.clear();
+                    for (const auto& item : jv)
+                        vec.push_back(enum_column_element(id, gn.typeName, desc, item));
+                }
                 gn.dspSource->set_array(desc.name, vec);
             }
             // Arrays can change derived configs (set_array updates
@@ -2641,19 +2701,14 @@ static nlohmann::json serialize_patch_graph(
                 std::string_view(desc.name) == "sustainLevel")
                 continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            if (desc.type == SettingType::Bool)
-                jnode["params"][desc.name] = (val != 0.0f);
-            else if (desc.type == SettingType::Int)
-                jnode["params"][desc.name] = int(val);
-            else
-                jnode["params"][desc.name] = val;
+            jnode["params"][desc.name] = setting_to_json(desc, val);
         }
 
         // Array values (ExplicitPartials mult/ampl, FormantBands gains, …)
         for (auto& [desc, vec] : node.arrayValues) {
             if (vec.empty()) continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            jnode["params"][desc.name] = vec;
+            jnode["params"][desc.name] = array_to_json(desc, vec);
         }
 
         // Re-emit the loaded seed so the engine loader's RNG stream is
@@ -2925,19 +2980,14 @@ static void save_node_graph(const std::string& path) {
                 std::string_view(desc.name) == "sustainLevel")
                 continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            if (desc.type == SettingType::Bool)
-                jnode["params"][desc.name] = (val != 0.0f);
-            else if (desc.type == SettingType::Int)
-                jnode["params"][desc.name] = int(val);
-            else
-                jnode["params"][desc.name] = val;
+            jnode["params"][desc.name] = setting_to_json(desc, val);
         }
 
         // Array values (ExplicitPartials mult/ampl, FormantBands gains, …)
         for (auto& [desc, vec] : node.arrayValues) {
             if (vec.empty()) continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            jnode["params"][desc.name] = vec;
+            jnode["params"][desc.name] = array_to_json(desc, vec);
         }
 
         // Re-emit the loaded seed (see save_patch_graph).
@@ -8842,8 +8892,7 @@ static void draw_properties_panel() {
 
                 if (changedAny) {
                     // Push every column in the group (lengths must stay synced).
-                    for (size_t c = i; c < groupEnd; ++c)
-                        node->push_array(node->arrayValues[c].first.name);
+                    node->push_table(firstDesc.groupName);
                     mark_graph_dirty();
                 }
             }

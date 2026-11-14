@@ -7420,11 +7420,11 @@ static void run_allocation_tests_partials() {
     // expand rule: the originals the rule starts from follow every rebuild.
     {
         const char* rows = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
-          {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.5,0.25,0.125],"evolve":false,
+          {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.5,0.25,0.125],"mult2":[1.0,2.0,3.0,4.0],"ampl2":[1.0,0.5,0.25,0.125],"evolve":false,
              "expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
         const char* editedRows = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
-          {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.1,0.1,0.1],"evolve":false,
+          {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.1,0.1,0.1],"mult2":[1.0,2.0,3.0,4.0],"ampl2":[1.0,0.1,0.1,0.1],"evolve":false,
              "expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
         auto edited = load_instrument_patch_json(rows);
@@ -8472,7 +8472,7 @@ static void run_formant_peaks_load_tests() {
       {"id":"pk","type":"FormantPeaks","params":{"frequency":[500.0,1500.0],"gain":[1.0],"width":[300.0,400.0],"power":[2.0,2.0]}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"pk"},"formantWeight":1.0}}]}})";
     CHECK(load_fails_naming(ragged, "node 'pk' (FormantPeaks)"));
-    CHECK(load_fails_naming(ragged, "one length"));
+    CHECK(load_fails_naming(ragged, "table 'peaks' takes its columns at one length"));
     CHECK(load_fails_naming(ragged, "frequency 2, gain 1, width 2, power 2"));
     const char* missing = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":8}},
@@ -8499,6 +8499,137 @@ static void run_formant_peaks_load_tests() {
     auto empty = load_instrument_patch_json(none);                            // no rows: a formant that gains nothing
     auto* pk0 = dynamic_cast<FormantPeaks*>(empty.instrument->voicePool[0].nodesById.at("pk").get());
     CHECK(pk0 != nullptr && pk0->peak_count() == 0 && same_bits(pk0->gain(1000.0f), 0.0f));
+}
+
+// The enum column and the table rule. A test-local node declares a plain
+// column and an enum column in one group, and an enum setting over the same
+// labels; the registry builds it under a name no patch uses.
+namespace enum_column {
+static constexpr const char* kKinds[] = {"Linear", "Expo", "Hold", nullptr};
+struct EnumTableProbe final : Generator {
+    Setting<int> shape{this, "shape", 0, 0, 2, kKinds};
+    Array level{this, "level", "rows", 0.0f, -10.0f, 10.0f};
+    Array kind {this, "kind",  "rows", 0.0f, 0.0f,   2.0f, kKinds};
+    float compute() override { return 0.0f; }
+    const char* type_name() const override { return "EnumTableProbe"; }
+};
+// A one-node graph: `node` of `type` with `params`, beside a signal for the output.
+static std::string one_node(const char* type, const nlohmann::json& params) {
+    nlohmann::json n = {{"id", "n"}, {"type", type}};
+    if (!params.is_null()) n["params"] = params;
+    nlohmann::json doc = {{"sampleRate", 48000}, {"instrument", {{"polyphony", 1}}},
+                          {"graph", {{"output", "out"}, {"nodes", nlohmann::json::array({
+                              nlohmann::json{{"id", "out"}, {"type", "SineSource"}}, n})}}}};
+    return doc.dump();
+}
+// The node `n` of a loaded one-node graph, or null with the refusal printed.
+static std::shared_ptr<Component> load_node(const char* type, const nlohmann::json& params, InstrumentPatch& ip) {
+    try { ip = load_instrument_patch_json(one_node(type, params)); }
+    catch (const std::exception& e) { std::printf("  %s %s: %s\n", type, params.dump().c_str(), e.what()); return nullptr; }
+    return ip.instrument->voicePool[0].nodesById.at("n");
+}
+static float load_setting(const char* type, const char* key, const nlohmann::json& value) {
+    InstrumentPatch ip;
+    auto n = load_node(type, nlohmann::json{{key, value}}, ip);
+    return n ? n->get_setting(key) : -1.0f;
+}
+// The probe's `kind` column after a load of `params`, or {-1} on a refusal.
+static std::vector<float> load_kind(const nlohmann::json& params) {
+    InstrumentPatch ip;
+    auto n = load_node("EnumTableProbe", params, ip);
+    return n ? n->get_array("kind") : std::vector<float>{-1.0f};
+}
+// Whether the probe's load of `params` is refused with every one of `needles`.
+static bool probe_fails_naming(const nlohmann::json& params, std::initializer_list<const char*> needles) {
+    try { (void)load_instrument_patch_json(one_node("EnumTableProbe", params)); }
+    catch (const std::exception& e) {
+        const std::string msg = e.what();
+        bool all = true;
+        for (const char* n : needles) all = all && msg.find(n) != std::string::npos;
+        if (!all) std::printf("  refused for another reason: %s\n", msg.c_str());
+        return all;
+    }
+    std::printf("  loaded: %s\n", params.dump().c_str());
+    return false;
+}
+}
+static void run_enum_column_tests() {
+    using namespace enum_column;
+    std::printf("the enum column: labels on disk, indices in memory; a ragged table refused\n");
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    if (!reg.has("EnumTableProbe"))
+        reg.register_type("EnumTableProbe", {.family = Family::Utility, .shelf = Shelf::Experimental}, [](auto) { return std::make_shared<EnumTableProbe>(); });
+    // the one label match: case-insensitive, whole-string; null outside the labels
+    CHECK(enum_index(kKinds, "Expo") == 1 && enum_index(kKinds, "expo") == 1 && enum_index(kKinds, "EXPO") == 1);
+    CHECK(enum_index(kKinds, "Linear") == 0 && enum_index(kKinds, "hold") == 2);
+    CHECK(enum_index(kKinds, "Lin") == -1 && enum_index(kKinds, "Linears") == -1 && enum_index(kKinds, "") == -1);
+    CHECK(enum_index(kKinds, "Sine") == -1 && enum_index(nullptr, "Linear") == -1);
+    CHECK(std::string(enum_label(kKinds, 0)) == "Linear" && std::string(enum_label(kKinds, 1)) == "Expo"
+          && std::string(enum_label(kKinds, 2)) == "Hold");
+    CHECK(enum_label(kKinds, -1) == nullptr && enum_label(kKinds, 3) == nullptr && enum_label(nullptr, 0) == nullptr);
+    // the column read through the loader: labels, indices and a mix load to the same indices
+    {
+        const auto byLabel = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {"Linear", "Expo", "Hold"}}});
+        const auto byIndex = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {0, 1, 2}}});
+        const auto mixed   = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {"Expo", 0, "hold"}}});
+        CHECK((byLabel == std::vector<float>{0.0f, 1.0f, 2.0f}));
+        CHECK(byIndex == byLabel);
+        CHECK((mixed == std::vector<float>{1.0f, 0.0f, 2.0f}));
+        CHECK((load_kind({{"level", nlohmann::json::array({0.5})}, {"kind", nlohmann::json::array({2.0})}}) == std::vector<float>{2.0f}));   // a whole float is an index
+    }
+    // refused, naming the node, the column, the value and the labels
+    {
+        const nlohmann::json bad[] = {"Sine", 3, -1, 1.5, true, nullptr, nlohmann::json::object()};
+        const char* shown[] = {"\"Sine\"", "holds 3,", "holds -1,", "holds 1.5,", "holds true,", "holds null,", "holds {},"};
+        for (size_t k = 0; k < std::size(bad); ++k)
+            CHECK(probe_fails_naming({{"level", {0.1, 0.2}}, {"kind", {"Linear", bad[k]}}},
+                                     {"node 'n' (EnumTableProbe)", "'kind'", shown[k], "(Linear, Expo, Hold)"}));
+    }
+    // a ragged table refused for every type, naming the node, the group and each column's length
+    {
+        CHECK(probe_fails_naming({{"level", {0.1, 0.2, 0.3}}, {"kind", {0, 1}}},
+                                 {"node 'n' (EnumTableProbe)", "table 'rows'", "(got level 3, kind 2)"}));
+        CHECK(probe_fails_naming({{"level", {0.1, 0.2}}}, {"node 'n' (EnumTableProbe)", "table 'rows'", "(got level 2, kind absent)"}));
+        CHECK(probe_fails_naming({{"kind", nlohmann::json::array({"Expo"})}}, {"table 'rows'", "(got level absent, kind 1)"}));
+        CHECK(probe_fails_naming({{"level", 0.5}, {"kind", nlohmann::json::array({"Expo"})}}, {"table 'rows'", "(got level absent, kind 1)"}));   // not an array: absent
+        CHECK(probe_fails_naming({{"level", nlohmann::json::array()}, {"kind", nlohmann::json::array({0})}}, {"(got level 0, kind 1)"}));
+        CHECK(load_kind(nlohmann::json::object()).empty());                                 // both absent
+        CHECK(load_kind({{"level", nlohmann::json::array()}, {"kind", nlohmann::json::array()}}).empty());   // both empty
+        CHECK((load_kind({{"level", {0.1, 0.2}}, {"kind", {"Hold", 1}}}) == std::vector<float>{2.0f, 1.0f}));   // one length
+    }
+    // CombinedSource reads its own labels in any case, and the ordinals and "add" as before
+    {
+        const std::pair<nlohmann::json, int> ops[] = {{"Mix", 0}, {"Multiply", 1}, {"Fade", 2}, {"Sum", 3}, {"mix", 0}, {"MULTIPLY", 1},
+                                                      {0, 0}, {1, 1}, {2, 2}, {3, 3}, {"add", 0}};
+        for (const auto& [v, want] : ops) {
+            const float got = load_setting("CombinedSource", "operation", v);
+            if (got != float(want)) std::printf("  CombinedSource operation %s: got %g, want %d\n", v.dump().c_str(), got, want);
+            CHECK(got == float(want));
+        }
+    }
+    // every enum setting of every registered type loads from each of its own labels
+    {
+        int walked = 0;
+        std::vector<std::string> skipped;
+        for (const auto& e : reg.registered_types()) {
+            std::shared_ptr<Component> s;
+            try { s = reg.create(e.name); } catch (const std::exception&) { skipped.push_back(e.name + " (the registry cannot build it alone)"); continue; }
+            if (!s) { skipped.push_back(e.name + " (the registry cannot build it alone)"); continue; }
+            for (const auto& d : s->setting_descriptors()) {
+                if (!d.enum_labels) continue;
+                for (int i = 0; d.enum_labels[i]; ++i) {
+                    const float got = load_setting(e.name.c_str(), d.name, d.enum_labels[i]);
+                    if (got != float(i)) std::printf("  %s.%s \"%s\": got %g, want %d\n", e.name.c_str(), d.name, d.enum_labels[i], got, i);
+                    CHECK(got == float(i));
+                    ++walked;
+                }
+            }
+        }
+        std::printf("  enum labels walked: %d; skipped: %zu\n", walked, skipped.size());
+        for (const auto& s : skipped) std::printf("  skipped: %s\n", s.c_str());
+        CHECK(walked > 0);
+    }
 }
 
 // FormantBands against the band spectrum it was: the old contains() and
@@ -9258,6 +9389,7 @@ int main() {
     run_channel_clock_tests();
     run_instrument_mixer_unity_tests();
     run_review_gap_lifecycle_tests();
+    run_enum_column_tests();       // after the registry's tests: it registers its probe
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

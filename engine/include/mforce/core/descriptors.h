@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cctype>
+#include <string_view>
+
 namespace mforce {
 
 // ---------------------------------------------------------------------------
@@ -57,6 +60,36 @@ struct ArrayDescriptor {
   float default_value;        // value for newly appended rows
   float min_value;
   float max_value;
+  // Optional: null-terminated array of labels for a column that represents an
+  // enum. When set, the column holds indices into the labels and the patch
+  // file holds the labels.
+  const char* const* enum_labels = nullptr;
 };
+
+// The one label match for an enum setting and an enum column: the index of
+// the label equal to `s` ignoring ASCII case, whole-string; -1 when none is,
+// or when there are no labels.
+inline int enum_index(const char* const* labels, std::string_view s) {
+  if (!labels) return -1;
+  for (int i = 0; labels[i]; ++i) {
+    const std::string_view label = labels[i];
+    if (label.size() != s.size()) continue;
+    bool same = true;
+    for (size_t k = 0; same && k < s.size(); ++k)
+      same = std::tolower(static_cast<unsigned char>(label[k])) ==
+             std::tolower(static_cast<unsigned char>(s[k]));
+    if (same) return i;
+  }
+  return -1;
+}
+
+// The label at index `i`, or null when `i` is outside the labels or there
+// are no labels.
+inline const char* enum_label(const char* const* labels, int i) {
+  if (!labels || i < 0) return nullptr;
+  for (int k = 0; labels[k]; ++k)
+    if (k == i) return labels[k];
+  return nullptr;
+}
 
 } // namespace mforce

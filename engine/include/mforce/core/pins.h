@@ -151,9 +151,11 @@ struct Array final : PinBase {
   std::vector<float> values;
   const char* group;
   float def, min, max;
-  Array(Component* owner, const char* n, const char* g, float d, float mn, float mx)
-    : PinBase(n, kKind), group(g), def(d), min(mn), max(mx) { attach(owner); }
-  ArrayDescriptor descriptor() const { return {name, group, def, min, max}; }
+  const char* const* labels;                      // enum labels for a column of indices
+  Array(Component* owner, const char* n, const char* g, float d, float mn, float mx,
+        const char* const* lb = nullptr)
+    : PinBase(n, kKind), group(g), def(d), min(mn), max(mx), labels(lb) { attach(owner); }
+  ArrayDescriptor descriptor() const { return {name, group, def, min, max, labels}; }
 };
 
 // A structural input: a part that implements interface T (partials, a

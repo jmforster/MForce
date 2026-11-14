@@ -81,6 +81,7 @@
 #include "mforce/source/filter/reverb.h"
 #include "mforce/source/envelope/vibrato.h"
 
+#include <cctype>
 #include <cmath>
 
 namespace mforce {
@@ -281,24 +282,7 @@ void register_all_sources() {
         [](auto) { return std::make_shared<ExpandRuleNode>(); });
 
     reg.register_type("FormantPeaks", {.family = Family::Additive},
-        [](auto) { return std::make_shared<FormantPeaks>(); },
-        // The arrays arrive through the generic array pass; rows of unequal
-        // length are an authoring error, not a silent truncation. The rule is
-        // over the node's own array descriptors, so it names no key.
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            std::string lengths;
-            size_t first = 0;
-            bool ragged = false;
-            for (const auto& d : src.array_descriptors()) {
-                const size_t n = p.contains(d.name) && p.at(d.name).is_array() ? p.at(d.name).size() : 0;
-                if (lengths.empty()) first = n;
-                else if (n != first) ragged = true;
-                lengths += std::string(lengths.empty() ? "" : ", ") + d.name + " " + std::to_string(n);
-            }
-            if (ragged)
-                throw std::runtime_error("FormantPeaks takes its arrays at one length, one row per peak (got "
-                                         + lengths + ")");
-        });
+        [](auto) { return std::make_shared<FormantPeaks>(); });
 
     reg.register_type("FormantBands", {.family = Family::Additive},
         [](auto) { return std::make_shared<FormantBands>(); });
@@ -530,10 +514,12 @@ void register_all_sources() {
                 }
             } else {
                 std::string opStr = p.value("operation", std::string("add"));
-                if      (opStr == "add" || opStr == "mix") cs.operation.value = int(CombineOp::Add);
-                else if (opStr == "multiply")              cs.operation.value = int(CombineOp::Multiply);
-                else if (opStr == "fade")                  cs.operation.value = int(CombineOp::Fade);
-                else if (opStr == "sum")                   cs.operation.value = int(CombineOp::Sum);
+                std::string op = opStr;                    // matched ignoring case: "Mix" is the setting's own label
+                for (char& c : op) c = char(std::tolower(static_cast<unsigned char>(c)));
+                if      (op == "add" || op == "mix") cs.operation.value = int(CombineOp::Add);
+                else if (op == "multiply")           cs.operation.value = int(CombineOp::Multiply);
+                else if (op == "fade")               cs.operation.value = int(CombineOp::Fade);
+                else if (op == "sum")                cs.operation.value = int(CombineOp::Sum);
                 else
                     throw std::runtime_error(
                         "CombinedSource 'operation': unknown value \"" + opStr +
