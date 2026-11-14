@@ -19,6 +19,33 @@ given.
 
 ## Awaiting
 
+**R18 — checkpoint 4.3: tables, Envelope and Curve** (2026-11-14, commits
+`4af294a`..`2765aef`, fix waves `d910f27` and `fb4e453`; report
+`docs/autonomy/refactor/reports/2026-11-14-checkpoint-4.3.md`). Nothing for
+your ears: 0 of the 131 moved. Nothing to decide; one ruling of yours
+recorded, and things to look at when you next open the editor.
+- Recorded, your ruling of 2026-11-14: the verification is lighter from 4.4
+  on. The four rules are in the report's section 3 and in Part 4 §8.6.
+- 444 of your patch files were rewritten as columns (38 tracked, 373 in
+  audition, 33 in pending; pending's originals are at
+  `renders/scratch/ab43/pending_before/`). A file in `patches/sweep`,
+  `scratch` or `old` that holds a stage list or a knot list (954, 54 and 124
+  files) no longer loads until `python tools/convert_patch.py <file or
+  folder>` rewrites it; the refusal names that command.
+- Look, when you next open the editor (none of it was clicked in a running
+  editor this session): an Envelope's `timeMode` is a dropdown among its
+  settings, where the "seconds" checkbox was; the stage table and the curve
+  editor should behave as they did; a copied or newly created Curve node
+  carries its curve; a newly created Curve node clamps its input to 0..1 in
+  the editor as its saved file always did (its two seed knots now reach the
+  live node — CLEANUP 70 if you would rather a new curve start as the
+  identity); a file from sweep or old with a stage list puts `… 'stages' is
+  no longer read: python tools/convert_patch.py <patch> rewrites it as the
+  eight stage columns` on the status line and leaves your graph as it was.
+  If any of that is otherwise, say so. The report's section 1 has the whole
+  list, with three curve-editor faults older than this checkpoint that were
+  mended in passing.
+
 **R17 — checkpoint 4.2: the paramMap goes** (2026-11-10, commits
 `496bb42`..`0e6648d`, fix waves `82b03f6` and `f07c51e`; report
 `docs/autonomy/refactor/reports/2026-11-10-checkpoint-4.2.md`). Your verdicts

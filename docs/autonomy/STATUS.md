@@ -1,5 +1,92 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-14 (refactor session XVII, Fable 5.2 xhigh coordinating;
+Opus 5.5 executors, reviewer and re-reviewer).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.3 LANDED on main — `4af294a` (the
+enum column, the table rule), `cabda0c` (the Envelope), `76ae90e` (the
+Curve), `1d73de8` (the converter's two rules), `03e1454` (the tree
+converted: 38 tracked files, 373 audition, 33 pending), `2765aef` (the old
+forms refused), `d910f27` and `fb4e453` (the review's two fix waves), then
+the docs commit; base `9e9af05`. Report R18
+(`docs/autonomy/refactor/reports/2026-11-14-checkpoint-4.3.md`): nothing for
+Matt's ears, nothing for him to decide. THE NEXT THING WRITTEN IS CHECKPOINT
+4.4'S PLAN ("every type a declaration": Part 4 §8.1 row 4.4, §5.7's rows,
+§9.1's 4.4 row), in 4.3's shape, for Matt's go-ahead before anything is
+executed; offer xhigh/max first. NOTHING OF 4.4 IS BUILT.
+MATT'S RULING, 2026-11-14, FOR EVERY PLAN FROM 4.4 (he asked why 4.3 was
+taking hours and said "a bit of code is modified, then 200x that duration is
+spent checking things"; he answered "Yes." to these four as the rule; Part 4
+§8.6 carries them): (1) the coordinator reruns gates only when it edited
+something or a hash disagrees — otherwise it checks the executor's
+command-line binary by sha256 and runs the null gate; (2) gates are scoped
+by what changed — a command-line binary byte-equal to the last one that
+passed skips every render gate (the 131, the nine, the synthetics, the comp
+gate, the allocation gate), and an editor-only change runs the build, the
+tests, `rt_smoke.py` and the roundtrip gate; (3) the mutation run is sized
+to the tests the checkpoint added; (4) one review wave — what a re-review
+finds in editor code that 4.7 or Part 7 deletes is booked in CLEANUP, not
+fixed, unless it loses data. Kept: the independent read; one proof per kind
+of change.
+What 4.3 proved: 0 of the 131 moved, measured with the nodes changed and the
+files not (Tasks 2, 3), with the files converted under a binary that was not
+rebuilt (Task 5), with the old readers deleted (Task 6) and at the close;
+the score-less nine and 24 synthetic patches identical; the comp gate
+`post43` against `post42`, 21 SAME; the reviewer re-derived the 38 tracked
+files byte for byte from the base with the converter read out of its commit.
+FACTS THE NEXT PLAN MUST CARRY, each learned here: (1) BEFORE RETIRING A FILE
+KEY, GREP EVERY READER OF THAT NAME: the loader's `kBranchKeys` is global, so
+4.3's plan, which let `stages` become an unknown key, would never have
+refused an Envelope's (`PhasedValueSource` reads a `stages` too). The
+refusal is `retired_key_refusal(type, key)` in `render/patch_loader.h`, one
+table of rows, asked before the unknown-key test and by the editor before it
+clears its graph: 4.4's Phased `stages` and `cutoff`/`gap` renames go
+through it. (2) A table's rule is `ragged_table_refusal(node, length)`, one
+function both hosts ask; a node's columns are private `Array`s with ONE
+function deriving what the render walks (`Envelope::rebuild_stages_`,
+`CurveNode::rebuild_`) — 4.4's `PhasedValueSource` table and `MultiSource`
+arrays take that shape. (3) A load applies settings BEFORE arrays in both
+hosts and tests fail if either reverses it. (4) The converter: a rule plans
+every node and writes nothing until all have passed (`envelope_table.py` is
+the model); `_nodes.py` has `walk_nodes`, `node_label`, `is_number`; a
+census that counts "files holding X" misses files a rule changes for another
+reason (4.3: 444 files, not the plan's 438). (5) THE REUSABLE ARMS:
+`renders/scratch/ab43/old/hashes.txt` with `library_baselines_131.txt`;
+`scoreless_table/` (the nine, table form) against `scoreless/old/hashes.txt`
+by file name; `synth_table/` (24 synthetics, table form) against
+`synth/old/hashes.txt` by file name (`synth/` holds their old forms, refused
+now); `renders/scratch/ab_tree/cli_post43.exe` (sha256 `1940afba…14dc8aae`)
+is the close CLI; comp stage `post43`. (6) Gate facts: the roundtrip gate is
+`python tools/test_stable_roundtrip.py patches/library patches/baselines
+--jobs 3` (with no folder it walks nothing and reports clean — CLEANUP 73);
+`gates --fast` still prints FAILED on a clean tree, the smoke's tail now ten
+side cases `ok` and `5/6 shapes clean`; the lint on audition stands at 36
+findings, all the instrument block's `release` (CLEANUP 74); an uncaught
+throw inside `engine_tests` aborts with 0xC0000409 and prints nothing. (7)
+The editor from here: an enum setting is written as its label on save; the
+editor's copy of a node's arrays is `arrayValues`, pushed by `push_table` /
+`push_curve` under the audio lock and re-pulled by `pull_arrays` — a node
+whose setting is a view of a table needs both directions. NOT EXERCISED BY
+ANY COMMAND: the live stage table and curve editor, paste, Duplicate,
+Replace-with, a new node's seed, anything during a stream (CLEANUP 67; one
+deliberate fault there is caught by nothing). (8) Sweep, scratch and old
+hold 954, 54 and 124 files that no longer load until converted; about fifty
+generators write the old forms. (9) Left for 4.4 or later, each booked:
+`envelope.h` over the file limit and three test functions over the function
+limit (CLEANUP 71, 72); an out-of-range enum number loads unclamped (79,
+4.6).
+THE EXECUTION PATTERN, as 4.2's with what 4.3 added: a brief file per task
+and one `rules.md` every executor reads first (`renders/scratch/ab43/
+briefs/`); a coordinator gate-and-commit script per task
+(`renders/scratch/ab43/t6/coord_gate_commit.py`: every gate's exact summary
+line, the expected set of changed files, then the commit) — under the
+amended rules it shrinks to the hash check and the null gate unless the
+coordinator edited; two executors at a time (the 5-hour window; extra usage
+is enabled). The machine sleeping pauses a background agent, which resumes.
+Usage: 4.3 cost about fourteen Fable points (82 to 92 percent by Friday night, then 3 to 7 after Saturday's reset; 4.2 cost thirteen); at the docs commit, Saturday 2026-11-14 at 12:05 HST, weekly Fable 7 percent, all-models 6, both resetting Saturday 2026-11-21 at 02:00 HST. GIT: main is ahead of origin and NOT PUSHED (ask Matt at
+close-out); GOALS.md stays Matt's uncommitted edit, never staged.
+
+---
+
 Updated: 2026-11-10, afternoon (refactor session XVI, Fable 5.2 xhigh; the
 plan written at xhigh as 4.1's and 4.2's were).
 NEXT SESSION STARTS HERE: CHECKPOINT 4.3'S PLAN IS WRITTEN —

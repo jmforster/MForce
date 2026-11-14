@@ -2202,6 +2202,42 @@ and `MultiplexSource::instanceNodes_` is written and read by nothing.
 The nine formant generators of 7.5: seven pipe through the converter;
 two write a shape 3.9 removed, which the converter refuses.
 
+**4.3 landed 2026-11-14** (`4af294a`..`2765aef`, the review's fix waves
+`d910f27` and `fb4e453`; plan
+`docs/superpowers/plans/2026-11-10-part4-checkpoint-4.3.md`; report R18,
+`docs/autonomy/refactor/reports/2026-11-14-checkpoint-4.3.md`). As the
+row says, with these facts the execution added. On disk **444 files, 38 of
+them tracked** (library 23, baselines 15, audition 373, pending 33): the
+row counts files that hold a list, and six baselines hold only two keys
+that no form ever read, which the converter dropped; knots became columns
+in 291 audition files where the row says 180 (4.2's conversion had turned
+audition's paramMap curves into `CurveNode`s). 0 of the 131 moved, measured
+with the nodes changed and the files not, with the files converted under a
+binary that was not rebuilt, with the old readers deleted, and at the
+close; the nine score-less files and 24 synthetic patches for the forms the
+scope lacks, identical too. The expression rows' columns are `exprX`,
+`exprForm`, `exprA`, `exprB` (3.3's `x`, `form`, `a`, `b` cannot be a second
+table's columns in one `params` bag). The editor's stage table and curve
+editor stay and edit the node's arrays through the editor's array cache;
+they do not use the generic grouped table. Each node keeps the layout it
+renders from as a cache of its columns, derived by one function, and the
+columns are private. `timeMode`, `interp` and `mode` are settings; the
+editor writes every enum setting as its label from here, ahead of 4.5's
+rewrite on disk. The `FormantPeaks` configurator went here and not at 4.7
+(9.1): its rule is the loader's for every table, and one function,
+`ragged_table_refusal`, answers the loader and the editor. **The old forms
+are refused by node type and key**, not by their keys becoming unknown:
+`PhasedValueSource` reads a `stages` of its own until 4.4, whose Phased row
+retires that key through the same table (`retired_key_refusal`). The
+departure is the row's one, and the 16-bit writer cannot hold it. Facts for
+later checkpoints: a load applies a node's settings before its arrays, and
+a test fails if either host reverses it (`sustainLevel` is a view of the
+stage table; 4.6's builder must keep the order); an `ExplicitPartials`
+given two of its four columns is refused; an Envelope with neither form is
+`ar` in the engine and the default ADSR in the editor; sweep, scratch and
+old hold 954, 54 and 124 files that no longer load, as 8.4's table says.
+**From 4.4 the verification is amended (8.6).**
+
 ### 8.2 Why this order (proposed)
 
 - **4.1 first** because it holds the part's one listening change, and a
@@ -2324,6 +2360,19 @@ because the plan specified each move to the line; no executor committed,
 and Fable verified each tree and committed it. The reviewer read only; the
 mutation runs were an executor's. What that split caught and what it
 missed is in R16's sections 6 and 8.*
+
+*Amended with Matt, 2026-11-14, at 4.3's close (R18 section 3). From 4.4 on:
+(1) the coordinator reruns gates only when it edited something or a hash
+disagrees, and otherwise checks the executor's command-line binary by hash
+and runs the null gate; (2) gates are scoped by what changed — a
+command-line binary byte-equal to the last one that passed skips every
+render gate, and an editor-only change runs the build, the tests, the
+roundtrip smoke and the roundtrip gate; (3) the mutation run is sized to
+the tests the checkpoint added; (4) one review wave, and what a re-review
+finds in editor code that 4.7 or Part 7 deletes is booked, not fixed,
+unless it loses data. Kept as they are: the independent read, and one
+proof per kind of change. 8.3's "after every task" and "at the close" are
+read with (1) and (2).*
 
 ### 8.7 For the C# reader
 
