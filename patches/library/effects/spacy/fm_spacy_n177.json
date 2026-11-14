@@ -7,8 +7,29 @@
         "id": "ampEnv",
         "type": "Envelope",
         "params": {
-          "stages": [
-            { "startVal": 1.0, "endVal": 0.0, "type": "Expo", "power": 2.0, "percent": 0.0 }
+          "startVal": [
+            1.0
+          ],
+          "endVal": [
+            0.0
+          ],
+          "power": [
+            2.0
+          ],
+          "type": [
+            "Expo"
+          ],
+          "percent": [
+            0.0
+          ],
+          "minSec": [
+            0.0
+          ],
+          "maxSec": [
+            0.0
+          ],
+          "nominal": [
+            0.0
           ]
         }
       },
@@ -16,8 +37,29 @@
         "id": "depthEnv",
         "type": "Envelope",
         "params": {
-          "stages": [
-            { "startVal": 10.0, "endVal": 0.0, "type": "Expo", "power": 3.0, "percent": 0.0 }
+          "startVal": [
+            10.0
+          ],
+          "endVal": [
+            0.0
+          ],
+          "power": [
+            3.0
+          ],
+          "type": [
+            "Expo"
+          ],
+          "percent": [
+            0.0
+          ],
+          "minSec": [
+            0.0
+          ],
+          "maxSec": [
+            0.0
+          ],
+          "nominal": [
+            0.0
           ]
         }
       },
@@ -26,24 +68,40 @@
         "type": "FMSource",
         "params": {
           "frequency": 225280.0,
-          "amplitude": { "ref": "ampEnv" },
+          "amplitude": {
+            "ref": "ampEnv"
+          },
           "carrierRatio": 1.0,
           "modRatio": 1.4,
-          "depth": { "ref": "depthEnv" },
+          "depth": {
+            "ref": "depthEnv"
+          },
           "unbounded_pos": true
         }
       },
       {
         "id": "ch1",
         "type": "SoundChannel",
-        "inputs": { "source": "fm" },
-        "params": { "volume": 0.82, "pan": 0.0 }
+        "inputs": {
+          "source": "fm"
+        },
+        "params": {
+          "volume": 0.82,
+          "pan": 0.0
+        }
       },
       {
         "id": "mix",
         "type": "StereoMixer",
-        "inputs": { "channels": ["ch1"] },
-        "params": { "gainL": 1.0, "gainR": 1.0 }
+        "inputs": {
+          "channels": [
+            "ch1"
+          ]
+        },
+        "params": {
+          "gainL": 1.0,
+          "gainR": 1.0
+        }
       }
     ],
     "output": "mix"

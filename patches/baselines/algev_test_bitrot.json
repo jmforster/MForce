@@ -16,9 +16,7 @@
         "params": {
           "preset": "ar",
           "attack": 0.0,
-          "attackMax": 0.0,
-          "release": 3.5,
-          "releaseMax": 3.5
+          "attackMax": 0.0
         }
       },
       {

@@ -25,16 +25,21 @@
       {
         "id": "Breath_curve",
         "params": {
-          "exprKnots": [
-            {
-              "a": 2.2289178371429443,
-              "b": -1.0,
-              "form": "power",
-              "x": 440.0
-            }
+          "exprX": [
+            440.0
+          ],
+          "exprForm": [
+            "power"
+          ],
+          "exprA": [
+            2.2289178371429443
+          ],
+          "exprB": [
+            -1.0
           ],
           "interp": "linear",
-          "knots": [],
+          "x": [],
+          "y": [],
           "mode": "expressions",
           "source": {
             "ref": "__perf_frequency"
@@ -49,34 +54,45 @@
           "minValue": 0.4399999976158142,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
-          "stages": [
-            {
-              "endVal": 1.0,
-              "maxSec": 1.0,
-              "minSec": 0.0,
-              "percent": 0.4000000059604645,
-              "power": 2.5,
-              "startVal": 0.0,
-              "type": "Expo"
-            },
-            {
-              "endVal": 1.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.0,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 0.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.25,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Sine"
-            }
+          "startVal": [
+            0.0,
+            1.0,
+            1.0
+          ],
+          "endVal": [
+            1.0,
+            1.0,
+            0.0
+          ],
+          "power": [
+            2.5,
+            0.0,
+            0.0
+          ],
+          "type": [
+            "Expo",
+            "Linear",
+            "Sine"
+          ],
+          "percent": [
+            0.4000000059604645,
+            0.0,
+            0.25
+          ],
+          "minSec": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxSec": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "nominal": [
+            0.0,
+            0.0,
+            0.0
           ],
           "timeMode": "fraction",
           "timeScale": 0.5
@@ -90,34 +106,45 @@
           "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
-          "stages": [
-            {
-              "endVal": 0.800000011920929,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.029999999329447746,
-              "power": 6.0,
-              "startVal": 0.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 1.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.0,
-              "power": 0.0,
-              "startVal": 0.800000011920929,
-              "type": "Linear"
-            },
-            {
-              "endVal": 0.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.10000000149011612,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Sine"
-            }
+          "startVal": [
+            0.0,
+            0.800000011920929,
+            1.0
+          ],
+          "endVal": [
+            0.800000011920929,
+            1.0,
+            0.0
+          ],
+          "power": [
+            6.0,
+            0.0,
+            0.0
+          ],
+          "type": [
+            "Linear",
+            "Linear",
+            "Sine"
+          ],
+          "percent": [
+            0.029999999329447746,
+            0.0,
+            0.10000000149011612
+          ],
+          "minSec": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxSec": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "nominal": [
+            0.0,
+            0.0,
+            0.0
           ],
           "timeMode": "fraction",
           "timeScale": 1.0
@@ -127,16 +154,21 @@
       {
         "id": "Damp_cutoff_curve",
         "params": {
-          "exprKnots": [
-            {
-              "a": 7.0,
-              "b": 0.0,
-              "form": "linear",
-              "x": 440.0
-            }
+          "exprX": [
+            440.0
+          ],
+          "exprForm": [
+            "linear"
+          ],
+          "exprA": [
+            7.0
+          ],
+          "exprB": [
+            0.0
           ],
           "interp": "linear",
-          "knots": [],
+          "x": [],
+          "y": [],
           "mode": "expressions",
           "source": {
             "ref": "__perf_frequency2"

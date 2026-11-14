@@ -27,47 +27,53 @@
           "minValue": 0.35659998655319214,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
-          "stages": [
-            {
-              "endVal": 1.0,
-              "holdPct": 0.0,
-              "maxSec": 1.0,
-              "minSec": 0.0,
-              "percent": 0.13333334028720856,
-              "power": 0.0,
-              "startVal": 0.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 1.0,
-              "holdPct": 0.0,
-              "maxSec": 0.5,
-              "minSec": 0.0,
-              "percent": 0.0,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 1.0,
-              "holdPct": 0.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.0,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 0.0,
-              "holdPct": 0.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.20000000298023224,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Sine"
-            }
+          "startVal": [
+            0.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "endVal": [
+            1.0,
+            1.0,
+            1.0,
+            0.0
+          ],
+          "power": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "type": [
+            "Linear",
+            "Linear",
+            "Linear",
+            "Sine"
+          ],
+          "percent": [
+            0.13333334028720856,
+            0.0,
+            0.0,
+            0.20000000298023224
+          ],
+          "minSec": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxSec": [
+            1.0,
+            0.5,
+            0.0,
+            0.0
+          ],
+          "nominal": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
           ],
           "timeMode": "fraction",
           "timeScale": 1.0
@@ -81,47 +87,53 @@
           "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
-          "stages": [
-            {
-              "endVal": 1.0,
-              "holdPct": 0.0,
-              "maxSec": 1.0,
-              "minSec": 0.0,
-              "percent": 0.0,
-              "power": 0.0,
-              "startVal": 0.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 1.0,
-              "holdPct": 0.0,
-              "maxSec": 0.5,
-              "minSec": 0.0,
-              "percent": 0.0,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 1.0,
-              "holdPct": 0.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.0,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Linear"
-            },
-            {
-              "endVal": 0.0,
-              "holdPct": 0.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.25,
-              "power": 0.0,
-              "startVal": 1.0,
-              "type": "Sine"
-            }
+          "startVal": [
+            0.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "endVal": [
+            1.0,
+            1.0,
+            1.0,
+            0.0
+          ],
+          "power": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "type": [
+            "Linear",
+            "Linear",
+            "Linear",
+            "Sine"
+          ],
+          "percent": [
+            0.0,
+            0.0,
+            0.0,
+            0.25
+          ],
+          "minSec": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxSec": [
+            1.0,
+            0.5,
+            0.0,
+            0.0
+          ],
+          "nominal": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
           ],
           "timeMode": "fraction",
           "timeScale": 1.0
@@ -131,16 +143,21 @@
       {
         "id": "keytrack",
         "params": {
-          "exprKnots": [
-            {
-              "a": 4.5,
-              "b": 0.0,
-              "form": "linear",
-              "x": 440.0
-            }
+          "exprX": [
+            440.0
+          ],
+          "exprForm": [
+            "linear"
+          ],
+          "exprA": [
+            4.5
+          ],
+          "exprB": [
+            0.0
           ],
           "interp": "linear",
-          "knots": [],
+          "x": [],
+          "y": [],
           "mode": "expressions",
           "source": {
             "ref": "__perf_freq"
