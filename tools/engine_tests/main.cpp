@@ -9391,6 +9391,12 @@ struct CheckProbe final : Generator {
     float compute() override { return 0.0f; }
     const char* type_name() const override { return "CheckProbe"; }
 };
+// Refuses itself as built, whatever the file gives it.
+struct RefusingProbe final : Generator {
+    std::string validate() const override { return "probe refuses as built"; }
+    float compute() override { return 0.0f; }
+    const char* type_name() const override { return "RefusingProbe"; }
+};
 static void register_probes() {
     register_all_sources();
     auto& reg = SourceRegistry::instance();
@@ -9403,6 +9409,7 @@ static void register_probes() {
             p->seeded = seed.has_value();
             return p;
         });
+    if (!reg.has("RefusingProbe")) reg.register_type("RefusingProbe", tag, [](auto) { return std::make_shared<RefusingProbe>(); });
 }
 // The one-node instrument document as a plain sound: no instrument block.
 static std::string plain(const std::string& instrumentDoc) {
@@ -9589,6 +9596,10 @@ static void run_validate_tests() {
         const std::string warned = enum_column::one_node("CheckProbe", {{"warn", true}});
         CHECK(loads(file ? plain(warned) : warned, file));
         CHECK(loads(file ? plain(enum_column::one_node("CheckProbe", nullptr)) : enum_column::one_node("CheckProbe", nullptr), file));
+        // a node with no params key is asked too
+        const std::string bare = enum_column::one_node("RefusingProbe", nullptr);
+        CHECK(nlohmann::json::parse(bare)["graph"]["nodes"][1].count("params") == 0);
+        CHECK(refused_naming(file ? plain(bare) : bare, file, {"node 'n' (RefusingProbe): probe refuses as built"}));
     }
     // asked once per built node: one voice builds the probe once
     {
@@ -10724,6 +10735,20 @@ static void run_shaper_validate_tests() {
     CHECK(check({{"segs", {0.0f, 0.0f, 3.0f, 2.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f}}}).empty());
     CHECK(check({{"segs2", {0.0f, 0.0f, 2.0f, 3.0f}}}).empty());                                       // no segs beside segs2
     CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}}).empty());
+    // A list in which no segment is overridden is held empty, and the check
+    // reads the decoded lists, which keep their length: an all-default list
+    // is compared as the base loader compared the file's.
+    CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f, 0.0f, 0.0f}}}) == "segs2 length must match segs");
+    CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}}}) == "segs2 length must match segs");
+    CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f}}}) == "segs2 segment types must match segs");
+    CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f}}}) == "segs2 length must match segs");
+    CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f}}}) == "segs2 segment types must match segs");
+    CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f}}}).empty());
+    // values2 beside no values: four floats match the default curve the node
+    // holds and load (the base loader compared the file's absent array and
+    // refused); any other length is refused.
+    CHECK(check({{"values2", two}}).empty());
+    CHECK(check({{"values2", three}}) == "values2 length must match values");
     // Through the loader: the node, its type and the words.
     nlohmann::json bad = {{"values", two}, {"values2", three}};
     CHECK(three_kinds::refused_naming(enum_column::one_node("Shaper", bad), false,
@@ -10733,6 +10758,23 @@ static void run_shaper_validate_tests() {
                                       {"node 'n' (Shaper): segs2 segment types must match segs"}));
     nlohmann::json pair = {{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}, {"segs2", {0.0f, 0.0f, 3.0f, 1.0f}}};
     CHECK(three_kinds::loads(enum_column::one_node("Shaper", pair), false));
+    for (const bool file : {false, true}) {
+        const auto doc = [file](const nlohmann::json& params) {
+            const std::string d = enum_column::one_node("Shaper", params);
+            return file ? three_kinds::plain(d) : d;
+        };
+        CHECK(three_kinds::refused_naming(doc({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f, 0.0f, 0.0f}}}),
+                                          file, {"node 'n' (Shaper): segs2 length must match segs"}));
+        CHECK(three_kinds::refused_naming(doc({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f}}}),
+                                          file, {"node 'n' (Shaper): segs2 segment types must match segs"}));
+        CHECK(three_kinds::refused_naming(doc({{"segs", {0.0f, 0.0f, 2.0f, 1.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f}}}),
+                                          file, {"node 'n' (Shaper): segs2 length must match segs"}));
+        CHECK(three_kinds::refused_naming(doc({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f}}}),
+                                          file, {"node 'n' (Shaper): segs2 segment types must match segs"}));
+        CHECK(three_kinds::loads(doc({{"segs2", {0.0f, 0.0f, 2.0f, 1.0f}}}), file));
+        CHECK(three_kinds::loads(doc({{"values2", two}}), file));
+        CHECK(three_kinds::refused_naming(doc({{"values2", three}}), file, {"node 'n' (Shaper): values2 length must match values"}));
+    }
     // warnings(): one line under hysteresis without a slip curve, none otherwise.
     ShaperSource h;
     CHECK(h.warnings().empty());
@@ -11100,6 +11142,129 @@ static void run_phased_list_twin_tests() {
         for (int i = 0; i < 6000; ++i) one = one && p.next() == 0.5f;
         CHECK(one);
     }
+    // A list or table change never moves the walk a note laid out.
+    const auto pull = [](PhasedValueSource& p, int n, std::vector<float>& out) {
+        for (int i = 0; i < n; ++i) out.push_back(p.next());
+    };
+    const auto untouched = [&](const std::vector<Row>& rows, float overlap, int frames) {
+        PhasedValueSource p;
+        p.set_setting("overlap", overlap);
+        add_stages(p, rows);
+        set_table(p, rows, rows.size());
+        std::vector<float> out;
+        p.prepare(RenderContext{48000});
+        p.start(frames);
+        pull(p, frames, out);
+        return out;
+    };
+    const auto feeds_of = [](const std::vector<Row>& rows) {
+        std::vector<std::shared_ptr<ValueSource>> feeds;
+        for (const auto& r : rows) feeds.push_back(signal(r.kind, r.value));
+        return feeds;
+    };
+    const std::vector<float> twin = untouched(middle.rows, 0.05f, 9600);
+    for (int k : {100, 3000, 9000}) {   // in the first stage, the expand stage, and its fade into the last
+        // The list cleared and refilled with the same feeds mid-note, as the editor's rewire does.
+        PhasedValueSource p;
+        p.set_setting("overlap", 0.05f);
+        const auto feeds = feeds_of(middle.rows);
+        for (const auto& f : feeds) CHECK(p.add_param("sources", f));
+        set_table(p, middle.rows, 3);
+        std::vector<float> out;
+        p.prepare(RenderContext{48000});
+        p.start(9600);
+        pull(p, k, out);
+        CHECK(p.clear_param("sources"));
+        for (const auto& f : feeds) CHECK(p.add_param("sources", f));
+        pull(p, 9600 - k, out);
+        if (out != twin) std::printf("  refilled list at %d: the walk moved\n", k);
+        CHECK(out == twin);
+        // The four columns set again to the same values mid-note.
+        PhasedValueSource q;
+        q.set_setting("overlap", 0.05f);
+        add_stages(q, middle.rows);
+        set_table(q, middle.rows, 3);
+        std::vector<float> outQ;
+        q.prepare(RenderContext{48000});
+        q.start(9600);
+        pull(q, k, outQ);
+        set_table(q, middle.rows, 3);
+        pull(q, 9600 - k, outQ);
+        if (outQ != twin) std::printf("  table set again at %d: the walk moved\n", k);
+        CHECK(outQ == twin);
+    }
+    {   // Prepared and started with no feed, then a feed: zeros until the
+        // next start, then the feed plays as in a node that held it throughout.
+        PhasedValueSource p;
+        p.prepare(RenderContext{48000});
+        p.start(4800);
+        std::vector<float> out;
+        pull(p, 100, out);
+        auto feed = signal(2, 220.0f);
+        feed->prepare(RenderContext{48000});              // a node made after its owner's prepare is prepared by its host
+        CHECK(p.add_param("sources", feed));
+        pull(p, 4700, out);
+        CHECK(fnv(out) == zeros(4800));
+        p.start(4800);
+        std::vector<float> played;
+        pull(p, 4800, played);
+        CHECK(played == untouched({{2, 220.0f, 0.0f, 0.0f, 0.0f, 1.0f}}, 0.05f, 4800));
+    }
+    {   // Three stages cut to two mid-note (cleared, then two added): the walk
+        // keeps the boundaries the note laid out (2400, 4800, 9600) and reads
+        // the two stages, each sample against the hand-computed walk.
+        PhasedValueSource p;
+        p.set_setting("overlap", 0.01f);
+        p.set_array("percent", {0.25f, 0.25f, 0.5f});
+        auto one = c(1.0f), two = c(2.0f), four = c(4.0f);
+        for (const auto& f : {one, two, four}) CHECK(p.add_param("sources", f));
+        std::vector<float> out;
+        p.prepare(RenderContext{48000});
+        p.start(9600);
+        pull(p, 1000, out);
+        CHECK(p.clear_param("sources"));
+        CHECK(p.add_param("sources", one) && p.add_param("sources", two));
+        pull(p, 8600, out);
+        const int halfOl = int(0.01f * float(48000)) / 2;
+        const auto fade = [&](int pos) {            // stage 1 into stage 2 over the half overlap
+            const float t = float(pos) / float(halfOl);
+            return (1.0f * (1.0f - t) + 2.0f * 1.0f * t) * 1.0f;
+        };
+        const auto want = [&](int ptr) {
+            if (ptr < 2400) return 2400 - ptr <= halfOl ? fade(halfOl - (2400 - ptr)) : 1.0f;
+            const int pos = ptr - (ptr < 4800 ? 2400 : 4800);   // past the last boundary walked, the last stage
+            return pos < halfOl ? fade(pos) : 2.0f;
+        };
+        bool finite = true, walked = true;
+        int firstOff = -1;
+        for (int i = 0; i < int(out.size()); ++i) {
+            finite = finite && std::isfinite(out[size_t(i)]);
+            const bool same = std::fabs(out[size_t(i)] - want(i)) <= 1e-6f;
+            if (!same && firstOff < 0) firstOff = i;
+            walked = walked && same;
+        }
+        if (firstOff >= 0) std::printf("  cut to two: sample %d is %g, want %g\n", firstOff, out[size_t(firstOff)], want(firstOff));
+        CHECK(out.size() == 9600 && finite && walked);
+    }
+    {   // The next start after the list grew allocates nothing: the counters
+        // and boundaries were reserved for the list when it changed.
+        PhasedValueSource p;
+        add_stages(p, {middle.rows[0]});
+        p.prepare(RenderContext{48000});
+        const auto later = feeds_of({middle.rows[1], middle.rows[2]});
+        for (const auto& f : later) {
+            f->prepare(RenderContext{48000});
+            CHECK(p.add_param("sources", f));
+        }
+        alloc_probe::reset();
+        alloc_probe::arm();
+        p.start(9600);
+        for (int i = 0; i < 9600; ++i) (void)p.next();
+        alloc_probe::disarm();
+        if (alloc_probe::count()) std::printf("  the start after the list grew: %zu allocation(s)\n", alloc_probe::count());
+        CHECK(alloc_probe::count() == 0);
+        alloc_probe::reset();
+    }
 }
 
 static void run_expand_rule_slot_tests() {
@@ -11451,6 +11616,20 @@ static void run_declared_reader_tests() {
         }
 }
 
+static void run_branch_key_tests() {
+    using namespace retired_forms;
+    std::printf("the loader's key allowlist holds no key a deleted reader alone read\n");
+    CHECK(refused_with(node("SineSource", R"({"weight":0.5})"), "node 'n' (SineSource): unknown key 'weight'"));
+    CHECK(refused_with(node("SineSource", R"({"sections":3})"), "node 'n' (SineSource): unknown key 'sections'"));
+    CHECK(refused_with(node("SineSource", R"({"oneShot":true})"), "node 'n' (SineSource): unknown key 'oneShot'"));
+    CHECK(refused_with(node("MultiSource", R"({"source":[{"ref":"a"}],"delay":2})"), "node 'n' (MultiSource): unknown key 'delay'"));
+    // Where a type declares the key, it loads.
+    CHECK(loads_both(node("BWLowpassFilter", R"({"source":{"ref":"a"},"sections":3})")));
+    CHECK(loads_both(node("MultiSource", R"({"source":[{"ref":"a"},{"ref":"b"}],"weights":[0.5,0.25]})")));
+    CHECK(loads_both(node("NameGate", R"({"name":"tongue"})")));
+    CHECK(loads_both(node("SegmentSource", R"({"values":[0.0,1.0],"oneShot":true})")));
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -11624,6 +11803,7 @@ int main() {
     run_retired_form_load_tests();
     run_feed_shape_refusal_tests();
     run_declared_reader_tests();
+    run_branch_key_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

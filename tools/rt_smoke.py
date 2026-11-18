@@ -25,7 +25,7 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, fifteen cases, each on its own line and not counted among
+After the shapes, sixteen cases, each on its own line and not counted among
 the shapes. Six fixtures written to the temp folder must be refused by
 mforce_ui --roundtrip, each with a non-zero exit, tools/convert_patch.py named
 in its output, and no file written: a patch carrying an instrument.paramMap
@@ -35,7 +35,9 @@ holding a knot list (retired-knots), a MultiSource with a weight on a feed
 FullPartials holding an inline expandRule (retired-inline). A NameGate's
 name must survive a round trip (string-setting), and a MultiSource's weights
 array must survive one with the round trip rendering the original's bytes
-(list-weights). An Envelope whose stage table lacks a
+(list-weights). A MultiSource holding a number in its list must be
+refused the same way, its pin named in place of the converter, and must load
+in the command-line tool (list-number). An Envelope whose stage table lacks a
 column must be refused the same way, with the engine's table sentence named
 in place of the converter (ragged-table). make-instrument: mforce_ui
 --convert-roundtrip on patches/baselines/distortion_test.json must exit 0 and
@@ -174,6 +176,10 @@ RETIRED_FEED_FIXTURE = instrument_doc(TWO_SINES + [
     {"id": "mix", "type": "MultiSource",
      "params": {"source": [{"ref": "s1", "weight": 0.5}, {"ref": "s2"}]}}], "mix")
 
+LIST_NUMBER_FIXTURE = instrument_doc(TWO_SINES + [
+    {"id": "mix", "type": "MultiSource", "params": {"source": [{"ref": "s1"}, 0.5]}}], "mix")
+LIST_NUMBER_SENTENCE = "'source' holds a value that is not a link"
+
 RETIRED_RENAME_FIXTURE = instrument_doc(TWO_SINES + [
     {"id": "lp", "type": "BWLowpassFilter", "params": {"source": {"ref": "s2"}, "cutoff": 800.0}}], "lp")
 
@@ -275,6 +281,15 @@ def list_weights_failures(td):
         why.append("a render failed")
     elif sha(wa) != sha(wb):
         why.append("render differs")
+    return why
+
+
+def list_number_failures(td):
+    """LIST_NUMBER_FIXTURE: the editor refuses it naming the pin and writes
+    nothing; the command-line tool loads it. Return why not."""
+    why = refusal_failures(td, LIST_NUMBER_FIXTURE, "list_number", LIST_NUMBER_SENTENCE)
+    if not render(Path(td) / "list_number.json", Path(td) / "list_number.wav"):
+        why.append("the CLI refused it")
     return why
 
 
@@ -460,6 +475,7 @@ def main():
                            ("retired-inline", lambda: refusal_failures(td, RETIRED_INLINE_FIXTURE, "retired_inline")),
                            ("string-setting", lambda: string_setting_failures(td)),
                            ("list-weights", lambda: list_weights_failures(td)),
+                           ("list-number", lambda: list_number_failures(td)),
                            ("ragged-table", lambda: refusal_failures(td, RAGGED_FIXTURE, "ragged_table",
                                                                      RAGGED_SENTENCE)),
                            ("make-instrument", lambda: make_instrument_failures(td)),

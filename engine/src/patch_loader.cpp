@@ -262,26 +262,25 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
     // never invent one. The structure meter's tests fail when the scrape
     // gains a key this list lacks.
     static const std::unordered_set<std::string> kBranchKeys = {
-        "absolute", "attack", "attackCurve", "attackMax",
-        "attackMin", "attackPower", "baseValue", "bias", "channels",
+        "attack", "attackCurve", "attackMax",
+        "attackMin", "attackPower", "channels",
         "curve", "decay", "decayCurve", "decayLevel",
-        "decayMax", "decayMin", "decayPower", "delay",
+        "decayMax", "decayMin", "decayPower",
         "dynamicPins",
         "field", "formants", "frames", "frequency",
         "gains", "glideMs", "graph",
         "id", "inputs", "instrument", "interp", "interpolate",
         "mode", "morph",
-        "name", "nodes", "normalized", "oneShot",
+        "nodes",
         "onsets", "output", "paramMap",
         "polyphony",
         "powers", "powers2", "preset",
         "ref", "release", "releaseCurve", "releaseMax", "releaseMin",
-        "releasePower", "reverse", "sampleRate", "score", "seconds", "sections",
+        "releasePower", "reverse", "sampleRate", "score", "seconds",
         "seed", "segs", "segs2", "source",
         "sustain", "sustainLevel",
-        "sustaining", "tap", "target", "targetPartials", "timeMode",
-        "type", "values", "values2", "varPct", "vcurve", "volume",
-        "weight",
+        "sustaining", "tap", "target", "timeMode",
+        "type", "values", "values2", "vcurve", "volume",
     };
     auto known = [&](const std::string& k) {
         if (kBranchKeys.count(k)) return true;

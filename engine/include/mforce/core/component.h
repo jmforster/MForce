@@ -47,8 +47,7 @@ struct Component {
     return s ? s->first() : nullptr;
   }
   // Wiring one more: a multi slot and an InputList append, and a null part
-  // empties them; a single slot, a Param or an Input replaces (a node that
-  // keeps a hand-written list may append in its override). Defined in
+  // empties them; a single slot, a Param or an Input replaces. Defined in
   // component.cpp beside set_param.
   virtual bool add_param(std::string_view name, std::shared_ptr<Component> part);
   // The Param pin of that name, or nullptr when the node has none.

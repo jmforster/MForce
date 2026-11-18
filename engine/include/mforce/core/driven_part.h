@@ -12,9 +12,11 @@ namespace mforce {
 // base owns the pin lifecycle its members share: prepare and start forward
 // to every pin, next advances every Param pin, each in declaration order,
 // then the hook runs — so a part keeps only its declarations and its work,
-// and a pin it adds is never left unprepared. A part's connectable pins are
-// Manual: no sweep runs on a part. What the part answers between the calls
-// (a sum of partials, a gain at a frequency) is its derived type's.
+// and a pin it adds is never left unprepared. An InputList is the exception,
+// so no part declares one (prepare asserts it): it is always Manual, and its
+// feeds are its owner's to prepare, start and pull. A part's connectable
+// pins are Manual: no sweep runs on a part. What the part answers between
+// the calls (a sum of partials, a gain at a frequency) is its derived type's.
 // ---------------------------------------------------------------------------
 struct DrivenPart : Component {
   // prepare also lists the part's Param pins, so next() walks that list and
@@ -23,6 +25,8 @@ struct DrivenPart : Component {
   void prepare(const RenderContext& ctx) {
     paramCount_ = 0;
     for (auto* pin : pins()) {
+      assert(pin->kind != PinKind::InputList
+             && "a part declares an InputList: its feeds are its owner's to prepare, start and pull, and prepare reaches none");
       pin->prepare(ctx);
       if (pin->kind == PinKind::Param) {
         assert(paramCount_ < kMaxParams && "a part declares more Param pins than DrivenPart::kMaxParams");

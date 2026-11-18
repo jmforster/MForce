@@ -93,20 +93,23 @@ struct ShaperSource final : Processor {
     }
   }
 
-  // Curve B against curve A, on the arrays as the node holds them (a refused
-  // curve rolled back, the segment lists normalised): a point-space morph
-  // needs as many points, and the segment types are shared structure but
-  // for the Expo/InverseExpo pair, one signed-curvature axis that the morph
-  // lerps across.
+  // Curve B against curve A. The points on the arrays as the node holds
+  // them (a refused curve rolled back): a point-space morph needs as many.
+  // The segments on the decoded lists, segs_ and segsB_, which keep one
+  // entry per segment of the file's list whether or not any is overridden:
+  // both present, they must be as long, and each segment's kind (0 not
+  // overridden, else 1 + its type) must match but for the Expo/InverseExpo
+  // pair, one signed-curvature axis that the morph lerps across.
   std::string validate() const override {
     if (!values2.values.empty() && values2.values.size() != values.values.size())
       return "values2 length must match values";
-    if (!segs.values.empty() && !segs2.values.empty()) {
-      if (segs2.values.size() != segs.values.size())
+    if (!segs_.empty() && !segsB_.empty()) {
+      if (segsB_.size() != segs_.size())
         return "segs2 length must match segs";
-      const auto isPow = [](int t) { return t == 2 || t == 3; };
-      for (size_t i = 0; i < segs.values.size(); i += 2) {
-        const int a = int(segs.values[i]), b = int(segs2.values[i]);
+      const auto kind = [](const Curve::Seg& s) { return s.overridden ? 1 + int(s.type) : 0; };
+      const auto isPow = [](int k) { return k == 2 || k == 3; };
+      for (size_t i = 0; i < segs_.size(); ++i) {
+        const int a = kind(segs_[i]), b = kind(segsB_[i]);
         if (a != b && !(isPow(a) && isPow(b)))
           return "segs2 segment types must match segs";
       }

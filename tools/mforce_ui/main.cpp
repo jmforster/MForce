@@ -1405,7 +1405,10 @@ static void load_graph_from_path(const std::string& path) {
     // loader's sentence, before anything is cleared, wherever the one table
     // has a row for it: a key of a node's params; a key beside 'ref' or 'tap'
     // on a feed, given alone or in a list; an object holding neither, under
-    // the key of a slot that took it inline.
+    // the key of a slot that took it inline. A list pin (an input the type
+    // declares multi) holding an item that is not a link is refused too: the
+    // editor links the list's refs and taps and has no row for anything else,
+    // so a save would drop it.
     if (root.contains("graph") && root["graph"].contains("nodes") && root["graph"]["nodes"].is_array())
         for (const auto& jnode : root["graph"]["nodes"]) {
             if (!jnode.contains("type") || !jnode["type"].is_string()) continue;
@@ -1422,6 +1425,10 @@ static void load_graph_from_path(const std::string& path) {
                     if (k.key() != "ref" && k.key() != "tap")
                         refuse("'" + pin + "': ", mforce::retired_key_refusal(type, k.key(), mforce::RetiredAt::FeedKey));
             };
+            std::unordered_set<std::string> listPins;
+            if (auto& reg = SourceRegistry::instance(); reg.has(type))
+                for (const auto& d : reg.create(type)->input_descriptors())
+                    if (d.multi) listPins.insert(d.name);
             for (auto it = jnode["params"].begin(); it != jnode["params"].end(); ++it) {
                 const json& v = it.value();
                 refuse("", mforce::retired_key_refusal(type, it.key()));
@@ -1430,6 +1437,12 @@ static void load_graph_from_path(const std::string& path) {
                 feed_keys(it.key(), v);
                 if (v.is_array())
                     for (const auto& item : v) feed_keys(it.key(), item);
+                if (v.is_array() && listPins.count(it.key()))
+                    for (const auto& item : v)
+                        if (!item.is_object() || !(item.contains("ref") || item.contains("tap")))
+                            throw std::runtime_error("node '" + id + "' (" + type + "): '" + it.key()
+                                                     + "' holds a value that is not a link; the editor cannot "
+                                                       "show it (give it a node of its own)");
             }
         }
     // From here a throw leaves the editor empty, unnamed (a Save is a Save

@@ -91,17 +91,18 @@ struct PhasedValueSource final : Generator {
       cum += stageCounts_[i];
       boundaries_[i] = cum;
     }
+    walkStages_ = int(std::min(stages_.size(), boundaries_.size()));
   }
 
   float compute() override {
-    if (stages_.empty()) return 0.0f;
+    if (walkStages_ == 0) return 0.0f;
     ++ptr_;
     float amp = amplitude.current();
 
     // Find current stage
     int stageIdx = 0;
     int prevBound = 0;
-    for (int i = 0; i < int(boundaries_.size()); ++i) {
+    for (int i = 0; i < walkStages_; ++i) {
       if (ptr_ < boundaries_[i]) { stageIdx = i; break; }
       prevBound = boundaries_[i];
       stageIdx = i;
@@ -113,7 +114,7 @@ struct PhasedValueSource final : Generator {
 
     // Check if we're in a transition zone
     bool transFromPrev = (stageIdx > 0 && posInStage < halfOl);
-    bool transToNext = (stageIdx < int(stages_.size()) - 1 && (stageLen - posInStage) <= halfOl);
+    bool transToNext = (stageIdx < walkStages_ - 1 && (stageLen - posInStage) <= halfOl);
 
     if (transFromPrev) {
       // Crossfade from previous stage to current
@@ -144,9 +145,16 @@ private:
 
   // The layout compute() walks: stage i is feed i with row i of the table,
   // or the columns' defaults past its end. Derived from the list and the
-  // four columns whenever one changes, and written nowhere else. A walk laid
-  // out for more stages than the list now holds is cut to the list, so
-  // compute() stays inside it until the next start lays the walk out again.
+  // four columns whenever one changes, and written nowhere else.
+  //
+  // A list or table change never moves the walk a note laid out. The walk
+  // covers the stages that are both listed and laid out (walkStages_): a
+  // stage added mid-note joins at the next start, a stage removed mid-note
+  // leaves the walk, and a list cleared and refilled with the same feeds
+  // leaves a playing note as it was. The counters and boundaries keep the
+  // note's layout here; they are reserved for the list, at wiring and never
+  // on the audio thread, so the next start lays a grown list out within
+  // capacity.
   void rebuild_stages_() {
     const auto row = [](const Array& column, size_t i) {
       return i < column.values.size() ? column.values[i] : column.def;
@@ -154,13 +162,15 @@ private:
     stages_.clear();
     for (size_t i = 0; i < sources.sources.size(); ++i)
       stages_.push_back({sources.sources[i], row(percent, i), row(minSec, i), row(maxSec, i), row(gain, i)});
-    if (stageCounts_.size() > stages_.size()) stageCounts_.resize(stages_.size());
-    if (boundaries_.size() > stages_.size()) boundaries_.resize(stages_.size());
+    stageCounts_.reserve(stages_.size());
+    boundaries_.reserve(stages_.size());
+    walkStages_ = int(std::min(stages_.size(), boundaries_.size()));
   }
 
   std::vector<Stage> stages_;
   std::vector<int> stageCounts_;
   std::vector<int> boundaries_;
+  int walkStages_{0};                 // the stages compute() walks: listed and laid out
   int totalFrames_{0};
   int overlapSamples_{0};
   int ptr_{-1};
