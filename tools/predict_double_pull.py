@@ -7,7 +7,7 @@ changes. This tool models that earlier engine on purpose: it is the record of
 how the one such patch in the tree was found.
 
 Rules mirror the loader as it was then: normal edges = {"ref": id} anywhere under
-params and plain ids under "inputs"; a tap edge = {"tap": id}; the tail list =
+params; a tap edge = {"tap": id}; the tail list =
 nodes with a tap consumer, no normal consumer, not the output (in nodeOrder);
 the first consumer of a shared source (wiring order) advances it, later ones
 read a wrapper -- so a node is pulled by its FIRST consumer only, and the
@@ -33,13 +33,6 @@ def edges_of(node):
         elif isinstance(v, list):
             for x in v: scan(x)
     scan(node.get("params", {}))
-    def scan_ids(v):
-        if isinstance(v, str): out.append(("ref", v))
-        elif isinstance(v, dict):
-            for x in v.values(): scan_ids(x)
-        elif isinstance(v, list):
-            for x in v: scan_ids(x)
-    if "inputs" in node: scan_ids(node["inputs"])
     return out
 
 

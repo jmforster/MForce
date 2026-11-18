@@ -36,10 +36,10 @@ def patch(type_name, amp):
         "graph": {
             "nodes": [
                 {"id": "src", "type": type_name, "params": params},
-                {"id": "ch1", "type": "SoundChannel", "inputs": {"source": "src"},
-                 "params": {"volume": 1.0, "pan": 0.0}},
-                {"id": "mix", "type": "StereoMixer", "inputs": {"channels": ["ch1"]},
-                 "params": {"gainL": 1.0, "gainR": 1.0}},
+                {"id": "ch1", "type": "SoundChannel",
+                 "params": {"source": {"ref": "src"}, "volume": 1.0, "pan": 0.0}},
+                {"id": "mix", "type": "StereoMixer",
+                 "params": {"channels": [{"ref": "ch1"}], "gainL": 1.0, "gainR": 1.0}},
             ],
             "output": "mix",
         },

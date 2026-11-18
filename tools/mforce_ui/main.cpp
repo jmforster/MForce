@@ -557,8 +557,8 @@ static std::vector<Link> s_links;
 
 // ===========================================================================
 // Groups (spec §3): UI-level structure over the FLAT graph. The engine never
-// sees them — the patch JSON keeps every node top-level and a root "groups"
-// section records membership. Members are node labels or other group names
+// sees them — the patch JSON keeps every node top-level and the layout's
+// "groups" records membership. Members are node labels or other group names
 // (nesting). editorId/pinIds are synthetic imnodes ids for the collapsed
 // node; pinIds[0..n-1] = input pins (one per boundary target), last = output.
 // ===========================================================================
@@ -1394,13 +1394,14 @@ static void load_graph_from_path(const std::string& path) {
     // as it was. A failure after them leaves an empty graph.
     if (root.contains("instrument") && root["instrument"].contains("paramMap"))
         throw std::runtime_error(mforce::kParamMapRefusal);
-    // 'layout' holds what 'ui' and a top-level 'groups' hold, so a file with
-    // it and either of them is refused. A comment, the file's or a node's,
-    // is a string.
-    if (root.contains("layout"))
-        for (const char* k : {"ui", "groups"})
-            if (root.contains(k))
-                throw std::runtime_error(std::string("the file holds both 'layout' and '") + k + "'");
+    // A top-level key the one table retires (ui, groups, _comment,
+    // _provenance) is refused with its sentence. A comment, the file's or a
+    // node's, is a string.
+    if (root.is_object())
+        for (auto it = root.begin(); it != root.end(); ++it) {
+            const std::string retired = mforce::retired_key_refusal("", it.key(), mforce::RetiredAt::TopKey);
+            if (!retired.empty()) throw std::runtime_error(retired);
+        }
     if (root.contains("comment") && !root["comment"].is_string())
         throw std::runtime_error("the file's 'comment' takes a string, not " + root["comment"].dump());
     if (root.contains("graph") && root["graph"].contains("nodes") && root["graph"]["nodes"].is_array())
@@ -1410,22 +1411,24 @@ static void load_graph_from_path(const std::string& path) {
                                          + jnode["comment"].dump());
     // A spelling the engine does not read is refused with the engine
     // loader's sentence, before anything is cleared, wherever the one table
-    // has a row for it: a key of a node's params; a key beside 'ref' or 'tap'
-    // on a feed, given alone or in a list; an object holding neither, under
-    // the key of a slot that took it inline. A list pin (an input the type
-    // declares multi) holding an item that is not a link is refused too: the
-    // editor links the list's refs and taps and has no row for anything else,
-    // so a save would drop it.
+    // has a row for it: a key of the node object beside params; a key of a
+    // node's params; a key beside 'ref' or 'tap' on a feed, given alone or in
+    // a list; an object holding neither, under the key of a slot that took it
+    // inline. A list pin (an input the type declares multi) holding an item
+    // that is not a link is refused too: the editor links the list's refs and
+    // taps and has no row for anything else, so a save would drop it.
     if (root.contains("graph") && root["graph"].contains("nodes") && root["graph"]["nodes"].is_array())
         for (const auto& jnode : root["graph"]["nodes"]) {
             if (!jnode.contains("type") || !jnode["type"].is_string()) continue;
-            if (!jnode.contains("params") || !jnode["params"].is_object()) continue;
             const std::string id = jnode.value("id", std::string());
             const std::string type = jnode["type"].get<std::string>();
             const auto refuse = [&](const std::string& where, const std::string& retired) {
                 if (!retired.empty())
                     throw std::runtime_error("node '" + id + "' (" + type + "): " + where + retired);
             };
+            for (auto k = jnode.begin(); k != jnode.end(); ++k)
+                refuse("", mforce::retired_key_refusal(type, k.key(), mforce::RetiredAt::NodeKey));
+            if (!jnode.contains("params") || !jnode["params"].is_object()) continue;
             const auto feed_keys = [&](const std::string& pin, const json& feed) {
                 if (!feed.is_object() || !(feed.contains("ref") || feed.contains("tap"))) return;
                 for (auto k = feed.begin(); k != feed.end(); ++k)
@@ -1492,13 +1495,10 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
         s_loadedComment = root["comment"].get<std::string>();
     apply_score_defaults(s_loadedScore);
 
-    // The editor's layout, read from 'layout' when the file has it: its
-    // 'positions' by node id, 'output' for the Output node, 'panning',
-    // 'groups', and 'faces', each Note face with its own 'pos'. A file
-    // tools/convert_patch.py has not rewritten holds 'ui' ('positions' keyed
-    // by node id, by a face's label and by "__output"; 'panning';
-    // 'noteFaces') and a top-level 'groups', read the same way. layoutPos
-    // answers a node id or a face's label; outputPos the Output node.
+    // The editor's layout, read from 'layout': its 'positions' by node id,
+    // 'output' for the Output node, 'panning', 'groups', and 'faces', each
+    // Note face with its own 'pos'. layoutPos answers a node id or a face's
+    // label; outputPos the Output node.
     nlohmann::json layoutPos = nlohmann::json::object();
     nlohmann::json outputPos, layoutPanning, layoutGroups, layoutFaces;
     bool layoutHasPositions = false;
@@ -1521,15 +1521,6 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                 }
         if (lay.contains("panning")) layoutPanning = lay["panning"];
         if (lay.contains("groups"))  layoutGroups  = lay["groups"];
-    } else {
-        if (root.contains("ui") && root["ui"].contains("positions")) {
-            layoutPos = root["ui"]["positions"];
-            if (layoutPos.contains("__output")) outputPos = layoutPos["__output"];
-            layoutHasPositions = true;
-        }
-        if (root.contains("ui") && root["ui"].contains("panning"))   layoutPanning = root["ui"]["panning"];
-        if (root.contains("ui") && root["ui"].contains("noteFaces")) layoutFaces   = root["ui"]["noteFaces"];
-        if (root.contains("groups")) layoutGroups = root["groups"];
     }
 
     const auto& nodes = root["graph"]["nodes"];
@@ -1838,7 +1829,7 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                     face.perfFieldComments[f] = c->second;
             }
         }
-        // Stragglers (a noteFaces list that missed a file node): each id
+        // Stragglers (a faces list that missed a file node): each id
         // needs a face pin of its OWN — claim the first face whose slot for
         // the field is free, else open a new face. Sharing an already-claimed
         // pin would drop the id on save (one file node per wired pin).
@@ -1906,28 +1897,6 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
             auto inIt = inputPinMap.find(id + "." + paramName);
             if (outIt != outputPinMap.end() && inIt != inputPinMap.end()) {
                 s_links.emplace_back(outIt->second, inIt->second);
-            }
-        }
-
-        // A SoundChannel's source given in a node-level 'inputs' block, the
-        // spelling tools/convert_patch.py rewrites as the feed params.source
-        if (jnode.contains("inputs") && jnode["inputs"].contains("source")) {
-            std::string srcId = jnode["inputs"]["source"].get<std::string>();
-            auto outIt = outputPinMap.find(srcId);
-            auto inIt = inputPinMap.find(id + ".source");
-            if (outIt != outputPinMap.end() && inIt != inputPinMap.end())
-                s_links.emplace_back(outIt->second, inIt->second);
-        }
-
-        // A StereoMixer's channel ids given in a node-level 'inputs' block,
-        // the spelling tools/convert_patch.py rewrites as the feeds
-        // params.channels: each linked into the 'channels' pin, in list order
-        if (jnode.contains("inputs") && jnode["inputs"].contains("channels")) {
-            auto inIt = inputPinMap.find(id + ".channels");
-            for (const auto& chId : jnode["inputs"]["channels"]) {
-                auto outIt = outputPinMap.find(chId.get<std::string>());
-                if (outIt != outputPinMap.end() && inIt != inputPinMap.end())
-                    s_links.emplace_back(outIt->second, inIt->second);
             }
         }
     }
@@ -2015,11 +1984,10 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
             if (pos) {
                 float x = (*pos)[0].get<float>();
                 float y = (*pos)[1].get<float>();
-                // Corrupt-coordinate guard: files in the wild carry garbage
-                // written by the old save-while-drilled __output bug
-                // (x=1.19e27, y=-2.4e13 observed; the latter crashed the
-                // GUI at first frame). Treat absurd positions as absent —
-                // the node re-places instead of the app dying.
+                // Corrupt-coordinate guard: a file can carry an absurd
+                // coordinate (x=1.19e27, y=-2.4e13 observed; the latter
+                // crashes the GUI at first frame). Treat absurd positions as
+                // absent — the node re-places instead of the app dying.
                 if (!(std::fabs(x) < 1e7f && std::fabs(y) < 1e7f)) {
                     std::fprintf(stderr, "[load] the position of '%s' is "
                                  "corrupt (%g, %g) — ignored\n",

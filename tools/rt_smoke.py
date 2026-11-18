@@ -25,8 +25,8 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, twenty cases, each on its own line and not counted among
-the shapes. Six fixtures written to the temp folder must be refused by
+After the shapes, twenty-six cases, each on its own line and not counted
+among the shapes. Six fixtures written to the temp folder must be refused by
 mforce_ui --roundtrip, each with a non-zero exit, tools/convert_patch.py named
 in its output, and no file written: a patch carrying an instrument.paramMap
 (refusal), an Envelope holding a stage list (retired-key), a CurveNode
@@ -35,7 +35,12 @@ holding a knot list (retired-knots), a MultiSource with a weight on a feed
 FullPartials holding an inline expandRule (retired-inline). A NameGate's
 name must survive a round trip (string-setting), and a MultiSource's weights
 array must survive one with the round trip rendering the original's bytes
-(list-weights). A MultiSource holding a number in its list must be
+(list-weights). Six more must be refused the same way, each with the
+engine's table sentence for its spelling: a plain sound whose channel holds
+a node-level inputs block (retired-ch-inputs), one whose mixer does
+(retired-mix-inputs), and an instrument holding a top-level ui (retired-ui),
+groups (retired-groups), _comment (retired-comment) or _provenance
+(retired-provenance). A MultiSource holding a number in its list must be
 refused the same way, its pin named in place of the converter, and must load
 in the command-line tool (list-number). An Envelope whose stage table lacks a
 column must be refused the same way, with the engine's table sentence named
@@ -63,9 +68,8 @@ order and renders its own bytes, and so does its twin with the list reversed,
 whose render differs. layout: an instrument whose layout holds two nodes'
 positions, the Output node's, a Note face with its pos and a group of a node
 and the face comes back with that layout, positions holding no face label and
-no __output; the same patch written with ui and a top-level groups comes back
-with the same layout. comment: a patch's comment, a node's and a PerformNode
-file node's all come back.
+no __output. comment: a patch's comment, a node's and a PerformNode file
+node's all come back.
 
 Usage: python tools/rt_smoke.py
 """
@@ -251,11 +255,34 @@ LAYOUT = {"positions": {"env": [100.0, 200.0], "osc": [300.0, 100.0]},
           "faces": [{"label": "Note", "fields": {"frequency": "pf"}, "pos": [100.0, 50.0]}],
           "groups": [{"name": "grp", "members": ["env", "Note"], "pos": [40.0, 400.0]}]}
 LAYOUT_FIXTURE = dict(instrument_doc(LAYOUT_NODES, "osc"), layout=LAYOUT)
-OLD_LAYOUT_FIXTURE = dict(instrument_doc(LAYOUT_NODES, "osc"),
-                          ui={"positions": {"env": [100.0, 200.0], "osc": [300.0, 100.0],
-                                            "Note": [100.0, 50.0], "__output": [500.0, 100.0]},
-                              "noteFaces": [{"label": "Note", "fields": {"frequency": "pf"}}]},
-                          groups=LAYOUT["groups"])
+
+# The spellings the one table retires: the node-level inputs block of a
+# channel and of a mixer, and four top-level keys. Each fixture holds one,
+# beside its sentence.
+CONVERTER = "is no longer read: python tools/convert_patch.py <patch> rewrites it as "
+TERMINAL_SINE = {"id": "osc", "type": "SineSource", "params": {"frequency": 220.0, "amplitude": 0.5}}
+RETIRED_SPELLINGS = [
+    ("retired-ch-inputs", "retired_ch_inputs", plain_doc([
+        TERMINAL_SINE,
+        {"id": "ch1", "type": "SoundChannel", "inputs": {"source": "osc"}, "params": {"volume": 1.0}},
+        {"id": "mix", "type": "StereoMixer", "params": {"channels": [{"ref": "ch1"}]}}], "mix"),
+     "node 'ch1' (SoundChannel): 'inputs' beside params " + CONVERTER + "the feed 'source' in params"),
+    ("retired-mix-inputs", "retired_mix_inputs", plain_doc([
+        TERMINAL_SINE,
+        {"id": "ch1", "type": "SoundChannel", "params": {"source": {"ref": "osc"}, "volume": 1.0}},
+        {"id": "mix", "type": "StereoMixer", "inputs": {"channels": ["ch1"]}}], "mix"),
+     "node 'mix' (StereoMixer): 'inputs' beside params " + CONVERTER + "the feeds 'channels' in params"),
+    ("retired-ui", "retired_ui", dict(instrument_doc(LAYOUT_NODES, "osc"),
+                                      ui={"positions": {"env": [100.0, 200.0], "osc": [300.0, 100.0]}}),
+     "'ui' at the top of the file " + CONVERTER + "layout"),
+    ("retired-groups", "retired_groups", dict(instrument_doc(LAYOUT_NODES, "osc"), groups=LAYOUT["groups"]),
+     "'groups' at the top of the file " + CONVERTER + "layout.groups"),
+    ("retired-comment", "retired_comment", dict(instrument_doc(LAYOUT_NODES, "osc"), _comment="a patch's notes"),
+     "'_comment' at the top of the file " + CONVERTER + "comment"),
+    ("retired-provenance", "retired_provenance",
+     dict(instrument_doc(LAYOUT_NODES, "osc"), _provenance={"source": "a.json", "why": "a test"}),
+     "'_provenance' at the top of the file " + CONVERTER + "comment"),
+]
 
 COMMENT_FIXTURE = dict(instrument_doc([
     dict(PERFORM_FREQUENCY, comment="the note's pitch"),
@@ -339,19 +366,16 @@ def two_channels_failures(td):
 
 
 def layout_failures(td):
-    """Round-trip LAYOUT_FIXTURE and OLD_LAYOUT_FIXTURE; return why either does
-    not come back as LAYOUT, with no ui and no top-level groups."""
-    why = []
-    for name, fixture in (("layout", LAYOUT_FIXTURE), ("layout_old", OLD_LAYOUT_FIXTURE)):
-        src = Path(td) / (name + ".json")
-        src.write_text(json.dumps(fixture), encoding="utf-8")
-        w, _, doc = roundtrip_doc(td, src, name)
-        if w:
-            why += ["%s: %s" % (name, x) for x in w]
-            continue
-        why += ["%s: %s written" % (name, k) for k in ("ui", "groups") if k in doc]
-        if doc.get("layout") != LAYOUT:
-            why.append("%s: layout is %s" % (name, json.dumps(doc.get("layout"))))
+    """Round-trip LAYOUT_FIXTURE; return why it does not come back as LAYOUT,
+    with no ui and no top-level groups."""
+    src = Path(td) / "layout.json"
+    src.write_text(json.dumps(LAYOUT_FIXTURE), encoding="utf-8")
+    why, _, doc = roundtrip_doc(td, src, "layout")
+    if why:
+        return why
+    why += ["%s written" % k for k in ("ui", "groups") if k in doc]
+    if doc.get("layout") != LAYOUT:
+        why.append("layout is %s" % json.dumps(doc.get("layout")))
     return why
 
 
@@ -637,12 +661,15 @@ def main():
                 print(f"{label:<16} RENDER DIFF"); bad += 1; continue
             print(f"{label:<16} ok")
         failed = False
+        retired = tuple((label, lambda name=name, doc=doc, sentence=sentence: refusal_failures(td, doc, name, sentence))
+                        for label, name, doc, sentence in RETIRED_SPELLINGS)
         for label, why in (("refusal", lambda: refusal_failures(td, PARAMMAP_FIXTURE)),
                            ("retired-key", lambda: refusal_failures(td, RETIRED_FIXTURE, "retired_key")),
                            ("retired-knots", lambda: refusal_failures(td, RETIRED_KNOTS_FIXTURE, "retired_knots")),
                            ("retired-feed", lambda: refusal_failures(td, RETIRED_FEED_FIXTURE, "retired_feed")),
                            ("retired-rename", lambda: refusal_failures(td, RETIRED_RENAME_FIXTURE, "retired_rename")),
                            ("retired-inline", lambda: refusal_failures(td, RETIRED_INLINE_FIXTURE, "retired_inline")),
+                           *retired,
                            ("string-setting", lambda: string_setting_failures(td)),
                            ("list-weights", lambda: list_weights_failures(td)),
                            ("list-number", lambda: list_number_failures(td)),

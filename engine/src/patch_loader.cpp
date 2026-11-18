@@ -140,8 +140,8 @@ static std::shared_ptr<ValueSource> resolve_signal(
 // edges is never reached by the root pull — the loop tail would be silently
 // dead — so the voice pulls it once per sample after the root. Membership is
 // decided from the file, where every edge is enumerable (a built graph hides
-// multi-input entries and setter-held envelopes): every {"ref":id},
-// plain-string "inputs" id and {"tap":id} across all nodes; result = ids with
+// multi-input entries and setter-held envelopes): every {"ref":id} and
+// {"tap":id} across all nodes; result = ids with
 // a tap consumer, no normal consumer, and != outputId, in nodeOrder. A tail's
 // own forward inputs, if the root pull computed them this tick, are served
 // from the memo, so the extra pull advances nothing twice.
@@ -167,16 +167,6 @@ static std::vector<std::string> collect_advance_ids(
     for (const auto& id : nodeOrder) {
         const auto& node = nodeMap.at(id);
         if (node.contains("params")) scan(node["params"]);
-        if (node.contains("inputs")) {
-            std::function<void(const json&)> scanIds = [&](const json& v) {
-                if (v.is_string()) normal.insert(v.get<std::string>());
-                else if (v.is_object())
-                    for (auto it = v.begin(); it != v.end(); ++it) scanIds(it.value());
-                else if (v.is_array())
-                    for (const auto& item : v) scanIds(item);
-            };
-            scanIds(node["inputs"]);
-        }
     }
     std::vector<std::string> out;
     for (const auto& id : nodeOrder)
@@ -211,8 +201,8 @@ struct GraphResult {
 
 std::string retired_key_refusal(std::string_view type, std::string_view key, RetiredAt at)
 {
-    // Each spelling the engine does not read: the node type, the key, where
-    // it sat, and what the converter rewrites it as.
+    // Each spelling the engine does not read: the node type (empty: any),
+    // the key, where it sat, and what the converter rewrites it as.
     struct Retired { std::string_view type, key; RetiredAt at; std::string_view becomes; };
     static constexpr Retired kRetired[] = {
         {"Envelope",          "stages",     RetiredAt::Key,        "the eight stage columns"},
@@ -228,11 +218,19 @@ std::string retired_key_refusal(std::string_view type, std::string_view key, Ret
         {"FullPartials",      "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
         {"SequencePartials",  "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
         {"ExplicitPartials",  "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
+        {"SoundChannel",      "inputs",     RetiredAt::NodeKey,    "the feed 'source' in params"},
+        {"StereoMixer",       "inputs",     RetiredAt::NodeKey,    "the feeds 'channels' in params"},
+        {"",                  "ui",         RetiredAt::TopKey,     "layout"},
+        {"",                  "groups",     RetiredAt::TopKey,     "layout.groups"},
+        {"",                  "_comment",   RetiredAt::TopKey,     "comment"},
+        {"",                  "_provenance", RetiredAt::TopKey,    "comment"},
     };
     for (const auto& r : kRetired) {
-        if (r.type != type || r.key != key || r.at != at) continue;
+        if ((!r.type.empty() && r.type != type) || r.key != key || r.at != at) continue;
         const char* where = at == RetiredAt::FeedKey    ? " on a feed"
                           : at == RetiredAt::InlineSlot ? " as an inline object"
+                          : at == RetiredAt::NodeKey    ? " beside params"
+                          : at == RetiredAt::TopKey     ? " at the top of the file"
                                                         : "";
         return "'" + std::string(key) + "'" + where
              + " is no longer read: python tools/convert_patch.py <patch> rewrites it as " + std::string(r.becomes);
@@ -258,13 +256,13 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
     // gains a key this list lacks.
     static const std::unordered_set<std::string> kBranchKeys = {
         "attack", "attackCurve", "attackMax",
-        "attackMin", "attackPower", "channels",
+        "attackMin", "attackPower",
         "curve", "decay", "decayCurve", "decayLevel",
         "decayMax", "decayMin", "decayPower",
         "dynamicPins",
         "field", "formants", "frames", "frequency",
         "gains", "glideMs", "graph",
-        "id", "inputs", "instrument", "interp", "interpolate",
+        "id", "instrument", "interp", "interpolate",
         "mode", "morph",
         "nodes",
         "onsets", "output", "paramMap",
@@ -502,34 +500,6 @@ static void wire_params_generic(
     reject_ragged_tables(src, id, params);
 }
 
-// Reads the node-level `inputs` block of the two output parts.
-static void wire_part_inputs(
-    Component& part,
-    const std::string& id,
-    const json& inputs,
-    const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
-{
-    auto node_named = [&](const json& v) {
-        const std::string ref = v.get<std::string>();
-        auto it = graphNodes.find(ref);
-        if (it == graphNodes.end())
-            throw std::runtime_error("Unresolved node ref: " + ref);
-        return it->second;
-    };
-    const std::string_view type = part.type_name();
-    if (type == "SoundChannel" && inputs.contains("source")) {
-        auto source = node_named(inputs.at("source"));
-        if (!part.set_param("source", source)) reject_wire(part, id, "source", *source);
-    }
-    if (type == "StereoMixer" && inputs.contains("channels")) {
-        part.clear_param("channels");
-        for (const auto& v : inputs.at("channels")) {
-            auto channel = node_named(v);
-            if (!part.add_param("channels", channel)) reject_wire(part, id, "channels", *channel);
-        }
-    }
-}
-
 // The note field a PerformNode's `field` names, as an index into
 // PerformNode::kFieldLabels: a label matched ignoring ASCII case, or a whole
 // number inside the labels; absent, the first. Anything else fails the load,
@@ -651,6 +621,14 @@ static GraphResult build_graph(
         const auto& node = nodeMap.at(id);
         std::string type = node.at("type").get<std::string>();
         const json* pp = node.contains("params") ? &node["params"] : nullptr;
+
+        // A key of the node object the table retires fails the load before
+        // the node is built.
+        for (auto it = node.begin(); it != node.end(); ++it) {
+            const std::string retired = retired_key_refusal(type, it.key(), RetiredAt::NodeKey);
+            if (!retired.empty())
+                throw std::runtime_error("node '" + id + "' (" + type + "): " + retired);
+        }
 
         // ---- Extract seed if present ----
         std::optional<uint32_t> seed;
@@ -785,8 +763,6 @@ static GraphResult build_graph(
                     }
                 }
             }
-            if (node.contains("inputs") && (type == "SoundChannel" || type == "StereoMixer"))
-                wire_part_inputs(*src, id, node["inputs"], graphNodes);
             graphNodes[id] = src;
         }
         else {

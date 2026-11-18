@@ -1,10 +1,15 @@
 // Assert-style engine unit tests (PerformSource P1, plan_perform_source_p1.md).
 // House testing is render-based; this exe covers the value-level semantics
 // renders can't isolate (curve interp identity, envelope mapping, adapters).
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
 #include "alloc_probe.h"
+#include "mforce/source/output/sound_channel.h"
+#include "mforce/source/output/stereo_mixer.h"
+#include "mforce/source/modulator/perform_node.h"
 
 static int g_checks = 0, g_fails = 0;
 #define CHECK(cond) do { ++g_checks; if (!(cond)) { ++g_fails; \
@@ -9965,19 +9970,19 @@ static void run_review_gap_tests() {
     CHECK(file_fails_naming("renders/scratch/_part_as_channel.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
-          {"id":"ch1","type":"SoundChannel","inputs":{"source":"parts"},"params":{"volume":1.0,"pan":0.0}},
-          {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
+          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"parts"},"volume":1.0,"pan":0.0}},
+          {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":1.0,"gainR":1.0}}]}})",
         "node 'ch1' (SoundChannel): 'source' does not accept a FullPartials, a part, not a signal"));
     // a channel as the output, and a channel whose source names no node
     CHECK(file_fails_naming("renders/scratch/_channel_as_output.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"ch1","nodes":[
           {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
-          {"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}}]}})",
+          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"volume":1.0,"pan":0.0}}]}})",
         "'ch1' is a SoundChannel, a part, not a signal"));
     CHECK(file_fails_naming("renders/scratch/_channel_source_missing.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
-          {"id":"ch1","type":"SoundChannel","inputs":{"source":"nowhere"},"params":{"volume":1.0,"pan":0.0}},
-          {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
+          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"nowhere"},"volume":1.0,"pan":0.0}},
+          {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":1.0,"gainR":1.0}}]}})",
         "Unresolved node ref: nowhere"));
 }
 
@@ -10003,9 +10008,9 @@ static void run_channel_source_tests() {
     std::printf("channel sources: six signal types feed a SoundChannel and render\n");
     auto through_channel = [](const char* node, const char* id) {
         return std::string(R"({"sampleRate":48000,"seconds":0.05,"graph":{"output":"mix","nodes":[)") + node
-            + R"(,{"id":"ch1","type":"SoundChannel","inputs":{"source":")" + id
-            + R"("},"params":{"volume":1.0,"pan":0.0}},)"
-            + R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})";
+            + R"(,{"id":"ch1","type":"SoundChannel","params":{"source":{"ref":")" + id
+            + R"("},"volume":1.0,"pan":0.0}},)"
+            + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":1.0,"gainR":1.0}}]}})";
     };
     auto all_finite = [](const std::vector<float>& b) {
         for (float s : b) if (!std::isfinite(s)) return false;
@@ -10050,8 +10055,8 @@ static void run_channel_clock_tests() {
         return std::string(R"({"sampleRate":48000,"seconds":0.05,"graph":{"output":"mix","nodes":[)") + nodes
             + R"(,{"id":"prod","type":"CombinedSource","params":{"operation":1,"gainAdj":0.0,"source1":{"ref":")" + a
             + R"("},"source2":{"ref":")" + b + R"("}}},)"
-            + R"({"id":"ch1","type":"SoundChannel","inputs":{"source":"prod"},"params":{"volume":1.0,"pan":0.0}},)"
-            + R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})";
+            + R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"prod"},"volume":1.0,"pan":0.0}},)"
+            + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":1.0,"gainR":1.0}}]}})";
     };
     // One envelope on both inputs renders as two identical envelopes do.
     std::vector<float> shared, twin;
@@ -10070,9 +10075,9 @@ static void run_channel_clock_tests() {
     CHECK(file_fails_naming("renders/scratch/_channels_one_source.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
-          {"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}},
-          {"id":"ch2","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}},
-          {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1","ch2"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
+          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"volume":1.0,"pan":0.0}},
+          {"id":"ch2","type":"SoundChannel","params":{"source":{"ref":"osc"},"volume":1.0,"pan":0.0}},
+          {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"},{"ref":"ch2"}],"gainL":1.0,"gainR":1.0}}]}})",
         "'osc' is reached from channel 'ch1' and from channel 'ch2'"));
 }
 
@@ -10092,7 +10097,7 @@ static void run_instrument_mixer_unity_tests() {
     std::vector<float> plain, withMix;
     CHECK(render_scratch_patch("renders/scratch/_instrument_no_mix.json", head + "]}}", plain));
     CHECK(render_scratch_patch("renders/scratch/_instrument_quarter_mix.json",
-        head + R"(,{"id":"mix","type":"StereoMixer","inputs":{"channels":[]},"params":{"gainL":0.25,"gainR":0.25}}]}})",
+        head + R"(,{"id":"mix","type":"StereoMixer","params":{"channels":[],"gainL":0.25,"gainR":0.25}}]}})",
         withMix));
     CHECK(!plain.empty() && plain.size() == withMix.size()
           && std::memcmp(plain.data(), withMix.data(), plain.size() * sizeof(float)) == 0);
@@ -11669,13 +11674,12 @@ static void run_branch_key_tests() {
     CHECK(loads_both(node("SegmentSource", R"({"values":[0.0,1.0],"oneShot":true})")));
 }
 
-// The plain sounds the build of the two output parts is compared on. Each is
-// written in both forms: the parts' feeds in the node-level `inputs` block
-// (the old form) and in `params` as {"ref": id} (the new). Their stereo
-// output's 64-bit FNV-1a under the base's loader is held as a literal.
+// The plain sounds the build of the two output parts is compared on, each
+// part's feeds in its `params` as {"ref": id}. Their stereo output's 64-bit
+// FNV-1a under the base's loader is held as a literal.
 namespace plain_parts {
 // One channel: its id, the id of the node its source holds, and the params
-// beside the source (null: no params).
+// beside the source (null: none).
 struct Chan { std::string id, source; nlohmann::json params; };
 struct Case { const char* name; nlohmann::json signals; std::vector<Chan> chans; nlohmann::json mix; };
 static nlohmann::json node(const char* id, const char* type, nlohmann::json params) {
@@ -11683,26 +11687,20 @@ static nlohmann::json node(const char* id, const char* type, nlohmann::json para
 }
 static nlohmann::json ref(const char* id) { return nlohmann::json{{"ref", id}}; }
 // A plain sound of 0.25 s at 48 kHz: the signals, each channel, then the
-// mixer `mix` (`mixParams` null: no params) as the output.
+// mixer `mix` (`mixParams` null: no gains) as the output.
 static std::string sound(const nlohmann::json& signals, const std::vector<Chan>& chans,
-                         const nlohmann::json& mixParams, bool feeds) {
+                         const nlohmann::json& mixParams) {
     nlohmann::json nodes = signals;
     nlohmann::json ids = nlohmann::json::array();
     for (const auto& c : chans) {
-        nlohmann::json n = {{"id", c.id}, {"type", "SoundChannel"}};
         nlohmann::json p = c.params.is_null() ? nlohmann::json::object() : c.params;
-        if (feeds) p["source"] = nlohmann::json{{"ref", c.source}};
-        else n["inputs"] = nlohmann::json{{"source", c.source}};
-        if (!p.empty()) n["params"] = p;
-        nodes.push_back(n);
-        ids.push_back(feeds ? nlohmann::json{{"ref", c.id}} : nlohmann::json(c.id));
+        p["source"] = nlohmann::json{{"ref", c.source}};
+        nodes.push_back(nlohmann::json{{"id", c.id}, {"type", "SoundChannel"}, {"params", p}});
+        ids.push_back(nlohmann::json{{"ref", c.id}});
     }
-    nlohmann::json m = {{"id", "mix"}, {"type", "StereoMixer"}};
     nlohmann::json mp = mixParams.is_null() ? nlohmann::json::object() : mixParams;
-    if (feeds) mp["channels"] = ids;
-    else m["inputs"] = nlohmann::json{{"channels", ids}};
-    if (!mp.empty()) m["params"] = mp;
-    nodes.push_back(m);
+    mp["channels"] = ids;
+    nodes.push_back(nlohmann::json{{"id", "mix"}, {"type", "StereoMixer"}, {"params", mp}});
     return nlohmann::json{{"sampleRate", 48000}, {"seconds", 0.25},
                           {"graph", {{"output", "mix"}, {"nodes", nodes}}}}.dump();
 }
@@ -11716,7 +11714,7 @@ static std::vector<Case> cases() {
     return {
         {"one channel, all four numbers", J::array({osc}), {{"ch1", "osc", {{"volume", 0.7}, {"pan", -0.3}}}},
          {{"gainL", 0.9}, {"gainR", 0.8}}},
-        {"no params on either part", J::array({osc}), {{"ch1", "osc", J()}}, J()},
+        {"no numbers on either part", J::array({osc}), {{"ch1", "osc", J()}}, J()},
         {"two channels", J::array({osc, noise}),
          {{"chA", "osc", {{"volume", 0.3}, {"pan", -0.7}}}, {"chB", "noise", {{"volume", 0.9}, {"pan", 0.4}}}},
          {{"gainL", 0.8}, {"gainR", 0.6}}},
@@ -11738,12 +11736,6 @@ static uint64_t render_hash(const std::string& text) {
     return node_twins::fnv(buf);
 }
 }
-
-#include "mforce/source/output/sound_channel.h"
-#include "mforce/source/output/stereo_mixer.h"
-#include "mforce/source/modulator/perform_node.h"
-#include <algorithm>
-#include <cctype>
 
 // The two output parts as declared: each pin with its default, and the
 // wiring door — a mixer's channels take a SoundChannel and nothing else, a
@@ -11811,21 +11803,21 @@ static std::string reversed_channels(const std::string& text) {
     auto doc = nlohmann::json::parse(text);
     for (auto& n : doc["graph"]["nodes"]) {
         if (n["type"] != "StereoMixer") continue;
-        auto& list = n.contains("inputs") ? n["inputs"]["channels"] : n["params"]["channels"];
+        auto& list = n["params"]["channels"];
         std::reverse(list.begin(), list.end());
     }
     return doc.dump();
 }
 }
 
-// The twin: each plain sound in both forms renders the base's bytes.
+// The twin: each plain sound renders the base's bytes.
 static void run_plain_part_twin_tests() {
     using namespace plain_parts;
-    std::printf("the plain-sound build: both forms against the base's render\n");
-    // The base's loader on the old form (the hashes printed before the build changed).
+    std::printf("the plain-sound build: each sound against the base's render\n");
+    // Each sound's hash under the base's loader.
     const uint64_t kBase[] = {
         0xbd803f232d11c7d6ull,   // one channel, all four numbers
-        0x428f79ca36025021ull,   // no params on either part
+        0x428f79ca36025021ull,   // no numbers on either part
         0x6a4b98ef60321f25ull,   // two channels
         0x6da350faa0c174a3ull,   // three channels
         0x8f96948dd16fb3c3ull,   // volume wired
@@ -11834,12 +11826,11 @@ static void run_plain_part_twin_tests() {
     };
     const auto all = cases();
     CHECK(all.size() == std::size(kBase));
-    for (size_t k = 0; k < all.size() && k < std::size(kBase); ++k)
-        for (bool feeds : {false, true}) {
-            const uint64_t h = render_hash(sound(all[k].signals, all[k].chans, all[k].mix, feeds));
-            if (h != kBase[k]) std::printf("  %s (%s): 0x%016llx\n", all[k].name, feeds ? "params" : "inputs", (unsigned long long)h);
-            CHECK(h == kBase[k]);
-        }
+    for (size_t k = 0; k < all.size() && k < std::size(kBase); ++k) {
+        const uint64_t h = render_hash(sound(all[k].signals, all[k].chans, all[k].mix));
+        if (h != kBase[k]) std::printf("  %s: 0x%016llx\n", all[k].name, (unsigned long long)h);
+        CHECK(h == kBase[k]);
+    }
 }
 
 // What the build reads from the parts: the channels in the mixer's order, a
@@ -11849,31 +11840,29 @@ static void run_plain_part_build_tests() {
     using namespace plain_parts;
     std::printf("the plain-sound build: the channels' order, each pin's number or default\n");
     const auto all = cases();
-    for (bool feeds : {false, true}) {
-        const auto three = sound(all[3].signals, all[3].chans, all[3].mix, feeds);
-        auto m = built_mixer(three);
-        CHECK(m && m->channels.size() == 3);
-        if (m && m->channels.size() == 3)
-            CHECK(is_constant_of(m->channels[0].volume, 0.6f) && is_constant_of(m->channels[1].volume, 0.7f)
-                  && is_constant_of(m->channels[2].volume, 1.0f) && is_constant_of(m->channels[0].pan, -0.5f)
-                  && is_constant_of(m->channels[1].pan, 0.5f) && is_constant_of(m->channels[2].pan, 0.0f)
-                  && is_constant_of(m->gainL, 0.9f) && is_constant_of(m->gainR, 0.7f));
-        auto r = built_mixer(reversed_channels(three));                        // the mixer's list, not the file's node order
-        CHECK(r && r->channels.size() == 3);
-        if (r && r->channels.size() == 3)
-            CHECK(is_constant_of(r->channels[0].volume, 1.0f) && is_constant_of(r->channels[1].volume, 0.7f)
-                  && is_constant_of(r->channels[2].volume, 0.6f));
-        auto bare = built_mixer(sound(all[1].signals, all[1].chans, all[1].mix, feeds));
-        CHECK(bare && bare->channels.size() == 1);
-        if (bare && bare->channels.size() == 1)
-            CHECK(is_constant_of(bare->gainL, 1.0f) && is_constant_of(bare->gainR, 1.0f)
-                  && is_constant_of(bare->channels[0].volume, 1.0f) && is_constant_of(bare->channels[0].pan, 0.0f));
-        std::vector<float> buf;
-        CHECK(render_scratch_patch("renders/scratch/_plain_empty.json", sound(all[1].signals, {}, nlohmann::json(), feeds), buf));
-        bool silent = !buf.empty();
-        for (float s : buf) silent = silent && s == 0.0f;
-        CHECK(silent);
-    }
+    const auto three = sound(all[3].signals, all[3].chans, all[3].mix);
+    auto m = built_mixer(three);
+    CHECK(m && m->channels.size() == 3);
+    if (m && m->channels.size() == 3)
+        CHECK(is_constant_of(m->channels[0].volume, 0.6f) && is_constant_of(m->channels[1].volume, 0.7f)
+              && is_constant_of(m->channels[2].volume, 1.0f) && is_constant_of(m->channels[0].pan, -0.5f)
+              && is_constant_of(m->channels[1].pan, 0.5f) && is_constant_of(m->channels[2].pan, 0.0f)
+              && is_constant_of(m->gainL, 0.9f) && is_constant_of(m->gainR, 0.7f));
+    auto r = built_mixer(reversed_channels(three));                        // the mixer's list, not the file's node order
+    CHECK(r && r->channels.size() == 3);
+    if (r && r->channels.size() == 3)
+        CHECK(is_constant_of(r->channels[0].volume, 1.0f) && is_constant_of(r->channels[1].volume, 0.7f)
+              && is_constant_of(r->channels[2].volume, 0.6f));
+    auto bare = built_mixer(sound(all[1].signals, all[1].chans, all[1].mix));
+    CHECK(bare && bare->channels.size() == 1);
+    if (bare && bare->channels.size() == 1)
+        CHECK(is_constant_of(bare->gainL, 1.0f) && is_constant_of(bare->gainR, 1.0f)
+              && is_constant_of(bare->channels[0].volume, 1.0f) && is_constant_of(bare->channels[0].pan, 0.0f));
+    std::vector<float> buf;
+    CHECK(render_scratch_patch("renders/scratch/_plain_empty.json", sound(all[1].signals, {}, nlohmann::json()), buf));
+    bool silent = !buf.empty();
+    for (float s : buf) silent = silent && s == 0.0f;
+    CHECK(silent);
 }
 
 // An instrument may hold a mixer and a channel beside its voice: they are
@@ -11884,17 +11873,13 @@ static void run_instrument_holding_parts_tests() {
     const std::string head = R"({"sampleRate":48000,"instrument":{"polyphony":1},
       "score":[{"note":60,"time":0,"duration":0.05}],"graph":{"output":"osc","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":0.5}})";
-    std::vector<float> plain, inputsForm, paramsForm;
+    std::vector<float> plain, withParts;
     CHECK(render_scratch_patch("renders/scratch/_instrument_alone.json", head + "]}}", plain));
-    CHECK(render_scratch_patch("renders/scratch/_instrument_parts_inputs.json", head
-        + R"(,{"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":0.5,"pan":0.3}},)"
-        + R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":0.25,"gainR":0.5}}]}})", inputsForm));
     CHECK(render_scratch_patch("renders/scratch/_instrument_parts_params.json", head
         + R"(,{"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"volume":0.5,"pan":0.3}},)"
-        + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":0.25,"gainR":0.5}}]}})", paramsForm));
-    for (const auto* other : {&inputsForm, &paramsForm})
-        CHECK(!plain.empty() && plain.size() == other->size()
-              && std::memcmp(plain.data(), other->data(), plain.size() * sizeof(float)) == 0);
+        + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":0.25,"gainR":0.5}}]}})", withParts));
+    CHECK(!plain.empty() && plain.size() == withParts.size()
+          && std::memcmp(plain.data(), withParts.data(), plain.size() * sizeof(float)) == 0);
     CHECK(load_fails_naming(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"mix","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
       {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"}}},
@@ -11911,11 +11896,9 @@ static void run_plain_part_refusal_tests() {
         + R"({"id":"ch1","type":"SoundChannel","params":{"volume":1.0}},
              {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})")
           == "node 'ch1' (SoundChannel): 'source' is not wired; a channel the mixer lists needs a source");
-    for (const char* mixer : {R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"osc"}]}}]}})",
-                              R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["osc"]}}]}})"}) {
-        const std::string got = file_refusal("renders/scratch/_plain_signal_channel.json", osc + mixer);
-        CHECK(got == "node 'mix' (StereoMixer): 'channels' does not accept a SineSource; 'channels' takes a SoundChannel");
-    }
+    CHECK(file_refusal("renders/scratch/_plain_signal_channel.json",
+                       osc + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"osc"}]}}]}})")
+          == "node 'mix' (StereoMixer): 'channels' does not accept a SineSource; 'channels' takes a SoundChannel");
     CHECK(file_fails_naming("renders/scratch/_plain_part_source.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
@@ -11960,19 +11943,18 @@ static void run_plain_sharing_refusal_tests() {
                                          node("multi", "MultiSource", {{"source", J::array({ref("s1"), ref("s2")})}})}),
          {{"chA", "multi", J()}, {"chB", "s2", J()}}, "'s2' is reached from channel 'chA' and from channel 'chB'" + tail},
     };
-    for (const auto& c : cases)
-        for (bool feeds : {false, true}) {
-            const std::string got = file_refusal("renders/scratch/_plain_shared.json", sound(c.signals, c.chans, J(), feeds));
-            if (got != c.sentence) std::printf("  %s (%s): %s\n", c.what, feeds ? "params" : "inputs", got.c_str());
-            CHECK(got == c.sentence);
-        }
+    for (const auto& c : cases) {
+        const std::string got = file_refusal("renders/scratch/_plain_shared.json", sound(c.signals, c.chans, J()));
+        if (got != c.sentence) std::printf("  %s: %s\n", c.what, got.c_str());
+        CHECK(got == c.sentence);
+    }
     // the loops in the mixer's channel order, not the file's node order
     const auto& two = cases[0];
-    CHECK(file_refusal("renders/scratch/_plain_shared.json", reversed_channels(sound(two.signals, two.chans, J(), true)))
+    CHECK(file_refusal("renders/scratch/_plain_shared.json", reversed_channels(sound(two.signals, two.chans, J())))
           == "'osc' is reached from channel 'ch2' and from channel 'ch1'" + tail);
     // a gain on a node a channel's source reads: the mixer's loop is named last
     CHECK(file_refusal("renders/scratch/_plain_shared.json",
-                       sound(cases[2].signals, {{"ch1", "src", J()}}, J{{"gainL", ref("X")}}, true))
+                       sound(cases[2].signals, {{"ch1", "src", J()}}, J{{"gainL", ref("X")}}))
           == "'X' is reached from channel 'ch1' and from the mixer's gains, volumes and pans" + tail);
 }
 
@@ -11988,10 +11970,9 @@ static void run_plain_sharing_load_tests() {
                                   node("comb", "CombinedSource", {{"operation", 0}, {"gainAdj", 0.0}, {"source1", ref("oscA")},
                                                                   {"source2", J{{"tap", "oscB"}}}})});
     const std::string texts[] = {
-        sound(all[2].signals, all[2].chans, all[2].mix, false), sound(all[2].signals, all[2].chans, all[2].mix, true),
-        sound(all[5].signals, all[5].chans, all[5].mix, false), sound(all[5].signals, all[5].chans, all[5].mix, true),
-        sound(tapAcross, {{"chA", "comb", J()}, {"chB", "oscB", J()}}, J(), false),
-        sound(tapAcross, {{"chA", "comb", J()}, {"chB", "oscB", J()}}, J(), true),
+        sound(all[2].signals, all[2].chans, all[2].mix),
+        sound(all[5].signals, all[5].chans, all[5].mix),
+        sound(tapAcross, {{"chA", "comb", J()}, {"chB", "oscB", J()}}, J()),
     };
     for (const auto& t : texts) {
         std::vector<float> buf;
@@ -11999,6 +11980,84 @@ static void run_plain_sharing_load_tests() {
         bool sound_ = false;
         for (float s : buf) sound_ = sound_ || s != 0.0f;
         CHECK(sound_);
+    }
+}
+
+// The table's rows for a node's own keys and for the document's: each gives
+// its sentence at its place and nothing at another; a row with no type
+// answers for every type.
+static void run_retired_spelling_table_tests() {
+    std::printf("retired spellings: a node's keys and the document's, in the one table\n");
+    const std::string conv = "is no longer read: python tools/convert_patch.py <patch> rewrites it as ";
+    struct Row { const char* type; const char* key; RetiredAt at; std::string want; };
+    const Row rows[] = {
+        {"SoundChannel", "inputs", RetiredAt::NodeKey, "'inputs' beside params " + conv + "the feed 'source' in params"},
+        {"StereoMixer", "inputs", RetiredAt::NodeKey, "'inputs' beside params " + conv + "the feeds 'channels' in params"},
+        {"", "ui", RetiredAt::TopKey, "'ui' at the top of the file " + conv + "layout"},
+        {"", "groups", RetiredAt::TopKey, "'groups' at the top of the file " + conv + "layout.groups"},
+        {"", "_comment", RetiredAt::TopKey, "'_comment' at the top of the file " + conv + "comment"},
+        {"", "_provenance", RetiredAt::TopKey, "'_provenance' at the top of the file " + conv + "comment"},
+    };
+    for (const auto& r : rows) {
+        const std::string got = retired_key_refusal(r.type, r.key, r.at);
+        if (got != r.want) std::printf("  '%s'.%s: got \"%s\"\n", r.type, r.key, got.c_str());
+        CHECK(got == r.want);
+    }
+    // A row with no type answers whatever type is asked.
+    CHECK(retired_key_refusal("SoundChannel", "ui", RetiredAt::TopKey) == rows[2].want);
+    CHECK(retired_key_refusal("SineSource", "_provenance", RetiredAt::TopKey) == rows[5].want);
+    // The same key at another place gives nothing.
+    for (RetiredAt at : {RetiredAt::Key, RetiredAt::FeedKey, RetiredAt::InlineSlot, RetiredAt::TopKey}) {
+        CHECK(retired_key_refusal("SoundChannel", "inputs", at).empty());
+        CHECK(retired_key_refusal("StereoMixer", "inputs", at).empty());
+    }
+    for (const char* key : {"ui", "groups", "_comment", "_provenance"})
+        for (RetiredAt at : {RetiredAt::Key, RetiredAt::FeedKey, RetiredAt::InlineSlot, RetiredAt::NodeKey})
+            CHECK(retired_key_refusal("", key, at).empty());
+    // 'inputs' on another type, and on none.
+    for (const char* type : {"SineSource", "MultiSource", "PerformNode", ""})
+        CHECK(retired_key_refusal(type, "inputs", RetiredAt::NodeKey).empty());
+    // Another key of a node, and another key of the document.
+    for (const char* key : {"id", "type", "params", "dynamicPins", "comment"})
+        CHECK(retired_key_refusal("SoundChannel", key, RetiredAt::NodeKey).empty());
+    for (const char* key : {"sampleRate", "seconds", "instrument", "score", "graph", "layout", "comment", "inputs"})
+        CHECK(retired_key_refusal("", key, RetiredAt::TopKey).empty());
+}
+
+// A channel's or a mixer's node-level `inputs` fails the load of a plain sound
+// and of an instrument, with the table's sentence after the node's id and
+// type; the same parts with their feeds in params load.
+static void run_retired_spelling_load_tests() {
+    using plain_parts::file_refusal;
+    std::printf("retired spellings: a channel's and a mixer's 'inputs' refused by both loaders\n");
+    const std::string conv = "is no longer read: python tools/convert_patch.py <patch> rewrites it as ";
+    const std::string osc = R"({"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":0.5}})";
+    const std::string chNew = R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"volume":0.5}})";
+    const std::string chOld = R"({"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":0.5}})";
+    const std::string mixNew = R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":0.5}})";
+    const std::string mixOld = R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":0.5}})";
+    const std::string chWant = "node 'ch1' (SoundChannel): 'inputs' beside params " + conv + "the feed 'source' in params";
+    const std::string mixWant = "node 'mix' (StereoMixer): 'inputs' beside params " + conv + "the feeds 'channels' in params";
+    const std::string none;
+    auto nodes = [&](const std::string& ch, const std::string& mix) { return osc + "," + ch + "," + mix + "]}}"; };
+    auto instrument_refusal = [&](const std::string& ch, const std::string& mix) -> std::string {
+        try {
+            (void)load_instrument_patch_json(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[)"
+                                             + nodes(ch, mix));
+        } catch (const std::exception& e) { return e.what(); }
+        return {};
+    };
+    struct Case { const char* what; const std::string& ch; const std::string& mix; const std::string& want; };
+    const Case cases[] = {{"the channel's", chOld, mixNew, chWant}, {"the mixer's", chNew, mixOld, mixWant},
+                          {"both, the channel first", chOld, mixOld, chWant}, {"neither", chNew, mixNew, none}};
+    for (const auto& c : cases) {
+        const std::string inFile = file_refusal("renders/scratch/_retired_inputs.json",
+            R"({"sampleRate":48000,"seconds":0.05,"graph":{"output":"mix","nodes":[)" + nodes(c.ch, c.mix));
+        const std::string inVoice = instrument_refusal(c.ch, c.mix);
+        if (inFile != c.want || inVoice != c.want)
+            std::printf("  %s: file \"%s\", instrument \"%s\"\n", c.what, inFile.c_str(), inVoice.c_str());
+        CHECK(inFile == c.want);
+        CHECK(inVoice == c.want);
     }
 }
 
@@ -12174,6 +12233,8 @@ int main() {
     run_plain_part_refusal_tests();
     run_plain_sharing_refusal_tests();
     run_plain_sharing_load_tests();
+    run_retired_spelling_table_tests();
+    run_retired_spelling_load_tests();
     run_perform_node_field_tests();
     run_perform_node_type_tests();
     run_preset_curve_label_tests();

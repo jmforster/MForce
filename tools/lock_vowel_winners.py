@@ -6,8 +6,10 @@ Matt's verdict, dsp/REVIEW.md item 23 (2026-08-09):
   Happy to stick with prior _winners for Alto A/E/I/U, Bass U, Soprano A.
   Still unsatisfactory (NOT locked): Soprano E, Soprano I, Soprano U.
 
-Copy is verbatim except for a `_provenance` block recording where the patch
-came from and which verdict locked it. Run from the repo root.
+Copy is verbatim except for a `comment` recording where the patch came from
+and which verdict locked it, one "key: value" line per fact (after the
+source's own comment and a blank line, when it has one). Run from the repo
+root.
 """
 import json
 import pathlib
@@ -61,11 +63,10 @@ def main():
             print(f"MISSING {src_rel}", file=sys.stderr)
             return 1
         patch = json.loads(src.read_text())
-        patch["_provenance"] = {
-            "source": src_rel,
-            "locked_by": VERDICT,
-            "why": why,
-        }
+        facts = {"source": src_rel, "locked_by": VERDICT, "why": why}
+        lines = "\n".join(f"{k}: {v}" for k, v in facts.items())
+        own = patch.get("comment")
+        patch["comment"] = f"{own}\n\n{lines}" if isinstance(own, str) and own else lines
         out = DEST / f"{name}.json"
         out.write_text(json.dumps(patch, indent=2) + "\n")
         written.append((name, src_rel))

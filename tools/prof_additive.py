@@ -38,10 +38,10 @@ def patch(n):
              "params": {"seed": 1, "frequency": 110.0,
                         "amplitude": {"ref": "ampEnv"},
                         "partials": {"ref": "parts"}, "formantWeight": 0.0}},
-            {"id": "ch1", "type": "SoundChannel", "inputs": {"source": "add"},
-             "params": {"volume": 0.5, "pan": 0.0}},
-            {"id": "mix", "type": "StereoMixer", "inputs": {"channels": ["ch1"]},
-             "params": {"gainL": 1.0, "gainR": 1.0}},
+            {"id": "ch1", "type": "SoundChannel",
+             "params": {"source": {"ref": "add"}, "volume": 0.5, "pan": 0.0}},
+            {"id": "mix", "type": "StereoMixer",
+             "params": {"channels": [{"ref": "ch1"}], "gainL": 1.0, "gainR": 1.0}},
         ], "output": "mix"},
     }
 
