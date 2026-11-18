@@ -10,7 +10,8 @@ import json
 import subprocess
 from pathlib import Path
 
-from . import curve_table, deleted_types, envelope_table, parammap, string_evolution
+from . import (curve_table, deleted_types, envelope_table, expand_rule_node, key_renames,
+               multi_weights, old_defaults, parammap, phased_table, string_evolution)
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CLI = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
@@ -22,8 +23,16 @@ DESC_CACHE = ROOT / "renders/scratch/descriptors.json"
 # independent of both. The two table rules run last: the deleted-type rule
 # turns the six preset classes into preset-form Envelopes the envelope-table
 # rule reads, and the paramMap rule writes each curve as a CurveNode with a
-# knot list, which the curve-table rule rewrites as columns.
-RULES = (deleted_types, string_evolution, parammap, envelope_table, curve_table)
+# knot list, which the curve-table rule rewrites as columns. The five rules
+# after them each rewrite one old form of a node type no earlier rule writes
+# in that form, and they come last for two reasons: the old-defaults rule
+# writes "val": 0.0 only where a VarSource holds no val, so it runs after the
+# paramMap rule, which may wire one; the expand-rule rule adds a node to a
+# node list, so it runs after the rules that add nodes or take them away (the
+# deleted-type rule's formant fold, the paramMap rule), and the ids it checks
+# its new ones against are the document's last.
+RULES = (deleted_types, string_evolution, parammap, envelope_table, curve_table,
+         key_renames, multi_weights, phased_table, old_defaults, expand_rule_node)
 
 
 def rule_name(rule):

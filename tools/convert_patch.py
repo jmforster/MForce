@@ -14,11 +14,22 @@ each on the one document the previous left:
   parammap          instrument.paramMap, as graph wiring
   envelope_table    an Envelope's stage list, as the eight columns of its table
   curve_table       a CurveNode's knots and expression rows, as columns
+  key_renames       cutoff as cutoffFreq on three filters, gap as gapDuration
+  multi_weights     a MultiSource feed's weight and delay, as the node's
+                    weights and delays
+  phased_table      a PhasedValueSource's stage list, as sources and four
+                    columns
+  old_defaults      a VarSource's absent val as 0.0, a CombinedSource's "add"
+                    as "Mix"
+  expand_rule_node  an inline expandRule on a Partials host, as an
+                    ExpandRule node
 
 The deleted-type rule runs before the paramMap rule because its formant fold
 reads paramMap entries aimed at the peaks it consumes and it renames types the
 paramMap rule looks up in the registry. The two table rules run after the
-paramMap rule, whose curves are CurveNodes with knot lists. Each rule's own
+paramMap rule, whose curves are CurveNodes with knot lists. The old-defaults
+rule runs after the paramMap rule, which may wire a VarSource's val, and the
+expand-rule rule after the rules that add or remove nodes. Each rule's own
 docstring says what it does to a document. Each rule's notes are printed
 prefixed by the path, and a changed file gets one line with each rule's counts.
 

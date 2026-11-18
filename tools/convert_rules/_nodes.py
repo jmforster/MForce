@@ -16,11 +16,11 @@ def node_container(doc):
     return None
 
 
-def walk_nodes(doc):
+def walk_node_lists(doc):
     """Every node object in the document's node list, in order, each followed
     by the nodes of any node list nested inside it (an object holding a
-    "nodes" list, at any depth under the node). Nothing when the document has
-    no node list."""
+    "nodes" list, at any depth under the node), as (the list that holds the
+    node, the node) pairs. Nothing when the document has no node list."""
     container = node_container(doc)
     if container is None:
         return []
@@ -40,12 +40,17 @@ def walk_nodes(doc):
     def walk_list(nodes):
         for node in nodes:
             if isinstance(node, dict):
-                found.append(node)
+                found.append((nodes, node))
                 for v in node.values():
                     nested(v)
 
     walk_list(container["nodes"])
     return found
+
+
+def walk_nodes(doc):
+    """The nodes of walk_node_lists, in its order."""
+    return [node for _, node in walk_node_lists(doc)]
 
 
 def node_label(node):
@@ -57,3 +62,9 @@ def node_label(node):
 def is_number(x):
     """A JSON number; a bool is not one."""
     return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def is_feed(x):
+    """A feed object: exactly one key, "ref" or "tap", holding a string."""
+    return (isinstance(x, dict) and len(x) == 1
+            and next(iter(x)) in ("ref", "tap") and isinstance(next(iter(x.values())), str))

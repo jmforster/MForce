@@ -2,7 +2,9 @@
 two rules, the not-written rule for an unchanged and a refused file, the
 file's indent step and line endings, idempotence on disk, the folder walk and
 its sorted order, a paramMap curve leaving as columns, a non-ASCII character
-and a byte-order mark kept, a node with no id, a failed descriptor dump."""
+and a byte-order mark kept, a node with no id, a failed descriptor dump, a
+paramMap entry on a VarSource's val reaching the old-defaults rule wired, and
+one document holding the five old forms of the last five rules."""
 import codecs
 import contextlib
 import io
@@ -23,6 +25,7 @@ DESC = {
     "KSString": {"params": ["frequency", "amplitude"], "inputs": ["source"], "settings": [{"name": "t60"}]},
     "SineSource": {"params": ["amplitude", "frequency", "phase"], "inputs": [], "settings": []},
     "WhiteNoiseSource": {"params": ["amplitude"], "inputs": [], "settings": []},
+    "VarSource": {"params": ["val", "var", "varPct"], "inputs": [], "settings": [{"name": "absolute"}]},
 }
 
 
@@ -281,6 +284,69 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(open(needs, "rb").read(), before)
         self.assertEqual(json.load(open(free, encoding="utf-8"))["graph"]["nodes"][0]["params"],
                          {"x": [0, 1], "y": [0, 1]})
+
+    def test_a_parammap_entry_on_a_var_sources_val_leaves_it_wired(self):
+        # The paramMap rule wires val; the old-defaults rule, after it, then
+        # finds val present and writes no 0.0.
+        doc = {"sampleRate": 48000,
+               "instrument": {"polyphony": 1, "paramMap": {"frequency": "v.val"}},
+               "graph": {"nodes": [{"id": "v", "type": "VarSource", "params": {}}], "output": "v"}}
+        path = self.write("p.json", doc)
+        changed = drv.convert_file(path, ctx=self.ctx)
+        self.assertEqual(list(changed), ["parammap"])
+        nodes = {n["id"]: n for n in json.load(open(path, encoding="utf-8"))["graph"]["nodes"]}
+        self.assertEqual(nodes["v"]["params"], {"val": {"ref": "__perf_freq"}})
+        self.assertEqual(drv.convert_file(path, ctx=self.ctx), {})
+
+    def test_the_five_old_forms_in_one_pass(self):
+        doc = {"sampleRate": 48000,
+               "graph": {"nodes": [
+                   {"id": "v", "type": "VarSource", "params": {"var": 0.1}},
+                   {"id": "lp", "type": "BWLowpassFilter", "params": {"cutoff": 900.0, "source": {"ref": "v"}}},
+                   {"id": "rep", "type": "RepeatingSource", "params": {"gap": 0.3, "source": {"ref": "lp"}}},
+                   {"id": "mix", "type": "MultiSource",
+                    "params": {"source": [{"ref": "lp", "weight": 0.5}, {"ref": "rep"}]}},
+                   {"id": "ph", "type": "PhasedValueSource",
+                    "params": {"stages": [{"source": {"ref": "mix"}, "percent": 0.5, "gain": 2.0}],
+                               "overlap": 0.1}},
+                   {"id": "c", "type": "CombinedSource",
+                    "params": {"source1": {"ref": "ph"}, "source2": 1.0, "operation": "Add"}},
+                   {"id": "fp", "type": "FullPartials", "params": {"expandRule": {"count": 3}}}],
+                   "output": "c"}}
+        path = self.write("p.json", doc)
+        rc, out = self.run_main([path])
+        self.assertEqual(rc, 0)
+        self.assertIn("1 file(s) rewritten, 0 refused", out)
+        got = json.load(open(path, encoding="utf-8"))
+        nodes = got["graph"]["nodes"]
+        self.assertEqual([n["id"] for n in nodes], ["v", "lp", "rep", "mix", "ph", "c", "fp_expand", "fp"])
+        by_id = {n["id"]: n["params"] for n in nodes}
+        self.assertEqual(by_id["v"], {"val": 0.0, "var": 0.1})
+        self.assertEqual(by_id["lp"], {"cutoffFreq": 900.0, "source": {"ref": "v"}})
+        self.assertEqual(by_id["rep"], {"gapDuration": 0.3, "source": {"ref": "lp"}})
+        self.assertEqual(by_id["mix"], {"source": [{"ref": "lp"}, {"ref": "rep"}], "weights": [0.5, 1.0]})
+        self.assertEqual(by_id["ph"], {"sources": [{"ref": "mix"}], "percent": [0.5], "minSec": [0.0],
+                                       "maxSec": [0.0], "gain": [2.0], "overlap": 0.1})
+        self.assertEqual(by_id["c"]["operation"], "Mix")
+        self.assertEqual(by_id["fp"], {"expandRule": {"ref": "fp_expand"}})
+        self.assertEqual(by_id["fp_expand"]["count"], 3)
+        changed = drv.convert_file(path, check=True, ctx=self.ctx)
+        self.assertEqual(changed, {})
+        after = open(path, "rb").read()
+        old = time.time() - 1000
+        os.utime(path, (old, old))
+        mtime = os.stat(path).st_mtime_ns
+        rc, out = self.run_main([path])
+        self.assertEqual(rc, 0)
+        self.assertIn("0 file(s) rewritten, 0 refused", out)
+        self.assertEqual(open(path, "rb").read(), after)
+        self.assertEqual(os.stat(path).st_mtime_ns, mtime)
+
+    def test_the_five_rules_run_last_in_their_order(self):
+        names = [convert_rules.rule_name(r) for r in convert_rules.RULES]
+        self.assertEqual(names, ["deleted_types", "string_evolution", "parammap", "envelope_table",
+                                 "curve_table", "key_renames", "multi_weights", "phased_table",
+                                 "old_defaults", "expand_rule_node"])
 
 
 if __name__ == "__main__":
