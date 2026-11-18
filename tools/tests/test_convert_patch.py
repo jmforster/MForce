@@ -3,8 +3,9 @@ two rules, the not-written rule for an unchanged and a refused file, the
 file's indent step and line endings, idempotence on disk, the folder walk and
 its sorted order, a paramMap curve leaving as columns, a non-ASCII character
 and a byte-order mark kept, a node with no id, a failed descriptor dump, a
-paramMap entry on a VarSource's val reaching the old-defaults rule wired, and
-one document holding the five old forms of the last five rules."""
+paramMap entry on a VarSource's val reaching the old-defaults rule wired,
+one document holding the five old forms of the five rules before the
+spelling rules, and one that needs the spelling rules after the others."""
 import codecs
 import contextlib
 import io
@@ -268,9 +269,12 @@ class DriverTests(unittest.TestCase):
 
     def test_a_failed_descriptor_dump_is_a_refusal(self):
         needs = self.write("a.json", ks_piano())                                 # the paramMap rule asks
-        free = self.write("b.json", {"graph": {"nodes": [{"id": "c", "type": "CurveNode",
-                                                          "params": {"knots": [[0, 0], [1, 1]]}}],
-                                               "output": "c"}})
+        # No node holds a value an enum could be, so the enum-label rule does
+        # not ask either.
+        free = self.write("b.json", {"graph": {"nodes": [{"id": "c", "type": "SineSource",
+                                                          "params": {"phase": {"ref": "c"}}}],
+                                               "output": "c"},
+                                     "ui": {"positions": {"c": [1.0, 2.0]}}})
         before = open(needs, "rb").read()
         failure = RuntimeError("mforce_cli --dump-descriptors failed: no exe")
         with mock.patch.object(convert_rules, "descriptors", side_effect=failure):
@@ -282,8 +286,7 @@ class DriverTests(unittest.TestCase):
         self.assertIn("a.json: NOT rewritten: mforce_cli --dump-descriptors failed: no exe", out)
         self.assertIn("1 file(s) rewritten, 1 refused", out)
         self.assertEqual(open(needs, "rb").read(), before)
-        self.assertEqual(json.load(open(free, encoding="utf-8"))["graph"]["nodes"][0]["params"],
-                         {"x": [0, 1], "y": [0, 1]})
+        self.assertEqual(json.load(open(free, encoding="utf-8"))["layout"], {"positions": {"c": [1.0, 2.0]}})
 
     def test_a_parammap_entry_on_a_var_sources_val_leaves_it_wired(self):
         # The paramMap rule wires val; the old-defaults rule, after it, then
@@ -342,11 +345,49 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(open(path, "rb").read(), after)
         self.assertEqual(os.stat(path).st_mtime_ns, mtime)
 
-    def test_the_five_rules_run_last_in_their_order(self):
+    def test_the_rules_run_in_their_order(self):
         names = [convert_rules.rule_name(r) for r in convert_rules.RULES]
         self.assertEqual(names, ["deleted_types", "string_evolution", "parammap", "envelope_table",
                                  "curve_table", "key_renames", "multi_weights", "phased_table",
-                                 "old_defaults", "expand_rule_node"])
+                                 "old_defaults", "expand_rule_node", "terminal_inputs", "enum_labels",
+                                 "dead_keys", "comment", "layout"])
+
+    def test_the_spelling_rules_read_what_the_earlier_rules_wrote(self):
+        # The paramMap rule writes "multiply" and a node __perf_freq; the
+        # old-defaults rule writes "Mix" for "add", which the enum-label rule
+        # would refuse; the expand-rule rule adds fp_expand. The enum-label
+        # rule respells the one and accepts the other, and the layout rule
+        # keeps the positions of the two new nodes.
+        self.ctx = Context(descriptors=dict(DESC, CombinedSource={
+            "params": [], "inputs": ["source1", "source2"], "arrays": [],
+            "settings": [{"name": "operation", "isEnum": True, "labels": ["Mix", "Multiply", "Fade", "Sum"]}]}))
+        doc = {"sampleRate": 48000,
+               "instrument": {"polyphony": 1, "release": 0.4,
+                              "paramMap": {"frequency": {"target": "osc.frequency", "vcurve": [[0, 0], [1, 1]]}}},
+               "graph": {"nodes": [
+                   {"id": "osc", "type": "SineSource", "params": {"amplitude": 0.5}},
+                   {"id": "c", "type": "CombinedSource",
+                    "params": {"source1": {"ref": "osc"}, "source2": 1.0, "operation": "add"}},
+                   {"id": "fp", "type": "FullPartials", "params": {"expandRule": {"count": 3}}}],
+                   "output": "c"},
+               "ui": {"positions": {"osc": [0, 0], "__perf_freq": [1, 1], "fp_expand": [2, 2],
+                                    "__output": [3, 3]}},
+               "_comment": "order"}
+        path = self.write("p.json", doc)
+        rc, out = self.run_main([path])
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("dropped:", out)
+        got = json.load(open(path, encoding="utf-8"))
+        self.assertEqual(list(got), ["sampleRate", "instrument", "graph", "layout", "comment"])
+        self.assertEqual(got["instrument"], {"polyphony": 1})
+        self.assertEqual(got["comment"], "order")
+        nodes = {n["id"]: n for n in got["graph"]["nodes"]}
+        self.assertEqual(nodes["c"]["params"]["operation"], "Mix")
+        muls = [n for n in nodes.values() if n["id"].startswith("__mul_")]
+        self.assertEqual([n["params"]["operation"] for n in muls], ["Multiply"])
+        self.assertEqual(got["layout"], {"positions": {"osc": [0, 0], "__perf_freq": [1, 1], "fp_expand": [2, 2]},
+                                         "output": [3, 3]})
+        self.assertEqual(self.run_main(["--check", path])[0], 0)
 
 
 if __name__ == "__main__":

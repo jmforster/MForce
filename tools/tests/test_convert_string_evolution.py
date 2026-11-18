@@ -18,7 +18,7 @@ def wavetable(params):
     return {"sampleRate": 48000, "graph": {"nodes": [
         {"id": "env", "type": "Envelope", "params": {"preset": "ar"}},
         {"id": "wt", "type": "WavetableSource", "params": params},
-        {"id": "ch", "type": "SoundChannel", "inputs": {"source": "wt"}},
+        {"id": "ch", "type": "SoundChannel", "params": {"source": {"ref": "wt"}}},
     ], "output": "ch"}}
 
 

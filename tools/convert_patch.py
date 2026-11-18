@@ -23,13 +23,23 @@ each on the one document the previous left:
                     as "Mix"
   expand_rule_node  an inline expandRule on a Partials host, as an
                     ExpandRule node
+  terminal_inputs   a SoundChannel's and a StereoMixer's inputs, as feeds in
+                    params
+  enum_labels       an enum given as an index or in another case, as its
+                    declared label
+  dead_keys         instrument.release and a null params.dynamicPins, dropped
+  comment           _comment and _provenance, as comment
+  layout            ui and the top-level groups, as one layout object
 
 The deleted-type rule runs before the paramMap rule because its formant fold
 reads paramMap entries aimed at the peaks it consumes and it renames types the
 paramMap rule looks up in the registry. The two table rules run after the
 paramMap rule, whose curves are CurveNodes with knot lists. The old-defaults
 rule runs after the paramMap rule, which may wire a VarSource's val, and the
-expand-rule rule after the rules that add or remove nodes. Each rule's own
+expand-rule rule after the rules that add or remove nodes. The last five come
+after every rule that adds or removes a node or writes an enum value: the
+enum-label rule reads the enums the earlier rules write, and the layout rule,
+last, keeps a position only for an id the graph holds. Each rule's own
 docstring says what it does to a document. Each rule's notes are printed
 prefixed by the path, and a changed file gets one line with each rule's counts.
 

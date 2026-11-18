@@ -10,8 +10,9 @@ import json
 import subprocess
 from pathlib import Path
 
-from . import (curve_table, deleted_types, envelope_table, expand_rule_node, key_renames,
-               multi_weights, old_defaults, parammap, phased_table, string_evolution)
+from . import (comment, curve_table, dead_keys, deleted_types, enum_labels, envelope_table,
+               expand_rule_node, key_renames, layout, multi_weights, old_defaults, parammap,
+               phased_table, string_evolution, terminal_inputs)
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CLI = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
@@ -30,9 +31,16 @@ DESC_CACHE = ROOT / "renders/scratch/descriptors.json"
 # paramMap rule, which may wire one; the expand-rule rule adds a node to a
 # node list, so it runs after the rules that add nodes or take them away (the
 # deleted-type rule's formant fold, the paramMap rule), and the ids it checks
-# its new ones against are the document's last.
+# its new ones against are the document's last. The five rules after those
+# rewrite the document's own spellings and come after every rule that adds or
+# removes a node or writes an enum value: the enum-label rule reads every enum
+# as the earlier rules leave it (the paramMap rule writes "multiply", the
+# old-defaults rule "Mix", the two table rules their labelled columns), and
+# the layout rule comes last because it keeps a position only for an id the
+# graph holds.
 RULES = (deleted_types, string_evolution, parammap, envelope_table, curve_table,
-         key_renames, multi_weights, phased_table, old_defaults, expand_rule_node)
+         key_renames, multi_weights, phased_table, old_defaults, expand_rule_node,
+         terminal_inputs, enum_labels, dead_keys, comment, layout)
 
 
 def rule_name(rule):
