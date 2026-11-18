@@ -1,5 +1,52 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-17 (refactor session XVIII, Fable 5.2 xhigh; the session
+opened on Opus 5.5 high, the app's picker, and Matt switched it before the
+survey).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.4'S PLAN IS WRITTEN —
+`docs/superpowers/plans/2026-11-17-part4-checkpoint-4.4.md` ("every type a
+declaration"), in 4.3's shape, from a survey of the loader's eleven branches
+and two blocks, the eleven configurators, twenty node headers, the pin kinds,
+the editor's settings cache and special cases, the converter, and a census of
+all 3,146 patch files (`renders/scratch/ab44/planning/census44.py` and `.txt`;
+the plan's Architecture paragraph, twelve numbered facts). IT AWAITS MATT'S
+GO-AHEAD; nothing of 4.4 is built and the plan is uncommitted with this file
+(Task 0 commits both). Eight tasks: 0 the base, the arms, the census, a
+synthetic set of about fifty; 1 the three kinds (`StringSetting`, `InputList`,
+`validate()` with `warnings()`); 2 the nodes whose files do not change
+(`NameGate`, the Butterworth `sections`, the hybrid's targets, the Static pair,
+the Shaper's `validate`, five loader branches gone); 3 the list nodes
+(`MultiSource`, `PhasedValueSource`) and the `expandRule` slot; 4 the
+converter's five rules; 5 the tree converted (30 files, 6 tracked) under Task
+3's binary; 6 the old forms refused in both hosts, the `VarSource` branch and
+eight configurators deleted; 7 the close. WHAT THE PLAN ASKS MATT TO NOTICE:
+Ledger 1 (a list of signal inputs becomes a pin kind in `core/pins.h`, which
+Part 4 §5.10 does not list — `PhasedValueSource` needs one and `MultiSource`
+has hand-written one since 3.1); Ledger 3 (`warnings()` beside `validate()`,
+and the Shaper's morph advisory waits for 4.6's builder); Ledger 5 (an array
+beside a list is tolerant in length until 4.8's `disconnect` can keep a strict
+rule); Ledger 7 (the Phased columns are `percent`, `minSec`, `maxSec`, `gain`,
+not 3.3's `min` and `max`); Ledger 8 (14 audition files use an empty
+`VarSource` as a silent zero: the converter writes `"val": 0.0`, the declared
+default stays 1). FACTS THE EXECUTION CARRIES: the build's command-line binary
+is byte-equal to `cli_post43.exe`, so 4.3's close arms are 4.4's old arms with
+no render; the three library `MultiSource` files (`ep_bright`, `ep_dark`,
+`ep_std`) are score-less, so their weights are heard by the score-less arm
+alone (`ab43/scoreless_table/`), never by the null gate or the 131; the editor
+drops those weights on load today and no gate hears it; `RepeatingSource`'s
+configurator overwrites a file's `gapDuration` with `gap`'s default; the two
+Butterworth configurators are dead code behind the loader's branch;
+`expandRule` is on no node of the four folders in either form. This is the
+first plan under Matt's four verification rules (Part 4 §8.6's amendment):
+each task names its gate set, Task 5 renders only the files it changed.
+Usage at the plan, Tuesday 2026-11-17 at 16:35 HST: weekly Fable 11 percent,
+all-models 8, both resetting Saturday 2026-11-21 at 02:00 HST; the survey and
+the plan cost three Fable points. GIT: main is level with origin; the plan and
+this file are uncommitted; GOALS.md stays Matt's uncommitted edit, never
+staged.
+
+---
+
 Updated: 2026-11-14 (refactor session XVII, Fable 5.2 xhigh coordinating;
 Opus 5.5 executors, reviewer and re-reviewer).
 NEXT SESSION STARTS HERE: CHECKPOINT 4.3 LANDED on main — `4af294a` (the
