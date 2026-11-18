@@ -1,9 +1,27 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-11-17 (refactor session XVIII, Fable 5.2 xhigh; the session
-opened on Opus 5.5 high, the app's picker, and Matt switched it before the
-survey).
-NEXT SESSION STARTS HERE: CHECKPOINT 4.4'S PLAN IS WRITTEN —
+Updated: 2026-11-17, evening (refactor session XVIII, Fable 5.2 xhigh
+coordinating; Opus 5.5 executors).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.4 IS IN EXECUTION ON main, Matt's "Go"
+of 2026-11-17 on the plan below. Landed so far, each verified (the executor's
+gates once, the binary by hash, the null gate): `a66d60f` Task 1 (the three
+kinds), `c04ae43` Task 4 (the converter's five rules), `2b351ed` Task 2 (eight
+node types declare; five loader branches gone), `0b28fdd` Task 3 (the list
+nodes and the slot), `dbe0bc9` Task 3b (one line: `RepeatingSource`'s
+configurator reads `gap` only where a file holds it — Task 5 had stopped on
+it), `36c8fb4` Task 5 (30 files converted, 6 tracked), `8aa1a28` the Ledger
+through Task 5. IN FLIGHT when this was written: Task 6 (the old forms
+refused, the readers deleted), then Task 7 (the mutation run and the review
+side by side, one fix wave, the measurements, report R19). THE PLAN'S
+EXECUTION NOTES ARE THE RECORD: every task's block and rulings 22 onward, at
+the end of its Ledger. Briefs, the gate script (`engine_gates.py`), the
+commit script (`coord_commit.py`) and every executor's raw output are under
+`renders/scratch/ab44/`. Booked for the fix wave by the coordinator's read: a
+`PhasedValueSource` prepared with no stage and then given one reads an empty
+`boundaries_` (guard the walk, not the list; editor-only). Usage at Task 5's
+commit: weekly Fable 18 percent, all-models 14.
+THE PLAN, as written before the go-ahead:
+CHECKPOINT 4.4'S PLAN IS WRITTEN —
 `docs/superpowers/plans/2026-11-17-part4-checkpoint-4.4.md` ("every type a
 declaration"), in 4.3's shape, from a survey of the loader's eleven branches
 and two blocks, the eleven configurators, twenty node headers, the pin kinds,
