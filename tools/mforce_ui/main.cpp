@@ -33,8 +33,6 @@
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/source/envelope/envelope.h"      // needed for Envelope::make_adsr
 #include "mforce/source/envelope/envelope_json.h" // shared preset-form dispatch (both loaders)
-#include "mforce/source/modulator/var_source.h"     // needed for VarSource constructor
-#include "mforce/source/modulator/range_source.h"   // needed for RangeSource constructor
 #include "mforce/source/modulator/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
 #include "mforce/source/filter/shaper_source.h" // shape editor Shaper client probe
 #include "mforce/core/smoothness_interpolator.h"  // SegmentSource shape preview
@@ -378,30 +376,6 @@ struct GraphNode {
             dspSource = Envelope::make_adsr(0.05f, 0.1f, 0.7f, 0.2f);
             for (auto& pin : inputs)
                 if (pin.constantSrc) dspSource->set_param(pin.name, pin.constantSrc);
-            return;
-        }
-
-        if (typeName == "VarSource") {
-            auto* val = find_input("val");
-            auto* var = find_input("var");
-            auto* pct = find_input("varPct");
-            auto s = std::make_shared<VarSource>(
-                val ? val->constantSrc : std::make_shared<ConstantSource>(1.0f),
-                var ? var->constantSrc : std::make_shared<ConstantSource>(0.0f),
-                pct ? pct->constantSrc : std::make_shared<ConstantSource>(0.0f));
-            dspSource = s;
-            return;
-        }
-
-        if (typeName == "RangeSource") {
-            auto* mn = find_input("min");
-            auto* mx = find_input("max");
-            auto* vr = find_input("var");
-            auto s = std::make_shared<RangeSource>(
-                mn ? mn->constantSrc : std::make_shared<ConstantSource>(0.0f),
-                mx ? mx->constantSrc : std::make_shared<ConstantSource>(1.0f),
-                vr ? vr->constantSrc : std::make_shared<ConstantSource>(0.5f));
-            dspSource = s;
             return;
         }
 
@@ -1584,16 +1558,6 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                 // refs handled in second pass
             }
 
-            // NameGate: restore the onset-name string (spec
-            // 2026-09-20 §6) — a string is outside the pin model, carried
-            // in node.paramName like the Parameter node's name.
-            if (gn.typeName == "NameGate" && params.contains("name") &&
-                params["name"].is_string()) {
-                gn.paramName = params["name"].get<std::string>();
-                snprintf(gn.paramNameBuf, sizeof(gn.paramNameBuf), "%s",
-                         gn.paramName.c_str());
-            }
-
             // An Envelope takes one form: the stage columns (any of its arrays
             // in the group "stages") or a preset. Both on one node fail the
             // load with the engine loader's sentence.
@@ -2728,12 +2692,6 @@ static nlohmann::json serialize_patch_graph(
                 dp[key] = entry;
             }
             jnode["dynamicPins"] = dp;
-        }
-
-        // NameGate: the onset-name string (spec 2026-09-20 §6).
-        if (node.typeName == "NameGate" && !node.paramName.empty()) {
-            if (!jnode.contains("params")) jnode["params"] = json::object();
-            jnode["params"]["name"] = node.paramName;
         }
 
         // Config values
@@ -8120,12 +8078,8 @@ static void draw_node(GraphNode& node) {
 
     ImNodes::EndNodeTitleBar();
 
-    // Parameter node: show param name in body. NameGate shows its
-    // onset name the same way — the string is the node's whole
-    // meaning, so it lives on the face, visible in the graph (spec
-    // 2026-09-20 §6: the name lives on a node you can see).
-    if ((node.typeName == NT_PARAMETER || node.typeName == "NameGate")
-        && !node.paramName.empty()) {
+    // Parameter node: show param name in body.
+    if (node.typeName == NT_PARAMETER && !node.paramName.empty()) {
         ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", node.paramName.c_str());
     }
     // Each non-empty string setting on a line of its own, as the name above.
@@ -9328,18 +9282,14 @@ static void draw_properties_panel() {
                               "the patch never sets it.");
     }
 
-    // Parameter: editable name. NameGate: editable onset name (the
-    // string the Performer's emitted names match against; graph dirties
-    // so the next Generate/instrument reload re-resolves the id).
-    if (node->typeName == NT_PARAMETER || node->typeName == "NameGate") {
+    // Parameter: editable name.
+    if (node->typeName == NT_PARAMETER) {
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
         ImGui::PushItemWidth(-1);
         char nameLabel[32];
         snprintf(nameLabel, sizeof(nameLabel), "name##ppname%d", node->id);
-        if (ImGui::InputText(nameLabel, node->paramNameBuf, sizeof(node->paramNameBuf))) {
+        if (ImGui::InputText(nameLabel, node->paramNameBuf, sizeof(node->paramNameBuf)))
             node->paramName = node->paramNameBuf;
-            if (node->typeName == "NameGate") mark_graph_dirty();
-        }
         ImGui::PopItemWidth();
     }
 

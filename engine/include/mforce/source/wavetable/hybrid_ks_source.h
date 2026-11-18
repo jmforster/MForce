@@ -29,22 +29,22 @@ struct HybridKSSource final : WaveSource {
   Setting<int>   holdCycles   {this, "holdCycles",    5,    1,     50};
   Setting<float> morphDuration{this, "morphDuration", 0.5f, 0.01f, 5.0f};
   Setting<int>   numPartials  {this, "numPartials",   30,   1,     200};
+  // The target amplitude of each partial the additive phase evolves toward,
+  // as given: the store, which get_array reads back unpadded.
+  Array targetPartials{this, "targetPartials", nullptr, 0.0f, 0.0f, 1.0f};
 
   explicit HybridKSSource(uint32_t seed = 0xBEEF'C0DEu);
 
   // How many targets the node holds (at least numPartials once prepared); a
   // diagnostic for tests, like tracks_frequency_live().
   int target_count() const { return int(targetAmpl_.size()); }
-  void set_target_partials(std::vector<float> t) {
-    targetAmpl_ = std::move(t);
-    if (prepared()) size_targets();
-  }
 
   const char* type_name() const override { return "HybridKSSource"; }
 
   void on_prepare(const RenderContext& ctx) override;
   void on_start(int frames) override;
   void on_setting_changed(std::string_view name) override;
+  void on_array_changed(std::string_view name) override;
 
 protected:
   float wave() override;
@@ -59,7 +59,7 @@ private:
 
   Randomizer rng_;
 
-  std::vector<float> targetAmpl_;
+  std::vector<float> targetAmpl_;    // the working copy of targetPartials, padded by size_targets
 
   // KS state
   std::vector<float> table_;

@@ -89,15 +89,8 @@ private:
   // 1 Hz → speed and depth ramps 0 → depth over the attack, then both HOLD for
   // the rest of the note — the attack→sustain layout.
   std::shared_ptr<RedNoiseSource> build_lfo() const {
-    auto speedRamp = Envelope::make_as(attack.value);
-    auto speedRange = std::make_shared<RangeSource>(
-        std::make_shared<ConstantSource>(1.0f),
-        std::make_shared<ConstantSource>(speed.value), speedRamp, true);
-
-    auto depthRamp = Envelope::make_as(attack.value);
-    auto depthRange = std::make_shared<RangeSource>(
-        std::make_shared<ConstantSource>(0.0f),
-        std::make_shared<ConstantSource>(depth.value), depthRamp, true);
+    auto speedRange = ramped_range(1.0f, speed.value);
+    auto depthRange = ramped_range(0.0f, depth.value);
 
     auto lfo = std::make_shared<RedNoiseSource>(seed_);
     lfo->frequency.set(speedRange);
@@ -108,6 +101,17 @@ private:
     lfo->boost.set(std::make_shared<ConstantSource>(std::clamp(1.0f - depthVar.value, 0.0f, 1.0f)));
     lfo->zeroCrossTendency.set(std::make_shared<ConstantSource>(zeroCrossTendency.value));
     return lfo;
+  }
+
+  // A range from lo to hi read by an attack→sustain ramp over the attack,
+  // the ramp's [0, 1] taken as it is (normalized).
+  std::shared_ptr<RangeSource> ramped_range(float lo, float hi) const {
+    auto r = std::make_shared<RangeSource>();
+    r->min.set(std::make_shared<ConstantSource>(lo));
+    r->max.set(std::make_shared<ConstantSource>(hi));
+    r->var.set(Envelope::make_as(attack.value));
+    r->normalized.value = true;
+    return r;
   }
 
   // Per-note determinism (onsets-v2 addendum): forward to the LFO's rng.

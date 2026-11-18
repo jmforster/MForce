@@ -1,6 +1,5 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include <memory>
 
 namespace mforce {
 
@@ -16,24 +15,8 @@ struct RangeSource final : Generator {
   Param min{this, "min", 0.0f, -10000.0f, 10000.0f};
   Param max{this, "max", 1.0f, -10000.0f, 10000.0f};
   Param var{this, "var", 0.0f, -10000.0f, 10000.0f, "0-1"};
-  // Default false: the loader's absent-key contract is p.value("normalized",
-  // false), so a node built here and one loaded from JSON agree.
+  // Off by default: var is read as [-1, 1] and remapped to [0, 1].
   Setting<bool> normalized{this, "normalized", false, false, true};
-
-  RangeSource(std::shared_ptr<ValueSource> mn,
-              std::shared_ptr<ValueSource> mx,
-              std::shared_ptr<ValueSource> v) {
-    min.set(std::move(mn));
-    max.set(std::move(mx));
-    var.set(std::move(v));
-  }
-  RangeSource(std::shared_ptr<ValueSource> mn,
-              std::shared_ptr<ValueSource> mx,
-              std::shared_ptr<ValueSource> v,
-              bool varNormalized)
-  : RangeSource(std::move(mn), std::move(mx), std::move(v)) {
-    normalized.value = varNormalized;
-  }
 
   float compute() override {
     float v = var.current();

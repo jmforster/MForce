@@ -1,6 +1,5 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include <memory>
 
 namespace mforce {
 
@@ -13,21 +12,6 @@ struct VarSource final : Generator {
   Param var   {this, "var",    0.0f, -10000.0f, 10000.0f, "±1"};
   Param varPct{this, "varPct", 0.0f, 0.0f,      1.0f,     "0-1"};
   Setting<bool> absolute{this, "absolute", true, false, true};
-
-  VarSource(std::shared_ptr<ValueSource> v,
-            std::shared_ptr<ValueSource> vr,
-            std::shared_ptr<ValueSource> vrPct) {
-    val.set(std::move(v));
-    var.set(std::move(vr));
-    varPct.set(std::move(vrPct));
-  }
-  VarSource(std::shared_ptr<ValueSource> v,
-            std::shared_ptr<ValueSource> vr,
-            std::shared_ptr<ValueSource> vrPct,
-            bool isAbsolute)
-  : VarSource(std::move(v), std::move(vr), std::move(vrPct)) {
-    absolute.value = isAbsolute;
-  }
 
   float compute() override {
     float out;

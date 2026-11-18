@@ -10,15 +10,16 @@ namespace mforce {
 
 // Ported from C# StaticRangeSource — random value in [min,max] drawn once per note, at start().
 struct StaticRangeSource final : Generator {
-  float min{0.0f}, max{1.0f}, bias{0.0f};
+  Setting<float> min {this, "min",  0.0f, -10000.0f, 10000.0f};
+  Setting<float> max {this, "max",  1.0f, -10000.0f, 10000.0f};
+  Setting<float> bias{this, "bias", 0.0f, -1.0f,     1.0f};
 
-  StaticRangeSource(float mn, float mx, float b = 0.0f, uint32_t seed = 0x57A70002u)
-  : min(mn), max(mx), bias(b), rng_(seed) {}
+  explicit StaticRangeSource(uint32_t seed = 0x57A70002u) : rng_(seed) {}
 
   const char* type_name() const override { return "StaticRangeSource"; }
 
   void on_start(int /*frames*/) override {
-    value_ = rng_.range(min, max, bias);
+    value_ = rng_.range(min.value, max.value, bias.value);
     cur_ = value_;
   }
 

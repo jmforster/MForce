@@ -2,7 +2,6 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/source/modulator/name_gate.h"
-#include "mforce/source/modulator/range_source.h"
 #include "mforce/source/modulator/var_source.h"
 #include "mforce/render/perform_source.h"
 #include "mforce/source/envelope/envelope.h"
@@ -14,15 +13,8 @@
 #include "mforce/source/additive/expand_rule_node.h"
 #include "mforce/source/additive/expand_rule.h"
 #include "mforce/source/wavetable/wavetable_source.h"
-#include "mforce/source/wavetable/hybrid_ks_source.h"
-#include "mforce/source/envelope/segment_source.h"
-#include "mforce/source/filter/shaper_source.h"
 #include "mforce/source/envelope/phased_value_source.h"
 #include "mforce/source/combiner/multiplex_source.h"
-#include "mforce/source/filter/bw_lowpass_filter.h"
-#include "mforce/source/filter/bw_highpass_filter.h"
-#include "mforce/source/filter/bw_bandpass_filter.h"
-#include "mforce/source/envelope/vibrato.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -469,51 +461,6 @@ static void wire_params_generic(
         src.set_array(desc.name, std::move(indices));
     }
     reject_ragged_tables(src, id, params);
-    // Shaper morph invariants (curve-morph spec §5): curve B must have the
-    // same point count as A (point-space morph needs correspondence), and
-    // segs2's TYPE column must equal segs' (types are shared structure;
-    // only powers differ per curve). Checked here, right after the generic
-    // array pass, so a hand-edited patch fails loudly instead of morphing
-    // garbage.
-    if (dynamic_cast<ShaperSource*>(&src)) {
-        const auto arr = [&](const char* n) {
-            return params.contains(n) && params.at(n).is_array()
-                 ? params.at(n).get<std::vector<float>>()
-                 : std::vector<float>{};
-        };
-        const auto vals = arr("values"), vals2 = arr("values2");
-        if (!vals2.empty() && vals2.size() != vals.size())
-            throw std::runtime_error(
-                "Shaper: values2 length must match values");
-        const auto segs = arr("segs"), segs2 = arr("segs2");
-        if (!segs2.empty() && !segs.empty()) {
-            if (segs2.size() != segs.size())
-                throw std::runtime_error(
-                    "Shaper: segs2 length must match segs");
-            // Types are shared structure, EXCEPT the Expo/InverseExpo pair:
-            // those are one signed-curvature axis (bulge direction is
-            // geometry) and morph lerps between them.
-            auto isPow = [](int t) { return t == 2 || t == 3; };
-            for (size_t i = 0; i < segs.size(); i += 2) {
-                const int a = int(segs[i]), b = int(segs2[i]);
-                if (a != b && !(isPow(a) && isPow(b)))
-                    throw std::runtime_error(
-                        "Shaper: segs2 segment types must match segs");
-            }
-        }
-        // Hysteresis invariants (hysteresis spec §3). The generic
-        // settings pass above has already applied the flag.
-        if (src.get_setting("hysteresis") != 0.0f) {
-            if (params.contains("morph"))
-                std::fprintf(stderr,
-                    "[load] Shaper: morph is ignored while hysteresis "
-                    "is on\n");
-            if (vals2.empty())
-                std::fprintf(stderr,
-                    "[load] Shaper: hysteresis without values2 is "
-                    "inert (no slip curve)\n");
-        }
-    }
     // ExpandRule (PartialGroups) — a struct, not a pin/setting/array, so it isn't
     // covered by the loops above. Consumed only by Partials hosts. Two JSON forms:
     //   "expandRule": { "count": 4, "spacing1": 0.3, ... }   (inline)
@@ -562,6 +509,30 @@ struct PerformContext {
     std::shared_ptr<ValueSource> freqOut, velOut, wheelOut, pressOut, durOut,
                                  onsetOut;
 };
+
+// A NameGate's `name` against the instrument's onsets[] vocabulary (spec
+// 2026-09-20-note-onsets-v2 §6): ids are 1-based in declaration order. A
+// name outside it, or any name where there is no vocabulary, never fires,
+// and the load says so once per name.
+static void resolve_name_gate(NameGate& gate, const std::string& id,
+                              const std::vector<std::string>* onsets)
+{
+    const std::string name = gate.get_string("name");
+    if (onsets)
+        for (size_t k = 0; k < onsets->size(); ++k)
+            if ((*onsets)[k] == name) {
+                gate.targetId = float(k + 1);
+                break;
+            }
+    if (!name.empty() && gate.targetId < 0.0f) {
+        static std::unordered_set<std::string> warnedGates;
+        if (warnedGates.insert(name).second)
+            std::fprintf(stderr, "[load] NameGate '%s': name "
+                "'%s' is not in the instrument's onsets[] "
+                "vocabulary — it will never fire\n",
+                id.c_str(), name.c_str());
+    }
+}
 
 // Forward declarations for subgraph extraction / rebuild helpers (defined
 // after build_graph since build_subgraph_with_seed_perturbation calls it).
@@ -617,27 +588,15 @@ static GraphResult build_graph(
             seed = static_cast<uint32_t>((*pp)["seed"].get<int>());
 
         // =================================================================
-        // Types that need special construction (setting in constructor args)
+        // Types the loader builds or fills itself
         // =================================================================
 
         if (type == "VarSource") {
             if (!pp) throw std::runtime_error("VarSource requires params");
-            const auto& p = *pp;
-            bool absolute = p.value("absolute", true);
-            auto src = std::make_shared<VarSource>(
-                resolve_param_or(p, "val",    0.0f, graphNodes),
-                resolve_param_or(p, "var",    0.0f, graphNodes),
-                resolve_param_or(p, "varPct", 0.0f, graphNodes), absolute);
-            graphNodes[id] = src;
-        }
-        else if (type == "RangeSource") {
-            if (!pp) throw std::runtime_error("RangeSource requires params");
-            const auto& p = *pp;
-            bool normalized = p.value("normalized", false);
-            auto src = std::make_shared<RangeSource>(
-                resolve_param_or(p, "min", 0.0f, graphNodes),
-                resolve_param_or(p, "max", 1.0f, graphNodes),
-                resolve_param_or(p, "var", 0.0f, graphNodes), normalized);
+            auto src = std::make_shared<VarSource>();
+            // An absent val reads 0.
+            if (!pp->contains("val")) src->val.set(std::make_shared<ConstantSource>(0.0f));
+            wire_params_generic(*src, id, *pp, graphNodes);
             graphNodes[id] = src;
         }
         else if (type == "Envelope") {
@@ -698,83 +657,12 @@ static GraphResult build_graph(
                 + "' (expected frequency|velocity|wheel|pressure|duration|onset)");
         }
         else if (type == "NameGate") {
-            // Onset-name match (spec 2026-09-20-note-onsets-v2 §6).
-            // The `name` string resolves against the instrument's
-            // onsets[] vocabulary; ids are 1-based declaration order.
+            // Onset-name match: the generic pass fills `name`, then the
+            // name resolves against the instrument's vocabulary.
             auto ng = std::make_shared<NameGate>();
-            if (pp && pp->contains("name")) {
-                ng->name = (*pp)["name"].get<std::string>();
-                if (onsets)
-                    for (size_t k = 0; k < onsets->size(); ++k)
-                        if ((*onsets)[k] == ng->name) {
-                            ng->targetId = float(k + 1);
-                            break;
-                        }
-                if (!ng->name.empty() && ng->targetId < 0.0f) {
-                    static std::unordered_set<std::string> warnedGates;
-                    if (warnedGates.insert(ng->name).second)
-                        std::fprintf(stderr, "[load] NameGate '%s': name "
-                            "'%s' is not in the instrument's onsets[] "
-                            "vocabulary — it will never fire\n",
-                            id.c_str(), ng->name.c_str());
-                }
-            }
             if (pp) wire_params_generic(*ng, id, *pp, graphNodes);
+            resolve_name_gate(*ng, id, onsets);
             graphNodes[id] = ng;
-        }
-        else if (type == "SegmentSource") {
-            std::vector<float> values;
-            bool oneShot = false;
-            if (pp) {
-                if (pp->contains("values")) values = (*pp)["values"].get<std::vector<float>>();
-                oneShot = pp->value("oneShot", false);
-            }
-            auto src = std::make_shared<SegmentSource>(
-                std::move(values), oneShot, seed.value_or(0x5E6A'0000u));
-            if (pp) wire_params_generic(*src, id, *pp, graphNodes);
-            graphNodes[id] = src;
-        }
-        else if (type == "Vibrato") {
-            if (!pp) throw std::runtime_error("Vibrato requires params");
-            const auto& p = *pp;
-            auto vib = std::make_shared<Vibrato>(seed.value_or(0xF1B0'0000u));
-            for (const auto& [key, dflt] : std::initializer_list<std::pair<const char*, float>>{
-                     {"speed", 5.0f}, {"depth", 0.02f}, {"attack", 0.3f}, {"threshold", 0.0f},
-                     {"speedVar", 0.0f}, {"depthVar", 0.0f}, {"zeroCrossTendency", 1.0f}})
-                vib->set_setting(key, p.value(key, dflt));
-            wire_params_generic(*vib, id, p, graphNodes);
-            graphNodes[id] = vib;
-        }
-        else if (type == "BWLowpassFilter" || type == "BWHighpassFilter" || type == "BWBandpassFilter") {
-            int sections = pp ? pp->value("sections", 2) : 2;
-            std::shared_ptr<ValueSource> src;
-            if (type == "BWLowpassFilter")
-                src = std::make_shared<BWLowpassFilter>(sections);
-            else if (type == "BWHighpassFilter")
-                src = std::make_shared<BWHighpassFilter>(sections);
-            else
-                src = std::make_shared<BWBandpassFilter>(sections);
-            if (pp) {
-                wire_params_generic(*src, id, *pp, graphNodes);
-                // JSON uses "cutoff" alias for single-band filters
-                if (pp->contains("cutoff"))
-                {
-                    auto part = resolve_param(pp->at("cutoff"), graphNodes);
-                    if (!src->set_param("cutoffFreq", part)) reject_wire(*src, id, "cutoffFreq", *part);
-                }
-            }
-            graphNodes[id] = src;
-        }
-        // ---- HybridKSSource (setting params) ----
-        else if (type == "HybridKSSource") {
-            auto hks = std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
-            if (pp) {
-                const auto& p = *pp;
-                wire_params_generic(*hks, id, p, graphNodes);
-                if (p.contains("targetPartials"))
-                    hks->set_target_partials(p["targetPartials"].get<std::vector<float>>());
-            }
-            graphNodes[id] = hks;
         }
         // ---- MultiplexSource: fan template subgraph into N instances ----
         else if (type == "MultiplexSource") {

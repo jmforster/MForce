@@ -3,6 +3,7 @@
 #include "mforce/core/dsp_value_source.h"
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace mforce {
@@ -27,7 +28,7 @@ struct ShaperSource final : Processor {
   Param capture   {this, "capture",    0.0f, 0.0f, 2.0f,  "curve-x"};
   // Stick/slip junction mode (hysteresis spec §3): curve A = stick, curve B
   // = slip, one bit of state. Mutually exclusive with morph (morph is
-  // ignored while on; loader warns).
+  // ignored while on).
   Setting<bool> hysteresis{this, "hysteresis", false, false, true};
   Array values {this, "values",  nullptr, 0.0f, -2.0f, 2.0f};
   // Per-segment overrides (curve-morph spec §3): flat [typeIdx, power]
@@ -92,6 +93,32 @@ struct ShaperSource final : Processor {
     }
   }
 
+  // Curve B against curve A, on the arrays as the node holds them (a refused
+  // curve rolled back, the segment lists normalised): a point-space morph
+  // needs as many points, and the segment types are shared structure but
+  // for the Expo/InverseExpo pair, one signed-curvature axis that the morph
+  // lerps across.
+  std::string validate() const override {
+    if (!values2.values.empty() && values2.values.size() != values.values.size())
+      return "values2 length must match values";
+    if (!segs.values.empty() && !segs2.values.empty()) {
+      if (segs2.values.size() != segs.values.size())
+        return "segs2 length must match segs";
+      const auto isPow = [](int t) { return t == 2 || t == 3; };
+      for (size_t i = 0; i < segs.values.size(); i += 2) {
+        const int a = int(segs.values[i]), b = int(segs2.values[i]);
+        if (a != b && !(isPow(a) && isPow(b)))
+          return "segs2 segment types must match segs";
+      }
+    }
+    return {};
+  }
+  std::vector<std::string> warnings() const override {
+    if (hysteresis.value && values2.values.empty())
+      return {"hysteresis without values2 is inert (no slip curve)"};
+    return {};
+  }
+
   void on_start(int) override {
     stuck_ = true;      // bow resting on the string at note start
     lastSign_ = 0;
@@ -134,7 +161,7 @@ struct ShaperSource final : Processor {
   // breakpoints (and matching segment powers) lerp point-space — the knee
   // slides rather than smearing; ascending x is preserved because the
   // lerp of two ascending lists is ascending. Segment TYPES come from
-  // segs_ (shared structure; the loader rejects a segs2 whose types
+  // segs_ (shared structure; validate() refuses a segs2 whose types
   // differ). Mismatched point counts degrade to pure A.
   float map(float x) {
     const bool canMorph = !valuesB_.empty()

@@ -14,19 +14,19 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 struct BWLowpassFilter final : Processor {
   Param cutoffFreq{this, "cutoffFreq", 1000.0f, 1.0f, 24000.0f, "hz"};
-
-  explicit BWLowpassFilter(int sectionCount) : sectionCount_(sectionCount) {}
+  Setting<int> sections{this, "sections", 2, 1, 8};
 
   const char* type_name() const override { return "BWLowpassFilter"; }
 
-  // Built at prepare, rebuilt only when the host's rate has changed since. A
-  // repeat prepare at the same rate leaves the histories alone: they carry
-  // across notes.
+  // Built at prepare, rebuilt only when the host's rate or the section count
+  // has changed since. A repeat prepare at the same rate and count leaves the
+  // histories alone: they carry across notes.
   void on_prepare(const RenderContext&) override {
-    if (!sections_.empty() && builtRate_ == sample_rate()) return;
+    if (!sections_.empty() && builtRate_ == sample_rate() && builtCount_ == sections.value) return;
     dsp::build_butterworth_sections(sections_, dsp::ButterworthSection::Kind::Lowpass,
-                                    sectionCount_, float(sample_rate()));
+                                    sections.value, float(sample_rate()));
     builtRate_ = sample_rate();
+    builtCount_ = sections.value;
     lastCutoff_ = -1.0f;
   }
 
@@ -49,8 +49,8 @@ struct BWLowpassFilter final : Processor {
   }
 
 private:
-  int sectionCount_;
   int builtRate_{0};
+  int builtCount_{0};
   std::vector<dsp::ButterworthSection> sections_;
   float lastCutoff_{-1.0f};
 };

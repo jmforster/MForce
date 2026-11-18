@@ -11,19 +11,18 @@ namespace mforce {
 // Ported from C# StaticVarSource — random value drawn once per note, at start().
 // value = baseValue * (1 + random * varPct), optionally biased.
 struct StaticVarSource final : Generator {
-  float baseValue{1.0f};
-  float varPct{0.0f};
-  float bias{0.0f};
+  Setting<float> baseValue{this, "baseValue", 1.0f, -10000.0f, 10000.0f};
+  Setting<float> varPct   {this, "varPct",    0.0f, 0.0f,      1.0f};
+  Setting<float> bias     {this, "bias",      0.0f, -1.0f,     1.0f};
 
-  StaticVarSource(float base, float pct, float b = 0.0f, uint32_t seed = 0x57A70001u)
-  : baseValue(base), varPct(pct), bias(b), rng_(seed) {}
+  explicit StaticVarSource(uint32_t seed = 0x57A70001u) : rng_(seed) {}
 
   const char* type_name() const override { return "StaticVarSource"; }
 
   void on_start(int /*frames*/) override {
-    float r = rng_.valuePN() * varPct;
-    if (bias != 0.0f) r = r * (1.0f - std::fabs(bias)) + bias * varPct;
-    value_ = baseValue * (1.0f + r);
+    float r = rng_.valuePN() * varPct.value;
+    if (bias.value != 0.0f) r = r * (1.0f - std::fabs(bias.value)) + bias.value * varPct.value;
+    value_ = baseValue.value * (1.0f + r);
     cur_ = value_;
   }
 

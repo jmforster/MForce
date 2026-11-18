@@ -35,6 +35,12 @@ void HybridKSSource::on_setting_changed(std::string_view name) {
   if (name == "numPartials" && prepared()) size_targets();
 }
 
+void HybridKSSource::on_array_changed(std::string_view name) {
+  if (name != "targetPartials") return;
+  targetAmpl_ = targetPartials.values;
+  if (prepared()) size_targets();
+}
+
 void HybridKSSource::on_start(int frames) {
   WaveSource::on_start(frames);
   inputSource.start(frames);

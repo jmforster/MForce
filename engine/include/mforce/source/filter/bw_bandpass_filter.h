@@ -15,19 +15,19 @@ namespace mforce {
 struct BWBandpassFilter final : Processor {
   Param lowCutoff {this, "lowCutoff",  100.0f,  1.0f, 24000.0f, "hz"};
   Param highCutoff{this, "highCutoff", 5000.0f, 1.0f, 24000.0f, "hz"};
-
-  explicit BWBandpassFilter(int sectionsPerFilter) : sectionsPerFilter_(sectionsPerFilter) {}
+  Setting<int> sections{this, "sections", 2, 1, 8};   // per filter
 
   const char* type_name() const override { return "BWBandpassFilter"; }
 
   // Built and rebuilt as BWLowpassFilter's sections are.
   void on_prepare(const RenderContext&) override {
-    if (!hpSections_.empty() && builtRate_ == sample_rate()) return;
+    if (!hpSections_.empty() && builtRate_ == sample_rate() && builtCount_ == sections.value) return;
     dsp::build_butterworth_sections(hpSections_, dsp::ButterworthSection::Kind::Highpass,
-                                    sectionsPerFilter_, float(sample_rate()));
+                                    sections.value, float(sample_rate()));
     dsp::build_butterworth_sections(lpSections_, dsp::ButterworthSection::Kind::Lowpass,
-                                    sectionsPerFilter_, float(sample_rate()));
+                                    sections.value, float(sample_rate()));
     builtRate_ = sample_rate();
+    builtCount_ = sections.value;
     lastLo_ = lastHi_ = -1.0f;
   }
 
@@ -50,8 +50,8 @@ struct BWBandpassFilter final : Processor {
   }
 
 private:
-  int sectionsPerFilter_;
   int builtRate_{0};
+  int builtCount_{0};
   float lastLo_{-1.0f}, lastHi_{-1.0f};
   std::vector<dsp::ButterworthSection> hpSections_;
   std::vector<dsp::ButterworthSection> lpSections_;

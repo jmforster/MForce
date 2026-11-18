@@ -40,14 +40,7 @@ struct SegmentSource final : Generator {
   // shapes from JSON. widthIsSecs_ is re-derived from values[0] each time.
   Array values{this, "values", nullptr, 0.0f, -10.0f, 10.0f};
 
-  explicit SegmentSource(std::vector<float> initial, bool os = false,
-                         uint32_t seed = 0x5E6A'0000u)
-  : rng_(seed)
-  {
-    values.values = std::move(initial);
-    oneShot.value = os;
-    refresh_units_();
-  }
+  explicit SegmentSource(uint32_t seed = 0x5E6A'0000u) : rng_(seed) { refresh_units_(); }
 
   const char* type_name() const override { return "SegmentSource"; }
 

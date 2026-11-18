@@ -556,7 +556,7 @@ static void run_dsp_butterworth_tests() {
         auto white = std::make_shared<WhiteNoiseSource>(0xB0B1u);
         auto whiteRef = std::make_shared<WhiteNoiseSource>(0xB0B1u);
         std::unique_ptr<ValueSource> node;
-        if (hp) node = std::make_unique<BWHighpassFilter>(2); else node = std::make_unique<BWLowpassFilter>(2);
+        if (hp) node = std::make_unique<BWHighpassFilter>(); else node = std::make_unique<BWLowpassFilter>();
         node->set_param("source", white);
         node->prepare(ctx); node->start(4800);
         whiteRef->prepare(ctx); whiteRef->start(4800);
@@ -3449,19 +3449,24 @@ bool has_name(std::span<const SettingDescriptor> d, const char* n) {
 static void run_range_var_tests() {
     RenderContext ctx{48000};
 
-    // RangeSource: the declared default of `normalized` is false, whichever
-    // constructor builds it; the 4-argument form sets it explicitly.
+    // RangeSource: the declared default of `normalized` is false; the
+    // setting turns it on.
     {
         auto zero = std::make_shared<ConstantSource>(0.0f);
-        RangeSource a(std::make_shared<ConstantSource>(10.0f),
-                      std::make_shared<ConstantSource>(20.0f), zero);
+        RangeSource a;
+        a.set_param("min", std::make_shared<ConstantSource>(10.0f));
+        a.set_param("max", std::make_shared<ConstantSource>(20.0f));
+        a.set_param("var", zero);
         CHECK(a.normalized.value == false);
         CHECK(!a.setting_descriptors().empty());
         CHECK_NEAR(a.setting_descriptors()[0].default_value, 0.0f, 1e-6f);
         a.prepare(ctx); a.start(16);
         CHECK_NEAR(a.next(), 15.0f, 1e-5f);        // var 0 remapped (0+1)/2
-        RangeSource b(std::make_shared<ConstantSource>(10.0f),
-                      std::make_shared<ConstantSource>(20.0f), zero, true);
+        RangeSource b;
+        b.set_param("min", std::make_shared<ConstantSource>(10.0f));
+        b.set_param("max", std::make_shared<ConstantSource>(20.0f));
+        b.set_param("var", zero);
+        b.set_setting("normalized", 1.0f);
         b.prepare(ctx); b.start(16);
         CHECK_NEAR(b.next(), 10.0f, 1e-5f);        // already normalized
         CHECK(a.param_descriptors().size() == 3);
@@ -3470,12 +3475,13 @@ static void run_range_var_tests() {
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(a.next()));
     }
 
-    // VarSource: absolute and relative modes; wired through the 3-argument
-    // constructor, default absolute.
+    // VarSource: absolute and relative modes; wired by name, default
+    // absolute.
     {
-        VarSource v(std::make_shared<ConstantSource>(2.0f),
-                    std::make_shared<ConstantSource>(0.5f),
-                    std::make_shared<ConstantSource>(0.5f));
+        VarSource v;
+        v.set_param("val", std::make_shared<ConstantSource>(2.0f));
+        v.set_param("var", std::make_shared<ConstantSource>(0.5f));
+        v.set_param("varPct", std::make_shared<ConstantSource>(0.5f));
         CHECK(v.absolute.value == true);
         v.prepare(ctx); v.start(16);
         CHECK_NEAR(v.next(), 2.5f, 1e-5f);         // 2 * (1 + 0.5 * 0.5)
@@ -4957,9 +4963,9 @@ static void run_filter_pin_shape_tests() {
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
     BiquadSource bq;         smoke(bq);
-    BWLowpassFilter lp(2);   smoke(lp);
-    BWHighpassFilter hp(2);  smoke(hp);
-    BWBandpassFilter bp(2);  smoke(bp);
+    BWLowpassFilter lp;      smoke(lp);
+    BWHighpassFilter hp;     smoke(hp);
+    BWBandpassFilter bp;     smoke(bp);
     DelayFilter dly;         smoke(dly);
     HammerBank hammer;       smoke(hammer);
     Limiter lim;             smoke(lim);
@@ -4988,7 +4994,7 @@ static void run_filter_pin_shape_tests() {
           "numBands,harm1,harm2,harm3,harm4,resStart,resEnd,resDecay,bandTilt,direct,gain,");
     CHECK(setting_names(vib) ==
           "speed,depth,attack,threshold,speedVar,depthVar,zeroCrossTendency,");
-    CHECK(setting_names(lp).empty() && setting_names(bp).empty() && setting_names(dly).empty());
+    CHECK(setting_names(lp) == "sections," && setting_names(bp) == "sections," && setting_names(dly).empty());
     CHECK(setting_names(lim).empty() && setting_names(rev).empty());
 
     CHECK(vib.range() == Generator::Range::None);
@@ -5002,7 +5008,7 @@ static void run_filter_default_tests() {
     CHECK_NEAR(param_default(bq, "radius"), 0.997f, 1e-6f);
     CHECK_NEAR(bq.get_setting("b0"), 1.0f, 1e-6f);
     CHECK_NEAR(bq.get_setting("a1"), 0.0f, 1e-6f);
-    BWBandpassFilter bp(2);
+    BWBandpassFilter bp;
     CHECK_NEAR(param_default(bp, "lowCutoff"), 100.0f, 1e-6f);
     CHECK_NEAR(param_default(bp, "highCutoff"), 5000.0f, 1e-6f);
     DelayFilter dly;
@@ -5070,9 +5076,9 @@ static void run_filter_auto_pin_tests() {
     auto count = [&](ValueSource& s, std::initializer_list<const char*> names) {
         for (const auto& p : wire(s, names)) CHECK(p->starts == 1 && p->nexts == 7);
     };
-    BWLowpassFilter lp(2);   count(lp, {"source", "cutoffFreq"});
-    BWHighpassFilter hp(2);  count(hp, {"source", "cutoffFreq"});
-    BWBandpassFilter bp(2);  count(bp, {"source", "lowCutoff", "highCutoff"});
+    BWLowpassFilter lp;      count(lp, {"source", "cutoffFreq"});
+    BWHighpassFilter hp;     count(hp, {"source", "cutoffFreq"});
+    BWBandpassFilter bp;     count(bp, {"source", "lowCutoff", "highCutoff"});
     DelayFilter dly;         count(dly, {"source", "delayTime", "delayLevel", "feedback"});
     HammerBank hammer;       count(hammer, {"source", "frequency"});
     Limiter lim;             count(lim, {"source", "threshold", "release"});
@@ -5116,8 +5122,8 @@ static void run_filter_advance_order_tests() {
         s.next();
         CHECK(log == expect);
     };
-    BWLowpassFilter lp(2);   order(lp, {"source", "cutoffFreq"});
-    BWBandpassFilter bp(2);  order(bp, {"source", "lowCutoff", "highCutoff"});
+    BWLowpassFilter lp;      order(lp, {"source", "cutoffFreq"});
+    BWBandpassFilter bp;     order(bp, {"source", "lowCutoff", "highCutoff"});
     DelayFilter dly;         order(dly, {"source", "delayTime", "delayLevel", "feedback"});
     HammerBank hammer;       order(hammer, {"source", "frequency"});
     Limiter lim;             order(lim, {"source", "threshold", "release"});
@@ -5236,9 +5242,9 @@ static void run_filter_behavior_tests() {
 static void run_filter_butterworth_tests() {
     RenderContext ctx{48000};
     auto dc = std::make_shared<ConstantSource>(1.0f);
-    BWLowpassFilter lp(2);
-    BWHighpassFilter hp(2);
-    BWBandpassFilter bp(2);
+    BWLowpassFilter lp;
+    BWHighpassFilter hp;
+    BWBandpassFilter bp;
     lp.set_param("source", dc);
     hp.set_param("source", dc);
     bp.set_param("source", dc);
@@ -5253,7 +5259,7 @@ static void run_filter_butterworth_tests() {
 
     // the cutoff pin moves the corner: a 100 Hz lowpass blocks a 5 kHz tone
     auto tone = std::make_shared<ConstantSource>(0.0f);
-    BWLowpassFilter low(2);
+    BWLowpassFilter low;
     low.set_param("source", tone);
     low.set_param("cutoffFreq", std::make_shared<ConstantSource>(100.0f));
     low.prepare(ctx); low.start(48000);
@@ -5363,15 +5369,17 @@ static void run_combine_mod_pin_shape_tests() {
     xfade.set_param("source1", konst(1.0f));
     xfade.set_param("source2", konst(2.0f));                     smoke(xfade);
     DistortedSource dist;                                    smoke(dist);
-    StaticVarSource sv(1.0f, 0.1f);                          smoke(sv);
-    StaticRangeSource sr(0.0f, 1.0f);                        smoke(sr);
+    StaticVarSource sv;
+    sv.set_setting("varPct", 0.1f);                              smoke(sv);
+    StaticRangeSource sr;                                    smoke(sr);
     MultiplexSource mux;                                     smoke(mux);
     PhasedValueSource phased(0.05f);
     phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
     phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});     smoke(phased);
     RepeatingSource rep;
     rep.set_param("source", konst(1.0f));                        smoke(rep);
-    SegmentSource seg(std::vector<float>{2.0f, 1.0f, 2.0f, -1.0f});  smoke(seg);
+    SegmentSource seg;
+    seg.set_array("values", {2.0f, 1.0f, 2.0f, -1.0f});          smoke(seg);
     ShaperSource shaper;                                     smoke(shaper);
     WormholeSource wh;                                       smoke(wh);
 
@@ -5423,7 +5431,7 @@ static void run_combine_mod_default_tests() {
     CHECK_NEAR(param_default(sh, "morph"), 0.0f, 1e-6f);
     CHECK_NEAR(param_default(sh, "breakaway"), 0.6f, 1e-6f);
     CHECK_NEAR(param_default(sh, "capture"), 0.0f, 1e-6f);
-    SegmentSource seg(std::vector<float>{});
+    SegmentSource seg;
     CHECK_NEAR(param_default(seg, "smoothness"), 0.5f, 1e-6f);
     CHECK_NEAR(param_default(seg, "width"), 1.0f, 1e-6f);
     CHECK_NEAR(param_default(seg, "gap"), 0.0f, 1e-6f);
@@ -5440,7 +5448,9 @@ static void run_combine_mod_default_tests() {
     CHECK_NEAR(comb.get_setting("gainAdj"), 0.5f, 1e-6f);
     CHECK_NEAR(find_setting(comb, "operation")->default_value, 0.0f, 1e-6f);
     CHECK_NEAR(find_setting(comb, "gainAdj")->default_value, 0.0f, 1e-6f);
-    SegmentSource once(std::vector<float>{4.0f, 1.0f}, true);
+    SegmentSource once;
+    once.set_array("values", {4.0f, 1.0f});
+    once.set_setting("oneShot", 1.0f);
     CHECK_NEAR(once.get_setting("oneShot"), 1.0f, 1e-6f);
     CHECK_NEAR(find_setting(once, "oneShot")->default_value, 0.0f, 1e-6f);
 
@@ -5491,7 +5501,8 @@ static void run_combine_mod_auto_pin_tests() {
     phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
     phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
     count(phased, {"amplitude"});
-    SegmentSource seg(std::vector<float>{2.0f, 1.0f});
+    SegmentSource seg;
+    seg.set_array("values", {2.0f, 1.0f});
     count(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
     WormholeSource wh;
     count(wh, {"source"});
@@ -5627,7 +5638,8 @@ static void run_combine_mod_advance_order_tests() {
     order(comb, {"source1", "source2"});
     DistortedSource dist;
     order(dist, {"source", "density", "gain", "shift", "amplitude"});
-    SegmentSource seg(std::vector<float>{2.0f, 1.0f});
+    SegmentSource seg;
+    seg.set_array("values", {2.0f, 1.0f});
     order(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
     ShaperSource shaper;
     order(shaper, {"source", "drive", "smoothness", "morph", "breakaway", "capture"});
@@ -5671,7 +5683,9 @@ static void run_combine_mod_setting_hook_tests() {
         for (int i = 0; i < 6; ++i) out.push_back(s.next());
         return out;
     };
-    SegmentSource seg(std::vector<float>{4.0f, 1.0f}, true);
+    SegmentSource seg;
+    seg.set_array("values", {4.0f, 1.0f});
+    seg.set_setting("oneShot", 1.0f);
     seg.set_array("values", {0.004f, 1.0f});
     auto secs = ramp4(seg);
     CHECK_NEAR(secs[0], 0.25f, 1e-5f);
@@ -5751,17 +5765,23 @@ static void run_combine_mod_behavior_tests() {
     CHECK(silent);
 
     // the static sources hold one value per note, from prepare on
-    StaticVarSource sv(2.0f, 0.0f);
+    StaticVarSource sv;
+    sv.set_setting("baseValue", 2.0f);
     sv.prepare(ctx); sv.start(10);
     CHECK_NEAR(sv.current(), 2.0f, 1e-6f);
     CHECK_NEAR(sv.next(), 2.0f, 1e-6f);
-    StaticRangeSource sr(0.2f, 0.4f, 0.3f);
+    StaticRangeSource sr;
+    sr.set_setting("min", 0.2f);
+    sr.set_setting("max", 0.4f);
+    sr.set_setting("bias", 0.3f);
     sr.prepare(ctx); sr.start(10);
     const float held = sr.current();
     CHECK(held >= 0.2f && held <= 0.4f && sr.next() == held && sr.next() == held);
 
     // a one-shot segment ramps over its width, scaled by amplitude, then stops
-    SegmentSource once(std::vector<float>{4.0f, 1.0f}, true);
+    SegmentSource once;
+    once.set_array("values", {4.0f, 1.0f});
+    once.set_setting("oneShot", 1.0f);
     once.set_param("amplitude", konst(2.0f));
     once.prepare(ctx); once.start(100);
     CHECK_NEAR(once.next(), 0.5f, 1e-5f);
@@ -6191,7 +6211,7 @@ static void run_hybrid_ks_split_tests() {
             auto h = std::make_shared<HybridKSSource>();
             h->set_setting("holdCycles", 2.0f);
             h->set_setting("morphDuration", 0.02f);
-            h->set_target_partials(std::vector<float>(20, 0.05f));
+            h->set_array("targetPartials", std::vector<float>(20, 0.05f));
             return h;
         };
         const RenderContext ctx{48000};
@@ -6435,9 +6455,9 @@ static const char* const kFilterNames[] = {
 static std::shared_ptr<ValueSource> make_filter(const std::string& name,
                                                 std::shared_ptr<ValueSource> in) {
     std::shared_ptr<ValueSource> n;
-    if (name == "BWLowpass")       n = std::make_shared<BWLowpassFilter>(2);
-    else if (name == "BWHighpass") n = std::make_shared<BWHighpassFilter>(2);
-    else if (name == "BWBandpass") n = std::make_shared<BWBandpassFilter>(2);
+    if (name == "BWLowpass")       n = std::make_shared<BWLowpassFilter>();
+    else if (name == "BWHighpass") n = std::make_shared<BWHighpassFilter>();
+    else if (name == "BWBandpass") n = std::make_shared<BWBandpassFilter>();
     else if (name == "Delay")      n = std::make_shared<DelayFilter>();
     else if (name == "Limiter")    n = std::make_shared<Limiter>();
     else if (name == "Reverb")     n = std::make_shared<Reverb>();
@@ -6779,9 +6799,9 @@ static std::shared_ptr<PhasedValueSource> make_phased() {
 }
 
 static std::shared_ptr<SegmentSource> make_segment(bool seconds, float varPct = 0.2f) {
-    auto g = std::make_shared<SegmentSource>(
-        seconds ? std::vector<float>{0.0004f, 1.0f, 0.0006f, -1.0f}
-                : std::vector<float>{40.0f, 1.0f, 60.0f, -1.0f});
+    auto g = std::make_shared<SegmentSource>();
+    g->set_array("values", seconds ? std::vector<float>{0.0004f, 1.0f, 0.0006f, -1.0f}
+                                   : std::vector<float>{40.0f, 1.0f, 60.0f, -1.0f});
     g->set_param("widthVarPct", std::make_shared<ConstantSource>(varPct));
     g->set_param("valVarPct", std::make_shared<ConstantSource>(varPct / 2.0f));
     return g;
@@ -6802,8 +6822,20 @@ static void run_combine_mod_split_tests() {
     CHECK(split_equivalent([] {
         return std::make_shared<CombinedSource>(sine_at(220.0f), sine_at(330.0f), CombineOp::Fade);
     }));
-    CHECK(split_equivalent([] { return std::make_shared<StaticVarSource>(2.0f, 0.5f, 0.1f); }));
-    CHECK(split_equivalent([] { return std::make_shared<StaticRangeSource>(0.2f, 0.4f, 0.3f); }));
+    CHECK(split_equivalent([] {
+        auto s = std::make_shared<StaticVarSource>();
+        s->set_setting("baseValue", 2.0f);
+        s->set_setting("varPct", 0.5f);
+        s->set_setting("bias", 0.1f);
+        return s;
+    }));
+    CHECK(split_equivalent([] {
+        auto s = std::make_shared<StaticRangeSource>();
+        s->set_setting("min", 0.2f);
+        s->set_setting("max", 0.4f);
+        s->set_setting("bias", 0.3f);
+        return s;
+    }));
 
     // The rate is the host's: a node prepared at one rate and then another is
     // the node prepared at the second. Both draw from a stream that runs on
@@ -10340,6 +10372,442 @@ static void run_menu_content_tests() {
     CHECK(reg.types_in(Family::Additive, Shelf::Experimental).empty());
 }
 
+// The twins of the nodes that declare what the loader read. Each case is
+// driven the same way under the old constructors and under the declared
+// pins; the 64-bit FNV-1a of its samples' float bits under the old
+// constructors is held here as a literal.
+namespace node_twins {
+static uint64_t fnv(const std::vector<float>& samples) {
+    uint64_t h = 14695981039346656037ull;
+    for (float v : samples) {
+        const uint32_t b = std::bit_cast<uint32_t>(v);
+        for (int k = 0; k < 4; ++k) { h ^= (b >> (8 * k)) & 0xFFu; h *= 1099511628211ull; }
+    }
+    return h;
+}
+// A seeded white noise in [-1, 1].
+struct NoiseFeed final : Generator {
+    Randomizer rng;
+    explicit NoiseFeed(uint32_t seed) : rng(seed) {}
+    float compute() override { return rng.valuePN(); }
+    const char* type_name() const override { return "NoiseFeed"; }
+};
+// A line from a to b over n samples of each note, then held at b.
+struct LineFeed final : Generator {
+    float a, b;
+    int n, k{0};
+    LineFeed(float a0, float b0, int n0) : a(a0), b(b0), n(n0) {}
+    void on_start(int) override { k = 0; }
+    float compute() override { const float t = k < n ? float(k) / float(n) : 1.0f; ++k; return a + (b - a) * t; }
+    const char* type_name() const override { return "LineFeed"; }
+};
+static std::shared_ptr<ValueSource> c(float v) { return std::make_shared<ConstantSource>(v); }
+static std::shared_ptr<ValueSource> line(float a, float b) { return std::make_shared<LineFeed>(a, b, 4800); }
+static std::shared_ptr<ValueSource> noise(uint32_t seed) { return std::make_shared<NoiseFeed>(seed); }
+// `notes` notes of `frames` samples each: prepare at 48 kHz, then start and pull.
+static uint64_t render(ValueSource& n, int frames, int notes = 1) {
+    std::vector<float> out;
+    out.reserve(size_t(frames) * size_t(notes));
+    n.prepare(RenderContext{48000});
+    for (int k = 0; k < notes; ++k) {
+        n.start(frames);
+        for (int i = 0; i < frames; ++i) out.push_back(n.next());
+    }
+    return fnv(out);
+}
+static constexpr const char* kFilterKinds[] = {"lp", "hp", "bp"};
+static constexpr int kSectionCounts[] = {1, 2, 3, 5};
+// The filter `f` of kind 0 (lowpass), 1 (highpass) or 2 (bandpass), fed a
+// fresh seeded noise, its cutoff(s) fixed or moving, 4,800 samples.
+static uint64_t filter_hash(ValueSource& f, int kind, bool moving) {
+    f.set_param("source", noise(0xB0B0u));
+    if (kind == 2) {
+        f.set_param("lowCutoff",  moving ? line(100.0f, 800.0f) : c(300.0f));
+        f.set_param("highCutoff", moving ? line(2000.0f, 6000.0f) : c(3000.0f));
+    } else if (kind == 0) {
+        f.set_param("cutoffFreq", moving ? line(200.0f, 8000.0f) : c(1200.0f));
+    } else {
+        f.set_param("cutoffFreq", moving ? line(3000.0f, 100.0f) : c(800.0f));
+    }
+    return render(f, 4800);
+}
+// The hybrid's target spectrum of n values.
+static std::vector<float> targets(int n) {
+    std::vector<float> t;
+    for (int k = 0; k < n; ++k) t.push_back((k % 3 == 1 ? 0.5f : 1.0f) / float(k + 1));
+    return t;
+}
+static constexpr int kTargetCounts[] = {10, 30, 40};
+// A 220 Hz note of 9,600 samples: the attack and well into the additive phase.
+static uint64_t hybrid_hash(ValueSource& h) {
+    h.set_param("frequency", c(220.0f));
+    return render(h, 9600);
+}
+// Each Static node's three numbers, a grid of four, and two seeds.
+static constexpr float kStaticVarGrid[4][3]   = {{1.0f, 0.0f, 0.0f}, {2.0f, 0.5f, 0.0f}, {2.0f, 0.5f, 0.3f}, {-3.0f, 0.2f, -0.5f}};
+static constexpr float kStaticRangeGrid[4][3] = {{0.0f, 1.0f, 0.0f}, {0.2f, 0.4f, 0.3f}, {-5.0f, 5.0f, -0.7f}, {100.0f, 200.0f, 0.0f}};
+static constexpr uint32_t kStaticVarSeeds[]   = {0x57A70001u, 12345u};
+static constexpr uint32_t kStaticRangeSeeds[] = {0x57A70002u, 12345u};
+// Four notes of two samples: the value drawn at each start.
+static uint64_t static_hash(ValueSource& s) { return render(s, 2, 4); }
+// Vibrato's seven settings over six points; the last holds every note
+// under its threshold.
+static constexpr const char* kVibratoKeys[7] = {"speed", "depth", "attack", "threshold", "speedVar", "depthVar", "zeroCrossTendency"};
+static constexpr float kVibratoGrid[6][7] = {
+    {5.0f, 0.02f, 0.3f, 0.0f,  0.0f, 0.0f, 1.0f},
+    {6.0f, 0.05f, 0.2f, 0.0f,  0.3f, 0.2f, 1.0f},
+    {3.5f, 0.1f,  0.5f, 0.05f, 0.0f, 0.5f, 0.3f},
+    {8.0f, 0.01f, 0.0f, 0.0f,  0.8f, 0.0f, 0.0f},
+    {5.0f, 0.03f, 1.0f, 0.08f, 0.1f, 0.1f, 0.7f},
+    {5.0f, 0.05f, 0.3f, 0.5f,  0.0f, 0.0f, 1.0f}};
+static constexpr uint32_t kVibratoSeeds[] = {0xF1B00000u, 777u};
+// Two notes of 4,800 samples on a 440 Hz carrier.
+static uint64_t vibrato_hash(ValueSource& v, const float (&point)[7]) {
+    for (int k = 0; k < 7; ++k) v.set_setting(kVibratoKeys[k], point[k]);
+    v.set_param("frequency", c(440.0f));
+    return render(v, 4800, 2);
+}
+static const std::vector<float> kSegmentValues = {0.01f, 1.0f, 0.02f, -0.5f, 0.005f, 0.0f};
+// Two notes of 2,400 samples, the widths and values varied so the seed is heard.
+static uint64_t segment_hash(ValueSource& s) {
+    s.set_param("widthVarPct", c(0.3f));
+    s.set_param("valVarPct", c(0.2f));
+    return render(s, 2400, 2);
+}
+}  // namespace node_twins
+
+namespace node_twins {
+// The old constructors' answers, one per case, recorded from a build of the
+// old headers.
+static const std::pair<const char*, uint64_t> kBase[] = {
+    {"bw lp s1 fixed", 0x7DA6617F2EF07EEDull},
+    {"bw lp s1 moving", 0x1CF748556F117F90ull},
+    {"bw lp s2 fixed", 0xE54E45AD12B6F94Eull},
+    {"bw lp s2 moving", 0xD4ED49DF426328A5ull},
+    {"bw lp s3 fixed", 0x9B04DD220CFCC334ull},
+    {"bw lp s3 moving", 0x49BFF5C476E951FDull},
+    {"bw lp s5 fixed", 0x1D495CEDFA615EF9ull},
+    {"bw lp s5 moving", 0x8CA09047A4C97532ull},
+    {"bw hp s1 fixed", 0x6C60F48C27D74030ull},
+    {"bw hp s1 moving", 0x957B8416812577B5ull},
+    {"bw hp s2 fixed", 0x878C7C87AFF7806Dull},
+    {"bw hp s2 moving", 0x69D1F954EFB71716ull},
+    {"bw hp s3 fixed", 0x0697BF2AA3F664CCull},
+    {"bw hp s3 moving", 0x0F698B70757C41E7ull},
+    {"bw hp s5 fixed", 0x7DFAD8E6FBB7717Aull},
+    {"bw hp s5 moving", 0x6560F5D68C9F5863ull},
+    {"bw bp s1 fixed", 0x2EB9D888CF17F7D3ull},
+    {"bw bp s1 moving", 0x6CF772B4F98311B1ull},
+    {"bw bp s2 fixed", 0xC63BA71D32C64700ull},
+    {"bw bp s2 moving", 0x3AF89144A020CEBBull},
+    {"bw bp s3 fixed", 0x74716CD94469318Bull},
+    {"bw bp s3 moving", 0x2C3E846CA3BE0B40ull},
+    {"bw bp s5 fixed", 0x554736ADFCD23C42ull},
+    {"bw bp s5 moving", 0x58D552AC9CE75A09ull},
+    {"hybrid t10", 0x65BF1FE0CB7E09FBull},
+    {"hybrid t30", 0x59BB69A73FC03443ull},
+    {"hybrid t40", 0x59BB69A73FC03443ull},
+    {"hybrid t10 after prepare", 0x65BF1FE0CB7E09FBull},
+    {"staticvar g0 seed0", 0xEB87129436C8DA65ull},
+    {"staticrange g0 seed0", 0x0E9E2A5D8A488161ull},
+    {"staticvar g0 seed1", 0xEB87129436C8DA65ull},
+    {"staticrange g0 seed1", 0x68C88F41F56F6279ull},
+    {"staticvar g1 seed0", 0xB5EAB293CFA4921Dull},
+    {"staticrange g1 seed0", 0x7E0E21A9625BE551ull},
+    {"staticvar g1 seed1", 0x4675EA76AD111F95ull},
+    {"staticrange g1 seed1", 0xF9F8EB0EBC06BF9Dull},
+    {"staticvar g2 seed0", 0xF0EF10E2BFF19241ull},
+    {"staticrange g2 seed0", 0x47A55EC549607C71ull},
+    {"staticvar g2 seed1", 0x21082F231FD6FDEDull},
+    {"staticrange g2 seed1", 0xABF1E39866FD7BC1ull},
+    {"staticvar g3 seed0", 0x3971B82E9C983CADull},
+    {"staticrange g3 seed0", 0xD8D7B92104A117ADull},
+    {"staticvar g3 seed1", 0xFEC36C0DEE946D69ull},
+    {"staticrange g3 seed1", 0x855842CC60294771ull},
+    {"vibrato g0 seed0", 0x16C06C18A210D1D1ull},
+    {"vibrato g0 seed1", 0x4E91E896AB169CE9ull},
+    {"vibrato g1 seed0", 0x0BC202720C42535Dull},
+    {"vibrato g1 seed1", 0x23D18A0253408425ull},
+    {"vibrato g2 seed0", 0xF10E1653FF9DF66Dull},
+    {"vibrato g2 seed1", 0x5359D3A7ED07F895ull},
+    {"vibrato g3 seed0", 0xA426CE46B48C4405ull},
+    {"vibrato g3 seed1", 0x0EAD61D1DA83A411ull},
+    {"vibrato g4 seed0", 0xB1B2AD3ADDF6DC49ull},
+    {"vibrato g4 seed1", 0xE2AEAB8B0387E331ull},
+    {"vibrato g5 seed0", 0x48A6C9FCB7685F25ull},
+    {"vibrato g5 seed1", 0x48A6C9FCB7685F25ull},
+    {"var absolute", 0xFA747A5C678A7F0Full},
+    {"var relative", 0xDA52ED834A7DED6Bull},
+    {"range normalized", 0x04F516117C2EF73Full},
+    {"range raw", 0x1B0EBD249763BBD4ull},
+    {"segment default seed", 0xF3965F2D63FBA2D5ull},
+    {"segment seed 99", 0xB311CFFF6E6BF28Full},
+    {"segment default seed oneShot", 0xECAD53185C918959ull},
+    {"segment seed 99 oneShot", 0x6A67A1EF442F948Aull},
+};
+static uint64_t base(const std::string& name) {
+    for (const auto& [n, h] : kBase) if (name == n) return h;
+    std::printf("  no recorded case '%s'\n", name.c_str());
+    return 0;
+}
+static std::string filter_case(int kind, int n, bool moving) {
+    return std::string("bw ") + kFilterKinds[kind] + " s" + std::to_string(n) + (moving ? " moving" : " fixed");
+}
+static std::shared_ptr<ValueSource> bw_filter(int kind) {
+    if (kind == 0) return std::make_shared<BWLowpassFilter>();
+    if (kind == 1) return std::make_shared<BWHighpassFilter>();
+    return std::make_shared<BWBandpassFilter>();
+}
+static std::shared_ptr<ValueSource> create(const char* type, std::optional<uint32_t> seed = std::nullopt) {
+    register_all_sources();
+    return std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type, seed));
+}
+}  // namespace node_twins
+
+static void run_bw_section_twin_tests() {
+    using namespace node_twins;
+    std::printf("the Butterworth section count: the setting against the old constructor\n");
+    int rows = 0;
+    for (int kind = 0; kind < 3; ++kind)
+        for (int n : kSectionCounts)
+            for (bool moving : {false, true}) {
+                auto f = bw_filter(kind);
+                f->set_setting("sections", float(n));
+                CHECK(filter_hash(*f, kind, moving) == base(filter_case(kind, n, moving)));
+                ++rows;
+            }
+    CHECK(rows == 24);
+    for (int kind = 0; kind < 3; ++kind) {
+        auto f = bw_filter(kind);
+        CHECK(f->get_setting("sections") == 2.0f);
+        CHECK(filter_hash(*f, kind, true) == base(filter_case(kind, 2, true)));
+        // The count changed between two prepares: the rebuild starts from
+        // clear histories, so fresh feeds give the fresh three-section render.
+        f->set_setting("sections", 3.0f);
+        CHECK(filter_hash(*f, kind, true) == base(filter_case(kind, 3, true)));
+        // The same rate and count again: the histories carry on.
+        CHECK(filter_hash(*f, kind, true) != base(filter_case(kind, 3, true)));
+    }
+    BWBandpassFilter bp;
+    const auto* d = find_setting(bp, "sections");
+    CHECK(d != nullptr && d->type == SettingType::Int && d->structural);
+    CHECK(d && d->default_value == 2.0f && d->min_value == 1.0f && d->max_value == 8.0f);
+}
+
+static void run_hybrid_target_twin_tests() {
+    using namespace node_twins;
+    std::printf("the hybrid's targets: the array against set_target_partials\n");
+    for (int n : kTargetCounts) {
+        HybridKSSource h;
+        h.set_array("targetPartials", targets(n));
+        CHECK(hybrid_hash(h) == base("hybrid t" + std::to_string(n)));
+        CHECK(h.get_array("targetPartials") == targets(n));      // the store keeps what was set
+        CHECK(h.target_count() == std::max(n, 30));               // the working copy is padded to numPartials
+    }
+    HybridKSSource late;
+    late.prepare(RenderContext{48000});
+    late.set_array("targetPartials", targets(10));
+    CHECK(late.target_count() == 30);                             // sized at once on a prepared node
+    CHECK(hybrid_hash(late) == base("hybrid t10 after prepare"));
+    CHECK(base("hybrid t10") != base("hybrid t30"));              // the targets reach the render
+    bool declared = false;
+    for (const auto& d : late.array_descriptors())
+        declared = declared || std::string(d.name) == "targetPartials";
+    CHECK(declared);
+}
+
+static void run_static_pair_twin_tests() {
+    using namespace node_twins;
+    std::printf("the Static pair: the settings against the old constructors\n");
+    for (int g = 0; g < 4; ++g)
+        for (int s = 0; s < 2; ++s) {
+            const std::string at = " g" + std::to_string(g) + " seed" + std::to_string(s);
+            const auto& p = kStaticVarGrid[g];
+            StaticVarSource sv(kStaticVarSeeds[s]);
+            sv.set_setting("baseValue", p[0]);
+            sv.set_setting("varPct", p[1]);
+            sv.set_setting("bias", p[2]);
+            CHECK(static_hash(sv) == base("staticvar" + at));
+            const auto& q = kStaticRangeGrid[g];
+            StaticRangeSource sr(kStaticRangeSeeds[s]);
+            sr.set_setting("min", q[0]);
+            sr.set_setting("max", q[1]);
+            sr.set_setting("bias", q[2]);
+            CHECK(static_hash(sr) == base("staticrange" + at));
+        }
+    // The default seeds are the old ones.
+    StaticVarSource dv;
+    dv.set_setting("baseValue", 2.0f);
+    dv.set_setting("varPct", 0.5f);
+    CHECK(static_hash(dv) == base("staticvar g1 seed0"));
+    StaticRangeSource dr;
+    CHECK(static_hash(dr) == base("staticrange g0 seed0"));
+    StaticVarSource fv;
+    StaticRangeSource fr;
+    CHECK(fv.get_setting("baseValue") == 1.0f && fv.get_setting("varPct") == 0.0f && fv.get_setting("bias") == 0.0f);
+    CHECK(fr.get_setting("min") == 0.0f && fr.get_setting("max") == 1.0f && fr.get_setting("bias") == 0.0f);
+    CHECK(fv.setting_descriptors().size() == 3 && fr.setting_descriptors().size() == 3);
+    const auto* b = find_setting(fv, "bias");
+    CHECK(b && b->type == SettingType::Float && b->min_value == -1.0f && b->max_value == 1.0f);
+    const auto* mx = find_setting(fr, "max");
+    CHECK(mx && mx->default_value == 1.0f && mx->min_value == -10000.0f && mx->max_value == 10000.0f);
+}
+
+static void run_vibrato_twin_tests() {
+    using namespace node_twins;
+    std::printf("Vibrato: its LFO's two ranges built by their pins against the old constructor\n");
+    int rows = 0;
+    for (int g = 0; g < 6; ++g)
+        for (int s = 0; s < 2; ++s) {
+            Vibrato v(kVibratoSeeds[s]);
+            CHECK(vibrato_hash(v, kVibratoGrid[g]) == base("vibrato g" + std::to_string(g) + " seed" + std::to_string(s)));
+            ++rows;
+        }
+    CHECK(rows == 12);
+    CHECK(base("vibrato g1 seed0") != base("vibrato g1 seed1"));  // the seed reaches the render
+}
+
+static void run_registry_built_twin_tests() {
+    using namespace node_twins;
+    std::printf("Var, Range and Segment built by the registry and filled by name\n");
+    for (bool abs : {true, false}) {
+        auto v = create("VarSource");
+        v->set_param("val", line(1.0f, 3.0f));
+        v->set_param("var", noise(7u));
+        v->set_param("varPct", c(0.25f));
+        v->set_setting("absolute", abs ? 1.0f : 0.0f);
+        CHECK(render(*v, 4800) == base(std::string("var ") + (abs ? "absolute" : "relative")));
+    }
+    for (bool norm : {true, false}) {
+        auto r = create("RangeSource");
+        r->set_param("min", c(10.0f));
+        r->set_param("max", c(20.0f));
+        r->set_param("var", noise(9u));
+        r->set_setting("normalized", norm ? 1.0f : 0.0f);
+        CHECK(render(*r, 4800) == base(std::string("range ") + (norm ? "normalized" : "raw")));
+    }
+    for (bool once : {false, true}) {
+        auto a = create("SegmentSource");
+        auto b = create("SegmentSource", 99u);
+        for (auto* s : {a.get(), b.get()}) {
+            s->set_array("values", kSegmentValues);
+            s->set_setting("oneShot", once ? 1.0f : 0.0f);
+        }
+        CHECK(segment_hash(*a) == base(std::string("segment default seed") + (once ? " oneShot" : "")));
+        CHECK(segment_hash(*b) == base(std::string("segment seed 99") + (once ? " oneShot" : "")));
+    }
+    // The registry's own nodes: nothing wired, each pin at its declared constant.
+    auto v = create("VarSource");
+    CHECK(!v->get_param("val") && !v->get_param("var") && !v->get_param("varPct"));
+    auto* vs = dynamic_cast<VarSource*>(v.get());
+    CHECK(vs && vs->val.constant == 1.0f && vs->absolute.value);
+    (void)render(*v, 4);
+    CHECK(v->current() == 1.0f);                                  // 1 * (1 + 0 * 0)
+    auto r = create("RangeSource");
+    CHECK(r->get_setting("normalized") == 0.0f);
+    CHECK(!r->get_param("min") && !r->get_param("max") && !r->get_param("var"));
+}
+
+static void run_name_gate_name_tests() {
+    std::printf("NameGate: the name is a declared string, resolved against the onsets at build\n");
+    NameGate ng;
+    const auto sd = ng.setting_descriptors();
+    CHECK(sd.size() == 1);
+    CHECK(sd.size() == 1 && std::string(sd[0].name) == "name" && sd[0].type == SettingType::String && sd[0].structural);
+    CHECK(ng.get_string("name").empty());
+    ng.set_string("name", "tongue");
+    CHECK(ng.name.value == "tongue" && ng.get_string("name") == "tongue");
+    CHECK(ng.targetId == -1.0f);                                  // a set resolves nothing; the builder does
+    const auto gate_doc = [](const nlohmann::json& name) {
+        auto doc = nlohmann::json::parse(enum_column::one_node("NameGate", {{"name", name}}));
+        doc["instrument"]["onsets"] = {"tongue", "pluck"};
+        return doc.dump();
+    };
+    for (const auto& [name, id] : {std::pair<const char*, float>{"tongue", 1.0f}, {"pluck", 2.0f}, {"slur", -1.0f}}) {
+        InstrumentPatch ip;
+        bool loaded = true;
+        try { ip = load_instrument_patch_json(gate_doc(name)); }
+        catch (const std::exception& e) { std::printf("  %s: %s\n", name, e.what()); loaded = false; }
+        CHECK(loaded);
+        if (!loaded) continue;
+        auto* g = dynamic_cast<NameGate*>(ip.instrument->voicePool[0].nodesById.at("n").get());
+        CHECK(g && g->get_string("name") == name && g->targetId == id);   // 1-based; outside the vocabulary -1
+    }
+    CHECK(three_kinds::refused_naming(gate_doc(3), false, {"node 'n' (NameGate): 'name' takes a string, not 3"}));
+    // A plain sound has no vocabulary: the gate loads and never matches.
+    CHECK(three_kinds::loads(three_kinds::plain(gate_doc("tongue")), true));
+}
+
+static void run_shaper_validate_tests() {
+    std::printf("the Shaper checks itself: validate() on its arrays, warnings() under hysteresis\n");
+    using Arrays = std::vector<std::pair<const char*, std::vector<float>>>;
+    const auto check = [](const Arrays& arrays) {
+        ShaperSource s;
+        for (const auto& [n, v] : arrays) s.set_array(n, v);
+        return s.validate();
+    };
+    const std::vector<float> two = {-1.0f, -1.0f, 1.0f, 1.0f}, three = {-1.0f, -1.0f, 0.0f, 0.5f, 1.0f, 1.0f};
+    CHECK(check({}).empty());
+    CHECK(check({{"values", two}, {"values2", three}}) == "values2 length must match values");
+    CHECK(check({{"values", three}, {"values2", three}}).empty());
+    CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}, {"segs2", {2.0f, 1.0f}}}) == "segs2 length must match segs");
+    CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}, {"segs2", {0.0f, 0.0f, 1.0f, 1.0f}}}) == "segs2 segment types must match segs");
+    CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 2.0f}}, {"segs2", {0.0f, 0.0f, 3.0f, 2.0f}}}).empty());   // Expo and InverseExpo
+    CHECK(check({{"segs", {0.0f, 0.0f, 3.0f, 2.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f}}}).empty());
+    CHECK(check({{"segs2", {0.0f, 0.0f, 2.0f, 3.0f}}}).empty());                                       // no segs beside segs2
+    CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}}).empty());
+    // Through the loader: the node, its type and the words.
+    nlohmann::json bad = {{"values", two}, {"values2", three}};
+    CHECK(three_kinds::refused_naming(enum_column::one_node("Shaper", bad), false,
+                                      {"node 'n' (Shaper): values2 length must match values"}));
+    nlohmann::json types = {{"segs", {0.0f, 0.0f, 4.0f, 1.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f}}};
+    CHECK(three_kinds::refused_naming(enum_column::one_node("Shaper", types), true,
+                                      {"node 'n' (Shaper): segs2 segment types must match segs"}));
+    nlohmann::json pair = {{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}, {"segs2", {0.0f, 0.0f, 3.0f, 1.0f}}};
+    CHECK(three_kinds::loads(enum_column::one_node("Shaper", pair), false));
+    // warnings(): one line under hysteresis without a slip curve, none otherwise.
+    ShaperSource h;
+    CHECK(h.warnings().empty());
+    h.set_setting("hysteresis", 1.0f);
+    const auto w = h.warnings();
+    CHECK(w.size() == 1 && w[0] == "hysteresis without values2 is inert (no slip curve)");
+    h.set_array("values2", two);
+    CHECK(h.warnings().empty());
+}
+
+static void run_declared_default_load_tests() {
+    using namespace node_twins;
+    std::printf("the five deleted branches' types load at their declared defaults\n");
+    // Settings, Params and arrays against the registry's own node of the type.
+    const auto at_defaults = [](const Component& got, const Component& fresh) {
+        bool ok = true;
+        for (const auto& d : fresh.setting_descriptors())
+            ok = ok && got.get_setting(d.name) == d.default_value && got.get_setting(d.name) == fresh.get_setting(d.name);
+        for (const auto& d : fresh.param_descriptors())
+            ok = ok && !got.get_param(d.name) && !fresh.get_param(d.name);
+        for (const auto& d : fresh.array_descriptors())
+            ok = ok && got.get_array(d.name) == fresh.get_array(d.name);
+        return ok;
+    };
+    for (const char* type : {"RangeSource", "SegmentSource", "Vibrato", "BWLowpassFilter",
+                             "BWHighpassFilter", "BWBandpassFilter", "HybridKSSource"})
+        for (bool withParams : {true, false}) {
+            InstrumentPatch ip;
+            auto n = enum_column::load_node(type, withParams ? nlohmann::json::object() : nlohmann::json(), ip);
+            CHECK(n != nullptr);
+            if (!n) continue;
+            const bool ok = at_defaults(*n, *create(type));
+            if (!ok) std::printf("  %s %s: not at its declared defaults\n", type, withParams ? "{}" : "(no params)");
+            CHECK(ok);
+        }
+    // VarSource with empty params reads val 0, as the old branch did.
+    InstrumentPatch ip;
+    auto v = enum_column::load_node("VarSource", nlohmann::json::object(), ip);
+    CHECK(v && v->get_param("val") && v->get_param("val")->current() == 0.0f);
+    CHECK(v && !v->get_param("var") && !v->get_param("varPct") && v->get_setting("absolute") == 1.0f);
+    CHECK(v && dynamic_cast<ConstantSource*>(v->get_param("val").get()) != nullptr);
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -10495,6 +10963,14 @@ int main() {
     run_dsp_butterworth_tests();
     run_dsp_reset_tests();
     run_dsp_performer_smoother_tests();
+    run_bw_section_twin_tests();
+    run_hybrid_target_twin_tests();
+    run_static_pair_twin_tests();
+    run_vibrato_twin_tests();
+    run_registry_built_twin_tests();
+    run_name_gate_name_tests();
+    run_shaper_validate_tests();
+    run_declared_default_load_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

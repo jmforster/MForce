@@ -349,11 +349,11 @@ void register_all_sources() {
         });
 
     reg.register_type("BWBandpassFilter", {.family = Family::Filter},
-        [](auto) { return std::make_shared<BWBandpassFilter>(2); });
+        [](auto) { return std::make_shared<BWBandpassFilter>(); });
 
     reg.register_type("BWLowpassFilter", {.family = Family::Filter},
-        [](auto) { return std::make_shared<BWLowpassFilter>(2); },
-        // Configurator: section count, "cutoff" alias
+        [](auto) { return std::make_shared<BWLowpassFilter>(); },
+        // Configurator: the "cutoff" alias
         [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             // JSON uses "cutoff" but param descriptor uses "cutoffFreq"
             if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
@@ -361,7 +361,7 @@ void register_all_sources() {
         });
 
     reg.register_type("BWHighpassFilter", {.family = Family::Filter},
-        [](auto) { return std::make_shared<BWHighpassFilter>(2); },
+        [](auto) { return std::make_shared<BWHighpassFilter>(); },
         [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
                 throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
@@ -401,8 +401,7 @@ void register_all_sources() {
     reg.register_type("Vibrato", {.family = Family::Envelope},
         [](auto seed) {
             // Settings (speed/depth/attack/...) keep their declared defaults;
-            // they are set after creation via set_setting (UI) or the
-            // patch_loader special case (JSON).
+            // they are set after creation by name (the UI, the loader).
             return std::make_shared<Vibrato>(seed.value_or(0xF1B0'0000u));
         });
 
@@ -429,8 +428,7 @@ void register_all_sources() {
 
     reg.register_type("SegmentSource", {.family = Family::Envelope},
         [](auto seed) {
-            return std::make_shared<SegmentSource>(
-                std::vector<float>{}, false, seed.value_or(0x5E6A'0000u));
+            return std::make_shared<SegmentSource>(seed.value_or(0x5E6A'0000u));
         });
 
     // -----------------------------------------------------------------------
@@ -451,20 +449,10 @@ void register_all_sources() {
         });
 
     reg.register_type("VarSource", {.family = Family::Modulator},
-        [](auto) {
-            return std::make_shared<VarSource>(
-                std::make_shared<ConstantSource>(0.0f),
-                std::make_shared<ConstantSource>(0.0f),
-                std::make_shared<ConstantSource>(0.0f), true);
-        });
+        [](auto) { return std::make_shared<VarSource>(); });
 
     reg.register_type("RangeSource", {.family = Family::Modulator},
-        [](auto) {
-            return std::make_shared<RangeSource>(
-                std::make_shared<ConstantSource>(0.0f),
-                std::make_shared<ConstantSource>(1.0f),
-                std::make_shared<ConstantSource>(0.0f), true);
-        });
+        [](auto) { return std::make_shared<RangeSource>(); });
 
     reg.register_type("CurveNode", {.family = Family::Modulator},
         [](auto) { return std::make_shared<CurveNode>(); });
@@ -474,8 +462,8 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     // Transition-name match (spec 2026-09-19-note-transitions §5). The
-    // `name` string and its vocabulary resolution are a loader special
-    // case (SettingType has no string).
+    // `name` is a string setting; the builder resolves it against the
+    // instrument's vocabulary.
     reg.register_type("NameGate", {.family = Family::Modulator, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<NameGate>(); });
 
@@ -578,29 +566,10 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("StaticVarSource", {.family = Family::Utility, .shelf = Shelf::Experimental},
-        [](auto seed) {
-            // Needs all config from JSON — use default, configurator sets it
-            return std::make_shared<StaticVarSource>(1.0f, 0.0f, 0.0f,
-                seed.value_or(0x57A7'0001u));
-        },
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            auto& sv = static_cast<StaticVarSource&>(src);
-            sv.baseValue = p.value("baseValue", 1.0f);
-            sv.varPct    = p.value("varPct", 0.0f);
-            sv.bias      = p.value("bias", 0.0f);
-        });
+        [](auto seed) { return std::make_shared<StaticVarSource>(seed.value_or(0x57A7'0001u)); });
 
     reg.register_type("StaticRangeSource", {.family = Family::Utility, .shelf = Shelf::Experimental},
-        [](auto seed) {
-            return std::make_shared<StaticRangeSource>(0.0f, 1.0f, 0.0f,
-                seed.value_or(0x57A7'0002u));
-        },
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            auto& sr = static_cast<StaticRangeSource&>(src);
-            sr.min  = p.value("min", 0.0f);
-            sr.max  = p.value("max", 1.0f);
-            sr.bias = p.value("bias", 0.0f);
-        });
+        [](auto seed) { return std::make_shared<StaticRangeSource>(seed.value_or(0x57A7'0002u)); });
 
 }
 
