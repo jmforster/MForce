@@ -113,7 +113,9 @@ struct Pin {
         , constantSrc(std::make_shared<ConstantSource>(def)) {}
 };
 
-// Special UI-only type name constants (not in the registry)
+// Type names the editor handles by name: two registered types (a node
+// graph's Channel and Mixer) and its own two nodes, which the registry does
+// not hold (PatchOutput, Parameter).
 static constexpr const char* NT_SOUND_CHANNEL = "SoundChannel";
 static constexpr const char* NT_STEREO_MIXER  = "StereoMixer";
 static constexpr const char* NT_PATCH_OUTPUT  = "PatchOutput";
@@ -132,8 +134,7 @@ static constexpr const char* NT_PERFORM       = "PerformNode";
 // field at save. No index vocabulary needed since 2026-08-20.
 
 static bool is_special_ui_type(const std::string& typeName) {
-    return typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER
-        || typeName == NT_PATCH_OUTPUT  || typeName == NT_PARAMETER;
+    return typeName == NT_PATCH_OUTPUT || typeName == NT_PARAMETER;
 }
 
 static std::string node_display_name(const std::string& typeName) {
@@ -155,8 +156,7 @@ static std::string node_display_name(const std::string& typeName) {
 // type by the family the registry declares, through the theme.
 static ImU32 node_title_color(const std::string& typeName) {
     const Theme& th = theme();
-    if (typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER || typeName == NT_PATCH_OUTPUT)
-        return th.output;
+    if (typeName == NT_PATCH_OUTPUT) return th.output;
     if (typeName == NT_PARAMETER) return th.parameter;
     // The performance family, deliberately its own colour: these are the only
     // nodes whose value comes from the NOTE rather than from the graph.
@@ -269,6 +269,10 @@ struct GraphNode {
     // the edit wins instead.
     nlohmann::json jsonExtras = nlohmann::json::object();
 
+    // The node's comment from the file, written back by the save as it came;
+    // the editor shows it nowhere.
+    std::string comment;
+
     // Offline-rendered waveform samples for display
     std::vector<float> waveformData;
 
@@ -304,6 +308,9 @@ struct GraphNode {
     // them under the SAME ids so round-trips stay id-stable. A wired field
     // with no entry gets a fresh __perf_* id at save.
     std::map<std::string, std::string> perfFieldIds;
+    // Note FACE only: field -> the comment its file node carried, written
+    // back on the file node the save emits for that field.
+    std::map<std::string, std::string> perfFieldComments;
 
     // Dynamic pins: the SETTINGS this node instance drives once per note
     // (pin_model_design.md §3). {"sustainLevel": {"ref": "__curve_sus"}}.
@@ -348,7 +355,7 @@ struct GraphNode {
 
     // Create the DSP object and wire pins' ConstantSources as defaults
     void create_dsp() {
-        if (typeName == NT_PATCH_OUTPUT || typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER)
+        if (typeName == NT_PATCH_OUTPUT)
             return;
 
         if (typeName == NT_PARAMETER) {
@@ -454,19 +461,8 @@ struct GraphNode {
 
     void build_pins() {
         if (is_special_ui_type(typeName)) {
-            // Special UI-only nodes with hand-crafted pins
-            if (typeName == NT_SOUND_CHANNEL) {
-                inputs.emplace_back("source", UiPinKind::Input, 0.0f);
-                inputs.emplace_back("volume", UiPinKind::Input, 1.0f);
-                inputs.emplace_back("pan",    UiPinKind::Input, 0.0f);
-                outputs.emplace_back("out", UiPinKind::Output);
-            } else if (typeName == NT_STEREO_MIXER) {
-                inputs.emplace_back("ch 1", UiPinKind::Input, 0.0f);
-                inputs.emplace_back("gainL", UiPinKind::Input, 1.0f);
-                inputs.emplace_back("gainR", UiPinKind::Input, 1.0f);
-                outputs.emplace_back("outL", UiPinKind::Output);
-                outputs.emplace_back("outR", UiPinKind::Output);
-            } else if (typeName == NT_PATCH_OUTPUT) {
+            // The editor's own nodes, with hand-crafted pins
+            if (typeName == NT_PATCH_OUTPUT) {
                 inputs.emplace_back("source", UiPinKind::Input, 0.0f);
             } else if (typeName == NT_PARAMETER) {
                 inputs.emplace_back("default", UiPinKind::Input, 440.0f);
@@ -540,17 +536,6 @@ struct GraphNode {
         if (typeName == "Wormhole") return;
         outputs.emplace_back("tap", UiPinKind::Output);
         outputs.back().isTap = true;
-    }
-
-    void add_channel_input() {
-        if (typeName != NT_STEREO_MIXER) return;
-        int chNum = 0;
-        for (auto& p : inputs)
-            if (p.name.substr(0, 2) == "ch") chNum++;
-        char name[16];
-        snprintf(name, sizeof(name), "ch %d", chNum + 1);
-        auto pos = inputs.end() - 2;
-        inputs.insert(pos, Pin(name, UiPinKind::Input, 0.0f));
     }
 };
 
@@ -658,6 +643,9 @@ static bool s_loadedScoreAbsent = false;
 // them (the 2026-08-10 live-audition damper/gain loss).
 static nlohmann::json s_loadedInstrumentExtras = nlohmann::json::object();
 static nlohmann::json s_loadedSeconds = nlohmann::json();
+// The file's top-level comment, written back by the save as it came; the
+// editor shows it nowhere.
+static std::string s_loadedComment;
 
 // Convert-graph stash (Edit > Convert to <type> graph). Converting a Patch
 // graph to a Node graph strips the instrument-level data the node graph
@@ -800,6 +788,10 @@ static const char* pin_type_compat_error(const std::string& targetType,
     if (needsPartials && !is_partial_set(sourceType)) {
         return "Pin needs a Partials-type source (FullPartials, SequencePartials, ExplicitPartials, or CompositePartials)";
     }
+
+    // A Mixer's channels pin takes a Channel
+    if (targetType == NT_STEREO_MIXER && targetPin == "channels" && sourceType != NT_SOUND_CHANNEL)
+        return "Pin needs a Channel";
 
     return nullptr;
 }
@@ -1193,6 +1185,7 @@ static void clear_graph_state() {
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
+    s_loadedComment.clear();
     s_loadedScoreAbsent = false;  // fresh graphs get the default score
     s_groups.clear();
     s_groupPath.clear();
@@ -1396,11 +1389,25 @@ static void load_graph_from_path(const std::string& path) {
     std::ifstream f(path);
     if (!f) return;
     json root = json::parse(f);
-    // A file that does not parse and the two refusals below leave the open
-    // graph untouched: the caller reports the throw and the graph on screen
-    // stays as it was. A failure after them leaves an empty graph.
+    // A file that does not parse and the refusals below leave the open graph
+    // untouched: the caller reports the throw and the graph on screen stays
+    // as it was. A failure after them leaves an empty graph.
     if (root.contains("instrument") && root["instrument"].contains("paramMap"))
         throw std::runtime_error(mforce::kParamMapRefusal);
+    // 'layout' holds what 'ui' and a top-level 'groups' hold, so a file with
+    // it and either of them is refused. A comment, the file's or a node's,
+    // is a string.
+    if (root.contains("layout"))
+        for (const char* k : {"ui", "groups"})
+            if (root.contains(k))
+                throw std::runtime_error(std::string("the file holds both 'layout' and '") + k + "'");
+    if (root.contains("comment") && !root["comment"].is_string())
+        throw std::runtime_error("the file's 'comment' takes a string, not " + root["comment"].dump());
+    if (root.contains("graph") && root["graph"].contains("nodes") && root["graph"]["nodes"].is_array())
+        for (const auto& jnode : root["graph"]["nodes"])
+            if (jnode.is_object() && jnode.contains("comment") && !jnode["comment"].is_string())
+                throw std::runtime_error("node '" + jnode.value("id", std::string()) + "': 'comment' takes a string, not "
+                                         + jnode["comment"].dump());
     // A spelling the engine does not read is refused with the engine
     // loader's sentence, before anything is cleared, wherever the one table
     // has a row for it: a key of a node's params; a key beside 'ref' or 'tap'
@@ -1481,7 +1488,49 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
         s_loadedInstrumentExtras.erase("polyphony");
     }
     if (root.contains("seconds")) s_loadedSeconds = root["seconds"];
+    if (root.contains("comment") && root["comment"].is_string())
+        s_loadedComment = root["comment"].get<std::string>();
     apply_score_defaults(s_loadedScore);
+
+    // The editor's layout, read from 'layout' when the file has it: its
+    // 'positions' by node id, 'output' for the Output node, 'panning',
+    // 'groups', and 'faces', each Note face with its own 'pos'. A file
+    // tools/convert_patch.py has not rewritten holds 'ui' ('positions' keyed
+    // by node id, by a face's label and by "__output"; 'panning';
+    // 'noteFaces') and a top-level 'groups', read the same way. layoutPos
+    // answers a node id or a face's label; outputPos the Output node.
+    nlohmann::json layoutPos = nlohmann::json::object();
+    nlohmann::json outputPos, layoutPanning, layoutGroups, layoutFaces;
+    bool layoutHasPositions = false;
+    if (root.contains("layout") && root["layout"].is_object()) {
+        const auto& lay = root["layout"];
+        if (lay.contains("positions") && lay["positions"].is_object()) {
+            layoutPos = lay["positions"];
+            layoutHasPositions = true;
+        }
+        if (lay.contains("output")) {
+            outputPos = lay["output"];
+            layoutHasPositions = true;
+        }
+        if (lay.contains("faces")) layoutFaces = lay["faces"];
+        if (layoutFaces.is_array())
+            for (const auto& fc : layoutFaces)
+                if (fc.is_object() && fc.contains("pos") && fc.contains("label") && fc["label"].is_string()) {
+                    layoutPos[fc["label"].get<std::string>()] = fc["pos"];
+                    layoutHasPositions = true;
+                }
+        if (lay.contains("panning")) layoutPanning = lay["panning"];
+        if (lay.contains("groups"))  layoutGroups  = lay["groups"];
+    } else {
+        if (root.contains("ui") && root["ui"].contains("positions")) {
+            layoutPos = root["ui"]["positions"];
+            if (layoutPos.contains("__output")) outputPos = layoutPos["__output"];
+            layoutHasPositions = true;
+        }
+        if (root.contains("ui") && root["ui"].contains("panning"))   layoutPanning = root["ui"]["panning"];
+        if (root.contains("ui") && root["ui"].contains("noteFaces")) layoutFaces   = root["ui"]["noteFaces"];
+        if (root.contains("groups")) layoutGroups = root["groups"];
+    }
 
     const auto& nodes = root["graph"]["nodes"];
     std::string outputId = root["graph"]["output"].get<std::string>();
@@ -1500,15 +1549,18 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
     // editor shows one Note node with an output pin per field — the shape
     // every design discussion described (Matt 2026-08-20; the per-field
     // editor face was a P2a/P2b conflation of file shape with face shape).
-    // ui.noteFaces records face identity; without it (converted/legacy
-    // files) all perf nodes merge into a single face.
-    std::unordered_map<std::string, std::string> perfFileField;  // id -> field
+    // The layout's faces record face identity; without them all perf nodes
+    // merge into a single face. A file node's comment rides with its field.
+    std::unordered_map<std::string, std::string> perfFileField;    // id -> field
+    std::unordered_map<std::string, std::string> perfFileComment;  // id -> comment
     for (const auto& jnode : nodes) {
         if (jnode.value("type", std::string()) != NT_PERFORM) continue;
         std::string f = "frequency";
         if (jnode.contains("params"))
             f = jnode["params"].value("field", std::string("frequency"));
         perfFileField[jnode["id"].get<std::string>()] = f;
+        if (jnode.contains("comment") && jnode["comment"].is_string())
+            perfFileComment[jnode["id"].get<std::string>()] = jnode["comment"].get<std::string>();
     }
 
     // First pass: create all nodes
@@ -1554,6 +1606,8 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
         // and no params at all.
         if (jnode.contains("dynamicPins") && jnode["dynamicPins"].is_object())
             gn.dynamicPins = jnode["dynamicPins"];
+        if (jnode.contains("comment") && jnode["comment"].is_string())
+            gn.comment = jnode["comment"].get<std::string>();
 
         nodeMap[id] = &gn;
 
@@ -1731,29 +1785,17 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                 }
             }
         }
-
-        // Mixer: add extra channel inputs if needed
-        if (gn.typeName == NT_STEREO_MIXER && jnode.contains("inputs") &&
-            jnode["inputs"].contains("channels")) {
-            int numCh = (int)jnode["inputs"]["channels"].size();
-            for (int c = 1; c < numCh; ++c)
-                gn.add_channel_input();
-            // Re-map input pins after adding channels
-            for (auto& pin : gn.inputs)
-                inputPinMap[id + "." + pin.name] = pin.id;
-        }
     }
 
     // Build Note faces from the consumed PerformNode file nodes, and
     // register each file id under the matching face PIN so the ref pass
-    // below wires straight to it. ui.noteFaces preserves face identity
-    // across UI round-trips; a file without it (converted/legacy) merges
-    // every perf node into one face.
+    // below wires straight to it. The layout's faces preserve face identity
+    // across UI round-trips; a file without them merges every perf node into
+    // one face.
     if (!perfFileField.empty()) {
         std::vector<std::pair<std::string, std::map<std::string, std::string>>> plan;
-        if (root.contains("ui") && root["ui"].contains("noteFaces") &&
-            root["ui"]["noteFaces"].is_array()) {
-            for (const auto& fj : root["ui"]["noteFaces"]) {
+        if (layoutFaces.is_array()) {
+            for (const auto& fj : layoutFaces) {
                 std::map<std::string, std::string> fields;
                 if (fj.contains("fields") && fj["fields"].is_object())
                     for (auto& [f, fid] : fj["fields"].items())
@@ -1789,9 +1831,12 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
             GraphNode& face = s_nodes.back();
             if (!label.empty()) face.label = label;  // else keep ctor-unique label
             face.perfFieldIds = fields;
-            for (auto& [f, fid] : fields)
+            for (auto& [f, fid] : fields) {
                 if (Pin* p = face.find_output(f))
                     outputPinMap[fid] = p->id;
+                if (auto c = perfFileComment.find(fid); c != perfFileComment.end())
+                    face.perfFieldComments[f] = c->second;
+            }
         }
         // Stragglers (a noteFaces list that missed a file node): each id
         // needs a face pin of its OWN — claim the first face whose slot for
@@ -1809,6 +1854,8 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                 home = &s_nodes.back();
             }
             home->perfFieldIds[f] = fid;
+            if (auto c = perfFileComment.find(fid); c != perfFileComment.end())
+                home->perfFieldComments[f] = c->second;
             if (Pin* p = home->find_output(f))
                 outputPinMap[fid] = p->id;
         }
@@ -1862,7 +1909,8 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
             }
         }
 
-        // SoundChannel source input
+        // A SoundChannel's source given in a node-level 'inputs' block, the
+        // spelling tools/convert_patch.py rewrites as the feed params.source
         if (jnode.contains("inputs") && jnode["inputs"].contains("source")) {
             std::string srcId = jnode["inputs"]["source"].get<std::string>();
             auto outIt = outputPinMap.find(srcId);
@@ -1871,18 +1919,15 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                 s_links.emplace_back(outIt->second, inIt->second);
         }
 
-        // StereoMixer channel inputs
+        // A StereoMixer's channel ids given in a node-level 'inputs' block,
+        // the spelling tools/convert_patch.py rewrites as the feeds
+        // params.channels: each linked into the 'channels' pin, in list order
         if (jnode.contains("inputs") && jnode["inputs"].contains("channels")) {
-            int chIdx = 0;
+            auto inIt = inputPinMap.find(id + ".channels");
             for (const auto& chId : jnode["inputs"]["channels"]) {
-                std::string srcId = chId.get<std::string>();
-                char chName[16];
-                snprintf(chName, sizeof(chName), "ch %d", chIdx + 1);
-                auto outIt = outputPinMap.find(srcId);
-                auto inIt = inputPinMap.find(id + "." + std::string(chName));
+                auto outIt = outputPinMap.find(chId.get<std::string>());
                 if (outIt != outputPinMap.end() && inIt != inputPinMap.end())
                     s_links.emplace_back(outIt->second, inIt->second);
-                chIdx++;
             }
         }
     }
@@ -1919,10 +1964,10 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
             s_links.emplace_back(outIt->second, outNode.inputs[0].id);
     }
 
-    // Groups (spec §3): root-level section, engine-blind. Two passes so a
-    // member may reference a group defined later in the array.
-    if (root.contains("groups") && root["groups"].is_array()) {
-        for (const auto& jg : root["groups"]) {
+    // Groups (spec §3): engine-blind. Two passes so a member may reference a
+    // group defined later in the array.
+    if (layoutGroups.is_array()) {
+        for (const auto& jg : layoutGroups) {
             if (!jg.contains("name") || !jg["name"].is_string()) continue;
             NodeGroup g;
             g.name = jg["name"].get<std::string>();
@@ -1955,27 +2000,28 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
         }
     }
 
-    // Restore positions from UI metadata, or fall back to grid layout
-    if (root.contains("ui") && root["ui"].contains("positions")) {
-        const auto& positions = root["ui"]["positions"];
-
+    // Restore positions from the layout, or fall back to grid layout
+    if (layoutHasPositions) {
         for (auto& node : s_nodes) {
-            std::string key;
-            if (node.typeName == NT_PATCH_OUTPUT)
-                key = "__output";
-            else
-                key = node.label;  // label was set to the JSON id
+            // The Output node's position is the layout's own; every other
+            // node's is under its label, which was set to the JSON id (a
+            // face's to its label).
+            const bool isOutput = node.typeName == NT_PATCH_OUTPUT;
+            const std::string key = isOutput ? "output" : node.label;
+            const nlohmann::json* pos = isOutput
+                ? (outputPos.is_null() ? nullptr : &outputPos)
+                : (layoutPos.contains(key) ? &layoutPos[key] : nullptr);
 
-            if (positions.contains(key)) {
-                float x = positions[key][0].get<float>();
-                float y = positions[key][1].get<float>();
+            if (pos) {
+                float x = (*pos)[0].get<float>();
+                float y = (*pos)[1].get<float>();
                 // Corrupt-coordinate guard: files in the wild carry garbage
                 // written by the old save-while-drilled __output bug
                 // (x=1.19e27, y=-2.4e13 observed; the latter crashed the
                 // GUI at first frame). Treat absurd positions as absent —
                 // the node re-places instead of the app dying.
                 if (!(std::fabs(x) < 1e7f && std::fabs(y) < 1e7f)) {
-                    std::fprintf(stderr, "[load] ui.positions['%s'] is "
+                    std::fprintf(stderr, "[load] the position of '%s' is "
                                  "corrupt (%g, %g) — ignored\n",
                                  key.c_str(), x, y);
                     continue;
@@ -2099,11 +2145,10 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
     }
 
     // Restore editor pan (so the saved view-of-the-graph reappears).
-    if (root.contains("ui") && root["ui"].contains("panning") &&
-        root["ui"]["panning"].is_array() && root["ui"]["panning"].size() == 2)
+    if (layoutPanning.is_array() && layoutPanning.size() == 2)
     {
-        float px = root["ui"]["panning"][0].get<float>();
-        float py = root["ui"]["panning"][1].get<float>();
+        float px = layoutPanning[0].get<float>();
+        float py = layoutPanning[1].get<float>();
         ImNodes::EditorContextResetPanning(ImVec2(px, py));
     }
 
@@ -2552,6 +2597,26 @@ static bool rename_group(NodeGroup& group, const std::string& newName,
     return true;
 }
 
+// A node's position for the saved layout: the app-tracked gridPos, which
+// survives group drill-in (imnodes forgets a node it is not given in a
+// frame), else imnodes' own. Headless there is no editor to ask, so a node
+// whose gridPos is unknown has no position.
+static bool layout_position(const GraphNode& node, nlohmann::json& out) {
+    if (s_headless && !node.gridPosKnown) return false;
+    const ImVec2 pos = node.gridPosKnown ? node.gridPos : ImNodes::GetNodeGridSpacePos(node.id);
+    out = {pos.x, pos.y};
+    return true;
+}
+
+// The layout's groups (spec §3), engine-blind: each group's name, members
+// by label and position, from the model.
+static nlohmann::json layout_groups() {
+    nlohmann::json jgroups = nlohmann::json::array();
+    for (const auto& g : s_groups)
+        jgroups.push_back({{"name", g.name}, {"members", g.members}, {"pos", {g.pos.x, g.pos.y}}});
+    return jgroups;
+}
+
 // tapOverride: emit the Listen-tap node as graph.output (playback TEMP file
 // only — a user-facing Save must never persist the tap).
 // Build the patch JSON from the live editor state. When outIds is
@@ -2597,8 +2662,10 @@ static nlohmann::json serialize_patch_graph(
             usedIds.insert(fid);
             node.perfFieldIds[p.name] = fid;   // stable on the next save
             perfPinRef[p.id] = fid;
-            perfNodes.push_back({{"id", fid}, {"type", NT_PERFORM},
-                                 {"params", {{"field", p.name}}}});
+            json perfNode = {{"id", fid}, {"type", NT_PERFORM}, {"params", {{"field", p.name}}}};
+            if (auto c = node.perfFieldComments.find(p.name); c != node.perfFieldComments.end())
+                perfNode["comment"] = c->second;
+            perfNodes.push_back(std::move(perfNode));
         }
     }
 
@@ -2643,9 +2710,6 @@ static nlohmann::json serialize_patch_graph(
         json params = json::object();
 
         for (auto& pin : node.inputs) {
-            bool isChannelPin = (pin.name.substr(0, 3) == "ch ");
-            if (isChannelPin) continue;
-
             if (pin.multi) {
                 // Multi-input pin: collect all connected sources as array of refs
                 json refs = json::array();
@@ -2767,6 +2831,8 @@ static nlohmann::json serialize_patch_graph(
                 jnode["params"][k] = v;
         }
 
+        if (!node.comment.empty()) jnode["comment"] = node.comment;
+
         nodes.push_back(jnode);
     }
 
@@ -2852,67 +2918,42 @@ static nlohmann::json serialize_patch_graph(
         });
     }
 
-    // Groups (spec §3): engine-blind root section, emitted verbatim from
-    // the model. Names double as the future reuse-library type names.
-    if (!s_groups.empty()) {
-        json jgroups = json::array();
-        for (const auto& g : s_groups) {
-            json jg;
-            jg["name"] = g.name;
-            jg["members"] = g.members;
-            jg["pos"] = {g.pos.x, g.pos.y};
-            jgroups.push_back(std::move(jg));
-        }
-        root["groups"] = std::move(jgroups);
-    }
+    if (!s_loadedComment.empty()) root["comment"] = s_loadedComment;
 
-    // Save UI layout. Headless (round-trip / paste harnesses): no live
-    // editor, so panning and imnodes position fallbacks are unavailable —
-    // but emit what the graph itself knows (loaded gridPos, face identity).
-    // The old skip-everything-headless shed ui.noteFaces, and on the NEXT
-    // load the face labels no longer matched, so group membership of Note
-    // faces silently died across a headless load→save cycle.
+    // The layout, engine-blind: 'positions' holds the file nodes by id; the
+    // Output node's position is 'output'; 'panning' is the editor's view
+    // (none headless); 'groups' as the model holds them; 'faces' says which
+    // per-field file nodes each Note face stands for (without it a reload
+    // merges them into one face), with the face's own 'pos'. Headless a save
+    // writes what the graph knows (layout_position). A member with nothing
+    // to hold is not written, nor is an empty layout.
     {
+        json layout = json::object();
         json positions = json::object();
         for (auto* nodePtr : sorted) {
-            if (nodePtr->typeName == NT_PATCH_OUTPUT || nodePtr->typeName == NT_PARAMETER)
+            if (nodePtr->typeName == NT_PATCH_OUTPUT || nodePtr->typeName == NT_PARAMETER ||
+                nodePtr->typeName == NT_PERFORM)
                 continue;
-            if (s_headless && !nodePtr->gridPosKnown) continue;
-            // gridPos is the durable copy — imnodes has already forgotten
-            // any node currently hidden by group drill-in.
-            ImVec2 pos = nodePtr->gridPosKnown
-                ? nodePtr->gridPos
-                : ImNodes::GetNodeGridSpacePos(nodePtr->id);
-            positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
+            if (json pos; layout_position(*nodePtr, pos)) positions[nodeIds[nodePtr->id]] = pos;
         }
-        // __output takes the same gridPos-first fallback as every other
-        // node: querying imnodes live while drilled into a group (Output
-        // not submitted, imnodes forgot it) wrote garbage coordinates —
-        // oboe_grouped carried x=1.19e27, clarinet_attempt y=-2.4e13, and
-        // the latter crashed the GUI on load (Matt 2026-09-07).
-        if (outputNode && (outputNode->gridPosKnown || !s_headless)) {
-            ImVec2 pos = outputNode->gridPosKnown
-                ? outputNode->gridPos
-                : ImNodes::GetNodeGridSpacePos(outputNode->id);
-            positions["__output"] = {pos.x, pos.y};
-        }
-        if (!positions.empty()) root["ui"]["positions"] = positions;
+        if (!positions.empty()) layout["positions"] = positions;
+        if (json pos; outputNode && layout_position(*outputNode, pos)) layout["output"] = pos;
         if (!s_headless) {
             ImVec2 pan = ImNodes::EditorContextGetPanning();
-            root["ui"]["panning"] = {pan.x, pan.y};
+            layout["panning"] = {pan.x, pan.y};
         }
-
-        // Note-face identity: which per-field file nodes belong to which
-        // editor face. UI-owned; the engine loader never reads it. Without
-        // it a re-load merges all perf nodes into one face.
+        if (!s_groups.empty()) layout["groups"] = layout_groups();
         json faces = json::array();
         for (auto& n : s_nodes) {
             if (n.typeName != NT_PERFORM || n.perfFieldIds.empty()) continue;
             json ff = json::object();
             for (auto& [f, fid] : n.perfFieldIds) ff[f] = fid;
-            faces.push_back({{"label", nodeIds[n.id]}, {"fields", ff}});
+            json face = {{"label", nodeIds[n.id]}, {"fields", ff}};
+            if (json pos; layout_position(n, pos)) face["pos"] = pos;
+            faces.push_back(std::move(face));
         }
-        if (!faces.empty()) root["ui"]["noteFaces"] = faces;
+        if (!faces.empty()) layout["faces"] = faces;
+        if (!layout.empty()) root["layout"] = layout;
     }
 
     if (outIds) *outIds = nodeIds;
@@ -2953,19 +2994,9 @@ static void save_node_graph(const std::string& path) {
 
         json params = json::object();
         for (auto& pin : node.inputs) {
-            bool isChannelPin = (pin.name.substr(0, 3) == "ch ");
-
             GraphNode* src = find_source_node(pin.id);
 
-            if (node.typeName == NT_SOUND_CHANNEL && pin.name == "source") {
-                if (src) jnode["inputs"]["source"] = nodeIds[src->id];
-            } else if (isChannelPin && node.typeName == NT_STEREO_MIXER) {
-                if (src) {
-                    if (!jnode.contains("inputs") || !jnode["inputs"].contains("channels"))
-                        jnode["inputs"]["channels"] = json::array();
-                    jnode["inputs"]["channels"].push_back(nodeIds[src->id]);
-                }
-            } else if (pin.multi) {
+            if (pin.multi) {
                 json refs = json::array();
                 for (auto& link : s_links) {
                     int outPinId = -1;
@@ -3038,40 +3069,34 @@ static void save_node_graph(const std::string& path) {
                 jnode["params"][k] = v;
         }
 
+        if (!node.comment.empty()) jnode["comment"] = node.comment;
+
         nodes.push_back(jnode);
     }
 
     json root;
     root["sampleRate"] = g_renderContext.sampleRate;
-    root["seconds"] = 5;
+    // The file's length as loaded; 5 seconds for a graph that had none.
+    root["seconds"] = s_loadedSeconds.is_number() ? s_loadedSeconds : json(5);
     root["graph"]["nodes"] = nodes;
     root["graph"]["output"] = outputId;
+    if (!s_loadedComment.empty()) root["comment"] = s_loadedComment;
 
-    // Groups — same engine-blind section as the patch save.
-    if (!s_groups.empty()) {
-        json jgroups = json::array();
-        for (const auto& g : s_groups) {
-            json jg;
-            jg["name"] = g.name;
-            jg["members"] = g.members;
-            jg["pos"] = {g.pos.x, g.pos.y};
-            jgroups.push_back(std::move(jg));
-        }
-        root["groups"] = std::move(jgroups);
-    }
-
-    // Save UI layout
-    json positions = json::object();
-    for (auto* nodePtr : sorted) {
-        ImVec2 pos = nodePtr->gridPosKnown
-            ? nodePtr->gridPos
-            : ImNodes::GetNodeGridSpacePos(nodePtr->id);
-        positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
-    }
-    root["ui"]["positions"] = positions;
+    // The layout, as the patch save writes it: 'positions' by node id,
+    // 'panning' (none headless), 'groups'; a member with nothing to hold is
+    // not written, nor is an empty layout.
     {
-        ImVec2 pan = ImNodes::EditorContextGetPanning();
-        root["ui"]["panning"] = {pan.x, pan.y};
+        json layout = json::object();
+        json positions = json::object();
+        for (auto* nodePtr : sorted)
+            if (json pos; layout_position(*nodePtr, pos)) positions[nodeIds[nodePtr->id]] = pos;
+        if (!positions.empty()) layout["positions"] = positions;
+        if (!s_headless) {
+            ImVec2 pan = ImNodes::EditorContextGetPanning();
+            layout["panning"] = {pan.x, pan.y};
+        }
+        if (!s_groups.empty()) layout["groups"] = layout_groups();
+        if (!layout.empty()) root["layout"] = layout;
     }
 
     std::ofstream f(path);
@@ -4475,10 +4500,10 @@ static void play_continuous(float velocity) {
         return;
     }
 
-    // Node graph: stream the StereoMixer live. Resolve each mixer "ch N" pin
-    // to its SoundChannel and the channel's source/volume/pan taps. Accepting
-    // SoundChannel only matches the CLI loader, which rejects anything else
-    // wired into a mixer channel ("Node is not SoundChannel").
+    // Node graph: stream the StereoMixer live. Its channels are the links
+    // into its 'channels' pin, in link order (the order the savers write);
+    // each must end at a SoundChannel, as the command-line loader requires,
+    // and gives that channel's source, volume and pan.
     GraphNode* mixer = nullptr;
     for (auto& n : s_nodes)
         if (n.typeName == NT_STEREO_MIXER) { mixer = &n; break; }
@@ -4504,9 +4529,16 @@ static void play_continuous(float velocity) {
     };
 
     std::vector<StreamChannel> channels;
-    for (auto& pin : mixer->inputs) {
-        if (pin.name.substr(0, 3) != "ch ") continue;
-        GraphNode* chNode = find_source_node(pin.id);
+    Pin* chPin = mixer->find_input("channels");
+    for (auto& link : s_links) {
+        if (!chPin) break;
+        int otherPinId = -1;
+        if (link.endPinId == chPin->id) otherPinId = link.startPinId;
+        if (link.startPinId == chPin->id) otherPinId = link.endPinId;
+        if (otherPinId < 0) continue;
+        Pin* otherPin = find_pin(otherPinId);
+        GraphNode* chNode = find_node_for_pin(otherPinId);
+        if (!otherPin || otherPin->kind != UiPinKind::Output) continue;
         if (!chNode || chNode->typeName != NT_SOUND_CHANNEL) continue;
 
         StreamChannel sc;
@@ -8097,15 +8129,6 @@ static void draw_node(GraphNode& node) {
         ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "<)))");
     }
 
-    // Mixer "+" button stays — it's structural (adding channels), not parameter editing
-    if (node.typeName == NT_STEREO_MIXER) {
-        ImGui::SameLine();
-        char btnLabel[32];
-        snprintf(btnLabel, sizeof(btnLabel), " + ##addch%d", node.id);
-        if (ImGui::SmallButton(btnLabel))
-            node.add_channel_input();
-    }
-
     ImNodes::EndNodeTitleBar();
 
     // Parameter node: show param name in body.
@@ -8128,8 +8151,8 @@ static void draw_node(GraphNode& node) {
         if (is_pin_connected(pin.id)) {
             // Connected: just show pin name in normal white (wire makes connection obvious)
             ImGui::TextUnformatted(pin.name.c_str());
-        } else if (pin.inputOnly || pin.name.substr(0, 3) == "ch ") {
-            // Input-only or channel pin: gray text
+        } else if (pin.inputOnly) {
+            // Input-only pin: gray text
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", pin.name.c_str());
         } else {
             // Unconnected value pin: show name + current value
@@ -8464,7 +8487,6 @@ static void draw_properties_panel() {
     bool hasParams = false;
     for (auto& pin : node->inputs) {
         if (pin.inputOnly) continue;
-        if (pin.name.substr(0, 3) == "ch ") continue;  // skip "ch 1", "ch 2" mixer channels
         // Hide "default" pin on Parameter nodes — it's internal
         if (node->typeName == NT_PARAMETER && pin.name == "default") continue;
         hasParams = true;
@@ -9361,16 +9383,11 @@ static nlohmann::json clip_node_state(const GraphNode& node) {
     }
     if (node.jsonSeed >= 0)               j["seed"]      = node.jsonSeed;
 
-    // Editable pin defaults. Mixer "ch N" pins carry no value — only their
-    // count matters (paste re-adds them via add_channel_input).
+    // Editable pin defaults.
     json pins = json::object();
-    int chPins = 0;
-    for (const auto& p : node.inputs) {
-        if (p.name.substr(0, 3) == "ch ") { chPins++; continue; }
+    for (const auto& p : node.inputs)
         if (!p.inputOnly) pins[p.name] = p.defaultValue;
-    }
-    if (!pins.empty()) j["pins"]   = pins;
-    if (chPins > 0)    j["chPins"] = chPins;
+    if (!pins.empty()) j["pins"] = pins;
 
     if (!node.settingValues.empty()) {
         json cfg = json::object();
@@ -9406,9 +9423,6 @@ static int clip_instantiate(const nlohmann::json& j) {
         std::snprintf(gn.onsetsBuf, sizeof(gn.onsetsBuf), "%s",
                       j["onsets"].get<std::string>().c_str());
     if (j.contains("seed"))      gn.jsonSeed  = j["seed"].get<long long>();
-
-    for (int c = 1; c < j.value("chPins", 1); ++c)
-        gn.add_channel_input();
 
     if (j.contains("pins")) {
         for (auto& [name, val] : j["pins"].items()) {
@@ -9647,13 +9661,13 @@ static void convert_patch_to_node_graph() {
     int chOutPin = s_nodes.back().outputs[0].id;
     s_nodes.emplace_back(std::string(NT_STEREO_MIXER));
     int mixId    = s_nodes.back().id;
-    int mixCh1Pin = s_nodes.back().find_input("ch 1")->id;
+    int mixChPin = s_nodes.back().find_input("channels")->id;
     if (!s_headless) {
         ImNodes::SetNodeGridSpacePos(chId,  anchor);
         ImNodes::SetNodeGridSpacePos(mixId, ImVec2(anchor.x + 220.0f, anchor.y));
     }
     if (srcOutPin >= 0) s_links.emplace_back(srcOutPin, chSrcPin);
-    s_links.emplace_back(chOutPin, mixCh1Pin);
+    s_links.emplace_back(chOutPin, mixChPin);
 
     s_graphMode  = GraphMode::NodeGraph;
     mark_graph_dirty();
@@ -9662,8 +9676,9 @@ static void convert_patch_to_node_graph() {
 }
 
 static void convert_node_to_patch_graph() {
-    // Main source: whatever feeds the first Channel's source pin; else the
-    // Mixer's ch 1; else the topologically-last node with an output.
+    // Main source: whatever feeds the first Channel's source pin; else what
+    // the first link into the Mixer's channels comes from; else the
+    // topologically-last node with an output.
     GraphNode* channel = nullptr;
     GraphNode* mixer   = nullptr;
     for (auto& n : s_nodes) {
@@ -9678,7 +9693,7 @@ static void convert_node_to_patch_graph() {
                 if (!src->outputs.empty()) srcOutPin = src->outputs[0].id;
     }
     if (srcOutPin < 0 && mixer) {
-        if (Pin* cp = mixer->find_input("ch 1"))
+        if (Pin* cp = mixer->find_input("channels"))
             if (GraphNode* src = find_source_node(cp->id))
                 if (!src->outputs.empty()) srcOutPin = src->outputs[0].id;
     }
@@ -10228,10 +10243,10 @@ static void copy_selection_to_clipboard() {
     for (auto& jn : doc["graph"]["nodes"])
         if (jn.contains("id") && labels.count(jn["id"].get<std::string>()))
             frag["nodes"].push_back(jn);
-    if (doc.contains("ui") && doc["ui"].contains("positions"))
+    if (doc.contains("layout") && doc["layout"].contains("positions"))
         for (const auto& l : labels)
-            if (doc["ui"]["positions"].contains(l))
-                frag["positions"][l] = doc["ui"]["positions"][l];
+            if (doc["layout"]["positions"].contains(l))
+                frag["positions"][l] = doc["layout"]["positions"][l];
 
     ImGui::SetClipboardText(frag.dump().c_str());
     char msg[128];
@@ -10280,8 +10295,8 @@ static void paste_fragment_text(const char* txt) {
     for (auto& jn : doc["graph"]["nodes"])
         if (jn.contains("id")) taken.insert(jn["id"].get<std::string>());
     for (auto& g : s_groups) taken.insert(g.name);
-    if (doc.contains("ui") && doc["ui"].contains("noteFaces"))
-        for (auto& fc : doc["ui"]["noteFaces"])
+    if (doc.contains("layout") && doc["layout"].contains("faces"))
+        for (auto& fc : doc["layout"]["faces"])
             if (fc.contains("label")) taken.insert(fc["label"].get<std::string>());
 
     // Fresh labels for the incoming nodes.
@@ -10343,7 +10358,7 @@ static void paste_fragment_text(const char* txt) {
         if (frag.contains("positions") && frag["positions"].contains(old) &&
             frag["positions"][old].is_array()) {
             const auto& p = frag["positions"][old];
-            doc["ui"]["positions"][ren[old]] =
+            doc["layout"]["positions"][ren[old]] =
                 {p[0].get<float>() + 60.0f, p[1].get<float>() + 60.0f};
         }
         ++pasted;
@@ -10351,8 +10366,8 @@ static void paste_fragment_text(const char* txt) {
     if (!pasted) { transport_set_status("Paste: fragment had no nodes", true); return; }
 
     // Pasting while drilled in adds the new nodes to the open group.
-    if (!s_groupPath.empty() && doc.contains("groups"))
-        for (auto& g : doc["groups"])
+    if (!s_groupPath.empty() && doc.contains("layout") && doc["layout"].contains("groups"))
+        for (auto& g : doc["layout"]["groups"])
             if (g.value("name", std::string()) == s_groupPath.back())
                 for (auto& [o, nn] : ren) g["members"].push_back(nn);
 
@@ -10472,8 +10487,10 @@ static void show_node_context_menu() {
 
     // Replace with (Matt 2026-09-06): swap the node's type, keeping wiring
     // and same-named state — the group-boundary-safe way to trade e.g.
-    // WhiteNoise for RedNoise. Special UI sinks/sources keep their identity.
+    // WhiteNoise for RedNoise. The editor's own nodes, the Note, the Channel
+    // and the Mixer keep their identity.
     if (!is_special_ui_type(node->typeName) && node->typeName != NT_PERFORM &&
+        node->typeName != NT_SOUND_CHANNEL && node->typeName != NT_STEREO_MIXER &&
         ImGui::BeginMenu("Replace with")) {
         const int targetId = node->id;
         s_menuSourceAction = [targetId](const char* t) {
@@ -11902,9 +11919,11 @@ int main(int argc, char** argv) {
     }
 
     // Headless round-trip: load a patch and immediately re-save it, no GL
-    // window. Exists to verify JSON preservation across the UI's load→save
-    // path. ImGui/ImNodes contexts are created because load/save read/write
-    // node positions; no frame or renderer is needed for that.
+    // window, through the saver File > Save uses for the graph's mode (an
+    // instrument's or a node graph's), leaving the current path and the
+    // recents list alone. Exists to verify JSON preservation across the UI's
+    // load→save path. ImGui/ImNodes contexts are created because load/save
+    // read/write node positions; no frame or renderer is needed for that.
     if (argc >= 4 && std::string(argv[1]) == "--roundtrip") {
         s_headless = true;
         ImGui::CreateContext();
@@ -11912,7 +11931,8 @@ int main(int argc, char** argv) {
         register_all_sources();
         try {
             load_graph_from_path(argv[2]);
-            save_patch_graph(argv[3]);
+            if (s_graphMode == GraphMode::PatchGraph) save_patch_graph(argv[3]);
+            else                                      save_node_graph(argv[3]);
         } catch (const std::exception& e) {
             fprintf(stderr, "roundtrip failed: %s\n", e.what());
             return 1;

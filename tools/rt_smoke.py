@@ -25,7 +25,7 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, sixteen cases, each on its own line and not counted among
+After the shapes, twenty cases, each on its own line and not counted among
 the shapes. Six fixtures written to the temp folder must be refused by
 mforce_ui --roundtrip, each with a non-zero exit, tools/convert_patch.py named
 in its output, and no file written: a patch carrying an instrument.paramMap
@@ -51,6 +51,21 @@ preset as that preset's three rows in columns, with no preset key
 (preset-form). apply-preset: mforce_ui --apply-preset lays a table-form
 Envelope out as the adsr preset, and the saved node's eight columns are that
 preset's defaults.
+
+Four cases carry the file's newer spellings through a round trip. plain:
+patches/baselines/delay_test.json, a plain sound, comes back with its channel's
+source as a feed in params.source, its mixer's channels as a list of feeds in
+params.channels and no inputs block on any node, and renders the original's
+bytes. two-channels: a plain sound with two channels on separate sources at
+different volumes and pans, written in the newer form, whose mixer's gainL is a
+slow sine so the channel order is heard, comes back with its two channels in
+order and renders its own bytes, and so does its twin with the list reversed,
+whose render differs. layout: an instrument whose layout holds two nodes'
+positions, the Output node's, a Note face with its pos and a group of a node
+and the face comes back with that layout, positions holding no face label and
+no __output; the same patch written with ui and a top-level groups comes back
+with the same layout. comment: a patch's comment, a node's and a PerformNode
+file node's all come back.
 
 Usage: python tools/rt_smoke.py
 """
@@ -201,6 +216,161 @@ LIST_WEIGHTS = [0.75, 0.25]
 LIST_WEIGHTS_FIXTURE = instrument_doc(TWO_SINES + [
     {"id": "mix", "type": "MultiSource",
      "params": {"source": [{"ref": "s1"}, {"ref": "s2"}], "weights": LIST_WEIGHTS}}], "mix")
+
+
+def plain_doc(nodes, output):
+    """A plain sound of `nodes` whose output is `output`, one second long."""
+    return {"sampleRate": 48000, "seconds": 1, "graph": {"nodes": nodes, "output": output}}
+
+
+def two_channels_doc(order):
+    """Two channels on separate sources, at different volumes and pans, listed
+    in `order`, the mixer's gainL a slow sine (0.3 to 1): the mixer pulls gainL
+    once per channel per sample, so the order of the channels reaches the
+    render, where with constant gains two channels sum to the same bytes in
+    either order."""
+    return plain_doc([
+        {"id": "srcA", "type": "SineSource", "params": {"frequency": 220.0, "amplitude": 0.5}},
+        {"id": "srcB", "type": "SawSource", "params": {"frequency": 330.0, "amplitude": 0.3}},
+        {"id": "chA", "type": "SoundChannel", "params": {"source": {"ref": "srcA"}, "volume": 0.3, "pan": -0.7}},
+        {"id": "chB", "type": "SoundChannel", "params": {"source": {"ref": "srcB"}, "volume": 0.9, "pan": 0.4}},
+        {"id": "gl_lfo", "type": "SineSource", "params": {"frequency": 0.5, "amplitude": 1.0}},
+        {"id": "gl_rng", "type": "RangeSource",
+         "params": {"min": 0.3, "max": 1.0, "var": {"ref": "gl_lfo"}, "normalized": False}},
+        {"id": "mix", "type": "StereoMixer",
+         "params": {"channels": [{"ref": c} for c in order], "gainL": {"ref": "gl_rng"}, "gainR": 0.6}}],
+        "mix")
+
+
+LAYOUT_NODES = [PERFORM_FREQUENCY,
+                {"id": "env", "type": "Envelope", "params": {"preset": "asr", "attack": 0.05}},
+                {"id": "osc", "type": "SineSource",
+                 "params": {"frequency": {"ref": "pf"}, "amplitude": {"ref": "env"}}}]
+LAYOUT = {"positions": {"env": [100.0, 200.0], "osc": [300.0, 100.0]},
+          "output": [500.0, 100.0],
+          "faces": [{"label": "Note", "fields": {"frequency": "pf"}, "pos": [100.0, 50.0]}],
+          "groups": [{"name": "grp", "members": ["env", "Note"], "pos": [40.0, 400.0]}]}
+LAYOUT_FIXTURE = dict(instrument_doc(LAYOUT_NODES, "osc"), layout=LAYOUT)
+OLD_LAYOUT_FIXTURE = dict(instrument_doc(LAYOUT_NODES, "osc"),
+                          ui={"positions": {"env": [100.0, 200.0], "osc": [300.0, 100.0],
+                                            "Note": [100.0, 50.0], "__output": [500.0, 100.0]},
+                              "noteFaces": [{"label": "Note", "fields": {"frequency": "pf"}}]},
+                          groups=LAYOUT["groups"])
+
+COMMENT_FIXTURE = dict(instrument_doc([
+    dict(PERFORM_FREQUENCY, comment="the note's pitch"),
+    {"id": "osc", "type": "SineSource", "comment": "the voice",
+     "params": {"frequency": {"ref": "pf"}, "amplitude": 0.5}}], "osc"), comment="a patch's notes")
+
+
+def roundtrip_doc(td, src, name):
+    """Round-trip the file `src` into `td`; return (why it failed, the output
+    path, the saved document)."""
+    out = Path(td) / (name + "_rt.json")
+    r = subprocess.run([str(UI), "--roundtrip", str(src), str(out)],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    if r.returncode != 0:
+        return ["exit %d %s" % (r.returncode, r.stderr.strip()[:70])], out, None
+    if not out.exists():
+        return ["wrote nothing"], out, None
+    return [], out, json.loads(out.read_text(encoding="utf-8"))
+
+
+def node_of(doc, node_id):
+    """The node of `doc` whose id is `node_id`, or an empty dict."""
+    return next((n for n in doc["graph"]["nodes"] if n.get("id") == node_id), None) or {}
+
+
+def feeds_failures(doc, channel_sources, mixer_id, channel_order):
+    """Why `doc` does not hold each channel's source as params.source and the
+    mixer's channels as params.channels in `channel_order`, with no inputs
+    block on any node."""
+    why = ["%s holds inputs" % n.get("id") for n in doc["graph"]["nodes"] if "inputs" in n]
+    for ch, src in channel_sources.items():
+        got = (node_of(doc, ch).get("params") or {}).get("source")
+        if got != {"ref": src}:
+            why.append("%s.source is %s" % (ch, json.dumps(got)))
+    got = (node_of(doc, mixer_id).get("params") or {}).get("channels")
+    if got != [{"ref": c} for c in channel_order]:
+        why.append("%s.channels is %s" % (mixer_id, json.dumps(got)))
+    return why
+
+
+def same_render_failures(td, src, out, name):
+    """Render `src` and `out`; return (why they are not the same bytes, the
+    source render's hash)."""
+    wa, wb = Path(td) / (name + "_a.wav"), Path(td) / (name + "_b.wav")
+    if not (render(src, wa) and render(out, wb)):
+        return ["a render failed"], None
+    return ([] if sha(wa) == sha(wb) else ["render differs"]), sha(wa)
+
+
+PLAIN_SOURCE = "patches/baselines/delay_test.json"
+
+
+def plain_failures(td):
+    """Round-trip PLAIN_SOURCE; return why it does not come back in the feeds
+    and render the original's bytes."""
+    src = ROOT / PLAIN_SOURCE
+    why, out, doc = roundtrip_doc(td, src, "plain")
+    if why:
+        return why
+    return feeds_failures(doc, {"ch1": "delay"}, "mix", ["ch1"]) + same_render_failures(td, src, out, "plain")[0]
+
+
+def two_channels_failures(td):
+    """Round-trip two_channels_doc in both orders; return why either does not
+    keep its order and render its own bytes, or the two render alike."""
+    why, hashes = [], []
+    for name, order in (("two_channels", ["chA", "chB"]), ("two_channels_reversed", ["chB", "chA"])):
+        src = Path(td) / (name + ".json")
+        src.write_text(json.dumps(two_channels_doc(order)), encoding="utf-8")
+        w, out, doc = roundtrip_doc(td, src, name)
+        if w:
+            why += ["%s: %s" % (name, x) for x in w]
+            continue
+        why += ["%s: %s" % (name, x) for x in feeds_failures(doc, {"chA": "srcA", "chB": "srcB"}, "mix", order)]
+        w, h = same_render_failures(td, src, out, name)
+        why += ["%s: %s" % (name, x) for x in w]
+        hashes.append(h)
+    if len(hashes) == 2 and hashes[0] is not None and hashes[0] == hashes[1]:
+        why.append("the two orders render alike")
+    return why
+
+
+def layout_failures(td):
+    """Round-trip LAYOUT_FIXTURE and OLD_LAYOUT_FIXTURE; return why either does
+    not come back as LAYOUT, with no ui and no top-level groups."""
+    why = []
+    for name, fixture in (("layout", LAYOUT_FIXTURE), ("layout_old", OLD_LAYOUT_FIXTURE)):
+        src = Path(td) / (name + ".json")
+        src.write_text(json.dumps(fixture), encoding="utf-8")
+        w, _, doc = roundtrip_doc(td, src, name)
+        if w:
+            why += ["%s: %s" % (name, x) for x in w]
+            continue
+        why += ["%s: %s written" % (name, k) for k in ("ui", "groups") if k in doc]
+        if doc.get("layout") != LAYOUT:
+            why.append("%s: layout is %s" % (name, json.dumps(doc.get("layout"))))
+    return why
+
+
+def comment_failures(td):
+    """Round-trip COMMENT_FIXTURE; return why its three comments do not come
+    back."""
+    src = Path(td) / "comment.json"
+    src.write_text(json.dumps(COMMENT_FIXTURE), encoding="utf-8")
+    why, _, doc = roundtrip_doc(td, src, "comment")
+    if why:
+        return why
+    if doc.get("comment") != COMMENT_FIXTURE["comment"]:
+        why.append("the patch's comment is %s" % json.dumps(doc.get("comment")))
+    if node_of(doc, "osc").get("comment") != "the voice":
+        why.append("osc's comment is %s" % json.dumps(node_of(doc, "osc").get("comment")))
+    perf = [n.get("comment") for n in doc["graph"]["nodes"] if n.get("type") == "PerformNode"]
+    if perf != ["the note's pitch"]:
+        why.append("the PerformNode comments are %s" % json.dumps(perf))
+    return why
 
 
 def refusal_failures(td, doc, name="refusal", needle="tools/convert_patch.py"):
@@ -483,7 +653,11 @@ def main():
                            ("empty-table", lambda: empty_table_failures(td)),
                            ("settings-order", lambda: settings_order_failures(td)),
                            ("preset-form", lambda: preset_form_failures(td)),
-                           ("apply-preset", lambda: apply_preset_failures(td))):
+                           ("apply-preset", lambda: apply_preset_failures(td)),
+                           ("plain", lambda: plain_failures(td)),
+                           ("two-channels", lambda: two_channels_failures(td)),
+                           ("layout", lambda: layout_failures(td)),
+                           ("comment", lambda: comment_failures(td))):
             reasons = why()
             failed = failed or bool(reasons)
             print(f"{label:<16} " + (f"FAIL {', '.join(reasons)}" if reasons else "ok"))

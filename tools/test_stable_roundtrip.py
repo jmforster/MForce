@@ -69,7 +69,7 @@ def jobs_arg():
 
 def check_one(args):
     """One patch's verdict: ('id', why) | ('render',) | ('skip',) |
-    ('known',) | ('id_only',) | ('ok',)."""
+    ('known',) | ('ok',)."""
     i, pt, td = args
     rt = Path(td) / f"{i}_{pt.stem}_rt.json"
     r = subprocess.run([str(UI), "--roundtrip", str(pt), str(rt)],
@@ -93,13 +93,6 @@ def check_one(args):
         if lost:  why.append(f"lost {sorted(lost)}")
         if added: why.append(f"unexpected new {sorted(added)}")
         return pt, ("id", "; ".join(why))
-    # Render byte-identity is asserted only for instrument-style
-    # patches: --roundtrip force-saves through save_patch_graph,
-    # which is documented-lossy for node-graph-style files (score
-    # injection, seconds reset, mixer output dropped) — that class
-    # predates stable ids (proven old-exe A/B 2026-08-14).
-    if "instrument" not in load(pt):
-        return pt, ("id_only",)
     wa, wb = Path(td) / f"{i}_a.wav", Path(td) / f"{i}_b.wav"
     ra, rb = render(pt, wa), render(rt, wb)
     if not ra and not rb:
@@ -121,7 +114,6 @@ def main():
         p = Path(arg)
         patches += sorted(p.rglob("*.json")) if p.is_dir() else [p]
     bad_ids, bad_render, skipped, known_hits = [], [], [], []
-    id_only = 0
     with tempfile.TemporaryDirectory() as td:
         with cf.ThreadPoolExecutor(max_workers=jobs_arg()) as ex:
             results = list(ex.map(
@@ -132,14 +124,13 @@ def main():
         elif kind == "render":  bad_render.append(pt)
         elif kind == "skip":    skipped.append(pt)
         elif kind == "known":   known_hits.append(pt)
-        elif kind == "id_only": id_only += 1
     for pt, why in bad_ids: print(f"ID CHANGE {pt}: {why}")
     for pt in bad_render:   print(f"RENDER DIFF {pt}")
     for pt in skipped:      print(f"skip (unrenderable both forms) {pt}")
     for pt in known_hits: print(f"known diff (backlog 79) {pt}")
     print(f"{len(patches)} patches: {len(bad_ids)} id changes, "
           f"{len(bad_render)} NEW render diffs, {len(known_hits)} known "
-          f"diffs, {id_only} id-only (non-instrument), {len(skipped)} skipped")
+          f"diffs, {len(skipped)} skipped")
     return 1 if (bad_ids or bad_render) else 0
 
 if __name__ == "__main__":
