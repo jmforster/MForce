@@ -99,10 +99,5 @@
       "duration": 3.0
     }
   ],
-  "_provenance": {
-    "source": "patches/vowel_grid/Sing_Alto_O.json",
-    "note": 69,
-    "why": "alto O formants sung at A4",
-    "run": "dsp run 25 (2026-08-10)"
-  }
+  "comment": "source: patches/vowel_grid/Sing_Alto_O.json\nnote: 69\nwhy: alto O formants sung at A4\nrun: dsp run 25 (2026-08-10)"
 }

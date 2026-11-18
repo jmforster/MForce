@@ -114,19 +114,7 @@
     }
   ],
   "seconds": 3.0,
-  "ui": {
-    "noteFaces": [
-      {
-        "fields": {
-          "frequency": "__perf_frequency"
-        },
-        "label": "Note"
-      }
-    ],
-    "panning": [
-      1239.0,
-      580.0
-    ],
+  "layout": {
     "positions": {
       "ASREnvelope": [
         -765.0,
@@ -135,10 +123,6 @@
       "BowedStringEvolution2": [
         -1014.0,
         -411.0
-      ],
-      "Note": [
-        -1081.0,
-        -139.0
       ],
       "RedNoise": [
         -1228.0,
@@ -155,11 +139,27 @@
       "WhiteNoise": [
         -843.0,
         -566.0
-      ],
-      "__output": [
-        -358.0,
-        -436.0
       ]
-    }
+    },
+    "output": [
+      -358.0,
+      -436.0
+    ],
+    "panning": [
+      1239.0,
+      580.0
+    ],
+    "faces": [
+      {
+        "fields": {
+          "frequency": "__perf_frequency"
+        },
+        "label": "Note",
+        "pos": [
+          -1081.0,
+          -139.0
+        ]
+      }
+    ]
   }
 }

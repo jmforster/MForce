@@ -303,7 +303,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D0"
      },
@@ -317,7 +317,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D1"
      },
@@ -331,7 +331,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "VTap0"
      },
@@ -345,7 +345,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D2"
      },
@@ -359,7 +359,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "VSum1"
      },
@@ -373,7 +373,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D3"
      },
@@ -387,7 +387,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "VSum2"
      },
@@ -401,7 +401,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "VSum3"
      },
@@ -413,7 +413,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "VelIn"
      },
@@ -425,7 +425,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "AdsrEnv"
      },
@@ -452,7 +452,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "Friction"
      },
@@ -466,7 +466,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "Fc"
      },
@@ -650,7 +650,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D0"
      },
@@ -662,7 +662,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "Input"
      },
@@ -676,7 +676,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BPin0"
      },
@@ -706,7 +706,7 @@
      "source": {
       "ref": "Z0"
      },
-     "mode": 1,
+     "mode": "Resonance",
      "b0": 0.00454883,
      "frequency": {
       "ref": "FM0"
@@ -743,7 +743,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BP0"
      },
@@ -757,7 +757,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "Fc"
      },
@@ -941,7 +941,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D1"
      },
@@ -953,7 +953,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "Input"
      },
@@ -967,7 +967,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BPin1"
      },
@@ -997,7 +997,7 @@
      "source": {
       "ref": "Z1"
      },
-     "mode": 1,
+     "mode": "Resonance",
      "b0": 0.00454883,
      "frequency": {
       "ref": "FM1"
@@ -1034,7 +1034,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BP1"
      },
@@ -1048,7 +1048,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "BPg0"
      },
@@ -1062,7 +1062,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "Fc"
      },
@@ -1246,7 +1246,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D2"
      },
@@ -1258,7 +1258,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "Input"
      },
@@ -1272,7 +1272,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BPin2"
      },
@@ -1302,7 +1302,7 @@
      "source": {
       "ref": "Z2"
      },
-     "mode": 1,
+     "mode": "Resonance",
      "b0": 0.00454883,
      "frequency": {
       "ref": "FM2"
@@ -1339,7 +1339,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BP2"
      },
@@ -1353,7 +1353,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "OSum1"
      },
@@ -1367,7 +1367,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "Fc"
      },
@@ -1551,7 +1551,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "tap": "D3"
      },
@@ -1563,7 +1563,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "Input"
      },
@@ -1577,7 +1577,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BPin3"
      },
@@ -1607,7 +1607,7 @@
      "source": {
       "ref": "Z3"
      },
-     "mode": 1,
+     "mode": "Resonance",
      "b0": 0.00454883,
      "frequency": {
       "ref": "FM3"
@@ -1644,7 +1644,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "BP3"
      },
@@ -1658,7 +1658,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 3,
+     "operation": "Sum",
      "source1": {
       "ref": "OSum2"
      },
@@ -1672,7 +1672,7 @@
     "type": "CombinedSource",
     "params": {
      "gainAdj": 0.0,
-     "operation": 1,
+     "operation": "Multiply",
      "source1": {
       "ref": "OSum3"
      },
@@ -1681,8 +1681,8 @@
    }
   ]
  },
- "ui": {
-  "noteFaces": [
+ "layout": {
+  "faces": [
    {
     "fields": {
      "frequency": "__perf_f1"
@@ -1769,5 +1769,5 @@
    }
   ]
  },
- "_comment": "Repro pair, filed 2026-09-15 with backlog 71 (shares the 65/66 guard/advance cluster). Both patches are the BandedWG tuned-bar bowed port; _bug adds ONE stateless node (DvF, a second consumer of Dv) and the 4.5 s AdsrEnv then runs in HALF the time (2.258 s, exactly 2x rate = double advance of the env chain). The minimal env->mul->two-consumers shape is guarded CORRECTLY (verified same day), so the trigger needs this loop/advance-list context. _ok is byte-identical except no DvF."
+ "comment": "Repro pair, filed 2026-09-15 with backlog 71 (shares the 65/66 guard/advance cluster). Both patches are the BandedWG tuned-bar bowed port; _bug adds ONE stateless node (DvF, a second consumer of Dv) and the 4.5 s AdsrEnv then runs in HALF the time (2.258 s, exactly 2x rate = double advance of the env chain). The minimal env->mul->two-consumers shape is guarded CORRECTLY (verified same day), so the trigger needs this loop/advance-list context. _ok is byte-identical except no DvF."
 }

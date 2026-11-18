@@ -194,7 +194,7 @@
         "id": "__mul_7",
         "params": {
           "gainAdj": 0.0,
-          "operation": 1,
+          "operation": "Multiply",
           "source1": {
             "ref": "__curve_5"
           },
@@ -310,7 +310,7 @@
         "id": "__mul_12",
         "params": {
           "gainAdj": 0.0,
-          "operation": 1,
+          "operation": "Multiply",
           "source1": {
             "ref": "__curve_10"
           },
@@ -556,7 +556,7 @@
         "id": "Combined1",
         "params": {
           "gainAdj": 0.0,
-          "operation": 1,
+          "operation": "Multiply",
           "source1": {
             "ref": "Excite_hf_bpf"
           },
@@ -570,7 +570,7 @@
         "id": "Hammer+hf",
         "params": {
           "gainAdj": 0.0,
-          "operation": 3,
+          "operation": "Sum",
           "source1": {
             "ref": "Hammer_lpf"
           },
@@ -659,7 +659,7 @@
         "id": "Combined3",
         "params": {
           "gainAdj": 0.0,
-          "operation": 1,
+          "operation": "Multiply",
           "source1": {
             "ref": "Body_lpf"
           },
@@ -671,7 +671,7 @@
         "id": "Hammer+hf+body",
         "params": {
           "gainAdj": 0.0,
-          "operation": 3,
+          "operation": "Sum",
           "source1": {
             "ref": "Hammer+hf"
           },
@@ -767,7 +767,7 @@
         "id": "Combined5",
         "params": {
           "gainAdj": 0.0,
-          "operation": 1,
+          "operation": "Multiply",
           "source1": {
             "ref": "Excite_lf_bfp"
           },
@@ -779,7 +779,7 @@
         "id": "Combined6",
         "params": {
           "gainAdj": 0.0,
-          "operation": 3,
+          "operation": "Sum",
           "source1": {
             "ref": "Hammer+hf+body"
           },
@@ -793,7 +793,7 @@
         "id": "Combined7",
         "params": {
           "gainAdj": 0.0,
-          "operation": 1,
+          "operation": "Multiply",
           "source1": {
             "ref": "Combined6"
           },
@@ -917,89 +917,6 @@
     ],
     "output": "Overall_lpf"
   },
-  "groups": [
-    {
-      "members": [
-        "Hammer_click_env",
-        "Hammer_click_wn",
-        "Hammer_bank",
-        "Hammer_lpf",
-        "__mul_12",
-        "__curve_10",
-        "__curve_11",
-        "Note2"
-      ],
-      "name": "Hammer",
-      "pos": [
-        -632.5,
-        -263.25
-      ]
-    },
-    {
-      "members": [
-        "Combined1",
-        "Excite_hf_bpf",
-        "Excite_hf_wn",
-        "Excite_hf_env",
-        "__curve_5",
-        "__curve_6",
-        "__mul_7",
-        "Note_hf"
-      ],
-      "name": "Excite_hf1",
-      "pos": [
-        -572.88037109375,
-        -108.7734375
-      ]
-    },
-    {
-      "members": [
-        "Body_wn",
-        "Body_env",
-        "Combined3",
-        "Body_lpf",
-        "__curve_8",
-        "Note_body"
-      ],
-      "name": "Body",
-      "pos": [
-        -389.0,
-        -44.0
-      ]
-    },
-    {
-      "members": [
-        "Combined5",
-        "Excite_lf_bfp",
-        "Excite_lf_wn",
-        "Excite_lf_env"
-      ],
-      "name": "Excite_lf",
-      "pos": [
-        -202.66436767578125,
-        -26.60015869140625
-      ]
-    },
-    {
-      "members": [
-        "Excite_lf",
-        "Body",
-        "Excite_hf1",
-        "Hammer",
-        "Combined7",
-        "Combined6",
-        "Hammer+hf+body",
-        "Hammer+hf",
-        "__curve_9",
-        "Note3"
-      ],
-      "name": "String excitation",
-      "pos": [
-        -204.2325439453125,
-        -400.6448974609375
-      ]
-    }
-  ],
   "instrument": {
     "polyphony": 1,
     "volume": 0.4019
@@ -1026,45 +943,7 @@
     }
   ],
   "seconds": 3.0,
-  "ui": {
-    "noteFaces": [
-      {
-        "fields": {
-          "frequency": "__perf_freq"
-        },
-        "label": "Note"
-      },
-      {
-        "fields": {
-          "frequency": "__perf_frequency",
-          "velocity": "__perf_velocity"
-        },
-        "label": "Note2"
-      },
-      {
-        "fields": {
-          "frequency": "__perf_freq_hf",
-          "velocity": "__perf_vel_hf"
-        },
-        "label": "Note_hf"
-      },
-      {
-        "fields": {
-          "frequency": "__perf_freq_body"
-        },
-        "label": "Note_body"
-      },
-      {
-        "fields": {
-          "frequency": "__perf_frequency2"
-        },
-        "label": "Note3"
-      }
-    ],
-    "panning": [
-      1031.0,
-      486.0
-    ],
+  "layout": {
     "positions": {
       "Body_env": [
         -540.0,
@@ -1154,26 +1033,6 @@
         43.8990478515625,
         -317.2999267578125
       ],
-      "Note": [
-        -889.0,
-        -389.0
-      ],
-      "Note2": [
-        -1663.9832763671875,
-        -370.97747802734375
-      ],
-      "Note3": [
-        -625.9242553710938,
-        29.126068115234375
-      ],
-      "Note_body": [
-        -560.0,
-        130.0
-      ],
-      "Note_hf": [
-        -650.0,
-        330.0
-      ],
       "Overall_lpf": [
         233.554931640625,
         -82.114501953125
@@ -1233,11 +1092,152 @@
       "__mul_7": [
         -210.0,
         400.0
-      ],
-      "__output": [
-        441.0758056640625,
-        -76.8739013671875
       ]
-    }
+    },
+    "output": [
+      441.0758056640625,
+      -76.8739013671875
+    ],
+    "panning": [
+      1031.0,
+      486.0
+    ],
+    "groups": [
+      {
+        "members": [
+          "Hammer_click_env",
+          "Hammer_click_wn",
+          "Hammer_bank",
+          "Hammer_lpf",
+          "__mul_12",
+          "__curve_10",
+          "__curve_11",
+          "Note2"
+        ],
+        "name": "Hammer",
+        "pos": [
+          -632.5,
+          -263.25
+        ]
+      },
+      {
+        "members": [
+          "Combined1",
+          "Excite_hf_bpf",
+          "Excite_hf_wn",
+          "Excite_hf_env",
+          "__curve_5",
+          "__curve_6",
+          "__mul_7",
+          "Note_hf"
+        ],
+        "name": "Excite_hf1",
+        "pos": [
+          -572.88037109375,
+          -108.7734375
+        ]
+      },
+      {
+        "members": [
+          "Body_wn",
+          "Body_env",
+          "Combined3",
+          "Body_lpf",
+          "__curve_8",
+          "Note_body"
+        ],
+        "name": "Body",
+        "pos": [
+          -389.0,
+          -44.0
+        ]
+      },
+      {
+        "members": [
+          "Combined5",
+          "Excite_lf_bfp",
+          "Excite_lf_wn",
+          "Excite_lf_env"
+        ],
+        "name": "Excite_lf",
+        "pos": [
+          -202.66436767578125,
+          -26.60015869140625
+        ]
+      },
+      {
+        "members": [
+          "Excite_lf",
+          "Body",
+          "Excite_hf1",
+          "Hammer",
+          "Combined7",
+          "Combined6",
+          "Hammer+hf+body",
+          "Hammer+hf",
+          "__curve_9",
+          "Note3"
+        ],
+        "name": "String excitation",
+        "pos": [
+          -204.2325439453125,
+          -400.6448974609375
+        ]
+      }
+    ],
+    "faces": [
+      {
+        "fields": {
+          "frequency": "__perf_freq"
+        },
+        "label": "Note",
+        "pos": [
+          -889.0,
+          -389.0
+        ]
+      },
+      {
+        "fields": {
+          "frequency": "__perf_frequency",
+          "velocity": "__perf_velocity"
+        },
+        "label": "Note2",
+        "pos": [
+          -1663.9832763671875,
+          -370.97747802734375
+        ]
+      },
+      {
+        "fields": {
+          "frequency": "__perf_freq_hf",
+          "velocity": "__perf_vel_hf"
+        },
+        "label": "Note_hf",
+        "pos": [
+          -650.0,
+          330.0
+        ]
+      },
+      {
+        "fields": {
+          "frequency": "__perf_freq_body"
+        },
+        "label": "Note_body",
+        "pos": [
+          -560.0,
+          130.0
+        ]
+      },
+      {
+        "fields": {
+          "frequency": "__perf_frequency2"
+        },
+        "label": "Note3",
+        "pos": [
+          -625.9242553710938,
+          29.126068115234375
+        ]
+      }
+    ]
   }
 }

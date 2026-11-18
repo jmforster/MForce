@@ -6,13 +6,18 @@
       {
         "id": "env",
         "type": "Envelope",
-        "params": { "preset": "ar", "attack": 0.02 }
+        "params": {
+          "preset": "ar",
+          "attack": 0.02
+        }
       },
       {
         "id": "wn",
         "type": "WanderNoise3Source",
         "params": {
-          "amplitude": { "ref": "env" },
+          "amplitude": {
+            "ref": "env"
+          },
           "speed": 1.0,
           "deltaSpeed": 1.0,
           "slopeLimit": 1.0
@@ -21,14 +26,26 @@
       {
         "id": "ch1",
         "type": "SoundChannel",
-        "inputs": { "source": "wn" },
-        "params": { "volume": 0.8, "pan": 0.0 }
+        "params": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "source": {
+            "ref": "wn"
+          }
+        }
       },
       {
         "id": "mix",
         "type": "StereoMixer",
-        "inputs": { "channels": ["ch1"] },
-        "params": { "gainL": 1.0, "gainR": 1.0 }
+        "params": {
+          "gainL": 1.0,
+          "gainR": 1.0,
+          "channels": [
+            {
+              "ref": "ch1"
+            }
+          ]
+        }
       }
     ],
     "output": "mix"

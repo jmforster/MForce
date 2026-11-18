@@ -6,40 +6,70 @@
       {
         "id": "ampEnv",
         "type": "Envelope",
-        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 }
+        "params": {
+          "preset": "ar",
+          "attack": 0.0,
+          "attackMax": 0.0
+        }
       },
       {
         "id": "depthEnv",
         "type": "Envelope",
-        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 }
+        "params": {
+          "preset": "ar",
+          "attack": 0.0,
+          "attackMax": 0.0
+        }
       },
       {
         "id": "depth",
         "type": "RangeSource",
-        "params": { "min": 0.0, "max": 10.0, "var": { "ref": "depthEnv" } }
+        "params": {
+          "min": 0.0,
+          "max": 10.0,
+          "var": {
+            "ref": "depthEnv"
+          }
+        }
       },
       {
         "id": "fm",
         "type": "FMSource",
         "params": {
           "frequency": 440.0,
-          "amplitude": { "ref": "ampEnv" },
+          "amplitude": {
+            "ref": "ampEnv"
+          },
           "carrierRatio": 1.0,
           "modRatio": 1.4,
-          "depth": { "ref": "depth" }
+          "depth": {
+            "ref": "depth"
+          }
         }
       },
       {
         "id": "ch1",
         "type": "SoundChannel",
-        "inputs": { "source": "fm" },
-        "params": { "volume": 0.7, "pan": 0.0 }
+        "params": {
+          "volume": 0.7,
+          "pan": 0.0,
+          "source": {
+            "ref": "fm"
+          }
+        }
       },
       {
         "id": "mix",
         "type": "StereoMixer",
-        "inputs": { "channels": ["ch1"] },
-        "params": { "gainL": 1.0, "gainR": 1.0 }
+        "params": {
+          "gainL": 1.0,
+          "gainR": 1.0,
+          "channels": [
+            {
+              "ref": "ch1"
+            }
+          ]
+        }
       }
     ],
     "output": "mix"

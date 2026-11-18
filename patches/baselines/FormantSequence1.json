@@ -183,7 +183,7 @@
     }
   ],
   "seconds": 3.0,
-  "ui": {
+  "layout": {
     "positions": {
       "AREnvelope1": [
         153.0,
@@ -212,15 +212,11 @@
       "FullPartials1": [
         412.0,
         46.625
-      ],
-      "__output": [
-        931.0,
-        151.0
-      ],
-      "__param_frequency": [
-        529.0,
-        -151.0
       ]
-    }
+    },
+    "output": [
+      931.0,
+      151.0
+    ]
   }
 }

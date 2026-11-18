@@ -79,25 +79,25 @@
       },
       {
         "id": "ch1",
-        "inputs": {
-          "source": "fm"
-        },
         "params": {
           "pan": 0.0,
-          "volume": 0.82
+          "volume": 0.82,
+          "source": {
+            "ref": "fm"
+          }
         },
         "type": "SoundChannel"
       },
       {
         "id": "mix",
-        "inputs": {
-          "channels": [
-            "ch1"
-          ]
-        },
         "params": {
           "gainL": 1.0,
-          "gainR": 1.0
+          "gainR": 1.0,
+          "channels": [
+            {
+              "ref": "ch1"
+            }
+          ]
         },
         "type": "StereoMixer"
       }

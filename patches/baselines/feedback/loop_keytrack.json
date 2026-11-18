@@ -1,5 +1,5 @@
 {
-  "_comment": "Keytracked feedback loop (backlog 37a-a, 2026-09-01): cutoff = 6*f0 via a one-knot expressions-mode Curve (Linear a=6 b=0, live extrapolation - no 16000 endpoint needed), so |H(f0)| is identical on every key. With DelayLine compensate the moving-per-note cutoff stays on pitch. Score deliberately climbs past the fixed-cutoff version's ~F7 ceiling (loop_tuned at cutoff 1500 cannot play the top notes).",
+  "comment": "Keytracked feedback loop (backlog 37a-a, 2026-09-01): cutoff = 6*f0 via a one-knot expressions-mode Curve (Linear a=6 b=0, live extrapolation - no 16000 endpoint needed), so |H(f0)| is identical on every key. With DelayLine compensate the moving-per-note cutoff stays on pitch. Score deliberately climbs past the fixed-cutoff version's ~F7 ceiling (loop_tuned at cutoff 1500 cannot play the top notes).",
   "sampleRate": 48000,
   "graph": {
     "nodes": [
@@ -51,7 +51,7 @@
           "source2": {
             "tap": "delay"
           },
-          "operation": "sum",
+          "operation": "Sum",
           "gainAdj": 0.0
         }
       },

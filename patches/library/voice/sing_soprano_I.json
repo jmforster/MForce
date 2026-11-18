@@ -99,10 +99,5 @@
       "duration": 3.0
     }
   ],
-  "_provenance": {
-    "source": "patches/vowel_tweak/Sing_Alto_I_v2_f2up.json",
-    "note": 69,
-    "why": "alto formant recipe, unchanged, sung at A4",
-    "run": "dsp run 25 (2026-08-10)"
-  }
+  "comment": "source: patches/vowel_tweak/Sing_Alto_I_v2_f2up.json\nnote: 69\nwhy: alto formant recipe, unchanged, sung at A4\nrun: dsp run 25 (2026-08-10)"
 }

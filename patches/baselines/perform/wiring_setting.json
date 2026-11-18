@@ -1,5 +1,5 @@
 {
-  "_comment": "Wiring-format baseline for dynamic pins (plan_perform_source_p2a.md Task 3). Note pitch drives the Envelope's sustainLevel SETTING through a curve: low notes sustain (0.9 at 110 Hz), high notes die (0.05 at 880 Hz). sustainLevel appears twice on purpose — the scalar in params is what construction reads, the ref in dynamicPins is what overrides it per note. Settings live outside params because node construction reads params before any descriptor is known, and envelope_from_preset_json would throw on an object where it wants a number.",
+  "comment": "Wiring-format baseline for dynamic pins (plan_perform_source_p2a.md Task 3). Note pitch drives the Envelope's sustainLevel SETTING through a curve: low notes sustain (0.9 at 110 Hz), high notes die (0.05 at 880 Hz). sustainLevel appears twice on purpose — the scalar in params is what construction reads, the ref in dynamicPins is what overrides it per note. Settings live outside params because node construction reads params before any descriptor is known, and envelope_from_preset_json would throw on an object where it wants a number.",
   "sampleRate": 48000,
   "graph": {
     "nodes": [
@@ -64,7 +64,7 @@
           "source2": {
             "ref": "env"
           },
-          "operation": "multiply",
+          "operation": "Multiply",
           "gainAdj": 0.0
         }
       }
