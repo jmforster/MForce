@@ -19,6 +19,39 @@ given.
 
 ## Awaiting
 
+**R19 — checkpoint 4.4: every type a declaration** (2026-11-17, commits
+`a66d60f`..`590a819`, fix wave `96539b8`, a second wave of comments and
+tests `6b0e17f`; report
+`docs/autonomy/refactor/reports/2026-11-17-checkpoint-4.4.md`). Nothing for
+your ears: 0 of the 131 moved. Nothing to decide. The five rulings you were
+shown before your "Go" were built as written.
+- 30 of your patch files were rewritten (3 library, 3 baselines, 22 in
+  audition, 2 in pending; pending's originals are at
+  `renders/scratch/ab44/pending_before/`). In audition the change is one
+  written-out number, `"val": 0.0`, on the fourteen `bwg_perc1` and
+  `bwg_perc2` files, and `"add"` spelled `"Mix"` on `afp31_v5` to `_v12`.
+  A file in `patches/scratch` or `old` that holds a `cutoff`, a feed's
+  `weight` or an inline `expandRule` (10 and 67 files) no longer loads
+  until `python tools/convert_patch.py <file or folder>` rewrites it; the
+  refusal names that command.
+- Look, when you next open the editor (none of it was clicked in a running
+  editor this session): the three Butterworth filters have a `sections`
+  row, and the node you hear has that many (the editor always played two
+  before); a `MultiSource` shows `weights` and `delays` lists and keeps its
+  weights through a load (it dropped them before, and saved the file
+  without them); a `PhasedValueSource` shows its feeds as links and its
+  four columns as a table; every Partials node has an `expandRule` pin; a
+  `NameGate`'s name is a text row among its settings and survives
+  Duplicate. If any of that is otherwise, say so.
+- One thing in CLEANUP you may want an opinion on some day (row 81): a
+  `VarSource` with no `val` meant 0 to the old loader and means 1 now. The
+  converter wrote the 0 into the files that relied on it. Declaring 0 as
+  the default instead would remove the question, and would change what a
+  new Var node in the editor starts at.
+- The review found a crash that only the editor could reach: any link
+  change while a `PhasedValueSource` was sounding read past the end of an
+  empty vector. Fixed, with tests; the report's sections 8 and 10 have it.
+
 **R18 — checkpoint 4.3: tables, Envelope and Curve** (2026-11-14, commits
 `4af294a`..`2765aef`, fix waves `d910f27` and `fb4e453`; report
 `docs/autonomy/refactor/reports/2026-11-14-checkpoint-4.3.md`). Nothing for

@@ -673,7 +673,7 @@ section 5's to order; the kinds are decided here.
 | `Envelope` `stages` (a list of eight-field stages) | a table: eight arrays in one group — `startVal`, `endVal`, `power`, `type`, `percent`, `minSec`, `maxSec`, `nominal`; `timeMode` an enum setting (fraction, seconds) | the Envelope declares its stage columns as array descriptors; `type` is an **enum column** — the new kind: `ArrayDescriptor` gains `enum_labels` (Linear, Expo, InverseExpo, Sine, Hold) so the file keeps its words |
 | `CurveNode` `knots`, `exprKnots`, `interp`, `mode` | `knots` a table of `x`, `y`; `exprKnots` a table of `x`, `form` (enum column: linear, power), `a`, `b`; `interp` an enum setting (linear, logx, loglog); `mode` an enum setting (points, expressions) | the node declares them; its public members become pins |
 | `expandRule` inline object (0 in scope, 73 tree-wide) | gone: the `ExpandRule` node wired into the `expandRule` slot is the one form | the branch goes; the standalone converter rewrites the 73 |
-| `PhasedValueSource` `stages` (each a source ref with four numbers), `overlap` | a `sources` multi input and a table of `percent`, `min`, `max`, `gain`; `overlap` a setting | node change; one baseline |
+| `PhasedValueSource` `stages` (each a source ref with four numbers), `overlap` | a `sources` list of inputs (the `InputList` pin, 4.4) and four columns `percent`, `minSec`, `maxSec`, `gain`; `overlap` a setting | node change; one baseline |
 | `MultiSource` per-source `weight`, delay | arrays `weights`, `delays`, parallel to `source` | node change; three library patches, four tree-wide |
 | `BWLowpassFilter`/`BWHighpassFilter`/`BWBandpassFilter` `sections` (a constructor argument) | a structural int setting | node change; one baseline carries it |
 | `cutoff` as an alias of `cutoffFreq` (one in-scope file; three configurators and the loader's branch) | one name, the descriptor's `cutoffFreq` | the alias goes; the converter renames |
@@ -1272,6 +1272,18 @@ inert. Today both sit in `wire_params_generic` behind a
 - The `FormantPeaks` configurator's ragged check is the codec's table
   rule; the `FormantSequence` configurator's refusal of `formants` is the
   codec's unknown-key rule. Neither needs `validate`.
+- **As landed at 4.4.** `virtual std::vector<std::string>
+  Component::warnings() const` sits beside `validate()`: the Shaper block
+  left the loader at 4.4, before `BuiltGraph` exists, so what it printed
+  needed a home on the node, and the loader prints what the node returns.
+  "Hysteresis without `values2`" the node says exactly. "`morph` is wired
+  or non-zero under hysteresis" waits for 4.6: today's loader wires a
+  constant into every Param it reads a number for, so a 0 in the file and
+  a signal look alike to the node. The Shaper's `validate()` compares its
+  decoded segment lists, which keep their length when no segment is
+  overridden, and so refuses what the loader refused on the file's arrays,
+  with one exception: a `values2` of four numbers beside no `values`
+  loads, the node holding the default curve's four.
 
 ### 5.7 Where the eleven branches and twelve configurators go (proposed)
 
@@ -1280,7 +1292,7 @@ argument applies to each): the two agree except where the row says.
 
 | Today | Becomes | Node change | In scope |
 |---|---|---|---|
-| `VarSource` branch: `val`, `var`, `varPct` as constructor arguments, `absolute` a bool | the pins and the setting are declared already; the factory default-constructs. The branch's `val` default is 0.0 against the declared 1.0: 0 of the 6 nodes lack `val` | the factory's argument list goes | 6 |
+| `VarSource` branch: `val`, `var`, `varPct` as constructor arguments, `absolute` a bool | the pins and the setting are declared already; the factory default-constructs. The branch's `val` default is 0.0 against the declared 1.0: 0 of the 5 nodes in scope lack `val`; 14 audition nodes do, and the converter wrote `"val": 0.0` there (4.4 ruling 8) | the factory's argument list goes | 5 |
 | `RangeSource` branch: `min`, `max`, `var`, `normalized` | declared already. `normalized`: the branch says false, the factory true, the declaration false (2.1's three defaults) — the declaration stands, which is what every file loads with today; the editor's new node follows it (false) | the factory's argument list goes | 12 |
 | `Envelope` branch: the stage list read by hand, the preset form through `envelope_json.h`, the two accuracies read with a clamp before the generic pass reads them again (CLEANUP 29), `timeMode`, the seed | the stages are eight columns with `type` an enum column (3.3); the preset form is the codec's (4.5); the accuracies are read once by the settings pass; `timeMode` is an enum setting (fraction, seconds) that sets `absolute_time`; the seed goes to the factory; the mapping is unconditional (5.3) | declares the columns and `timeMode`; drops the wired-ness branch; the hand-read stage loop goes | 174 (64 stage-form, 110 preset) |
 | `CurveNode` branch: `knots`, `exprKnots`, `interp`, `mode` into public members | `knots` a table of `x`, `y`; `exprKnots` a table of `x`, `form` (enum column: linear, power), `a`, `b`; `interp` an enum setting (linear, logx, loglog); `mode` an enum setting (points, expressions) — the branch's defaults: 45 nodes have no `mode` and read as points, 1 has no `interp` and reads as linear | the members become pins; the knot vector is rebuilt in `on_array_changed` | 75 |
@@ -1294,14 +1306,14 @@ argument applies to each): the two agree except where the row says.
 | `FormantPeaks` configurator (ragged rows) | the codec's table rule | the configurator goes | 68 |
 | `FormantSequence` configurator (`formants` refused) | the codec's unknown-key rule | goes | 3 |
 | `BWLowpassFilter`, `BWHighpassFilter`, `SVFSource` configurators (`cutoff`) | the converter's rename | go | 1 file |
-| `PhasedValueSource` configurator: `overlap`, `stages` of a source ref and four numbers | a `sources` multi input, a table of `percent`, `min`, `max`, `gain`, `overlap` a setting (3.3) | declares them; `add_stage` goes | 1 |
+| `PhasedValueSource` configurator: `overlap`, `stages` of a source ref and four numbers | a `sources` list of inputs (`InputList`), four columns `percent`, `minSec`, `maxSec`, `gain` (4.4 ruling 7: at a node's top level `min` and `max` read as an output range), `overlap` a setting (3.3) | declares them; `add_stage` goes | 1 |
 | `RepeatingSource` configurator: `duration`, `durVarPct`, `gap`, `gapVarPct` | all four are settings already, under the setting names; `gap` is `gapDuration`'s alias and the converter renames it | none | 1 |
 | `CombinedSource` configurator: `operation` as an ordinal or a string with aliases, `gainAdj` | `operation` is an enum setting whose labels are Mix, Multiply, Fade, Sum: the 107 ordinals read as indices, the 12 strings (`sum`, `multiply`) match labels case-insensitively; `add`, the configurator's alias for Mix, is in 9 files tree-wide and 0 in scope, and the converter writes the label; `gainAdj` is a setting already | none | 119 |
 | `CrossfadeSource` configurator: `ratio`, `overlap`, `gainAdj` | settings already, the configurator's defaults the declared ones | none | 0 |
-| `MultiSource` configurator: per-source `weight` and `delay` on the feed objects | `weights` and `delays` arrays parallel to `source` (3.2) | declares the two arrays | 3 files, 9 weights |
+| `MultiSource` configurator: per-source `weight` and `delay` on the feed objects | `weights` and `delays` arrays parallel to `source` (3.2), which is an `InputList` (4.4 ruling 1) | declares the list and the two arrays; its three hand-written overrides go | 3 files, 9 weights |
 | `StaticVarSource`, `StaticRangeSource` configurators: three plain members each | settings | declare them | 0 |
 | the `expandRule` block in `wire_params_generic`: an inline object, or a ref whose unresolved or wrong-kind target is silently ignored (3.1 ruling 11) | `Partials` declares `Slot<ExpandRuleNode> expandRule` and reads `to_struct()` on `on_slot_changed`; the inline form is the converter's (73 tree-wide) | the slot | 0 |
-| the Shaper block in `wire_params_generic` | `validate()` and two value-based warnings (5.6) | the hook | 9 |
+| the Shaper block in `wire_params_generic` | `validate()` and `warnings()` on the node (5.6); the node can state one of the two advisories until 4.6 (4.4 ruling 3) | the hooks | 9 |
 | `reject_unknown_keys`, `refuse_string_pin` | the codec (4.6) | — | — |
 | the two "bend inert" advisories (`tracks_frequency_live`; `bind_wiring`'s reachability walk) | one walk over the record — does a frequency stand-in reach this node's `frequency` pin while the node reads it once — into `warnings` | — | — |
 
@@ -1405,6 +1417,13 @@ double play_embedded_score(PitchedInstrument& inst, const std::string& scoreText
   held in `setting_descriptors()` with the new type) with `set_string` /
   `get_string` doors; `ArrayDescriptor::enum_labels` and the `Array` pin's
   labels; `Component::validate()`; `Family::Output` (`kFamilyCount` 11).
+  Added at 4.4, which this list did not foresee: `InputList`
+  (`PinKind::InputList`), a pin that holds a list of signals in order,
+  always Manual, its door a multi slot's (set replaces, add appends, clear
+  empties) and its hook `on_input_list_changed` — `MultiSource` and
+  `PhasedValueSource` both needed one, and a second hand-written list
+  would have been the copy the consolidation rule forbids; and
+  `Component::warnings()` (5.6).
 - **registry**: `register_type(name, tag, factory)` — `JsonConfigurator`,
   `ResolveParamFn` and `get_configurator` deleted, the header without
   `json.hpp` (the target's sentence); `register_all_sources()` called once
@@ -2237,6 +2256,40 @@ given two of its four columns is refused; an Envelope with neither form is
 `ar` in the engine and the default ADSR in the editor; sweep, scratch and
 old hold 954, 54 and 124 files that no longer load, as 8.4's table says.
 **From 4.4 the verification is amended (8.6).**
+
+**4.4 landed 2026-11-17** (`a66d60f`..`590a819`, the review's fix wave
+`96539b8` and a second wave of comments and tests `6b0e17f`; plan
+`docs/superpowers/plans/2026-11-17-part4-checkpoint-4.4.md`; report R19,
+`docs/autonomy/refactor/reports/2026-11-17-checkpoint-4.4.md`). As the row
+says, with these facts the execution added. **One pin kind the row does not
+name**: `InputList`, a list of signals, which `PhasedValueSource`'s sources
+and `MultiSource`'s feeds both are (5.10); and `Component::warnings()`
+beside `validate()` (5.6). On disk **30 files, 6 of them tracked** (library
+3, baselines 3, audition 22, pending 2): the row's five rewrites, and a
+sixth it did not count — fourteen audition files held a `VarSource` with no
+`val`, which the branch read as 0 and the declaration as 1, and the
+converter wrote the 0 out. The Phased columns are `percent`, `minSec`,
+`maxSec`, `gain`. **The old forms are refused from the one table by where
+they sat** — a key, a key on a feed, an object where a slot takes a feed
+(`RetiredAt`) — because a feed's `weight` sits under no key the unknown-key
+test sees. Of the eleven configurators left after 4.3, ten are gone and
+`FormantSequence`'s waits for 4.7; of the loader's branches, the Envelope's
+preset form, `PerformNode`, `NameGate`'s name resolution and
+`MultiplexSource` remain. Two departures by construction, neither in a
+library or baseline file: a `RepeatingSource` that gives `gapDuration` and
+no `gap` plays the gap it states, where a configurator wrote 0.2 over it;
+an unconverted `VarSource` with no `val` reads 1 (the shape is in four
+sweep files that do not load for older reasons). Facts for later
+checkpoints: an array beside a list is tolerant in length until 4.8's
+`disconnect` (5.7's `MultiSource` row); the Shaper's `morph` advisory is
+not printed until 4.6 gives a Param its own constant; the loader's key
+allowlist is 61 entries, six of them read by nothing, and goes whole at
+4.7; "the engine reads both forms" during a conversion is one claim per
+node type, proved by rendering a converted synthetic under the
+transitional binary before the tree is touched (Task 5 stopped on
+`RepeatingSource`); a full rebuild here is not byte-reproducible, so a
+binary's hash names a build and not a source state; scratch and old hold
+10 and 67 files with a form this checkpoint retired, sweep none.
 
 ### 8.2 Why this order (proposed)
 

@@ -1,68 +1,70 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-11-17, evening (refactor session XVIII, Fable 5.2 xhigh
-coordinating; Opus 5.5 executors).
-NEXT SESSION STARTS HERE: CHECKPOINT 4.4 IS IN EXECUTION ON main, Matt's "Go"
-of 2026-11-17 on the plan below. Landed so far, each verified (the executor's
-gates once, the binary by hash, the null gate): `a66d60f` Task 1 (the three
-kinds), `c04ae43` Task 4 (the converter's five rules), `2b351ed` Task 2 (eight
-node types declare; five loader branches gone), `0b28fdd` Task 3 (the list
-nodes and the slot), `dbe0bc9` Task 3b (one line: `RepeatingSource`'s
-configurator reads `gap` only where a file holds it — Task 5 had stopped on
-it), `36c8fb4` Task 5 (30 files converted, 6 tracked), `8aa1a28` the Ledger
-through Task 5. IN FLIGHT when this was written: Task 6 (the old forms
-refused, the readers deleted), then Task 7 (the mutation run and the review
-side by side, one fix wave, the measurements, report R19). THE PLAN'S
-EXECUTION NOTES ARE THE RECORD: every task's block and rulings 22 onward, at
-the end of its Ledger. Briefs, the gate script (`engine_gates.py`), the
-commit script (`coord_commit.py`) and every executor's raw output are under
-`renders/scratch/ab44/`. Booked for the fix wave by the coordinator's read: a
-`PhasedValueSource` prepared with no stage and then given one reads an empty
-`boundaries_` (guard the walk, not the list; editor-only). Usage at Task 5's
-commit: weekly Fable 18 percent, all-models 14.
-THE PLAN, as written before the go-ahead:
-CHECKPOINT 4.4'S PLAN IS WRITTEN —
-`docs/superpowers/plans/2026-11-17-part4-checkpoint-4.4.md` ("every type a
-declaration"), in 4.3's shape, from a survey of the loader's eleven branches
-and two blocks, the eleven configurators, twenty node headers, the pin kinds,
-the editor's settings cache and special cases, the converter, and a census of
-all 3,146 patch files (`renders/scratch/ab44/planning/census44.py` and `.txt`;
-the plan's Architecture paragraph, twelve numbered facts). IT AWAITS MATT'S
-GO-AHEAD; nothing of 4.4 is built and the plan is uncommitted with this file
-(Task 0 commits both). Eight tasks: 0 the base, the arms, the census, a
-synthetic set of about fifty; 1 the three kinds (`StringSetting`, `InputList`,
-`validate()` with `warnings()`); 2 the nodes whose files do not change
-(`NameGate`, the Butterworth `sections`, the hybrid's targets, the Static pair,
-the Shaper's `validate`, five loader branches gone); 3 the list nodes
-(`MultiSource`, `PhasedValueSource`) and the `expandRule` slot; 4 the
-converter's five rules; 5 the tree converted (30 files, 6 tracked) under Task
-3's binary; 6 the old forms refused in both hosts, the `VarSource` branch and
-eight configurators deleted; 7 the close. WHAT THE PLAN ASKS MATT TO NOTICE:
-Ledger 1 (a list of signal inputs becomes a pin kind in `core/pins.h`, which
-Part 4 §5.10 does not list — `PhasedValueSource` needs one and `MultiSource`
-has hand-written one since 3.1); Ledger 3 (`warnings()` beside `validate()`,
-and the Shaper's morph advisory waits for 4.6's builder); Ledger 5 (an array
-beside a list is tolerant in length until 4.8's `disconnect` can keep a strict
-rule); Ledger 7 (the Phased columns are `percent`, `minSec`, `maxSec`, `gain`,
-not 3.3's `min` and `max`); Ledger 8 (14 audition files use an empty
-`VarSource` as a silent zero: the converter writes `"val": 0.0`, the declared
-default stays 1). FACTS THE EXECUTION CARRIES: the build's command-line binary
-is byte-equal to `cli_post43.exe`, so 4.3's close arms are 4.4's old arms with
-no render; the three library `MultiSource` files (`ep_bright`, `ep_dark`,
-`ep_std`) are score-less, so their weights are heard by the score-less arm
-alone (`ab43/scoreless_table/`), never by the null gate or the 131; the editor
-drops those weights on load today and no gate hears it; `RepeatingSource`'s
-configurator overwrites a file's `gapDuration` with `gap`'s default; the two
-Butterworth configurators are dead code behind the loader's branch;
-`expandRule` is on no node of the four folders in either form. This is the
-first plan under Matt's four verification rules (Part 4 §8.6's amendment):
-each task names its gate set, Task 5 renders only the files it changed.
-Usage at the plan, Tuesday 2026-11-17 at 16:35 HST: weekly Fable 11 percent,
-all-models 8, both resetting Saturday 2026-11-21 at 02:00 HST; the survey and
-the plan cost three Fable points. GIT: main is level with origin; the plan and
-this file are uncommitted; GOALS.md stays Matt's uncommitted edit, never
-staged.
-
+Updated: 2026-11-17, late (refactor session XVIII, Fable 5.2 xhigh
+coordinating; Opus 5.5 executors, reviewer and re-reviewer).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.4 LANDED on main — `a66d60f` (the
+three kinds: `StringSetting`, `InputList`, `validate()` with `warnings()`),
+`c04ae43` (the converter's five rules), `2b351ed` (the nodes whose files do
+not change; five loader branches gone), `0b28fdd` (the list nodes and the
+`expandRule` slot), `dbe0bc9` (Task 3b, one line of `RepeatingSource`'s
+configurator), `36c8fb4` (the tree converted: 6 tracked files, 22 audition, 2
+pending), `590a819` (the old forms refused; the `VarSource` branch and eight
+configurators deleted), `96539b8` (the review's fix wave), `6b0e17f` (a
+second wave of comments and tests after the re-read), then the docs commit;
+base `d4d5ed3`. Report R19
+(`docs/autonomy/refactor/reports/2026-11-17-checkpoint-4.4.md`) is in REVIEW:
+nothing for Matt's ears, nothing to decide, a list to look at in the editor.
+0 of the 131 moved; the nine, the 52 synthetics (k2 equal to its control) and
+the 21 comp templates the same; timing flat (1.000, 0.999). Review R19: 0
+Critical, 2 Major, both fixed (a `PhasedValueSource` read out of range under
+any editor rewire; the Shaper's `validate()` looser than the loader's check);
+the re-read found comments that said more than the code, mended. THE PLAN'S
+LEDGER IS THE RECORD (`docs/superpowers/plans/2026-11-17-part4-checkpoint-4.4.md`,
+rulings 1-37 and every task's block). `engine_tests` 9,464 checks, tool tests
+264, registrations 75, `kBranchKeys` 61, one configurator left
+(`FormantSequence`), four loader branches left (the Envelope's preset form,
+`PerformNode`, `NameGate`'s name resolution, `MultiplexSource`).
+NEXT: CHECKPOINT 4.5'S PLAN (Part 4 §8.1 row 4.5, the terminal types and the
+document's spellings: `SoundChannel`, `StereoMixer` and `PerformNode`
+registered; `inputs` to `params`, `ui` + `groups` to `layout`, `_comment` to
+`comment`, enum integers to labels). The next session surveys and writes it
+for Matt's go-ahead; nothing of 4.5 is planned or built yet. Offer xhigh or
+max before the design work.
+WHAT 4.5'S PLAN INHERITS:
+- Arms, no render needed: `renders/scratch/ab44/old/hashes.txt` with
+  `library_baselines_131.txt` (no render moved, so the old arm is still the
+  131's truth), `scoreless_new/` (the nine in today's form; old hashes in
+  `scoreless/old/hashes.txt`, compared by file name), `synth_new/` (52
+  synthetics in today's form, old hashes in `synth/old/hashes.txt`, k2 moved
+  to its control `k2_c_gap05`), comp stage `post44`,
+  `renders/scratch/ab_tree/cli_post44.exe` (`5fd7d1df...57ee4ff2`, the build
+  of `6b0e17f`).
+- Scripts worth copying to `ab45/`: `renders/scratch/ab44/engine_gates.py`
+  (every gate by its own command, ends in the binary's sha256),
+  `coord_commit.py` (build, hash against the executor's gate file, null gate,
+  the expected changed set, add and commit), `briefs/rules.md`.
+- THE LESSON OF TASK 5 (ruling 31): "the engine reads both forms during the
+  conversion" is one claim per node type. When a task teaches the engine a
+  new form, convert the synthetic set in scratch and render the converted
+  copies under that task's binary before the tree is touched. Put the step
+  in the plan's task that adds the reading.
+- A full rebuild of unchanged sources gives a different binary hash, so a
+  hash names a build, not a source state (CLEANUP 92). The hash check still
+  works (executor and coordinator share `build/`); a comments-only edit by
+  the coordinator costs a whole gate run under rule 1.
+- The four verification rules held up: the coordinator ran the gate set
+  twice, both times after its own edit. The review's real finds were again
+  where no gate looks (the editor's rewire; a claim in the record).
+- Carried to later checkpoints, in CLEANUP 81-93 and Part 4 §8.1's 4.4
+  paragraph: the Shaper's `morph` advisory (4.6); wrong-shape values that
+  load in silence (4.6); the six unread keys on the allowlist (4.7); the
+  strict length rule for an array beside a list (4.8); the editor's rewire
+  that clears and refills every pin (Part 7).
+Usage at the close, Tuesday 2026-11-17 at 23:05 HST: weekly Fable 24 percent
+(11 at the plan: thirteen points for the checkpoint), all-models 19, both
+resetting Saturday 2026-11-21 at 02:00 HST. GIT: main is ahead of origin by
+this checkpoint's commits; not pushed (push only on Matt's word). GOALS.md
+stays Matt's uncommitted edit, never staged.
 ---
 
 Updated: 2026-11-14 (refactor session XVII, Fable 5.2 xhigh coordinating;
