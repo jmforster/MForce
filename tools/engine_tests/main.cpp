@@ -10818,6 +10818,15 @@ static void run_declared_default_load_tests() {
     CHECK(v && v->get_param("val") && v->get_param("val")->current() == 0.0f);
     CHECK(v && !v->get_param("var") && !v->get_param("varPct") && v->get_setting("absolute") == 1.0f);
     CHECK(v && dynamic_cast<ConstantSource*>(v->get_param("val").get()) != nullptr);
+    // A RepeatingSource's gapDuration under its own key holds what the file
+    // gives; `gap`, where a file holds it, is written over the setting.
+    for (const auto& [params, want] : std::initializer_list<std::pair<const char*, float>>{
+             {R"({"gapDuration":0.5})", 0.5f}, {R"({"gap":0.1,"gapDuration":0.5})", 0.1f},
+             {R"({"gap":0.3})", 0.3f}, {R"({})", 0.2f}}) {
+        InstrumentPatch rip;
+        auto r = enum_column::load_node("RepeatingSource", nlohmann::json::parse(params), rip);
+        CHECK(r && r->get_setting("gapDuration") == want);
+    }
 }
 
 namespace list_twins {

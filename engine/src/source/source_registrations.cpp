@@ -440,12 +440,15 @@ void register_all_sources() {
         [](auto seed) {
             return std::make_shared<RepeatingSource>(seed.value_or(0xAEAE'0000u));
         },
-        // Configurator: duration, gap (plain floats)
+        // Configurator: duration, durVarPct and gapVarPct by name, and
+        // "gap", the key a file may give gapDuration under: where a file
+        // holds it, it is written over the setting; where it does not, the
+        // setting keeps what the settings pass gave it.
         [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& rep = static_cast<RepeatingSource&>(src);
             rep.duration.value    = p.value("duration", 0.5f);
             rep.durVarPct.value   = p.value("durVarPct", 0.0f);
-            rep.gapDuration.value = p.value("gap", 0.2f);
+            if (p.contains("gap")) rep.gapDuration.value = p.at("gap").get<float>();
             rep.gapVarPct.value   = p.value("gapVarPct", 0.0f);
         });
 
