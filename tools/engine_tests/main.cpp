@@ -11201,7 +11201,7 @@ static void run_phased_list_twin_tests() {
         std::vector<float> out;
         pull(p, 100, out);
         auto feed = signal(2, 220.0f);
-        feed->prepare(RenderContext{48000});              // a node made after its owner's prepare is prepared by its host
+        feed->prepare(RenderContext{48000});              // prepared here: the walk prepares nothing mid-note
         CHECK(p.add_param("sources", feed));
         pull(p, 4700, out);
         CHECK(fnv(out) == zeros(4800));
@@ -11619,9 +11619,11 @@ static void run_declared_reader_tests() {
 static void run_branch_key_tests() {
     using namespace retired_forms;
     std::printf("the loader's key allowlist holds no key a deleted reader alone read\n");
-    CHECK(refused_with(node("SineSource", R"({"weight":0.5})"), "node 'n' (SineSource): unknown key 'weight'"));
-    CHECK(refused_with(node("SineSource", R"({"sections":3})"), "node 'n' (SineSource): unknown key 'sections'"));
-    CHECK(refused_with(node("SineSource", R"({"oneShot":true})"), "node 'n' (SineSource): unknown key 'oneShot'"));
+    // Each key that left the list, on a type that declares none of them.
+    for (const char* key : {"weight", "delay", "sections", "targetPartials", "oneShot", "normalized",
+                            "absolute", "baseValue", "bias", "varPct", "name"})
+        CHECK(refused_with(node("SineSource", std::string("{\"") + key + "\":1}"),
+                           std::string("node 'n' (SineSource): unknown key '") + key + "'"));
     CHECK(refused_with(node("MultiSource", R"({"source":[{"ref":"a"}],"delay":2})"), "node 'n' (MultiSource): unknown key 'delay'"));
     // Where a type declares the key, it loads.
     CHECK(loads_both(node("BWLowpassFilter", R"({"source":{"ref":"a"},"sections":3})")));

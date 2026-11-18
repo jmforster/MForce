@@ -13,10 +13,11 @@ namespace mforce {
 // to every pin, next advances every Param pin, each in declaration order,
 // then the hook runs — so a part keeps only its declarations and its work,
 // and a pin it adds is never left unprepared. An InputList is the exception,
-// so no part declares one (prepare asserts it): it is always Manual, and its
-// feeds are its owner's to prepare, start and pull. A part's connectable
-// pins are Manual: no sweep runs on a part. What the part answers between
-// the calls (a sum of partials, a gain at a frequency) is its derived type's.
+// so no part declares one (prepare asserts it, in a Debug build): it is
+// always Manual, and its feeds are its owner's to prepare, start and pull.
+// A part's connectable pins are Manual: no sweep runs on a part. What the
+// part answers between the calls (a sum of partials, a gain at a frequency)
+// is its derived type's.
 // ---------------------------------------------------------------------------
 struct DrivenPart : Component {
   // prepare also lists the part's Param pins, so next() walks that list and

@@ -148,7 +148,7 @@ struct ShaperSource final : Processor {
       if (x > 0.0f)      lastSign_ = 1;
       else if (x < 0.0f) lastSign_ = -1;
       // Slip curve = values2; absent/short values2 leaves the mode inert
-      // (loader warns at load).
+      // (warnings() says so at load).
       const bool useB = !stuck_ && valuesB_.size() >= 4;
       return useB
         ? Curve::eval_flat(valuesB_, segsB_, Curve::Domain::Linear,

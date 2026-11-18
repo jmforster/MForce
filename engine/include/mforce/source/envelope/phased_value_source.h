@@ -148,13 +148,18 @@ private:
   // four columns whenever one changes, and written nowhere else.
   //
   // A list or table change never moves the walk a note laid out. The walk
-  // covers the stages that are both listed and laid out (walkStages_): a
-  // stage added mid-note joins at the next start, a stage removed mid-note
-  // leaves the walk, and a list cleared and refilled with the same feeds
-  // leaves a playing note as it was. The counters and boundaries keep the
-  // note's layout here; they are reserved for the list, at wiring and never
-  // on the audio thread, so the next start lays a grown list out within
-  // capacity.
+  // is by position and covers the positions that are both listed and laid
+  // out (walkStages_): position i plays the feed listed there now, over the
+  // span the note laid out for position i. So a list cleared and refilled
+  // with the same feeds leaves a playing note as it was; a feed appended
+  // past the laid-out positions joins at the next start; a list that
+  // shrinks is walked to its new length, and a feed removed from the middle
+  // leaves each later feed playing the span of the position before its own
+  // until the next start. A feed that arrives at a walked position is
+  // pulled as it is: preparing and starting a node made mid-note is its
+  // host's. The counters and boundaries keep the note's layout here; they
+  // are reserved for the list, at wiring and never on the audio thread, so
+  // the next start lays a grown list out within capacity.
   void rebuild_stages_() {
     const auto row = [](const Array& column, size_t i) {
       return i < column.values.size() ? column.values[i] : column.def;
