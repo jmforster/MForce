@@ -1,7 +1,6 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/source/modulator/name_gate.h"
 #include <stdexcept>
-#include <string>
 
 // All source types
 #include "mforce/source/oscillator/sine_source.h"
@@ -81,7 +80,6 @@
 #include "mforce/source/filter/reverb.h"
 #include "mforce/source/envelope/vibrato.h"
 
-#include <cctype>
 #include <cmath>
 
 namespace mforce {
@@ -352,30 +350,16 @@ void register_all_sources() {
         [](auto) { return std::make_shared<BWBandpassFilter>(); });
 
     reg.register_type("BWLowpassFilter", {.family = Family::Filter},
-        [](auto) { return std::make_shared<BWLowpassFilter>(); },
-        // Configurator: the "cutoff" alias
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
-            // JSON uses "cutoff" but param descriptor uses "cutoffFreq"
-            if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
-                throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
-        });
+        [](auto) { return std::make_shared<BWLowpassFilter>(); });
 
     reg.register_type("BWHighpassFilter", {.family = Family::Filter},
-        [](auto) { return std::make_shared<BWHighpassFilter>(); },
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
-            if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
-                throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
-        });
+        [](auto) { return std::make_shared<BWHighpassFilter>(); });
 
     // 2-pole state-variable filter (AFNoding-031 rebuild): selectable
     // LP/HP/BP tap, modulatable resonance, optional divide-by-res
-    // normalization. "cutoff" JSON alias matches the BW filters.
+    // normalization.
     reg.register_type("SVFSource", {.family = Family::Filter, .label = "SVF (State Variable)"},
-        [](auto) { return std::make_shared<SVFSource>(); },
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
-            if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
-                throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
-        });
+        [](auto) { return std::make_shared<SVFSource>(); });
 
     reg.register_type("Shaper", {.family = Family::Filter},
         [](auto) { return std::make_shared<ShaperSource>(); });
@@ -406,26 +390,7 @@ void register_all_sources() {
         });
 
     reg.register_type("PhasedValueSource", {.family = Family::Envelope, .label = "Phased"},
-        [](auto) { return std::make_shared<PhasedValueSource>(); },
-        // Configurator: the stage-list form, "stages": [{"source", "percent",
-        // "min", "max", "gain"}, ...]. Each row's source is appended to
-        // `sources` and its four numbers go to the columns percent, minSec,
-        // maxSec and gain (an absent number is 0, 0, 0 and 1).
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
-            if (!p.contains("stages")) return;
-            std::vector<float> percent, minSec, maxSec, gain;
-            for (const auto& sj : p["stages"]) {
-                src.add_param("sources", resolve(sj.at("source")));
-                percent.push_back(sj.value("percent", 0.0f));
-                minSec.push_back(sj.value("min", 0.0f));
-                maxSec.push_back(sj.value("max", 0.0f));
-                gain.push_back(sj.value("gain", 1.0f));
-            }
-            src.set_array("percent", std::move(percent));
-            src.set_array("minSec", std::move(minSec));
-            src.set_array("maxSec", std::move(maxSec));
-            src.set_array("gain", std::move(gain));
-        });
+        [](auto) { return std::make_shared<PhasedValueSource>(); });
 
     reg.register_type("SegmentSource", {.family = Family::Envelope},
         [](auto seed) {
@@ -439,17 +404,6 @@ void register_all_sources() {
     reg.register_type("RepeatingSource", {.family = Family::Modulator},
         [](auto seed) {
             return std::make_shared<RepeatingSource>(seed.value_or(0xAEAE'0000u));
-        },
-        // Configurator: duration, durVarPct and gapVarPct by name, and
-        // "gap", the key a file may give gapDuration under: where a file
-        // holds it, it is written over the setting; where it does not, the
-        // setting keeps what the settings pass gave it.
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            auto& rep = static_cast<RepeatingSource&>(src);
-            rep.duration.value    = p.value("duration", 0.5f);
-            rep.durVarPct.value   = p.value("durVarPct", 0.0f);
-            if (p.contains("gap")) rep.gapDuration.value = p.at("gap").get<float>();
-            rep.gapVarPct.value   = p.value("gapVarPct", 0.0f);
         });
 
     reg.register_type("VarSource", {.family = Family::Modulator},
@@ -481,80 +435,13 @@ void register_all_sources() {
                 std::make_shared<ConstantSource>(0.0f),
                 std::make_shared<ConstantSource>(0.0f),
                 CombineOp::Add, 0.0f);
-        },
-        // Configurator: operation enum, gainAdj
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            auto& cs = static_cast<CombinedSource&>(src);
-            // Legacy patches write `operation` as a NUMBER (a C# enum ordinal);
-            // current ones write a string. Accept both, but do NOT quietly fall
-            // back to Add on anything unrecognised — silently rendering an
-            // operation nobody asked for is exactly the failure mode this
-            // loader is full of. Say so instead. Ordinals must stay in step
-            // with CombineOp and the kOpLabels dropdown in combined_source.h.
-            if (p.contains("operation") && p.at("operation").is_number()) {
-                int op = p.at("operation").get<int>();
-                switch (op) {
-                    case 0: cs.operation.value = int(CombineOp::Add);      break;
-                    case 1: cs.operation.value = int(CombineOp::Multiply); break;
-                    case 2: cs.operation.value = int(CombineOp::Fade);     break;
-                    case 3: cs.operation.value = int(CombineOp::Sum);      break;
-                    default:
-                        throw std::runtime_error(
-                            "CombinedSource 'operation': ordinal " + std::to_string(op) +
-                            " has no equivalent (0=add, 1=multiply, 2=fade, 3=sum). "
-                            "Give it as a string instead.");
-                }
-            } else {
-                std::string opStr = p.value("operation", std::string("add"));
-                std::string op = opStr;                    // matched ignoring case: "Mix" is the setting's own label
-                for (char& c : op) c = char(std::tolower(static_cast<unsigned char>(c)));
-                if      (op == "add" || op == "mix") cs.operation.value = int(CombineOp::Add);
-                else if (op == "multiply")           cs.operation.value = int(CombineOp::Multiply);
-                else if (op == "fade")               cs.operation.value = int(CombineOp::Fade);
-                else if (op == "sum")                cs.operation.value = int(CombineOp::Sum);
-                else
-                    throw std::runtime_error(
-                        "CombinedSource 'operation': unknown value \"" + opStr +
-                        "\" (expected add|mix|multiply|fade|sum).");
-            }
-            cs.gainAdj.value = p.value("gainAdj", 0.0f);
         });
 
     reg.register_type("CrossfadeSource", {.family = Family::Combiner},
-        [](auto) { return std::make_shared<CrossfadeSource>(); },
-        // Configurator: ratio, overlap, gainAdj
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            auto& cs = static_cast<CrossfadeSource&>(src);
-            cs.ratio.value   = p.value("ratio", 0.5f);
-            cs.overlap.value = p.value("overlap", 0.1f);
-            cs.gainAdj.value = p.value("gainAdj", 0.0f);
-        });
+        [](auto) { return std::make_shared<CrossfadeSource>(); });
 
     reg.register_type("MultiSource", {.family = Family::Combiner},
-        [](auto) { return std::make_shared<MultiSource>(); },
-        // Configurator: the feed-attribute form, a "weight" or a "delay" (in
-        // samples) on a feed of a "source" list ({"ref": "id", "weight": 0.5}).
-        // The generic pass has wired the feeds; when any feed holds the key,
-        // its array is set with one value per feed, 1 for a weight and 0 for a
-        // delay where a feed holds none. A list in which no feed holds the key
-        // sets nothing, and a single feed object is not read.
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            if (!p.contains("source") || !p["source"].is_array()) return;
-            const auto& feeds = p["source"];
-            const auto read = [&](const char* key, const char* array, float absent, bool whole) {
-                bool any = false;
-                for (const auto& f : feeds) any = any || (f.is_object() && f.contains(key));
-                if (!any) return;
-                std::vector<float> values;
-                for (const auto& f : feeds) {
-                    if (!f.is_object() || !f.contains(key)) values.push_back(absent);
-                    else values.push_back(whole ? float(f[key].get<int>()) : f[key].get<float>());
-                }
-                src.set_array(array, std::move(values));
-            };
-            read("weight", "weights", 1.0f, false);
-            read("delay", "delays", 0.0f, true);
-        });
+        [](auto) { return std::make_shared<MultiSource>(); });
 
     reg.register_type("MultiplexSource", {.family = Family::Combiner},
         [](auto) { return std::make_shared<MultiplexSource>(); });

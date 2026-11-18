@@ -5835,42 +5835,6 @@ static void run_combine_mod_hysteresis_tests() {
     CHECK_NEAR(sh.next(), -0.5f, 1e-5f);                   // sign reversal: stuck again
 }
 
-// The configurators set the migrated settings from the patch JSON, in the
-// forms the loader accepts.
-static void run_combine_mod_configurator_tests() {
-    register_all_sources();
-    auto& reg = SourceRegistry::instance();
-    const ResolveParamFn none = [](const nlohmann::json&) { return std::shared_ptr<ValueSource>(); };
-    auto configure = [&](const char* type, const char* json) {
-        auto src = reg.create(type);
-        (*reg.get_configurator(type))(*src, nlohmann::json::parse(json), none);
-        return src;
-    };
-    auto comb = configure("CombinedSource", R"({"operation":"multiply","gainAdj":0.5})");
-    CHECK_NEAR(comb->get_setting("operation"), 1.0f, 1e-6f);
-    CHECK_NEAR(comb->get_setting("gainAdj"), 0.5f, 1e-6f);
-    comb = configure("CombinedSource", R"({"operation":3})");
-    CHECK_NEAR(comb->get_setting("operation"), 3.0f, 1e-6f);
-    CHECK_NEAR(comb->get_setting("gainAdj"), 0.0f, 1e-6f);
-    comb = configure("CombinedSource", R"({"operation":"mix"})");
-    CHECK_NEAR(comb->get_setting("operation"), 0.0f, 1e-6f);
-    bool threw = false;
-    try { configure("CombinedSource", R"({"operation":9})"); }
-    catch (const std::runtime_error&) { threw = true; }
-    CHECK(threw);
-
-    auto xf = configure("CrossfadeSource", R"({"ratio":0.7,"overlap":0.2,"gainAdj":0.1})");
-    CHECK_NEAR(xf->get_setting("ratio"), 0.7f, 1e-6f);
-    CHECK_NEAR(xf->get_setting("overlap"), 0.2f, 1e-6f);
-    CHECK_NEAR(xf->get_setting("gainAdj"), 0.1f, 1e-6f);
-
-    auto rep = configure("RepeatingSource", R"({"duration":0.25,"durVarPct":0.1,"gap":0.4,"gapVarPct":0.3})");
-    CHECK_NEAR(rep->get_setting("duration"), 0.25f, 1e-6f);
-    CHECK_NEAR(rep->get_setting("durVarPct"), 0.1f, 1e-6f);
-    CHECK_NEAR(rep->get_setting("gapDuration"), 0.4f, 1e-6f);
-    CHECK_NEAR(rep->get_setting("gapVarPct"), 0.3f, 1e-6f);
-}
-
 // The combiner/modulator family, in registration order.
 static void run_combine_mod_tests() {
     run_combine_mod_pin_shape_tests();
@@ -5882,7 +5846,6 @@ static void run_combine_mod_tests() {
     run_combine_mod_setting_hook_tests();
     run_combine_mod_behavior_tests();
     run_combine_mod_hysteresis_tests();
-    run_combine_mod_configurator_tests();
 }
 
 // ---------------------------------------------------------------------------
@@ -8054,9 +8017,9 @@ static void run_allocation_tests_partials() {
     CHECK(allocations_in_one_note(additive) == 0);
     CHECK(allocations_in_one_note(additive, 72.0f) == 0);
     const char* everything = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"add","nodes":[
+      {"id":"rule","type":"ExpandRule","params":{"count":1,"recurse":1,"spacing1":0.3,"spacing2":0.3}},
       {"id":"parts","type":"FullPartials","params":{"maxPartials":8,"decayRate":1.0,"bandwidthHz":30.0,
-         "motionDepth1":10.0,"shimmerDepth1":0.2,"tradeDepth":0.2,"onsetSpread":0.1,
-         "expandRule":{"count":1,"recurse":1,"spacing1":0.3,"spacing2":0.3}}},
+         "motionDepth1":10.0,"shimmerDepth1":0.2,"tradeDepth":0.2,"onsetSpread":0.1,"expandRule":{"ref":"rule"}}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
     CHECK(allocations_in_one_note(everything) == 0);
     CHECK(allocations_in_one_note(everything, 48.0f) == 0);
@@ -8066,7 +8029,8 @@ static void run_allocation_tests_partials() {
     // on the voice the first note expanded).
     {
         const char* expanded = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
-          {"id":"parts","type":"FullPartials","params":{"maxPartials":4,"expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
+          {"id":"rule","type":"ExpandRule","params":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}},
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":4,"expandRule":{"ref":"rule"}}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
         auto once = load_instrument_patch_json(expanded);
         (void)render_one_live_note(*once.instrument, 60.0f);
@@ -8082,12 +8046,14 @@ static void run_allocation_tests_partials() {
     // expand rule: the originals the rule starts from follow every rebuild.
     {
         const char* rows = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"rule","type":"ExpandRule","params":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}},
           {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.5,0.25,0.125],"mult2":[1.0,2.0,3.0,4.0],"ampl2":[1.0,0.5,0.25,0.125],"evolve":false,
-             "expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
+             "expandRule":{"ref":"rule"}}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
         const char* editedRows = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"rule","type":"ExpandRule","params":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}},
           {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.1,0.1,0.1],"mult2":[1.0,2.0,3.0,4.0],"ampl2":[1.0,0.1,0.1,0.1],"evolve":false,
-             "expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
+             "expandRule":{"ref":"rule"}}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
         auto edited = load_instrument_patch_json(rows);
         (void)render_one_live_note(*edited.instrument, 60.0f);
@@ -8165,10 +8131,9 @@ static void run_allocation_tests_nodes() {
       {"id":"saw","type":"SawSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":1.0}},
       {"id":"pulse","type":"PulseSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":1.0,"dutyCycle":0.3,"bend":0.4}},
       {"id":"sin","type":"SineSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":1.0}},
-      {"id":"phased","type":"PhasedValueSource","params":{"overlap":0.15,"amplitude":0.8,"stages":[
-        {"source":{"ref":"saw"},"percent":0.33,"min":0.5,"max":3.0,"gain":1.0},
-        {"source":{"ref":"pulse"},"percent":0.33,"min":0.5,"max":3.0,"gain":1.0},
-        {"source":{"ref":"sin"},"percent":0,"min":0.0,"max":0.0,"gain":1.0}]}}]}})";
+      {"id":"phased","type":"PhasedValueSource","params":{"overlap":0.15,"amplitude":0.8,
+        "sources":[{"ref":"saw"},{"ref":"pulse"},{"ref":"sin"}],
+        "percent":[0.33,0.33,0.0],"minSec":[0.5,0.5,0.0],"maxSec":[3.0,3.0,0.0],"gain":[1.0,1.0,1.0]}}]}})";
     CHECK(allocations_in_one_note(phased) == 0);
     CHECK(allocations_in_one_note(phased, 48.0f) == 0);
     // SegmentSource: the segment list is reserved at prepare for the shape's size.
@@ -8391,8 +8356,7 @@ static void run_param_map_refusal_tests() {
 // exprKnots — fails the load through the text entry point and the file entry
 // point alike, naming the node, the key and the converter: the message is the
 // node's prefix and the sentence retired_key_refusal holds for the pair. The
-// refusal is per type and key: a PhasedValueSource's stages loads, and so do
-// the table forms of the three.
+// refusal is per type and key, and the table forms of the three load.
 static void run_retired_key_refusal_tests() {
     std::printf("retired keys: an Envelope's stages, a CurveNode's knots and exprKnots refused by name\n");
     auto patch = [](const std::string& node) {
@@ -8446,24 +8410,16 @@ static void run_retired_key_refusal_tests() {
           == "'knots' is no longer read: python tools/convert_patch.py <patch> rewrites it as the columns x and y");
     CHECK(retired_key_refusal("CurveNode", "exprKnots")
           == "'exprKnots' is no longer read: python tools/convert_patch.py <patch> rewrites it as the columns exprX, exprForm, exprA and exprB");
-    CHECK(retired_key_refusal("PhasedValueSource", "stages").empty());
     CHECK(retired_key_refusal("Envelope", "knots").empty());
     CHECK(retired_key_refusal("CurveNode", "stages").empty());
     CHECK(retired_key_refusal("Envelope", "startVal").empty());
 
-    // The table forms beside them load, and a PhasedValueSource keeps its stages.
+    // The table forms beside them load.
     CHECK(loads(patch(R"({"id":"n","type":"Envelope","params":{"startVal":[0.0,1.0],"endVal":[1.0,0.0],"power":[0.0,0.0],)"
                       R"("type":["Linear","Linear"],"percent":[0.5,0.5],"minSec":[0.0,0.0],"maxSec":[0.0,0.0],"nominal":[0.0,0.0]}})")));
     CHECK(loads(patch(R"({"id":"n","type":"CurveNode","params":{"source":{"ref":"pf"},"x":[100.0,1000.0],"y":[0.2,0.8]}})")));
     CHECK(loads(patch(R"({"id":"n","type":"CurveNode","params":{"source":{"ref":"pf"},"mode":"expressions",)"
                       R"("exprX":[440.0],"exprForm":["linear"],"exprA":[0.001],"exprB":[0.0]}})")));
-    CHECK(loads(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"phased","nodes":[
-      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
-      {"id":"saw","type":"SawSource","params":{"frequency":{"ref":"pf"},"amplitude":1.0}},
-      {"id":"sin","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":1.0}},
-      {"id":"phased","type":"PhasedValueSource","params":{"overlap":0.15,"amplitude":0.8,"stages":[
-        {"source":{"ref":"saw"},"percent":0.5,"min":0.5,"max":3.0,"gain":1.0},
-        {"source":{"ref":"sin"},"percent":0,"min":0.0,"max":0.0,"gain":1.0}]}}]}})"));
 
     // A stage list beside a preset gets the retired key's sentence, not the
     // two forms'; a preset beside a stage column gets the two forms'.
@@ -10812,17 +10768,9 @@ static void run_declared_default_load_tests() {
             if (!ok) std::printf("  %s %s: not at its declared defaults\n", type, withParams ? "{}" : "(no params)");
             CHECK(ok);
         }
-    // VarSource with empty params reads val 0, as the old branch did.
-    InstrumentPatch ip;
-    auto v = enum_column::load_node("VarSource", nlohmann::json::object(), ip);
-    CHECK(v && v->get_param("val") && v->get_param("val")->current() == 0.0f);
-    CHECK(v && !v->get_param("var") && !v->get_param("varPct") && v->get_setting("absolute") == 1.0f);
-    CHECK(v && dynamic_cast<ConstantSource*>(v->get_param("val").get()) != nullptr);
-    // A RepeatingSource's gapDuration under its own key holds what the file
-    // gives; `gap`, where a file holds it, is written over the setting.
+    // A RepeatingSource's gapDuration holds what the file gives, or its default.
     for (const auto& [params, want] : std::initializer_list<std::pair<const char*, float>>{
-             {R"({"gapDuration":0.5})", 0.5f}, {R"({"gap":0.1,"gapDuration":0.5})", 0.1f},
-             {R"({"gap":0.3})", 0.3f}, {R"({})", 0.2f}}) {
+             {R"({"gapDuration":0.5})", 0.5f}, {R"({})", 0.2f}}) {
         InstrumentPatch rip;
         auto r = enum_column::load_node("RepeatingSource", nlohmann::json::parse(params), rip);
         CHECK(r && r->get_setting("gapDuration") == want);
@@ -11255,30 +11203,23 @@ static void run_list_node_descriptor_tests() {
 static void run_list_node_loader_tests() {
     using namespace list_twins;
     using nlohmann::json;
-    std::printf("the list nodes and the slot load from both forms to equal nodes\n");
-    std::vector<float> oldArrays, newArrays;
-    const json weighted = {{"id", "n"}, {"type", "MultiSource"}, {"params", {{"source", json::array({
-        json{{"ref", "a"}, {"weight", 0.5}}, json{{"ref", "b"}, {"delay", 100}}})}}}};
+    std::printf("the list nodes load their feeds and arrays from the file\n");
+    std::vector<float> newArrays;
     const json columns = {{"id", "n"}, {"type", "MultiSource"}, {"params", {
         {"source", json::array({json{{"ref", "a"}}, json{{"ref", "b"}}})},
         {"weights", {0.5, 1.0}}, {"delays", {0.0, 100.0}}}}};
     const json plainFeeds = {{"id", "n"}, {"type", "MultiSource"}, {"params", {
         {"source", json::array({json{{"ref", "a"}}, json{{"ref", "b"}}})}}}};
-    const uint64_t mOld = loaded_render(voice_doc(json::array({weighted})), "n", &oldArrays, {"weights", "delays"});
     const uint64_t mNew = loaded_render(voice_doc(json::array({columns})), "n", &newArrays, {"weights", "delays"});
-    CHECK(mOld != 0 && mOld == mNew && oldArrays == newArrays && oldArrays.size() == 4);
-    CHECK(mOld != loaded_render(voice_doc(json::array({plainFeeds})), "n"));
-    oldArrays.clear(); newArrays.clear();
-    const json stages = {{"id", "n"}, {"type", "PhasedValueSource"}, {"params", {{"overlap", 0.01}, {"stages", json::array({
-        json{{"source", {{"ref", "a"}}}, {"percent", 0.3}, {"min", 0.01}, {"max", 0.02}, {"gain", 0.5}},
-        json{{"source", {{"ref", "b"}}}, {"percent", 0.0}}})}}}};
+    CHECK(mNew != 0 && newArrays == std::vector<float>({0.5f, 1.0f, 0.0f, 100.0f}));
+    CHECK(mNew != loaded_render(voice_doc(json::array({plainFeeds})), "n"));
+    newArrays.clear();
     const json table = {{"id", "n"}, {"type", "PhasedValueSource"}, {"params", {{"overlap", 0.01},
         {"sources", json::array({json{{"ref", "a"}}, json{{"ref", "b"}}})},
         {"percent", {0.3, 0.0}}, {"minSec", {0.01, 0.0}}, {"maxSec", {0.02, 0.0}}, {"gain", {0.5, 1.0}}}}};
     const char* cols[] = {"percent", "minSec", "maxSec", "gain"};
-    const uint64_t pOld = loaded_render(voice_doc(json::array({stages})), "n", &oldArrays, {cols[0], cols[1], cols[2], cols[3]});
     const uint64_t pNew = loaded_render(voice_doc(json::array({table})), "n", &newArrays, {cols[0], cols[1], cols[2], cols[3]});
-    CHECK(pOld != 0 && pOld == pNew && oldArrays == newArrays && oldArrays.size() == 8);
+    CHECK(pNew != 0 && newArrays == std::vector<float>({0.3f, 0.0f, 0.01f, 0.0f, 0.02f, 0.0f, 0.5f, 1.0f}));
     json ragged = table;
     ragged["params"].erase("gain");
     CHECK(three_kinds::refused_naming(voice_doc(json::array({ragged})), false,
@@ -11289,7 +11230,7 @@ static void run_list_node_loader_tests() {
 static void run_expand_rule_loader_tests() {
     using namespace list_twins;
     using nlohmann::json;
-    std::printf("the expand rule loads inline and as a node by ref; a ref that is not a rule fails\n");
+    std::printf("the expand rule loads as a node by ref; a ref that is not a rule fails\n");
     const json rule = {{"count", 3}, {"spacing1", 0.3}, {"spacing2", 0.7}, {"dt1", 0.05}, {"power1", 2.0}, {"po2", 0.25}};
     const auto partials_doc = [&](const json& expandRule, bool withNode) {
         json nodes = json::array();
@@ -11301,14 +11242,213 @@ static void run_expand_rule_loader_tests() {
                              {"params", {{"frequency", 220.0}, {"partials", {{"ref", "p"}}}}}});
         return voice_doc(nodes);
     };
-    const uint64_t inlineRule = loaded_render(partials_doc(rule, false), "n");
     const uint64_t refRule = loaded_render(partials_doc(json{{"ref", "rule"}}, true), "n");
-    CHECK(inlineRule != 0 && inlineRule == refRule);
-    CHECK(inlineRule != loaded_render(partials_doc(json(), false), "n"));
+    CHECK(refRule != 0 && refRule != loaded_render(partials_doc(json(), false), "n"));
     // A ref to no node, and to a node that is not an ExpandRule.
     CHECK(three_kinds::refused_naming(partials_doc(json{{"ref", "nope"}}, false), false, {"nope"}));
     CHECK(three_kinds::refused_naming(partials_doc(json{{"ref", "a"}}, false), false,
         {"node 'p' (FullPartials): 'expandRule' does not accept a SineSource; 'expandRule' takes an ExpandRule part"}));
+}
+
+namespace retired_forms {
+// The message the load of `text` fails with, through the instrument loader or,
+// as a plain sound, the patch-file loader; empty when it loads.
+static std::string refusal(const std::string& text, bool file) {
+    try { three_kinds::load(file ? three_kinds::plain(text) : text, file); }
+    catch (const std::exception& e) { return e.what(); }
+    return {};
+}
+// The voice graph of the two sines `a` and `b` and the nodes of `nodes`, a JSON array.
+static std::string doc(const std::string& nodes) {
+    return list_twins::voice_doc(nlohmann::json::parse(nodes));
+}
+// One node `n` of `type` holding `params`, as a JSON array of one.
+static std::string node(const char* type, const std::string& params) {
+    return std::string(R"([{"id":"n","type":")") + type + R"(","params":)" + params + "}]";
+}
+// Whether the load of `nodes` fails through both entry points with `want` whole.
+static bool refused_with(const std::string& nodes, const std::string& want) {
+    bool ok = true;
+    for (bool file : {false, true}) {
+        const std::string msg = refusal(doc(nodes), file);
+        if (msg != want) std::printf("  %s: got \"%s\"\n  want \"%s\"\n", file ? "file" : "text", msg.c_str(), want.c_str());
+        ok = ok && msg == want;
+    }
+    return ok;
+}
+// Whether `nodes` loads through both entry points.
+static bool loads_both(const std::string& nodes) {
+    bool ok = true;
+    for (bool file : {false, true}) {
+        const std::string msg = refusal(doc(nodes), file);
+        if (!msg.empty()) std::printf("  %s: load failed: %s\n", file ? "file" : "text", msg.c_str());
+        ok = ok && msg.empty();
+    }
+    return ok;
+}
+const std::string kConv = "is no longer read: python tools/convert_patch.py <patch> rewrites it as ";
+}  // namespace retired_forms
+
+static void run_retired_form_table_tests() {
+    std::printf("retired forms: one table, by type, key and where the key sat\n");
+    const std::string conv = "python tools/convert_patch.py <patch> rewrites it as ";
+    struct Row { const char* type; const char* key; RetiredAt at; std::string want; };
+    const Row rows[] = {
+        {"Envelope", "stages", RetiredAt::Key, "'stages' is no longer read: " + conv + "the eight stage columns"},
+        {"CurveNode", "knots", RetiredAt::Key, "'knots' is no longer read: " + conv + "the columns x and y"},
+        {"CurveNode", "exprKnots", RetiredAt::Key,
+         "'exprKnots' is no longer read: " + conv + "the columns exprX, exprForm, exprA and exprB"},
+        {"PhasedValueSource", "stages", RetiredAt::Key,
+         "'stages' is no longer read: " + conv + "sources and the columns percent, minSec, maxSec and gain"},
+        {"BWLowpassFilter", "cutoff", RetiredAt::Key, "'cutoff' is no longer read: " + conv + "cutoffFreq"},
+        {"BWHighpassFilter", "cutoff", RetiredAt::Key, "'cutoff' is no longer read: " + conv + "cutoffFreq"},
+        {"SVFSource", "cutoff", RetiredAt::Key, "'cutoff' is no longer read: " + conv + "cutoffFreq"},
+        {"RepeatingSource", "gap", RetiredAt::Key, "'gap' is no longer read: " + conv + "gapDuration"},
+        {"MultiSource", "weight", RetiredAt::FeedKey, "'weight' on a feed is no longer read: " + conv + "the array weights"},
+        {"MultiSource", "delay", RetiredAt::FeedKey, "'delay' on a feed is no longer read: " + conv + "the array delays"},
+        {"FullPartials", "expandRule", RetiredAt::InlineSlot,
+         "'expandRule' as an inline object is no longer read: " + conv + "an ExpandRule node wired by ref"},
+        {"SequencePartials", "expandRule", RetiredAt::InlineSlot,
+         "'expandRule' as an inline object is no longer read: " + conv + "an ExpandRule node wired by ref"},
+        {"ExplicitPartials", "expandRule", RetiredAt::InlineSlot,
+         "'expandRule' as an inline object is no longer read: " + conv + "an ExpandRule node wired by ref"},
+    };
+    for (const auto& r : rows) {
+        const std::string got = retired_key_refusal(r.type, r.key, r.at);
+        if (got != r.want) std::printf("  %s.%s: got \"%s\"\n", r.type, r.key, got.c_str());
+        CHECK(got == r.want);
+    }
+    // The default place is a key of the node's params.
+    CHECK(retired_key_refusal("BWLowpassFilter", "cutoff") == rows[4].want);
+    // The same key at another place gives nothing.
+    CHECK(retired_key_refusal("MultiSource", "weight").empty());
+    CHECK(retired_key_refusal("MultiSource", "delay", RetiredAt::InlineSlot).empty());
+    CHECK(retired_key_refusal("BWLowpassFilter", "cutoff", RetiredAt::FeedKey).empty());
+    CHECK(retired_key_refusal("FullPartials", "expandRule").empty());
+    CHECK(retired_key_refusal("Envelope", "stages", RetiredAt::FeedKey).empty());
+    // A near miss gives nothing.
+    CHECK(retired_key_refusal("BWBandpassFilter", "cutoff").empty());
+    CHECK(retired_key_refusal("SegmentSource", "gap").empty());
+    CHECK(retired_key_refusal("MultiSource", "stages").empty());
+    CHECK(retired_key_refusal("SineSource", "weight", RetiredAt::FeedKey).empty());
+    CHECK(retired_key_refusal("AdditiveSource", "formant", RetiredAt::InlineSlot).empty());
+}
+
+static void run_retired_form_load_tests() {
+    using namespace retired_forms;
+    std::printf("retired forms: each fails through both loaders with its sentence; its new form loads\n");
+    struct Form { std::string oldNodes, newNodes, want; };
+    std::vector<Form> forms = {
+        {node("PhasedValueSource", R"({"stages":[{"source":{"ref":"a"},"percent":0.5},{"source":{"ref":"b"}}]})"),
+         node("PhasedValueSource", R"({"sources":[{"ref":"a"},{"ref":"b"}],"percent":[0.5,0.0],"minSec":[0.0,0.0],)"
+                                   R"("maxSec":[0.0,0.0],"gain":[1.0,1.0]})"),
+         "node 'n' (PhasedValueSource): 'stages' " + kConv + "sources and the columns percent, minSec, maxSec and gain"},
+        {node("RepeatingSource", R"({"source":{"ref":"a"},"gap":0.1})"),
+         node("RepeatingSource", R"({"source":{"ref":"a"},"gapDuration":0.1})"),
+         "node 'n' (RepeatingSource): 'gap' " + kConv + "gapDuration"},
+        {node("MultiSource", R"({"source":[{"ref":"a","weight":0.5},{"ref":"b"}]})"),
+         node("MultiSource", R"({"source":[{"ref":"a"},{"ref":"b"}],"weights":[0.5,1.0]})"),
+         "node 'n' (MultiSource): 'source': 'weight' on a feed " + kConv + "the array weights"},
+        {node("MultiSource", R"({"source":{"ref":"a","weight":0.5}})"),
+         node("MultiSource", R"({"source":{"ref":"a"},"weights":[0.5]})"),
+         "node 'n' (MultiSource): 'source': 'weight' on a feed " + kConv + "the array weights"},
+        {node("MultiSource", R"({"source":[{"ref":"a"},{"ref":"b","delay":100}]})"),
+         node("MultiSource", R"({"source":[{"ref":"a"},{"ref":"b"}],"delays":[0.0,100.0]})"),
+         "node 'n' (MultiSource): 'source': 'delay' on a feed " + kConv + "the array delays"},
+        {node("MultiSource", R"({"source":{"ref":"a","delay":100}})"),
+         node("MultiSource", R"({"source":{"ref":"a"},"delays":[100.0]})"),
+         "node 'n' (MultiSource): 'source': 'delay' on a feed " + kConv + "the array delays"},
+    };
+    for (const char* type : {"BWLowpassFilter", "BWHighpassFilter", "SVFSource"})
+        forms.push_back({node(type, R"({"source":{"ref":"a"},"cutoff":500.0})"),
+                         node(type, R"({"source":{"ref":"a"},"cutoffFreq":500.0})"),
+                         "node 'n' (" + std::string(type) + "): 'cutoff' " + kConv + "cutoffFreq"});
+    for (const char* type : {"FullPartials", "SequencePartials", "ExplicitPartials"}) {
+        const std::string host = node(type, R"({"expandRule":{"ref":"r"}})");
+        forms.push_back({node(type, R"({"expandRule":{"count":3,"spacing1":0.3}})"),
+                         R"([{"id":"r","type":"ExpandRule","params":{"count":3,"spacing1":0.3}},)" + host.substr(1),
+                         "node 'n' (" + std::string(type) + "): 'expandRule' as an inline object " + kConv
+                             + "an ExpandRule node wired by ref"});
+    }
+    CHECK(forms.size() == 12);
+    for (const auto& f : forms) {
+        CHECK(refused_with(f.oldNodes, f.want));
+        CHECK(loads_both(f.newNodes));
+    }
+    // A cutoff on the Butterworth bandpass is a key no reader has: unknown.
+    CHECK(refused_with(node("BWBandpassFilter", R"({"source":{"ref":"a"},"cutoff":500.0})"),
+                       "node 'n' (BWBandpassFilter): unknown key 'cutoff'"));
+}
+
+static void run_feed_shape_refusal_tests() {
+    using namespace retired_forms;
+    std::printf("a feed holds 'ref' or 'tap' alone; a slot takes a feed, not an object\n");
+    // A key beside a feed's ref or tap that the table has no row for.
+    CHECK(refused_with(node("MultiSource", R"({"source":[{"ref":"a"},{"ref":"b","foo":1}]})"),
+                       "node 'n' (MultiSource): 'source': a feed holds 'ref' or 'tap' alone, not 'foo'"));
+    CHECK(refused_with(node("SineSource", R"({"amplitude":{"ref":"a","foo":1}})"),
+                       "node 'n' (SineSource): 'amplitude': a feed holds 'ref' or 'tap' alone, not 'foo'"));
+    CHECK(refused_with(node("SineSource", R"({"amplitude":{"tap":"b","foo":1}})"),
+                       "node 'n' (SineSource): 'amplitude': a feed holds 'ref' or 'tap' alone, not 'foo'"));
+    // MultiSource's rows are its own: a weight on another node's feed is the general case.
+    CHECK(refused_with(node("SineSource", R"({"amplitude":{"ref":"a","weight":0.5}})"),
+                       "node 'n' (SineSource): 'amplitude': a feed holds 'ref' or 'tap' alone, not 'weight'"));
+    CHECK(refused_with(node("CombinedSource", R"({"source1":{"ref":"a","delay":2}})"),
+                       "node 'n' (CombinedSource): 'source1': a feed holds 'ref' or 'tap' alone, not 'delay'"));
+    // Both ref and tap.
+    CHECK(refused_with(node("SineSource", R"({"amplitude":{"ref":"a","tap":"b"}})"),
+                       "node 'n' (SineSource): 'amplitude': a feed holds 'ref' or 'tap', not both"));
+    CHECK(refused_with(node("MultiSource", R"({"source":[{"ref":"a","tap":"b"}]})"),
+                       "node 'n' (MultiSource): 'source': a feed holds 'ref' or 'tap', not both"));
+    // An object with neither on a slot the table has no row for.
+    CHECK(refused_with(node("AdditiveSource", R"({"formant":{"foo":1}})"),
+                       "node 'n' (AdditiveSource): 'formant' holds an object where a slot takes {\"ref\": id}"));
+    // On a signal pin, the same object reaches the resolver's own sentence.
+    CHECK(refused_with(node("SineSource", R"({"amplitude":{"foo":1}})"),
+                       "Param must be a number, {\"ref\":\"...\"} or {\"tap\":\"...\"}"));
+    // A plain feed and a tap load.
+    CHECK(loads_both(node("SineSource", R"({"amplitude":{"ref":"a"},"frequency":{"tap":"b"}})")));
+}
+
+static void run_declared_reader_tests() {
+    using enum_column::load_node;
+    using enum_column::load_setting;
+    std::printf("the deleted readers' keys, read by the declarations alone\n");
+    // A VarSource with empty params and with none: nothing wired, val 1.
+    for (bool withParams : {true, false}) {
+        InstrumentPatch ip;
+        auto n = load_node("VarSource", withParams ? nlohmann::json::object() : nlohmann::json(), ip);
+        auto* v = dynamic_cast<VarSource*>(n.get());
+        CHECK(v && !v->get_param("val") && !v->get_param("var") && !v->get_param("varPct"));
+        CHECK(v && v->val.current() == 1.0f && v->get_setting("absolute") == 1.0f);
+        if (v) { v->prepare(RenderContext{48000}); v->start(4); CHECK(v->next() == 1.0f); }
+    }
+    // CombinedSource's operation by its labels and indices; "add" matches no
+    // label and keeps the default, Mix.
+    const std::pair<nlohmann::json, float> ops[] = {
+        {"add", 0.0f}, {"Mix", 0.0f}, {"mix", 0.0f}, {"fade", 2.0f}, {"Multiply", 1.0f}, {"sum", 3.0f},
+        {0, 0.0f}, {1, 1.0f}, {2, 2.0f}, {3, 3.0f}};
+    for (const auto& [op, want] : ops) {
+        const float got = load_setting("CombinedSource", "operation", op);
+        if (got != want) std::printf("  operation %s: %g\n", op.dump().c_str(), got);
+        CHECK(got == want);
+    }
+    {
+        InstrumentPatch ip;
+        auto c = load_node("CombinedSource", nlohmann::json{{"operation", "multiply"}}, ip);
+        CHECK(c && c->get_setting("gainAdj") == 0.0f && c->get_setting("operation") == 1.0f);
+    }
+    CHECK(load_setting("RepeatingSource", "gapDuration", 0.5) == 0.5f);
+    // A CrossfadeSource and a RepeatingSource with no settings hold the declared defaults.
+    for (const char* type : {"CrossfadeSource", "RepeatingSource"})
+        for (bool withParams : {true, false}) {
+            InstrumentPatch ip;
+            auto n = load_node(type, withParams ? nlohmann::json::object() : nlohmann::json(), ip);
+            CHECK(n != nullptr);
+            if (!n) continue;
+            CHECK(!n->setting_descriptors().empty());
+            for (const auto& d : n->setting_descriptors()) CHECK(n->get_setting(d.name) == d.default_value);
+        }
 }
 
 int main() {
@@ -11480,6 +11620,10 @@ int main() {
     run_list_node_descriptor_tests();
     run_list_node_loader_tests();
     run_expand_rule_loader_tests();
+    run_retired_form_table_tests();
+    run_retired_form_load_tests();
+    run_feed_shape_refusal_tests();
+    run_declared_reader_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

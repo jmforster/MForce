@@ -138,10 +138,6 @@ struct Partials : PartialSet {
     }
   }
 
-  // The rule as a struct: what the loader gives a host from an inline
-  // "expandRule" object.
-  void set_expand_rule(ExpandRule rule) { expandRule_ = rule; hasExpand_ = true; }
-
   // --- The set's hooks: after the base has prepared, started or advanced the pins ---
 
   // The rate, and every array a note fills sized for it: once per build, idempotent.

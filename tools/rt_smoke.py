@@ -25,12 +25,17 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, ten cases, each on its own line and not counted among
-the shapes. Three fixtures written to the temp folder must be refused by
+After the shapes, fifteen cases, each on its own line and not counted among
+the shapes. Six fixtures written to the temp folder must be refused by
 mforce_ui --roundtrip, each with a non-zero exit, tools/convert_patch.py named
 in its output, and no file written: a patch carrying an instrument.paramMap
-(refusal), an Envelope holding a stage list (retired-key) and a CurveNode
-holding a knot list (retired-knots). An Envelope whose stage table lacks a
+(refusal), an Envelope holding a stage list (retired-key), a CurveNode
+holding a knot list (retired-knots), a MultiSource with a weight on a feed
+(retired-feed), a BWLowpassFilter holding cutoff (retired-rename) and a
+FullPartials holding an inline expandRule (retired-inline). A NameGate's
+name must survive a round trip (string-setting), and a MultiSource's weights
+array must survive one with the round trip rendering the original's bytes
+(list-weights). An Envelope whose stage table lacks a
 column must be refused the same way, with the engine's table sentence named
 in place of the converter (ragged-table). make-instrument: mforce_ui
 --convert-roundtrip on patches/baselines/distortion_test.json must exit 0 and
@@ -148,6 +153,50 @@ ADSR_COLUMNS = {
     "minSec": [0.0, 0.0, 0.0, 0.0], "maxSec": [1.0, 0.5, 0.0, 0.0], "nominal": [0.0, 0.0, 0.0, 0.0]}
 
 
+def instrument_doc(nodes, output, **instrument):
+    """An instrument patch of `nodes` whose output is `output`, with one note
+    and its length given, as the editor writes one."""
+    return {
+        "sampleRate": 48000,
+        "seconds": 1.0,
+        "graph": {"nodes": nodes, "output": output},
+        "instrument": dict({"polyphony": 1}, **instrument),
+        "score": [{"note": 60, "velocity": 0.8, "time": 0.0, "duration": 0.5}],
+    }
+
+
+PERFORM_FREQUENCY = {"id": "pf", "type": "PerformNode", "params": {"field": "frequency"}}
+TWO_SINES = [PERFORM_FREQUENCY,
+             {"id": "s1", "type": "SineSource", "params": {"frequency": {"ref": "pf"}, "amplitude": 0.5}},
+             {"id": "s2", "type": "SawSource", "params": {"frequency": {"ref": "pf"}, "amplitude": 0.5}}]
+
+RETIRED_FEED_FIXTURE = instrument_doc(TWO_SINES + [
+    {"id": "mix", "type": "MultiSource",
+     "params": {"source": [{"ref": "s1", "weight": 0.5}, {"ref": "s2"}]}}], "mix")
+
+RETIRED_RENAME_FIXTURE = instrument_doc(TWO_SINES + [
+    {"id": "lp", "type": "BWLowpassFilter", "params": {"source": {"ref": "s2"}, "cutoff": 800.0}}], "lp")
+
+RETIRED_INLINE_FIXTURE = instrument_doc([
+    PERFORM_FREQUENCY,
+    {"id": "parts", "type": "FullPartials",
+     "params": {"maxPartials": 8, "expandRule": {"count": 2, "spacing1": 0.3}}},
+    {"id": "add", "type": "AdditiveSource",
+     "params": {"frequency": {"ref": "pf"}, "amplitude": 0.5, "partials": {"ref": "parts"}}}], "add")
+
+STRING_SETTING_FIXTURE = instrument_doc([
+    PERFORM_FREQUENCY,
+    {"id": "on", "type": "PerformNode", "params": {"field": "onset"}},
+    {"id": "gate", "type": "NameGate", "params": {"name": "tongue", "in": {"ref": "on"}}},
+    {"id": "osc", "type": "SineSource", "params": {"frequency": {"ref": "pf"}, "amplitude": {"ref": "gate"}}}],
+    "osc", onsets=["tongue", "slur"])
+
+LIST_WEIGHTS = [0.75, 0.25]
+LIST_WEIGHTS_FIXTURE = instrument_doc(TWO_SINES + [
+    {"id": "mix", "type": "MultiSource",
+     "params": {"source": [{"ref": "s1"}, {"ref": "s2"}], "weights": LIST_WEIGHTS}}], "mix")
+
+
 def refusal_failures(td, doc, name="refusal", needle="tools/convert_patch.py"):
     """Write `doc` to `td` and round-trip it; return why the editor did not
     refuse it (empty when it exited non-zero, named `needle` and wrote
@@ -182,6 +231,51 @@ def roundtrip_env_params(td, doc, name):
     if env is None:
         return ["no env node"], None
     return [], env.get("params") or {}
+
+
+def roundtrip_node_params(td, doc, name, node_id):
+    """Write `doc` to `td` and round-trip it; return (why it failed, the source
+    path, the output path, the saved params of node `node_id`)."""
+    src, out = Path(td) / (name + ".json"), Path(td) / (name + "_rt.json")
+    src.write_text(json.dumps(doc), encoding="utf-8")
+    r = subprocess.run([str(UI), "--roundtrip", str(src), str(out)],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    if r.returncode != 0:
+        return ["exit %d %s" % (r.returncode, r.stderr.strip()[:70])], src, out, None
+    if not out.exists():
+        return ["wrote nothing"], src, out, None
+    nodes = json.loads(out.read_text(encoding="utf-8"))["graph"]["nodes"]
+    node = next((n for n in nodes if n.get("id") == node_id), None)
+    if node is None:
+        return ["no %s node" % node_id], src, out, None
+    return [], src, out, node.get("params") or {}
+
+
+def string_setting_failures(td):
+    """Round-trip STRING_SETTING_FIXTURE; return why its NameGate's name is not
+    the file's."""
+    why, _, _, params = roundtrip_node_params(td, STRING_SETTING_FIXTURE, "string_setting", "gate")
+    if why:
+        return why
+    return [] if params.get("name") == "tongue" else ["name is %s" % json.dumps(params.get("name"))]
+
+
+def list_weights_failures(td):
+    """Round-trip LIST_WEIGHTS_FIXTURE; return why its MultiSource does not keep
+    its weights or the round trip does not render the original's bytes."""
+    why, src, out, params = roundtrip_node_params(td, LIST_WEIGHTS_FIXTURE, "list_weights", "mix")
+    if why:
+        return why
+    got = params.get("weights")
+    if not (isinstance(got, list) and len(got) == len(LIST_WEIGHTS)
+            and all(isinstance(g, (int, float)) and abs(g - w) <= 1e-6 for g, w in zip(got, LIST_WEIGHTS))):
+        why.append("weights is %s" % json.dumps(got))
+    wa, wb = Path(td) / "list_weights_a.wav", Path(td) / "list_weights_b.wav"
+    if not (render(src, wa) and render(out, wb)):
+        why.append("a render failed")
+    elif sha(wa) != sha(wb):
+        why.append("render differs")
+    return why
 
 
 def table_labels_failures(td):
@@ -361,6 +455,11 @@ def main():
         for label, why in (("refusal", lambda: refusal_failures(td, PARAMMAP_FIXTURE)),
                            ("retired-key", lambda: refusal_failures(td, RETIRED_FIXTURE, "retired_key")),
                            ("retired-knots", lambda: refusal_failures(td, RETIRED_KNOTS_FIXTURE, "retired_knots")),
+                           ("retired-feed", lambda: refusal_failures(td, RETIRED_FEED_FIXTURE, "retired_feed")),
+                           ("retired-rename", lambda: refusal_failures(td, RETIRED_RENAME_FIXTURE, "retired_rename")),
+                           ("retired-inline", lambda: refusal_failures(td, RETIRED_INLINE_FIXTURE, "retired_inline")),
+                           ("string-setting", lambda: string_setting_failures(td)),
+                           ("list-weights", lambda: list_weights_failures(td)),
                            ("ragged-table", lambda: refusal_failures(td, RAGGED_FIXTURE, "ragged_table",
                                                                      RAGGED_SENTENCE)),
                            ("make-instrument", lambda: make_instrument_failures(td)),

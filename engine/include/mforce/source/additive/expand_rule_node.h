@@ -8,8 +8,8 @@ namespace mforce {
 // ExpandRuleNode — the ExpandRule as a node, so a patch can declare one at
 // the top level and reference it from a Partials host via { "ref": "..." }.
 // A part, like Formant: a parametric building block a host reads, with no
-// signal of its own. The loader snapshots its fields into the host with
-// to_struct() when the host is built.
+// signal of its own. The host takes a snapshot of its fields with
+// to_struct() when its expandRule slot changes.
 struct ExpandRuleNode final : Component {
   // The host reads the pins with to_struct(); nothing pulls them per sample,
   // so all ten are Manual and this node never prepares or advances them.

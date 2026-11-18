@@ -74,10 +74,7 @@ _LIT_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"')
 # Residue the scraper cannot see: keys reached via at(), iteration, or a helper
 # rather than a literal value()/contains()/[] call. Keep this SHORT -- the
 # selftest prints anything here the scraper already covers.
-MANUAL_KEYS = {
-    "sections",     # filter section list, reached by iteration
-    "oneShot",      # SegmentSource
-}
+MANUAL_KEYS = set()     # empty: every key a hand-written reader reaches is scraped or declared
 # Pruned run 25: formants, values, partialCount, partialMode, absolute,
 # normalized, depthVar and speedVar were all in the old hand-copied list and
 # are all found by the scraper, so keeping them by hand bought nothing.

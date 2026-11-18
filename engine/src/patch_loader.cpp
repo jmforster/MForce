@@ -2,17 +2,12 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/source/modulator/name_gate.h"
-#include "mforce/source/modulator/var_source.h"
 #include "mforce/render/perform_source.h"
 #include "mforce/source/envelope/envelope.h"
 #include "mforce/source/envelope/envelope_json.h"
 #include "mforce/render/instrument.h"
 #include "mforce/render/embedded_score.h"
 // Types still needed for special-case construction
-#include "mforce/source/additive/partials.h"
-#include "mforce/source/additive/expand_rule.h"
-#include "mforce/source/wavetable/wavetable_source.h"
-#include "mforce/source/envelope/phased_value_source.h"
 #include "mforce/source/combiner/multiplex_source.h"
 #include <algorithm>
 #include <cmath>
@@ -219,19 +214,34 @@ struct GraphResult {
                              + (isSignal ? "" : ", a part, not a signal") + takes);
 }
 
-std::string retired_key_refusal(std::string_view type, std::string_view key)
+std::string retired_key_refusal(std::string_view type, std::string_view key, RetiredAt at)
 {
-    // A table's row form, by node type and key, and the columns it became.
-    struct Retired { std::string_view type, key, columns; };
+    // Each spelling the engine does not read: the node type, the key, where
+    // it sat, and what the converter rewrites it as.
+    struct Retired { std::string_view type, key; RetiredAt at; std::string_view becomes; };
     static constexpr Retired kRetired[] = {
-        {"Envelope",  "stages",    "the eight stage columns"},
-        {"CurveNode", "knots",     "the columns x and y"},
-        {"CurveNode", "exprKnots", "the columns exprX, exprForm, exprA and exprB"},
+        {"Envelope",          "stages",     RetiredAt::Key,        "the eight stage columns"},
+        {"CurveNode",         "knots",      RetiredAt::Key,        "the columns x and y"},
+        {"CurveNode",         "exprKnots",  RetiredAt::Key,        "the columns exprX, exprForm, exprA and exprB"},
+        {"PhasedValueSource", "stages",     RetiredAt::Key,        "sources and the columns percent, minSec, maxSec and gain"},
+        {"BWLowpassFilter",   "cutoff",     RetiredAt::Key,        "cutoffFreq"},
+        {"BWHighpassFilter",  "cutoff",     RetiredAt::Key,        "cutoffFreq"},
+        {"SVFSource",         "cutoff",     RetiredAt::Key,        "cutoffFreq"},
+        {"RepeatingSource",   "gap",        RetiredAt::Key,        "gapDuration"},
+        {"MultiSource",       "weight",     RetiredAt::FeedKey,    "the array weights"},
+        {"MultiSource",       "delay",      RetiredAt::FeedKey,    "the array delays"},
+        {"FullPartials",      "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
+        {"SequencePartials",  "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
+        {"ExplicitPartials",  "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
     };
-    for (const auto& r : kRetired)
-        if (r.type == type && r.key == key)
-            return "'" + std::string(key) + "' is no longer read: python tools/convert_patch.py <patch> rewrites it as "
-                 + std::string(r.columns);
+    for (const auto& r : kRetired) {
+        if (r.type != type || r.key != key || r.at != at) continue;
+        const char* where = at == RetiredAt::FeedKey    ? " on a feed"
+                          : at == RetiredAt::InlineSlot ? " as an inline object"
+                                                        : "";
+        return "'" + std::string(key) + "'" + where
+             + " is no longer read: python tools/convert_patch.py <patch> rewrites it as " + std::string(r.becomes);
+    }
     return {};
 }
 
@@ -254,21 +264,21 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
     static const std::unordered_set<std::string> kBranchKeys = {
         "absolute", "attack", "attackCurve", "attackMax",
         "attackMin", "attackPower", "baseValue", "bias", "channels",
-        "count", "curve", "cutoff", "decay", "decayCurve", "decayLevel",
-        "decayMax", "decayMin", "decayPower", "delay", "dt1", "dt2",
-        "durVarPct", "duration", "dynamicPins", "expandRule",
-        "field", "formants", "frames", "frequency", "gain",
-        "gainAdj", "gains", "gap", "gapVarPct", "glideMs", "graph",
+        "curve", "decay", "decayCurve", "decayLevel",
+        "decayMax", "decayMin", "decayPower", "delay",
+        "dynamicPins",
+        "field", "formants", "frames", "frequency",
+        "gains", "glideMs", "graph",
         "id", "inputs", "instrument", "interp", "interpolate",
-        "loPct1", "loPct2", "max", "min", "mode", "morph",
+        "mode", "morph",
         "name", "nodes", "normalized", "oneShot",
-        "onsets", "operation", "output", "overlap", "paramMap",
-        "percent", "po1", "po2", "polyphony", "power1", "power2",
-        "powers", "powers2", "preset", "ratio", "recurse",
+        "onsets", "output", "paramMap",
+        "polyphony",
+        "powers", "powers2", "preset",
         "ref", "release", "releaseCurve", "releaseMax", "releaseMin",
         "releasePower", "reverse", "sampleRate", "score", "seconds", "sections",
-        "seed", "segs", "segs2", "source", "spacing1", "spacing2",
-        "stages", "sustain", "sustainLevel",
+        "seed", "segs", "segs2", "source",
+        "sustain", "sustainLevel",
         "sustaining", "tap", "target", "targetPartials", "timeMode",
         "type", "values", "values2", "varPct", "vcurve", "volume",
         "weight",
@@ -285,9 +295,9 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
             if (k == d.name) return true;
         return false;
     };
-    // A table's row form the engine no longer reads is refused by its own
-    // sentence first: kBranchKeys holds "stages" for PhasedValueSource, so
-    // the unknown-key test alone would let an Envelope's stages through.
+    // A retired key is refused by its own sentence first, naming the
+    // converter; the unknown-key test alone would let one through that the
+    // descriptors or kBranchKeys hold for another type.
     for (auto it = params.begin(); it != params.end(); ++it) {
         const std::string retired = retired_key_refusal(src.type_name(), it.key());
         if (!retired.empty())
@@ -382,6 +392,39 @@ static void refuse_string_pin(const Component& src, const std::string& id,
     throw std::runtime_error(msg);
 }
 
+// A value a pin is about to resolve, checked for a feed's shape: an object
+// holding 'ref' or 'tap' holds that one key and nothing else, and an object
+// on a slot is a feed. A key beside a feed's own gets the table's sentence
+// for the node's type where it has one, and an object on a slot the table's
+// sentence for the pin; otherwise the general sentence. Any other value, an
+// object on a signal pin included, goes on to resolve_param and its own
+// sentence.
+static void refuse_feed_shape(const Component& src, const std::string& id,
+                              const char* pin, const json& v, bool slot)
+{
+    if (!v.is_object()) return;
+    const std::string node = "node '" + id + "' (" + src.type_name() + "): ";
+    const bool ref = v.contains("ref"), tap = v.contains("tap");
+    if (ref && tap)
+        throw std::runtime_error(node + "'" + pin + "': a feed holds 'ref' or 'tap', not both");
+    if (ref || tap) {
+        for (auto it = v.begin(); it != v.end(); ++it) {
+            if (it.key() == "ref" || it.key() == "tap") continue;
+            const std::string retired = retired_key_refusal(src.type_name(), it.key(), RetiredAt::FeedKey);
+            throw std::runtime_error(node + "'" + pin + "': "
+                                     + (retired.empty() ? "a feed holds 'ref' or 'tap' alone, not '" + it.key() + "'"
+                                                        : retired));
+        }
+        return;
+    }
+    if (slot) {
+        const std::string retired = retired_key_refusal(src.type_name(), pin, RetiredAt::InlineSlot);
+        throw std::runtime_error(node + (retired.empty()
+                                         ? "'" + std::string(pin) + "' holds an object where a slot takes {\"ref\": id}"
+                                         : retired));
+    }
+}
+
 static void wire_params_generic(
     Component& src,
     const std::string& id,
@@ -392,16 +435,16 @@ static void wire_params_generic(
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
         if (v.is_string()) refuse_string_pin(src, id, desc.name, v.get<std::string>(), desc.slot);
-        // An inline rule on the expandRule slot: the expandRule block below reads it.
-        if (desc.slot && std::strcmp(desc.name, "expandRule") == 0 && v.is_object() && !v.contains("ref") && !v.contains("tap")) continue;
         if (desc.multi && v.is_array()) {
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
             for (const auto& item : v) {
+                refuse_feed_shape(src, id, desc.name, item, desc.slot);
                 auto part = resolve_param(item, graphNodes);
                 if (!src.add_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
             }
         } else {
+            refuse_feed_shape(src, id, desc.name, v, desc.slot);
             auto part = resolve_param(v, graphNodes);
             if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
         }
@@ -409,6 +452,7 @@ static void wire_params_generic(
     for (const auto& desc : src.param_descriptors()) {
         if (!params.contains(desc.name)) continue;
         if (params.at(desc.name).is_string()) refuse_string_pin(src, id, desc.name, params.at(desc.name).get<std::string>(), false);
+        refuse_feed_shape(src, id, desc.name, params.at(desc.name), false);
         auto part = resolve_param(params.at(desc.name), graphNodes);
         if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
     }
@@ -462,33 +506,6 @@ static void wire_params_generic(
         src.set_array(desc.name, std::move(indices));
     }
     reject_ragged_tables(src, id, params);
-    // The inline form of a Partials host's expand rule (PartialGroups), the
-    // twelve numbers as an object the input pass leaves alone:
-    //   "expandRule": { "count": 4, "spacing1": 0.3, ... }
-    // A {"ref"} to an ExpandRule node is the slot's wire, made by the input
-    // pass above.
-    if (params.contains("expandRule")) {
-        if (auto* host = dynamic_cast<Partials*>(&src)) {
-            const auto& er = params.at("expandRule");
-            if (er.is_object() && !er.contains("ref") && !er.contains("tap")) {
-                ExpandRule rule;
-                rule.count    = er.value("count", 2);
-                rule.recurse  = er.value("recurse", 0);
-                rule.spacing1 = er.value("spacing1", 0.5f);
-                rule.spacing2 = er.value("spacing2", 0.5f);
-                rule.dt1      = er.value("dt1", 0.01f);
-                rule.dt2      = er.value("dt2", 0.01f);
-                rule.loPct1   = er.value("loPct1", 0.1f);
-                rule.loPct2   = er.value("loPct2", 0.1f);
-                rule.power1   = er.value("power1", 1.0f);
-                rule.power2   = er.value("power2", 1.0f);
-                rule.po1      = er.value("po1", 0.0f);
-                rule.po2      = er.value("po2", 0.0f);
-                host->set_expand_rule(rule);
-            }
-        }
-    }
-
 }
 
 // Per-voice performance adapters, handed down so PerformNode instances all
@@ -588,15 +605,7 @@ static GraphResult build_graph(
         // Types the loader builds or fills itself
         // =================================================================
 
-        if (type == "VarSource") {
-            if (!pp) throw std::runtime_error("VarSource requires params");
-            auto src = std::make_shared<VarSource>();
-            // An absent val reads 0.
-            if (!pp->contains("val")) src->val.set(std::make_shared<ConstantSource>(0.0f));
-            wire_params_generic(*src, id, *pp, graphNodes);
-            graphNodes[id] = src;
-        }
-        else if (type == "Envelope") {
+        if (type == "Envelope") {
             if (!pp) throw std::runtime_error("Envelope requires params");
             const auto& p = *pp;
             std::shared_ptr<Envelope> env;

@@ -12,12 +12,20 @@ namespace mforce {
 // loader and by the editor, which refuses before it touches its open graph.
 inline constexpr char kParamMapRefusal[] = "instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring";
 
-// The sentence a node's params key is refused with when it is a table's row
-// form the engine no longer reads (an Envelope's stages, a CurveNode's knots
-// and exprKnots), naming the converter that rewrites it as columns; empty for
-// any other type and key. The loader throws it after the node's id and type,
-// and so does the editor, before it touches its open graph.
-std::string retired_key_refusal(std::string_view type, std::string_view key);
+// Where a retired spelling sat: a key of a node's params, a key on one of a
+// pin's feed objects, or an object given where a slot takes a feed.
+enum class RetiredAt { Key, FeedKey, InlineSlot };
+
+// The sentence a spelling the engine does not read is refused with, by node
+// type, key and where the key sat, naming the converter that rewrites it and
+// what it becomes; empty for any other triple. One table holds every row: a
+// table's row form (an Envelope's or a PhasedValueSource's stages, a
+// CurveNode's knots and exprKnots), a key under another name (cutoff, gap), a
+// MultiSource feed's weight and delay, an inline expandRule on a Partials
+// host. The loader throws it after the node's id and type (and, for a feed
+// key, the pin), and so does the editor, before it touches its open graph.
+std::string retired_key_refusal(std::string_view type, std::string_view key,
+                                RetiredAt at = RetiredAt::Key);
 
 // The table rule, the one both hosts ask: for each array group of `node`,
 // its columns are all absent or all present at one length. `length` gives a

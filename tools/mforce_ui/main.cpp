@@ -261,9 +261,9 @@ struct GraphNode {
     // -1 = no seed present in the source JSON.
     long long jsonSeed{-1};
 
-    // Loaded params the UI does not model (ExplicitPartials expandRule,
-    // loader-lambda keys like WavetableSource "evolution"/"gap", …),
-    // carried verbatim so save cannot silently drop them (backlog 3n).
+    // Loaded params the editor does not model: each key of a node's params
+    // that no pin, setting, string setting or array of the node consumes at
+    // load, carried verbatim so save cannot silently drop it.
     // On save these OVERWRITE the modeled emission for the same key; a UI
     // edit of a pin/config with the same name erases its extras entry so
     // the edit wins instead.
@@ -1401,18 +1401,35 @@ static void load_graph_from_path(const std::string& path) {
     // stays as it was. A failure after them leaves an empty graph.
     if (root.contains("instrument") && root["instrument"].contains("paramMap"))
         throw std::runtime_error(mforce::kParamMapRefusal);
-    // A table's row form the engine no longer reads (an Envelope's stages, a
-    // CurveNode's knots and exprKnots) is refused with the engine loader's
-    // sentence, before anything is cleared.
+    // A spelling the engine does not read is refused with the engine
+    // loader's sentence, before anything is cleared, wherever the one table
+    // has a row for it: a key of a node's params; a key beside 'ref' or 'tap'
+    // on a feed, given alone or in a list; an object holding neither, under
+    // the key of a slot that took it inline.
     if (root.contains("graph") && root["graph"].contains("nodes") && root["graph"]["nodes"].is_array())
         for (const auto& jnode : root["graph"]["nodes"]) {
+            if (!jnode.contains("type") || !jnode["type"].is_string()) continue;
             if (!jnode.contains("params") || !jnode["params"].is_object()) continue;
             const std::string id = jnode.value("id", std::string());
-            const std::string type = jnode.value("type", std::string());
-            for (auto it = jnode["params"].begin(); it != jnode["params"].end(); ++it) {
-                const std::string retired = mforce::retired_key_refusal(type, it.key());
+            const std::string type = jnode["type"].get<std::string>();
+            const auto refuse = [&](const std::string& where, const std::string& retired) {
                 if (!retired.empty())
-                    throw std::runtime_error("node '" + id + "' (" + type + "): " + retired);
+                    throw std::runtime_error("node '" + id + "' (" + type + "): " + where + retired);
+            };
+            const auto feed_keys = [&](const std::string& pin, const json& feed) {
+                if (!feed.is_object() || !(feed.contains("ref") || feed.contains("tap"))) return;
+                for (auto k = feed.begin(); k != feed.end(); ++k)
+                    if (k.key() != "ref" && k.key() != "tap")
+                        refuse("'" + pin + "': ", mforce::retired_key_refusal(type, k.key(), mforce::RetiredAt::FeedKey));
+            };
+            for (auto it = jnode["params"].begin(); it != jnode["params"].end(); ++it) {
+                const json& v = it.value();
+                refuse("", mforce::retired_key_refusal(type, it.key()));
+                if (v.is_object() && !v.contains("ref") && !v.contains("tap"))
+                    refuse("", mforce::retired_key_refusal(type, it.key(), mforce::RetiredAt::InlineSlot));
+                feed_keys(it.key(), v);
+                if (v.is_array())
+                    for (const auto& item : v) feed_keys(it.key(), item);
             }
         }
     // From here a throw leaves the editor empty, unnamed (a Save is a Save
