@@ -1,5 +1,52 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-18, morning (refactor session XIX, Fable 5.2 xhigh; the
+plan written at xhigh as 4.1's to 4.4's were).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.5'S PLAN IS WRITTEN —
+`docs/superpowers/plans/2026-11-18-part4-checkpoint-4.5.md` ("the terminal
+types and the document's spellings"), in 4.4's shape, from a survey of the
+loader whole, the pin headers, the registry, the editor's thirty-four lines
+that name a terminal type with its load, savers and clipboards, the
+converter, the roundtrip gate and a census of all 3,146 patch files (its
+Architecture paragraph, ten numbered facts; the census scripts and their
+output are in `renders/scratch/ab45/planning/`). IT AWAITS MATT'S GO-AHEAD;
+nothing of 4.5 is built and the plan is uncommitted with this file (Task 0
+commits both). Seven tasks: 0 the base, the arms (4.4's close arms,
+unrendered: the build's command-line binary is byte-equal to
+`cli_post44.exe`), the census, a synthetic set; 1 the engine (`SoundChannel`
+and `StereoMixer` as registered parts in `Family::Output`, `PerformNode`
+registered, `Shelf::None`, the plain-sound path reading the parts' pins, a
+node reached from two pull loops refused, the preset curves and the
+descriptor dump taking labels); 2 the editor (Channel and Mixer from the
+registry, `layout` and `comment`, `--roundtrip` by graph mode so the 27
+in-scope plain sounds are render-compared); 3 the converter's five rules
+(`terminal_inputs`, `enum_labels`, `dead_keys`, `comment`, `layout`); 4 the
+tree converted (784 files: library 18, baselines 39 — 57 tracked — audition
+689, pending 38) under Task 1's and Task 2's binaries; 5 the old forms
+refused and their readers deleted; 6 the close. WHAT THE PLAN ASKS MATT TO
+NOTICE: Ledger 4 (`Shelf::None`, a third shelf: registered, in no generated
+menu); Ledger 10 (a Note face carries its own position, `faces[i].pos` — a
+field Part 4's record does not list); Ledger 14 (the enum rule also rewrites
+a label in another case, 109 files, and the preset form's curve keys, CLEANUP
+25); Ledger 16 (what he will see in the editor: the Mixer's one `channels`
+pin in place of `ch N` and the `+` button, `out` and `tap` in place of `outL`
+and `outR`, a node-graph save keeping `seconds`). CENSUS FACTS THE EXECUTION
+CARRIES: every plain sound in the tree has one mixer and one channel, every
+gain, volume and pan in the four folders is a number, so the multi-channel
+path and the sharing refusal are heard by tests and synthetics alone; 8.1's
+row lacks `Biquad.mode` (134 in-scope nodes by index, not 126), the labels in
+another case, the preset curves and the two dead keys (`instrument.release`
+in 36 audition files, a null `dynamicPins` inside `params` in 14); fifteen
+files hold a `__param_frequency` position that names no node;
+`patches/library/winds/clarinet1.json` is `Clarinet1.json` in git's index.
+Usage as read Wed 11-18 at 08:30 HST: weekly Fable 29 percent (26 at the
+session's start), all-models 22, both resetting Saturday 2026-11-21 at 02:00
+HST; 4.4 cost thirteen Fable points. This session stands at about 480k
+tokens. GIT: main level with origin; uncommitted — the plan (new), this file;
+GOALS.md Matt's own, never staged.
+
+---
+
 Updated: 2026-11-17, late (refactor session XVIII, Fable 5.2 xhigh
 coordinating; Opus 5.5 executors, reviewer and re-reviewer).
 NEXT SESSION STARTS HERE: CHECKPOINT 4.4 LANDED on main — `a66d60f` (the
