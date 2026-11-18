@@ -7,6 +7,7 @@
 #include "mforce/source/additive/onset_gate.h"
 #include "mforce/source/additive/decay_law.h"
 #include "mforce/source/additive/expand_rule.h"
+#include "mforce/source/additive/expand_rule_node.h"
 #include "mforce/source/additive/partial_layout.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/core/fast_math.h"
@@ -62,6 +63,9 @@ struct Partials : PartialSet {
   Param motionEnv {this, "motionEnv",  0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // blends motionDepth1 -> motionDepth2
   Param shimmerEnv{this, "shimmerEnv", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // blends shimmerDepth1 -> shimmerDepth2
 
+  // The expand rule as a part: read once, when the slot changes.
+  Slot<ExpandRuleNode> expandRule{this, "expandRule", "an ExpandRule part"};
+
   // Global rolloff/detune ranges
   Setting<float> rolloff1{this, "rolloff1", 1.0f, 0.0f, 10.0f};
   Setting<float> rolloff2{this, "rolloff2", 1.0f, 0.0f, 10.0f};
@@ -116,7 +120,26 @@ struct Partials : PartialSet {
     if (name == "bandwidthHz" && bandwidthHz.value < 1.0f) bandwidthHz.value = 1.0f;
   }
 
-  // --- Set by the patch loader from an "expandRule" block ---
+  // The slot's rule is taken from the part here, when the slot changes, and
+  // not read again. A rule arriving on a part already prepared sizes the
+  // arrays a note fills again for the expanded count, so the next start
+  // fills within capacity. An empty slot turns the expansion off and, on a
+  // prepared part, puts the arrays back to the originals a note expanded,
+  // which fit the capacity already there.
+  void on_slot_changed(std::string_view name) override {
+    if (name != "expandRule") return;
+    if (const ExpandRuleNode* rule = expandRule.get()) {
+      expandRule_ = rule->to_struct();
+      hasExpand_ = true;
+      if (arraysPrepared_) prepare_note_arrays();
+    } else if (hasExpand_) {
+      hasExpand_ = false;
+      if (arraysPrepared_) layout_.restore();
+    }
+  }
+
+  // The rule as a struct: what the loader gives a host from an inline
+  // "expandRule" object.
   void set_expand_rule(ExpandRule rule) { expandRule_ = rule; hasExpand_ = true; }
 
   // --- The set's hooks: after the base has prepared, started or advanced the pins ---
@@ -501,6 +524,7 @@ protected:
     motion_.prepare(n);
     shimmer_.prepare(n);
     trade_.prepare(n);
+    arraysPrepared_ = true;
   }
 
   // Rng streams — one per (partial, layer) for the layers with per-partial
@@ -545,6 +569,7 @@ protected:
   // Expand rule
   ExpandRule expandRule_;
   bool hasExpand_{false};
+  bool arraysPrepared_{false};   // prepare_note_arrays has run: a slot change sizes them again
 
   bool arrayUpdateReq_{true};
 

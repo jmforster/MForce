@@ -406,24 +406,25 @@ void register_all_sources() {
         });
 
     reg.register_type("PhasedValueSource", {.family = Family::Envelope, .label = "Phased"},
-        [](auto) {
-            return std::make_shared<PhasedValueSource>(0.05f);
-        },
-        // Configurator: overlap, stages
+        [](auto) { return std::make_shared<PhasedValueSource>(); },
+        // Configurator: the stage-list form, "stages": [{"source", "percent",
+        // "min", "max", "gain"}, ...]. Each row's source is appended to
+        // `sources` and its four numbers go to the columns percent, minSec,
+        // maxSec and gain (an absent number is 0, 0, 0 and 1).
         [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
-            auto& pvs = static_cast<PhasedValueSource&>(src);
-            pvs.overlapSeconds = p.value("overlap", 0.05f);
-            if (p.contains("stages")) {
-                for (const auto& sj : p["stages"]) {
-                    PhasedValueSource::Stage stg;
-                    stg.source  = resolve(sj.at("source"));
-                    stg.percent = sj.value("percent", 0.0f);
-                    stg.minSec  = sj.value("min", 0.0f);
-                    stg.maxSec  = sj.value("max", 0.0f);
-                    stg.gainAdj = sj.value("gain", 1.0f);
-                    pvs.add_stage(std::move(stg));
-                }
+            if (!p.contains("stages")) return;
+            std::vector<float> percent, minSec, maxSec, gain;
+            for (const auto& sj : p["stages"]) {
+                src.add_param("sources", resolve(sj.at("source")));
+                percent.push_back(sj.value("percent", 0.0f));
+                minSec.push_back(sj.value("min", 0.0f));
+                maxSec.push_back(sj.value("max", 0.0f));
+                gain.push_back(sj.value("gain", 1.0f));
             }
+            src.set_array("percent", std::move(percent));
+            src.set_array("minSec", std::move(minSec));
+            src.set_array("maxSec", std::move(maxSec));
+            src.set_array("gain", std::move(gain));
         });
 
     reg.register_type("SegmentSource", {.family = Family::Envelope},
@@ -528,25 +529,28 @@ void register_all_sources() {
 
     reg.register_type("MultiSource", {.family = Family::Combiner},
         [](auto) { return std::make_shared<MultiSource>(); },
-        // Configurator: per-source weights. Array items can be either a
-        // plain ref ({"ref":"id"}) → weight 1.0, OR an object with both ref
-        // and weight ({"ref":"id", "weight": 0.5}). The generic wire_params
-        // pass has already added entries via add_param at weight 1.0; this
-        // configurator overrides weights in-place where specified.
+        // Configurator: the feed-attribute form, a "weight" or a "delay" (in
+        // samples) on a feed of a "source" list ({"ref": "id", "weight": 0.5}).
+        // The generic pass has wired the feeds; when any feed holds the key,
+        // its array is set with one value per feed, 1 for a weight and 0 for a
+        // delay where a feed holds none. A list in which no feed holds the key
+        // sets nothing, and a single feed object is not read.
         [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            auto& ms = static_cast<MultiSource&>(src);
             if (!p.contains("source") || !p["source"].is_array()) return;
-            const auto& arr = p["source"];
-            // Iterate entries in parallel with ms.entries (same order — the
-            // wire_params pass added them in JSON order).
-            int n = std::min(int(arr.size()), int(ms.entries.size()));
-            for (int i = 0; i < n; ++i) {
-                const auto& item = arr[i];
-                if (item.is_object() && item.contains("weight"))
-                    ms.entries[i].weight = item["weight"].get<float>();
-                if (item.is_object() && item.contains("delay"))
-                    ms.entries[i].delaySamples = item["delay"].get<int>();
-            }
+            const auto& feeds = p["source"];
+            const auto read = [&](const char* key, const char* array, float absent, bool whole) {
+                bool any = false;
+                for (const auto& f : feeds) any = any || (f.is_object() && f.contains(key));
+                if (!any) return;
+                std::vector<float> values;
+                for (const auto& f : feeds) {
+                    if (!f.is_object() || !f.contains(key)) values.push_back(absent);
+                    else values.push_back(whole ? float(f[key].get<int>()) : f[key].get<float>());
+                }
+                src.set_array(array, std::move(values));
+            };
+            read("weight", "weights", 1.0f, false);
+            read("delay", "delays", 0.0f, true);
         });
 
     reg.register_type("MultiplexSource", {.family = Family::Combiner},

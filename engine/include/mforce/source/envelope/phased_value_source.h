@@ -15,36 +15,31 @@ namespace mforce {
 // Used for granular synthesis — stages play sequentially with configurable
 // overlap where adjacent stages crossfade.
 //
-// Each stage has: source (ValueSource), percent of total duration, min/max seconds.
-// A stage with percent=0 is the "expand" stage (gets remaining duration).
-// Overlap is specified in seconds and converted to samples.
+// Each stage has: a source, a percent of the total duration, min/max seconds
+// and a gain. A stage with percent=0 is the "expand" stage (gets the
+// remaining duration). Overlap is specified in seconds and converted to
+// samples. Only the stage or stages in play are pulled each sample, so the
+// node prepares, starts and advances its sources itself.
 struct PhasedValueSource final : Generator {
-
-  struct Stage {
-    std::shared_ptr<ValueSource> source;
-    float percent{0.0f};
-    float minSec{0.0f};
-    float maxSec{0.0f};
-    float gainAdj{1.0f};
-  };
-
   Param amplitude{this, "amplitude", 1.0f, 0.0f, 10.0f, "0-1"};
-
-  float overlapSeconds{0.05f};
-
-  explicit PhasedValueSource(float overlap) : overlapSeconds(overlap) {}
+  // The stages' signals, in order. The table gives each its span, by
+  // position: a feed past the table's end takes the declared defaults.
+  InputList sources{this, "sources"};
+  Setting<float> overlap{this, "overlap", 0.05f, 0.0f, 10.0f};   // seconds of crossfade between adjacent stages
+  Array percent{this, "percent", "stages", 0.0f, 0.0f, 1.0f};
+  Array minSec {this, "minSec",  "stages", 0.0f, 0.0f, 1000.0f};
+  Array maxSec {this, "maxSec",  "stages", 0.0f, 0.0f, 1000.0f};
+  Array gain   {this, "gain",    "stages", 1.0f, -100.0f, 100.0f};
 
   const char* type_name() const override { return "PhasedValueSource"; }
 
-  // The stages are a list the loader's configurator feeds, not a wired pin
-  // yet; only the stage or stages in play are pulled each sample, so they
-  // are the node's own business.
-  void add_stage(Stage s) { stages_.push_back(std::move(s)); }
+  void on_input_list_changed(std::string_view) override { rebuild_stages_(); }
+  void on_array_changed(std::string_view) override { rebuild_stages_(); }
 
   void on_prepare(const RenderContext& ctx) override {
     for (auto& s : stages_) s.source->prepare(ctx);
-    // The stage list is fixed before prepare: the counters and boundaries a
-    // note lays out are sized here and filled within capacity in on_start.
+    // The counters and boundaries a note lays out are sized here for the
+    // stage list and filled within capacity in on_start.
     stageCounts_.assign(stages_.size(), 0);
     boundaries_.assign(stages_.size(), 0);
   }
@@ -52,7 +47,7 @@ struct PhasedValueSource final : Generator {
   void on_start(int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
-    overlapSamples_ = int(overlapSeconds * float(sample_rate()));
+    overlapSamples_ = int(overlap.value * float(sample_rate()));
 
     // Calculate per-stage sample counts
     int expandIdx = -1;
@@ -99,6 +94,7 @@ struct PhasedValueSource final : Generator {
   }
 
   float compute() override {
+    if (stages_.empty()) return 0.0f;
     ++ptr_;
     float amp = amplitude.current();
 
@@ -138,6 +134,30 @@ struct PhasedValueSource final : Generator {
   }
 
 private:
+  struct Stage {
+    std::shared_ptr<ValueSource> source;
+    float percent{0.0f};
+    float minSec{0.0f};
+    float maxSec{0.0f};
+    float gainAdj{1.0f};
+  };
+
+  // The layout compute() walks: stage i is feed i with row i of the table,
+  // or the columns' defaults past its end. Derived from the list and the
+  // four columns whenever one changes, and written nowhere else. A walk laid
+  // out for more stages than the list now holds is cut to the list, so
+  // compute() stays inside it until the next start lays the walk out again.
+  void rebuild_stages_() {
+    const auto row = [](const Array& column, size_t i) {
+      return i < column.values.size() ? column.values[i] : column.def;
+    };
+    stages_.clear();
+    for (size_t i = 0; i < sources.sources.size(); ++i)
+      stages_.push_back({sources.sources[i], row(percent, i), row(minSec, i), row(maxSec, i), row(gain, i)});
+    if (stageCounts_.size() > stages_.size()) stageCounts_.resize(stages_.size());
+    if (boundaries_.size() > stages_.size()) boundaries_.resize(stages_.size());
+  }
+
   std::vector<Stage> stages_;
   std::vector<int> stageCounts_;
   std::vector<int> boundaries_;

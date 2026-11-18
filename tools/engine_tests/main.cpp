@@ -3495,24 +3495,24 @@ static void run_range_var_tests() {
 static void run_multi_name_gate_tests() {
     RenderContext ctx{48000};
 
-    // MultiSource: `source` is a list served by name; weights and delays
-    // apply; clear_param empties it.
+    // MultiSource: `source` is a declared list with its weights and delays
+    // beside it, by position; clear_param empties it.
     {
         MultiSource m;
         m.set_param("source", std::make_shared<ConstantSource>(1.0f));
         m.add_param("source", std::make_shared<ConstantSource>(2.0f));
-        CHECK(m.entries.size() == 2);
+        CHECK(m.source.sources.size() == 2);
         CHECK(m.input_descriptors().size() == 1);
         CHECK(m.input_descriptors()[0].multi);
-        CHECK(m.pins().empty());                   // the list is not a registry pin
+        CHECK(m.pins().size() == 3);               // the list and the two arrays
         CHECK(m.get_param("source") == nullptr);
-        m.entries[1].weight = 0.5f;
-        m.entries[1].delaySamples = 1;
+        m.set_array("weights", {1.0f, 0.5f});
+        m.set_array("delays", {0.0f, 1.0f});
         m.prepare(ctx); m.start(16);
-        CHECK_NEAR(m.next(), 1.0f, 1e-6f);         // the delayed entry is not yet in
+        CHECK_NEAR(m.next(), 1.0f, 1e-6f);         // the delayed feed is not yet in
         CHECK_NEAR(m.next(), 2.0f, 1e-6f);         // 1 + 2 * 0.5
         m.clear_param("source");
-        CHECK(m.entries.empty());
+        CHECK(m.source.sources.empty());
     }
 
     // NameGate: `in` is an optional signal input, advanced once per sample.
@@ -4442,7 +4442,7 @@ static void run_additive_partials_pin_tests() {
     CHECK(param_names(full) == envs);
     CHECK(param_names(seq) == envs);
     CHECK(param_names(expl) == envs);
-    CHECK(input_names(full).empty());
+    CHECK(input_names(full) == "expandRule," && input_names(seq) == "expandRule," && input_names(expl) == "expandRule,");
     CHECK(array_names(full).empty() && array_names(seq).empty());
     CHECK(array_names(expl) == "mult1,ampl1,mult2,ampl2,");
     for (const auto& d : expl.array_descriptors()) CHECK(std::string(d.groupName) == "partials");
@@ -5329,6 +5329,21 @@ static_assert(std::is_base_of_v<Processor, DistortedSource> &&
               std::is_base_of_v<Processor, WormholeSource> &&
               std::is_base_of_v<Processor, MultiplexSource> &&
               std::is_base_of_v<Processor, RepeatingSource>);
+// A Phased node filled by name: its overlap, a feed per row and the four
+// columns.
+struct PhasedRow { std::shared_ptr<ValueSource> source; float percent, minSec, maxSec, gain; };
+static void fill_phased(PhasedValueSource& p, float overlap, std::initializer_list<PhasedRow> rows) {
+    p.set_setting("overlap", overlap);
+    std::vector<float> percent, minSec, maxSec, gain;
+    for (const auto& r : rows) {
+        p.add_param("sources", r.source);
+        percent.push_back(r.percent); minSec.push_back(r.minSec);
+        maxSec.push_back(r.maxSec);   gain.push_back(r.gain);
+    }
+    p.set_array("percent", percent); p.set_array("minSec", minSec);
+    p.set_array("maxSec", maxSec);   p.set_array("gain", gain);
+}
+
 static_assert(std::is_base_of_v<Generator, PhasedValueSource> &&
               std::is_base_of_v<Generator, SegmentSource> &&
               std::is_base_of_v<Generator, StaticVarSource> &&
@@ -5373,9 +5388,9 @@ static void run_combine_mod_pin_shape_tests() {
     sv.set_setting("varPct", 0.1f);                              smoke(sv);
     StaticRangeSource sr;                                    smoke(sr);
     MultiplexSource mux;                                     smoke(mux);
-    PhasedValueSource phased(0.05f);
-    phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
-    phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});     smoke(phased);
+    PhasedValueSource phased;
+    fill_phased(phased, 0.05f, {{konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f},
+                                {konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f}});   smoke(phased);
     RepeatingSource rep;
     rep.set_param("source", konst(1.0f));                        smoke(rep);
     SegmentSource seg;
@@ -5395,7 +5410,7 @@ static void run_combine_mod_pin_shape_tests() {
 
     CHECK(input_names(comb) == "source1,source2," && input_names(xfade) == "source1,source2,");
     CHECK(input_names(dist) == "source," && input_names(mux) == "source,");
-    CHECK(input_names(phased).empty() && input_names(seg).empty());
+    CHECK(input_names(phased) == "sources," && input_names(seg).empty());
     CHECK(param_names(comb).empty() && param_names(xfade) == "amplitude,");
     CHECK(param_names(dist) == "density,gain,shift,amplitude,");
     CHECK(param_names(shaper) == "drive,smoothness,morph,breakaway,capture,");
@@ -5404,7 +5419,8 @@ static void run_combine_mod_pin_shape_tests() {
     CHECK(setting_names(mux) == "count," && setting_names(shaper) == "hysteresis,");
     CHECK(setting_names(rep) == "duration,durVarPct,gapDuration,gapVarPct,");
     CHECK(setting_names(seg) == "oneShot,timeMode,");
-    CHECK(setting_names(dist).empty() && setting_names(wh).empty() && setting_names(phased).empty());
+    CHECK(setting_names(dist).empty() && setting_names(wh).empty() && setting_names(phased) == "overlap,");
+    CHECK(array_names(phased) == "percent,minSec,maxSec,gain,");
     CHECK(array_names(seg) == "values," && array_names(shaper) == "values,segs,values2,segs2,");
     CHECK(array_names(comb).empty() && array_names(mux).empty());
     // the two Generators among them declare no range: a shape, not a signal
@@ -5435,8 +5451,9 @@ static void run_combine_mod_default_tests() {
     CHECK_NEAR(param_default(seg, "smoothness"), 0.5f, 1e-6f);
     CHECK_NEAR(param_default(seg, "width"), 1.0f, 1e-6f);
     CHECK_NEAR(param_default(seg, "gap"), 0.0f, 1e-6f);
-    PhasedValueSource phased(0.05f);
+    PhasedValueSource phased;
     CHECK_NEAR(param_default(phased, "amplitude"), 1.0f, 1e-6f);
+    CHECK_NEAR(phased.get_setting("overlap"), 0.05f, 1e-6f);
     MultiplexSource mux;
     CHECK_NEAR(mux.get_setting("count"), 10.0f, 1e-6f);
     RepeatingSource rep;
@@ -5497,9 +5514,9 @@ static void run_combine_mod_auto_pin_tests() {
     count(xfade, {"amplitude"});
     DistortedSource dist;
     count(dist, {"source", "density", "gain", "shift", "amplitude"});
-    PhasedValueSource phased(0.05f);
-    phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
-    phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
+    PhasedValueSource phased;
+    fill_phased(phased, 0.05f, {{konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f},
+                                {konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f}});
     count(phased, {"amplitude"});
     SegmentSource seg;
     seg.set_array("values", {2.0f, 1.0f});
@@ -5791,9 +5808,9 @@ static void run_combine_mod_behavior_tests() {
     CHECK(once.next() == 0.0f);
 
     // the phased source plays its first stage at its gain and amplitude
-    PhasedValueSource phased(0.05f);
-    phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
-    phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
+    PhasedValueSource phased;
+    fill_phased(phased, 0.05f, {{konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f},
+                                {konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f}});
     phased.set_param("amplitude", konst(0.5f));
     phased.prepare(ctx); phased.start(4800);
     CHECK_NEAR(phased.next(), 0.5f, 1e-6f);
@@ -5922,15 +5939,9 @@ static const std::set<std::string> kPartTypes = {
 static void run_split_equivalence_tests() {
     register_all_sources();
     auto& reg = SourceRegistry::instance();
-    // Types that cannot render at their registry defaults at all (they
-    // index an empty part). Their wired cases live in their family's tests.
-    static const std::set<std::string> kNotRenderableUnwired = {
-        "PhasedValueSource",   // stage-less: compute() indexes an empty boundaries_
-    };
     std::set<std::string> parts;   // registered types that are not signals: the split has nothing to compare
     for (const auto& entry : reg.registered_types()) {
         const std::string n = entry.name;
-        if (kNotRenderableUnwired.count(n)) continue;
         if (!std::dynamic_pointer_cast<ValueSource>(reg.create(n))) { parts.insert(n); continue; }
         const SplitResult r = split_compare([&] { return std::dynamic_pointer_cast<ValueSource>(reg.create(n)); });
         if (!r.equal) std::printf("  split differs: %s\n", n.c_str());
@@ -6087,8 +6098,10 @@ static void run_core_split_tests() {
     // MultiSource: an oscillator and an envelope, one delayed.
     CHECK(split_equivalent([] {
         auto m = std::make_shared<MultiSource>();
-        m->add(std::make_shared<SineSource>(), 1.0f, 0);
-        m->add(Envelope::make_ar(0.3f), 0.5f, 100);
+        m->add_param("source", std::make_shared<SineSource>());
+        m->add_param("source", Envelope::make_ar(0.3f));
+        m->set_array("weights", {1.0f, 0.5f});
+        m->set_array("delays", {0.0f, 100.0f});
         return m;
     }));
     // The oscillators read the rate from the context: the same frequency at
@@ -6714,10 +6727,9 @@ static void run_combine_mod_pin_split_tests() {
     CHECK(kid->starts == 4);
     CHECK(kid->nexts > 3 * 2400 && kid->nexts < 4 * 2400);
 
-    PhasedValueSource ph(0.05f);
+    PhasedValueSource ph;
     auto st1 = std::make_shared<PinCounter>(), st2 = std::make_shared<PinCounter>();
-    ph.add_stage({st1, 0.5f, 0.0f, 0.0f, 1.0f});
-    ph.add_stage({st2, 0.0f, 0.0f, 0.0f, 1.0f});
+    fill_phased(ph, 0.05f, {{st1, 0.5f, 0.0f, 0.0f, 1.0f}, {st2, 0.0f, 0.0f, 0.0f, 1.0f}});
     ph.prepare(ctx);
     CHECK(st1->rate == 48000 && st2->rate == 48000);
     CHECK(st1->starts == 0 && st2->starts == 0);
@@ -6792,9 +6804,9 @@ static std::shared_ptr<RepeatingSource> make_repeater(float varPct = 0.3f) {
 }
 
 static std::shared_ptr<PhasedValueSource> make_phased() {
-    auto p = std::make_shared<PhasedValueSource>(0.01f);
-    p->add_stage({sine_at(220.0f), 0.5f, 0.0f, 0.0f, 1.0f});
-    p->add_stage({sine_at(330.0f), 0.0f, 0.0f, 0.0f, 1.0f});
+    auto p = std::make_shared<PhasedValueSource>();
+    fill_phased(*p, 0.01f, {{sine_at(220.0f), 0.5f, 0.0f, 0.0f, 1.0f},
+                            {sine_at(330.0f), 0.0f, 0.0f, 0.0f, 1.0f}});
     return p;
 }
 
@@ -10808,6 +10820,488 @@ static void run_declared_default_load_tests() {
     CHECK(v && dynamic_cast<ConstantSource*>(v->get_param("val").get()) != nullptr);
 }
 
+namespace list_twins {
+using node_twins::c;
+using node_twins::fnv;
+using node_twins::noise;
+constexpr float kAbsent = std::numeric_limits<float>::quiet_NaN();
+// One feed of a case: a constant, a seeded noise, or a sine at a frequency,
+// with its weight and delay, either of which may be absent.
+struct Feed {
+    int kind;                                   // 0 constant, 1 noise (seed), 2 sine (Hz)
+    float value;
+    float weight = kAbsent;
+    float delay = kAbsent;
+};
+static std::shared_ptr<ValueSource> signal(int kind, float value) {
+    if (kind == 0) return c(value);
+    if (kind == 1) return noise(uint32_t(value));
+    auto s = std::make_shared<SineSource>();
+    s->set_param("frequency", c(value));
+    return s;
+}
+struct MultiCase { const char* name; std::vector<Feed> feeds; };
+static const std::vector<MultiCase> kMultiCases = {
+    {"multi one",            {{0, 0.3f}}},
+    {"multi two all",        {{0, 0.3f, 0.5f}, {1, 11.0f, 2.0f, 1.0f}}},
+    {"multi three some",     {{0, 0.3f, 0.5f}, {0, -0.7f}, {1, 11.0f, 0.25f}}},
+    {"multi four delays",    {{0, 0.3f}, {1, 11.0f, kAbsent, 100.0f}, {1, 23.0f, kAbsent, 1.0f}, {0, 0.6f}}},
+    {"multi five all",       {{0, 0.1f, 0.5f, 100.0f}, {0, 0.2f, 0.25f}, {1, 11.0f, 1.5f, 1.0f},
+                              {2, 440.0f, 0.8f}, {0, 0.4f, -1.0f, 100.0f}}},
+    {"multi three delayed",  {{2, 440.0f, kAbsent, 100.0f}, {1, 23.0f, kAbsent, 100.0f}, {0, 0.2f, kAbsent, 100.0f}}},
+    // "multi five all" with its arrays cut to two weights and one delay, the
+    // defaults written out past the cut.
+    {"multi five defaults",  {{0, 0.1f, 0.5f, 100.0f}, {0, 0.2f, 0.25f, 0.0f}, {1, 11.0f, 1.0f, 0.0f},
+                              {2, 440.0f, 1.0f, 0.0f}, {0, 0.4f, 1.0f, 0.0f}}},
+};
+// A case's weights or delays as the node's array: one per feed, the default
+// where a feed has none; empty when no feed has one.
+static std::vector<float> column(const std::vector<Feed>& feeds, float Feed::*field, float def) {
+    bool any = false;
+    for (const auto& f : feeds) any = any || !std::isnan(f.*field);
+    std::vector<float> out;
+    if (any)
+        for (const auto& f : feeds) out.push_back(std::isnan(f.*field) ? def : f.*field);
+    return out;
+}
+constexpr int kMultiFrames = 4800;
+
+// One stage of a Phased case: its signal and its four numbers.
+struct Row { int kind; float value; float percent, minSec, maxSec, gain; };
+struct PhasedCase { const char* name; std::vector<Row> rows; };
+static const std::vector<PhasedCase> kPhasedCases = {
+    {"expand first",  {{2, 220.0f, 0.0f, 0.0f, 0.0f, 1.0f}, {1, 31.0f, 0.3f, 0.0f, 0.0f, 1.0f}, {2, 550.0f, 0.25f, 0.0f, 0.0f, 1.0f}}},
+    {"expand middle", {{2, 220.0f, 0.3f, 0.0f, 0.0f, 1.0f}, {1, 31.0f, 0.0f, 0.0f, 0.0f, 1.0f}, {2, 550.0f, 0.25f, 0.0f, 0.0f, 1.0f}}},
+    {"expand last",   {{2, 220.0f, 0.3f, 0.0f, 0.0f, 1.0f}, {1, 31.0f, 0.25f, 0.0f, 0.0f, 1.0f}, {2, 550.0f, 0.0f, 0.0f, 0.0f, 1.0f}}},
+    {"clamped",       {{2, 220.0f, 0.5f, 0.01f, 0.02f, 1.0f}, {1, 31.0f, 0.0f, 0.0f, 0.0f, 1.0f}, {2, 550.0f, 0.2f, 0.03f, 0.04f, 1.0f}}},
+    {"gain",          {{2, 220.0f, 0.3f, 0.0f, 0.0f, 0.5f}, {1, 31.0f, 0.0f, 0.0f, 0.0f, 1.0f}, {2, 550.0f, 0.25f, 0.0f, 0.0f, 0.5f}}},
+};
+static constexpr float kOverlaps[] = {0.0f, 0.05f, 0.2f};
+static constexpr int kNoteFrames[] = {9600, 48000};
+static std::string phased_name(const PhasedCase& pc, float overlap, int frames) {
+    char buf[96];
+    std::snprintf(buf, sizeof buf, "phased %s ov%.2f n%d", pc.name, overlap, frames);
+    return buf;
+}
+static uint64_t zeros(int frames) { return fnv(std::vector<float>(size_t(frames), 0.0f)); }
+
+// The rule of twelve values, every one off its default, and the host it
+// expands: a FullPartials under an AdditiveSource.
+static ExpandRule rule_values(int recurse) {
+    ExpandRule r;
+    r.count = 3; r.recurse = recurse;
+    r.spacing1 = 0.3f; r.spacing2 = 0.7f; r.dt1 = 0.05f; r.dt2 = 0.02f;
+    r.loPct1 = 0.2f; r.loPct2 = 0.3f; r.power1 = 2.0f; r.power2 = 1.5f;
+    r.po1 = 0.1f; r.po2 = 0.25f;
+    return r;
+}
+static std::shared_ptr<FullPartials> host_partials() {
+    auto p = std::make_shared<FullPartials>(0x3902u);
+    p->set_setting("maxPartials", 6.0f);
+    return p;
+}
+static std::shared_ptr<AdditiveSource> host(std::shared_ptr<FullPartials> parts) {
+    auto a = std::make_shared<AdditiveSource>();
+    a->set_param("frequency", c(220.0f));
+    a->set_param("partials", std::move(parts));
+    return a;
+}
+constexpr int kRuleFrames = 4800, kRuleNotes = 2;
+// Notes on a node already prepared: start and pull, no prepare.
+static uint64_t render_prepared(ValueSource& n, int frames, int notes) {
+    std::vector<float> out;
+    out.reserve(size_t(frames) * size_t(notes));
+    for (int k = 0; k < notes; ++k) {
+        n.start(frames);
+        for (int i = 0; i < frames; ++i) out.push_back(n.next());
+    }
+    return fnv(out);
+}
+}  // namespace list_twins
+
+namespace list_twins {
+// The old fill's answers (add with a weight and a delay, add_stage, the
+// struct handed to set_expand_rule), one per case, recorded from a build of
+// the old headers.
+static const std::pair<const char*, uint64_t> kBase[] = {
+    {"multi one", 0x5A7D7C04F2769CA5ull},
+    {"multi two all", 0x88045BDA2BF5BDE7ull},
+    {"multi three some", 0x110682BC88AFB980ull},
+    {"multi four delays", 0xCA65543BF7A95376ull},
+    {"multi five all", 0x816A53E6C9ADEC03ull},
+    {"multi three delayed", 0x6BC2C0800CFB6075ull},
+    {"multi five defaults", 0x306EBA191BF9E239ull},
+    {"phased expand first ov0.00 n9600", 0x3452D7490CAE6CBEull},
+    {"phased expand first ov0.00 n48000", 0x0A8F84C9382AC0FAull},
+    {"phased expand first ov0.05 n9600", 0xC5ABB93F4E52304Bull},
+    {"phased expand first ov0.05 n48000", 0x52648E35AC5E4CC1ull},
+    {"phased expand first ov0.20 n9600", 0x5BA977C1A46B91FBull},
+    {"phased expand first ov0.20 n48000", 0x2D8C356CBE7DA3FBull},
+    {"phased expand middle ov0.00 n9600", 0xD1B46C44DA175B3Aull},
+    {"phased expand middle ov0.00 n48000", 0xD7FEBB876E0211ADull},
+    {"phased expand middle ov0.05 n9600", 0xDAA3AE9FA76DC163ull},
+    {"phased expand middle ov0.05 n48000", 0x20F654881D2C5835ull},
+    {"phased expand middle ov0.20 n9600", 0x30BEEF910CE130A4ull},
+    {"phased expand middle ov0.20 n48000", 0x1C16DEAA0BA7B3DCull},
+    {"phased expand last ov0.00 n9600", 0x7200B562F373D661ull},
+    {"phased expand last ov0.00 n48000", 0x9B2CC538F2522A07ull},
+    {"phased expand last ov0.05 n9600", 0x70E42EE60889830Full},
+    {"phased expand last ov0.05 n48000", 0x398DE6EC34BEC562ull},
+    {"phased expand last ov0.20 n9600", 0xB836D8CC0AAE5A24ull},
+    {"phased expand last ov0.20 n48000", 0x2C49EBB889185456ull},
+    {"phased clamped ov0.00 n9600", 0x599D3203CD1D728Aull},
+    {"phased clamped ov0.00 n48000", 0xE394F9ED5BFC9096ull},
+    {"phased clamped ov0.05 n9600", 0x8A4BBA7F04A10D92ull},
+    {"phased clamped ov0.05 n48000", 0xE9EED33E1FFD8554ull},
+    {"phased clamped ov0.20 n9600", 0xF865214F16F3313Eull},
+    {"phased clamped ov0.20 n48000", 0x2252C62EEC19AE0Eull},
+    {"phased gain ov0.00 n9600", 0xF0C512D67C2C0D6Full},
+    {"phased gain ov0.00 n48000", 0xF23E6BBB266C4F43ull},
+    {"phased gain ov0.05 n9600", 0x6CC31B7FD7FCBA17ull},
+    {"phased gain ov0.05 n48000", 0x5E8B76AB7519107Bull},
+    {"phased gain ov0.20 n9600", 0x30BEEF910CE130A4ull},
+    {"phased gain ov0.20 n48000", 0x48A26FB28712CBD6ull},
+    {"rule recurse0", 0x42208CB55733894Bull},
+    {"rule recurse1", 0xE2A810BB90A821E7ull},
+    {"rule none", 0xC3B3C2CA5142A1A5ull},
+};
+static uint64_t base(const std::string& name) {
+    for (const auto& [n, h] : kBase) if (name == n) return h;
+    std::printf("  no recorded case '%s'\n", name.c_str());
+    return 0;
+}
+static const MultiCase& multi_case(const char* name) {
+    for (const auto& mc : kMultiCases) if (std::string(mc.name) == name) return mc;
+    std::printf("  no multi case '%s'\n", name);
+    return kMultiCases.front();
+}
+static const PhasedCase& phased_case(const char* name) {
+    for (const auto& pc : kPhasedCases) if (std::string(pc.name) == name) return pc;
+    std::printf("  no phased case '%s'\n", name);
+    return kPhasedCases.front();
+}
+static void add_feeds(MultiSource& m, const std::vector<Feed>& feeds) {
+    for (const auto& f : feeds) CHECK(m.add_param("source", signal(f.kind, f.value)));
+}
+// The case's arrays, set only where a feed holds a value.
+static void set_columns(MultiSource& m, const std::vector<Feed>& feeds) {
+    if (auto w = column(feeds, &Feed::weight, 1.0f); !w.empty()) m.set_array("weights", w);
+    if (auto d = column(feeds, &Feed::delay, 0.0f); !d.empty()) m.set_array("delays", d);
+}
+// The first `n` rows of the case's table, column by column.
+static void set_table(PhasedValueSource& p, const std::vector<Row>& rows, size_t n) {
+    std::vector<float> percent, minSec, maxSec, gain;
+    for (size_t i = 0; i < n && i < rows.size(); ++i) {
+        percent.push_back(rows[i].percent); minSec.push_back(rows[i].minSec);
+        maxSec.push_back(rows[i].maxSec);   gain.push_back(rows[i].gain);
+    }
+    p.set_array("percent", percent); p.set_array("minSec", minSec);
+    p.set_array("maxSec", maxSec);   p.set_array("gain", gain);
+}
+static void add_stages(PhasedValueSource& p, const std::vector<Row>& rows) {
+    for (const auto& r : rows) CHECK(p.add_param("sources", signal(r.kind, r.value)));
+}
+// The rule of `rule_values(recurse)` as a node, its pins wired to constants
+// as the loader wires them.
+static std::shared_ptr<ExpandRuleNode> rule_node(int recurse) {
+    const ExpandRule r = rule_values(recurse);
+    auto n = std::make_shared<ExpandRuleNode>();
+    n->set_setting("count", float(r.count));
+    n->set_setting("recurse", float(r.recurse));
+    const std::pair<const char*, float> pins[] = {
+        {"spacing1", r.spacing1}, {"spacing2", r.spacing2}, {"dt1", r.dt1}, {"dt2", r.dt2},
+        {"loPct1", r.loPct1}, {"loPct2", r.loPct2}, {"power1", r.power1}, {"power2", r.power2},
+        {"po1", r.po1}, {"po2", r.po2}};
+    for (const auto& [name, v] : pins) CHECK(n->set_param(name, c(v)));
+    return n;
+}
+// A voice graph of two sines, `a` at 220 Hz and `b` at 330, then `nodes`.
+static std::string voice_doc(const nlohmann::json& nodes) {
+    nlohmann::json all = nlohmann::json::array({
+        nlohmann::json{{"id", "a"}, {"type", "SineSource"}, {"params", {{"frequency", 220.0}}}},
+        nlohmann::json{{"id", "b"}, {"type", "SineSource"}, {"params", {{"frequency", 330.0}}}}});
+    for (const auto& n : nodes) all.push_back(n);
+    return nlohmann::json{{"sampleRate", 48000}, {"instrument", {{"polyphony", 1}}},
+                          {"graph", {{"output", "a"}, {"nodes", all}}}}.dump();
+}
+// The render of node `id` of a loaded voice graph, or 0 with the refusal printed.
+static uint64_t loaded_render(const std::string& doc, const char* id, std::vector<float>* arrays = nullptr,
+                              std::initializer_list<const char*> names = {}) {
+    try {
+        InstrumentPatch ip = load_instrument_patch_json(doc);
+        auto n = ip.instrument->voicePool[0].nodesById.at(id);
+        if (arrays) for (const char* a : names) for (float v : n->get_array(a)) arrays->push_back(v);
+        return node_twins::render(*std::dynamic_pointer_cast<ValueSource>(n), 4800, 2);
+    } catch (const std::exception& e) {
+        std::printf("  load failed: %s\n", e.what());
+        return 0;
+    }
+}
+}  // namespace list_twins
+
+static void run_multi_list_twin_tests() {
+    using namespace list_twins;
+    std::printf("MultiSource: the list and its two arrays against add(src, weight, delay)\n");
+    int rows = 0;
+    for (const auto& mc : kMultiCases)
+        for (bool arraysFirst : {true, false}) {
+            MultiSource m;
+            if (arraysFirst) set_columns(m, mc.feeds);
+            add_feeds(m, mc.feeds);
+            if (!arraysFirst) set_columns(m, mc.feeds);
+            CHECK(m.source.sources.size() == mc.feeds.size());
+            CHECK(node_twins::render(m, kMultiFrames) == base(mc.name));
+            ++rows;
+        }
+    CHECK(rows == 14);
+    const auto& five = multi_case("multi five all");
+    {   // Arrays shorter than the feeds: each feed past an end takes the default.
+        MultiSource m;
+        add_feeds(m, five.feeds);
+        m.set_array("weights", {0.5f, 0.25f});
+        m.set_array("delays", {100.0f});
+        CHECK(node_twins::render(m, kMultiFrames) == base("multi five defaults"));
+    }
+    {   // Arrays longer than the feeds: the entries past the last feed are not read.
+        MultiSource m;
+        add_feeds(m, multi_case("multi two all").feeds);
+        m.set_array("weights", {0.5f, 2.0f, 7.0f, 7.0f});
+        m.set_array("delays", {0.0f, 1.0f, 50.0f});
+        CHECK(node_twins::render(m, kMultiFrames) == base("multi two all"));
+    }
+    {   // clear_param empties the list: silence, with the arrays kept.
+        MultiSource m;
+        add_feeds(m, five.feeds);
+        set_columns(m, five.feeds);
+        CHECK(m.clear_param("source"));
+        CHECK(m.source.sources.empty() && m.get_array("weights").size() == 5);
+        CHECK(node_twins::render(m, kMultiFrames) == zeros(kMultiFrames));
+    }
+    {   // set_param replaces the list with its one feed.
+        MultiSource m;
+        add_feeds(m, multi_case("multi three some").feeds);
+        CHECK(m.set_param("source", signal(0, 0.3f)));
+        CHECK(m.source.sources.size() == 1);
+        CHECK(node_twins::render(m, kMultiFrames) == base("multi one"));
+    }
+}
+
+static void run_phased_list_twin_tests() {
+    using namespace list_twins;
+    std::printf("PhasedValueSource: the list and its table against add_stage\n");
+    int rows = 0;
+    for (const auto& pc : kPhasedCases)
+        for (float ov : kOverlaps)
+            for (int frames : kNoteFrames)
+                for (bool tableFirst : {true, false}) {
+                    PhasedValueSource p;
+                    p.set_setting("overlap", ov);
+                    if (tableFirst) set_table(p, pc.rows, pc.rows.size());
+                    add_stages(p, pc.rows);
+                    if (!tableFirst) set_table(p, pc.rows, pc.rows.size());
+                    CHECK(node_twins::render(p, frames) == base(phased_name(pc, ov, frames)));
+                    ++rows;
+                }
+    CHECK(rows == 60);
+    {   // No stage: silence.
+        PhasedValueSource p;
+        CHECK(node_twins::render(p, 4800) == zeros(4800));
+    }
+    {   // A table of two rows under three feeds: the third takes 0, 0, 0, 1,
+        // which is the last row of "expand last".
+        const auto& last = phased_case("expand last");
+        PhasedValueSource p;
+        add_stages(p, last.rows);
+        set_table(p, last.rows, 2);
+        CHECK(node_twins::render(p, 9600) == base(phased_name(last, 0.05f, 9600)));
+    }
+    const auto& middle = phased_case("expand middle");
+    {   // The list emptied after a prepare and a start: zeros, inside the list.
+        PhasedValueSource p;
+        add_stages(p, middle.rows);
+        set_table(p, middle.rows, 3);
+        p.prepare(RenderContext{48000});
+        p.start(9600);
+        for (int i = 0; i < 100; ++i) (void)p.next();
+        CHECK(p.clear_param("sources"));
+        bool silent = true;
+        for (int i = 0; i < 9600; ++i) silent = silent && p.next() == 0.0f;
+        p.start(9600);
+        for (int i = 0; i < 100; ++i) silent = silent && p.next() == 0.0f;
+        CHECK(silent);
+    }
+    {   // Three stages cut to one mid-note: the walk reads the one stage.
+        PhasedValueSource p;
+        add_stages(p, middle.rows);
+        set_table(p, middle.rows, 3);
+        p.prepare(RenderContext{48000});
+        p.start(9600);
+        for (int i = 0; i < 5000; ++i) (void)p.next();
+        CHECK(p.set_param("sources", c(0.5f)));
+        CHECK(p.sources.sources.size() == 1);
+        bool one = true;
+        for (int i = 0; i < 6000; ++i) one = one && p.next() == 0.5f;
+        CHECK(one);
+    }
+}
+
+static void run_expand_rule_slot_tests() {
+    using namespace list_twins;
+    std::printf("Partials: the expandRule slot against set_expand_rule\n");
+    for (int recurse : {0, 1}) {
+        auto parts = host_partials();
+        CHECK(parts->set_param("expandRule", rule_node(recurse)));
+        auto a = host(parts);
+        CHECK(node_twins::render(*a, kRuleFrames, kRuleNotes) == base("rule recurse" + std::to_string(recurse)));
+    }
+    {   // The slot emptied: no expansion, by clear_param and by a null.
+        auto parts = host_partials();
+        CHECK(parts->set_param("expandRule", rule_node(0)));
+        CHECK(parts->clear_param("expandRule"));
+        auto a = host(parts);
+        CHECK(node_twins::render(*a, kRuleFrames, kRuleNotes) == base("rule none"));
+        auto parts2 = host_partials();
+        CHECK(parts2->set_param("expandRule", rule_node(0)));
+        CHECK(parts2->set_param("expandRule", nullptr));
+        auto a2 = host(parts2);
+        CHECK(node_twins::render(*a2, kRuleFrames, kRuleNotes) == base("rule none"));
+    }
+    {   // A signal is refused and the rule stays.
+        auto parts = host_partials();
+        CHECK(parts->set_param("expandRule", rule_node(0)));
+        CHECK(!parts->set_param("expandRule", c(1.0f)));
+        CHECK(parts->expandRule.get() != nullptr);
+        auto a = host(parts);
+        CHECK(node_twins::render(*a, kRuleFrames, kRuleNotes) == base("rule recurse0"));
+    }
+    {   // A rule wired after the host's prepare: the note arrays are sized again.
+        auto parts = host_partials();
+        auto a = host(parts);
+        a->prepare(RenderContext{48000});
+        CHECK(parts->set_param("expandRule", rule_node(0)));
+        CHECK(render_prepared(*a, kRuleFrames, kRuleNotes) == base("rule recurse0"));
+    }
+    {   // The slot emptied after a note: the next notes play the unexpanded
+        // partials, as a host that never had the rule plays its second and third.
+        auto parts = host_partials();
+        CHECK(parts->set_param("expandRule", rule_node(0)));
+        auto a = host(parts);
+        a->prepare(RenderContext{48000});
+        (void)render_prepared(*a, kRuleFrames, 1);
+        CHECK(parts->clear_param("expandRule"));
+        auto never = host(host_partials());
+        never->prepare(RenderContext{48000});
+        (void)render_prepared(*never, kRuleFrames, 1);
+        CHECK(render_prepared(*a, kRuleFrames, kRuleNotes) == render_prepared(*never, kRuleFrames, kRuleNotes));
+    }
+    {   // The rule is read when the slot changes: a later edit to the node is not seen.
+        auto parts = host_partials();
+        auto rule = rule_node(0);
+        CHECK(parts->set_param("expandRule", rule));
+        rule->set_setting("count", 5.0f);
+        auto a = host(parts);
+        CHECK(node_twins::render(*a, kRuleFrames, kRuleNotes) == base("rule recurse0"));
+    }
+}
+
+static void run_list_node_descriptor_tests() {
+    std::printf("the list nodes' and the slot's descriptors\n");
+    MultiSource m;
+    CHECK(m.input_descriptors().size() == 1 && std::string(m.input_descriptors()[0].name) == "source");
+    CHECK(m.input_descriptors()[0].multi && !m.input_descriptors()[0].slot);
+    const auto ma = m.array_descriptors();
+    CHECK(ma.size() == 2);
+    CHECK(ma.size() == 2 && std::string(ma[0].name) == "weights" && !ma[0].groupName && ma[0].default_value == 1.0f);
+    CHECK(ma.size() == 2 && std::string(ma[1].name) == "delays" && !ma[1].groupName && ma[1].default_value == 0.0f);
+    CHECK(m.param_descriptors().empty() && m.setting_descriptors().empty());
+    CHECK(m.pins().size() == 3);
+    PhasedValueSource p;
+    CHECK(p.input_descriptors().size() == 1 && std::string(p.input_descriptors()[0].name) == "sources");
+    CHECK(p.input_descriptors()[0].multi && !p.input_descriptors()[0].slot);
+    CHECK(p.setting_descriptors().size() == 1 && std::string(p.setting_descriptors()[0].name) == "overlap");
+    CHECK(p.setting_descriptors()[0].type == SettingType::Float && p.setting_descriptors()[0].default_value == 0.05f);
+    const auto pa = p.array_descriptors();
+    const char* columns[] = {"percent", "minSec", "maxSec", "gain"};
+    const float defaults[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    CHECK(pa.size() == 4);
+    for (size_t k = 0; k < 4 && k < pa.size(); ++k) {
+        CHECK(std::string(pa[k].name) == columns[k]);
+        CHECK(pa[k].groupName && std::string(pa[k].groupName) == "stages");
+        CHECK(pa[k].default_value == defaults[k]);
+    }
+    CHECK(p.param_descriptors().size() == 1 && std::string(p.param_descriptors()[0].name) == "amplitude");
+    const std::shared_ptr<Component> hosts[] = {std::make_shared<FullPartials>(), std::make_shared<SequencePartials>(),
+                                                std::make_shared<ExplicitPartials>()};
+    for (const auto& h : hosts) {
+        int found = 0;
+        for (const auto& d : h->input_descriptors())
+            if (std::string(d.name) == "expandRule") {
+                ++found;
+                CHECK(d.slot && !d.multi && d.hint && std::string(d.hint) == "an ExpandRule part");
+            }
+        CHECK(found == 1);
+    }
+}
+
+static void run_list_node_loader_tests() {
+    using namespace list_twins;
+    using nlohmann::json;
+    std::printf("the list nodes and the slot load from both forms to equal nodes\n");
+    std::vector<float> oldArrays, newArrays;
+    const json weighted = {{"id", "n"}, {"type", "MultiSource"}, {"params", {{"source", json::array({
+        json{{"ref", "a"}, {"weight", 0.5}}, json{{"ref", "b"}, {"delay", 100}}})}}}};
+    const json columns = {{"id", "n"}, {"type", "MultiSource"}, {"params", {
+        {"source", json::array({json{{"ref", "a"}}, json{{"ref", "b"}}})},
+        {"weights", {0.5, 1.0}}, {"delays", {0.0, 100.0}}}}};
+    const json plainFeeds = {{"id", "n"}, {"type", "MultiSource"}, {"params", {
+        {"source", json::array({json{{"ref", "a"}}, json{{"ref", "b"}}})}}}};
+    const uint64_t mOld = loaded_render(voice_doc(json::array({weighted})), "n", &oldArrays, {"weights", "delays"});
+    const uint64_t mNew = loaded_render(voice_doc(json::array({columns})), "n", &newArrays, {"weights", "delays"});
+    CHECK(mOld != 0 && mOld == mNew && oldArrays == newArrays && oldArrays.size() == 4);
+    CHECK(mOld != loaded_render(voice_doc(json::array({plainFeeds})), "n"));
+    oldArrays.clear(); newArrays.clear();
+    const json stages = {{"id", "n"}, {"type", "PhasedValueSource"}, {"params", {{"overlap", 0.01}, {"stages", json::array({
+        json{{"source", {{"ref", "a"}}}, {"percent", 0.3}, {"min", 0.01}, {"max", 0.02}, {"gain", 0.5}},
+        json{{"source", {{"ref", "b"}}}, {"percent", 0.0}}})}}}};
+    const json table = {{"id", "n"}, {"type", "PhasedValueSource"}, {"params", {{"overlap", 0.01},
+        {"sources", json::array({json{{"ref", "a"}}, json{{"ref", "b"}}})},
+        {"percent", {0.3, 0.0}}, {"minSec", {0.01, 0.0}}, {"maxSec", {0.02, 0.0}}, {"gain", {0.5, 1.0}}}}};
+    const char* cols[] = {"percent", "minSec", "maxSec", "gain"};
+    const uint64_t pOld = loaded_render(voice_doc(json::array({stages})), "n", &oldArrays, {cols[0], cols[1], cols[2], cols[3]});
+    const uint64_t pNew = loaded_render(voice_doc(json::array({table})), "n", &newArrays, {cols[0], cols[1], cols[2], cols[3]});
+    CHECK(pOld != 0 && pOld == pNew && oldArrays == newArrays && oldArrays.size() == 8);
+    json ragged = table;
+    ragged["params"].erase("gain");
+    CHECK(three_kinds::refused_naming(voice_doc(json::array({ragged})), false,
+        {"node 'n' (PhasedValueSource): table 'stages' takes its columns at one length, all present or all absent",
+         "gain absent"}));
+}
+
+static void run_expand_rule_loader_tests() {
+    using namespace list_twins;
+    using nlohmann::json;
+    std::printf("the expand rule loads inline and as a node by ref; a ref that is not a rule fails\n");
+    const json rule = {{"count", 3}, {"spacing1", 0.3}, {"spacing2", 0.7}, {"dt1", 0.05}, {"power1", 2.0}, {"po2", 0.25}};
+    const auto partials_doc = [&](const json& expandRule, bool withNode) {
+        json nodes = json::array();
+        if (withNode) nodes.push_back(json{{"id", "rule"}, {"type", "ExpandRule"}, {"params", rule}});
+        json p = {{"id", "p"}, {"type", "FullPartials"}, {"params", {{"seed", 3902}, {"maxPartials", 6}}}};
+        if (!expandRule.is_null()) p["params"]["expandRule"] = expandRule;
+        nodes.push_back(p);
+        nodes.push_back(json{{"id", "n"}, {"type", "AdditiveSource"},
+                             {"params", {{"frequency", 220.0}, {"partials", {{"ref", "p"}}}}}});
+        return voice_doc(nodes);
+    };
+    const uint64_t inlineRule = loaded_render(partials_doc(rule, false), "n");
+    const uint64_t refRule = loaded_render(partials_doc(json{{"ref", "rule"}}, true), "n");
+    CHECK(inlineRule != 0 && inlineRule == refRule);
+    CHECK(inlineRule != loaded_render(partials_doc(json(), false), "n"));
+    // A ref to no node, and to a node that is not an ExpandRule.
+    CHECK(three_kinds::refused_naming(partials_doc(json{{"ref", "nope"}}, false), false, {"nope"}));
+    CHECK(three_kinds::refused_naming(partials_doc(json{{"ref", "a"}}, false), false,
+        {"node 'p' (FullPartials): 'expandRule' does not accept a SineSource; 'expandRule' takes an ExpandRule part"}));
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -10971,6 +11465,12 @@ int main() {
     run_name_gate_name_tests();
     run_shaper_validate_tests();
     run_declared_default_load_tests();
+    run_multi_list_twin_tests();
+    run_phased_list_twin_tests();
+    run_expand_rule_slot_tests();
+    run_list_node_descriptor_tests();
+    run_list_node_loader_tests();
+    run_expand_rule_loader_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

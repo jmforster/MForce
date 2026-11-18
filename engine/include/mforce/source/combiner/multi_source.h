@@ -9,62 +9,38 @@ namespace mforce {
 // Weighted sum of ValueSources with optional per-source sample delay.
 // Used for polyphony (overlapping notes) and composite instruments (WTString).
 //
-// The `source` input is a list, held in `entries` with its weights and
-// delays, not a pin: this node serves the list by name and advances the
-// entries itself, because each is read once per sample at its own delay.
-// It becomes a Processor when the list pin kind arrives (checkpoint 3.1).
+// The `source` pin is a list of feeds, and the two arrays beside it give
+// each feed, by position, its gain and its start delay. The node prepares,
+// starts and advances its feeds itself, because each is read once per
+// sample at its own delay. It is a ValueSource, not a Processor: it has no
+// single `source` input for a Processor to own.
 struct MultiSource final : ValueSource {
-  struct Entry {
-    std::shared_ptr<ValueSource> source;
-    float weight{1.0f};
-    int delaySamples{0};
-  };
-
-  std::vector<Entry> entries;
+  InputList source{this, "source"};
+  // Each feed's gain and start delay in samples, by position in `source`;
+  // a feed past an array's end takes the default (1 and 0).
+  Array weights{this, "weights", nullptr, 1.0f, -100.0f, 100.0f};
+  Array delays {this, "delays",  nullptr, 0.0f, 0.0f, 960000.0f};
 
   const char* type_name() const override { return "MultiSource"; }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source", true},  // multi-input: wire multiple sources
-    };
-    return descs;
-  }
-
-  // Wiring `source` appends (add_param routes here through the base).
-  bool set_param(std::string_view name, std::shared_ptr<Component> part) override {
-    if (name != "source") return ValueSource::set_param(name, std::move(part));
-    auto src = std::dynamic_pointer_cast<ValueSource>(std::move(part));
-    if (!src) return false;                     // a part, not a signal
-    add(std::move(src));
-    return true;
-  }
-
-  bool clear_param(std::string_view name) override {
-    if (name != "source") return ValueSource::clear_param(name);
-    entries.clear();
-    return true;
-  }
-
-  void add(std::shared_ptr<ValueSource> src, float weight = 1.0f, int delay = 0) {
-    entries.push_back({std::move(src), weight, delay});
-  }
+  void on_input_list_changed(std::string_view) override { rebuild_entries_(); }
+  void on_array_changed(std::string_view) override { rebuild_entries_(); }
 
   void on_prepare(const RenderContext& ctx) override {
-    for (auto& e : entries)
+    for (auto& e : entries_)
       e.source->prepare(ctx);
   }
 
   void on_start(int frames) override {
     ptr_ = -1;
-    for (auto& e : entries)
+    for (auto& e : entries_)
       e.source->start(frames + e.delaySamples);
   }
 
   float compute() override {
     ++ptr_;
     float sum = 0.0f;
-    for (auto& e : entries) {
+    for (auto& e : entries_) {
       float v = e.source->next();
       if (ptr_ >= e.delaySamples) {
         sum += v * e.weight;
@@ -74,6 +50,25 @@ struct MultiSource final : ValueSource {
   }
 
 private:
+  struct Entry {
+    std::shared_ptr<ValueSource> source;
+    float weight{1.0f};
+    int delaySamples{0};
+  };
+
+  // The layout compute() walks: entry i is feed i with its weight and
+  // delay, or the arrays' defaults past their ends; array values past the
+  // last feed are not read. Derived from the list and the two arrays
+  // whenever one changes, and written nowhere else.
+  void rebuild_entries_() {
+    entries_.clear();
+    for (size_t i = 0; i < source.sources.size(); ++i)
+      entries_.push_back({source.sources[i],
+                          i < weights.values.size() ? weights.values[i] : weights.def,
+                          int(i < delays.values.size() ? delays.values[i] : delays.def)});
+  }
+
+  std::vector<Entry> entries_;
   int ptr_{-1};
 };
 

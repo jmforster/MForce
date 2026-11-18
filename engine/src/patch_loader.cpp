@@ -10,7 +10,6 @@
 #include "mforce/render/embedded_score.h"
 // Types still needed for special-case construction
 #include "mforce/source/additive/partials.h"
-#include "mforce/source/additive/expand_rule_node.h"
 #include "mforce/source/additive/expand_rule.h"
 #include "mforce/source/wavetable/wavetable_source.h"
 #include "mforce/source/envelope/phased_value_source.h"
@@ -393,6 +392,8 @@ static void wire_params_generic(
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
         if (v.is_string()) refuse_string_pin(src, id, desc.name, v.get<std::string>(), desc.slot);
+        // An inline rule on the expandRule slot: the expandRule block below reads it.
+        if (desc.slot && std::strcmp(desc.name, "expandRule") == 0 && v.is_object() && !v.contains("ref") && !v.contains("tap")) continue;
         if (desc.multi && v.is_array()) {
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
@@ -461,19 +462,15 @@ static void wire_params_generic(
         src.set_array(desc.name, std::move(indices));
     }
     reject_ragged_tables(src, id, params);
-    // ExpandRule (PartialGroups) — a struct, not a pin/setting/array, so it isn't
-    // covered by the loops above. Consumed only by Partials hosts. Two JSON forms:
-    //   "expandRule": { "count": 4, "spacing1": 0.3, ... }   (inline)
-    //   "expandRule": { "ref": "<ExpandRule node id>" }        (shared node)
+    // The inline form of a Partials host's expand rule (PartialGroups), the
+    // twelve numbers as an object the input pass leaves alone:
+    //   "expandRule": { "count": 4, "spacing1": 0.3, ... }
+    // A {"ref"} to an ExpandRule node is the slot's wire, made by the input
+    // pass above.
     if (params.contains("expandRule")) {
         if (auto* host = dynamic_cast<Partials*>(&src)) {
             const auto& er = params.at("expandRule");
-            if (er.contains("ref")) {
-                auto it = graphNodes.find(er.at("ref").get<std::string>());
-                if (it != graphNodes.end())
-                    if (auto* node = dynamic_cast<ExpandRuleNode*>(it->second.get()))
-                        host->set_expand_rule(node->to_struct());
-            } else {
+            if (er.is_object() && !er.contains("ref") && !er.contains("tap")) {
                 ExpandRule rule;
                 rule.count    = er.value("count", 2);
                 rule.recurse  = er.value("recurse", 0);
