@@ -232,17 +232,19 @@
         "params": {
           "source": [
             {
-              "ref": "fmBody",
-              "weight": 0.5
+              "ref": "fmBody"
             },
             {
-              "ref": "fmTine",
-              "weight": 0.5
+              "ref": "fmTine"
             },
             {
-              "ref": "clack",
-              "weight": 0.30000001192092896
+              "ref": "clack"
             }
+          ],
+          "weights": [
+            0.5,
+            0.5,
+            0.30000001192092896
           ]
         },
         "type": "MultiSource"
