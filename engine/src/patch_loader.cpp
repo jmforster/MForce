@@ -2,6 +2,9 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/source/modulator/name_gate.h"
+#include "mforce/source/modulator/perform_node.h"
+#include "mforce/source/output/sound_channel.h"
+#include "mforce/source/output/stereo_mixer.h"
 #include "mforce/render/perform_source.h"
 #include "mforce/source/envelope/envelope.h"
 #include "mforce/source/envelope/envelope_json.h"
@@ -18,6 +21,7 @@
 #include <cstdio>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -129,15 +133,6 @@ static std::shared_ptr<ValueSource> resolve_signal(
     const std::string where = (val.is_object() && val.contains("ref")) ? val.at("ref").get<std::string>()
                                                                         : std::string("param");
     return as_signal(resolve_param(val, graphNodes), where);
-}
-
-static std::shared_ptr<ValueSource> resolve_param_or(
-    const json& params, const char* key, float defaultVal,
-    const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
-{
-    if (!params.contains(key))
-        return std::make_shared<ConstantSource>(defaultVal);
-    return resolve_signal(params.at(key), graphNodes);
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +502,68 @@ static void wire_params_generic(
     reject_ragged_tables(src, id, params);
 }
 
+// Reads the node-level `inputs` block of the two output parts.
+static void wire_part_inputs(
+    Component& part,
+    const std::string& id,
+    const json& inputs,
+    const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
+{
+    auto node_named = [&](const json& v) {
+        const std::string ref = v.get<std::string>();
+        auto it = graphNodes.find(ref);
+        if (it == graphNodes.end())
+            throw std::runtime_error("Unresolved node ref: " + ref);
+        return it->second;
+    };
+    const std::string_view type = part.type_name();
+    if (type == "SoundChannel" && inputs.contains("source")) {
+        auto source = node_named(inputs.at("source"));
+        if (!part.set_param("source", source)) reject_wire(part, id, "source", *source);
+    }
+    if (type == "StereoMixer" && inputs.contains("channels")) {
+        part.clear_param("channels");
+        for (const auto& v : inputs.at("channels")) {
+            auto channel = node_named(v);
+            if (!part.add_param("channels", channel)) reject_wire(part, id, "channels", *channel);
+        }
+    }
+}
+
+// The note field a PerformNode's `field` names, as an index into
+// PerformNode::kFieldLabels: a label matched ignoring ASCII case, or a whole
+// number inside the labels; absent, the first. Anything else fails the load,
+// listing the labels.
+static int perform_field(const std::string& id, const json* params)
+{
+    if (!params || !params->contains("field")) return 0;
+    const char* const* labels = PerformNode::kFieldLabels;
+    const json& v = params->at("field");
+    int count = 0;
+    while (labels[count]) ++count;
+    int index = -1;
+    if (v.is_string())
+        index = enum_index(labels, v.get<std::string>());
+    else if (v.is_number()) {
+        const double d = v.get<double>();
+        if (d >= 0.0 && d < double(count) && d == std::floor(d)) index = int(d);
+    }
+    if (index >= 0) return index;
+    std::string expected;
+    for (int k = 0; k < count; ++k) expected += std::string(k ? "|" : "") + labels[k];
+    throw std::runtime_error("PerformNode '" + id + "': unknown field " + v.dump()
+                             + " (expected " + expected + ")");
+}
+
+// The labels and the adapter's fields name the six in one order: the index
+// perform_field reads is the PerformOut::Field the voice made the adapter for.
+static_assert(std::string_view(PerformNode::kFieldLabels[int(PerformOut::Field::Frequency)]) == "frequency");
+static_assert(std::string_view(PerformNode::kFieldLabels[int(PerformOut::Field::Velocity)]) == "velocity");
+static_assert(std::string_view(PerformNode::kFieldLabels[int(PerformOut::Field::Wheel)]) == "wheel");
+static_assert(std::string_view(PerformNode::kFieldLabels[int(PerformOut::Field::Pressure)]) == "pressure");
+static_assert(std::string_view(PerformNode::kFieldLabels[int(PerformOut::Field::Duration)]) == "duration");
+static_assert(std::string_view(PerformNode::kFieldLabels[int(PerformOut::Field::Onset)]) == "onset");
+
 // Per-voice performance adapters, handed down so PerformNode instances all
 // resolve to the SAME objects (pin_model_design.md; perform_source_design.md
 // §2.3: "All instances render the same outputs"). Null in NodeGraph/standalone
@@ -649,17 +706,11 @@ static GraphResult build_graph(
             if (!perf)
                 throw std::runtime_error("PerformNode '" + id + "': no voice "
                     "context (PerformNode is instrument/patch mode only)");
-            const std::string field = pp ? pp->value("field", std::string("frequency"))
-                                         : std::string("frequency");
-            if      (field == "frequency") graphNodes[id] = perf->freqOut;
-            else if (field == "velocity")  graphNodes[id] = perf->velOut;
-            else if (field == "wheel")     graphNodes[id] = perf->wheelOut;
-            else if (field == "pressure")  graphNodes[id] = perf->pressOut;
-            else if (field == "duration")  graphNodes[id] = perf->durOut;
-            else if (field == "onset")     graphNodes[id] = perf->onsetOut;
-            else throw std::runtime_error("PerformNode '" + id + "': unknown field '"
-                + field
-                + "' (expected frequency|velocity|wheel|pressure|duration|onset)");
+            // In PerformOut::Field's order, which the static_asserts above
+            // tie to the labels.
+            const std::shared_ptr<ValueSource> fields[] = {perf->freqOut, perf->velOut, perf->wheelOut,
+                                                           perf->pressOut, perf->durOut, perf->onsetOut};
+            graphNodes[id] = fields[perform_field(id, pp)];
         }
         else if (type == "NameGate") {
             // Onset-name match: the generic pass fills `name`, then the
@@ -734,10 +785,11 @@ static GraphResult build_graph(
                     }
                 }
             }
+            if (node.contains("inputs") && (type == "SoundChannel" || type == "StereoMixer"))
+                wire_part_inputs(*src, id, node["inputs"], graphNodes);
             graphNodes[id] = src;
         }
-        // SoundChannel and StereoMixer handled by caller
-        else if (type != "SoundChannel" && type != "StereoMixer") {
+        else {
             std::string msg = "Unknown node type: " + type;
             if (const char* hint = retired_type_hint(type)) msg += std::string("; ") + hint;
             throw std::runtime_error(msg);
@@ -907,8 +959,8 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
             const std::string t = n.at("type").get<std::string>();
             if (t == "PerformNode") {
                 const bool isFreq =
-                    !n.contains("params") ||
-                    n["params"].value("field", std::string("frequency")) == "frequency";
+                    perform_field(nid, n.contains("params") ? &n["params"] : nullptr)
+                        == int(PerformOut::Field::Frequency);
                 memo[nid] = isFreq ? 1 : 0;
                 return isFreq;
             }
@@ -1018,6 +1070,64 @@ static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
                                                PerformOut::Field::Onset);
     return PerformContext{vg.freqOut, vg.velOut, vg.wheelOut, vg.pressOut,
                           vg.durOut, vg.onsetOut};
+}
+
+// ---------------------------------------------------------------------------
+// A plain sound's pull loops: one per listed channel, rooted at the node its
+// source holds, and the mixer's own, rooted at the nodes wired into its gains
+// and every listed channel's volume and pan. A loop holds every node its
+// roots reach through {"ref": id} values anywhere in a node's params, single
+// or in a list; a {"tap": id} reads its target's last value and pulls
+// nothing, so the walk does not follow it, and dynamicPins are not walked.
+// Each loop pulls its nodes on its own clock, so a node two loops reach fails
+// the load: the first such node in the file's order, and the first two loops
+// that reach it in the order given (the mixer's channel order, its own loop
+// last).
+// ---------------------------------------------------------------------------
+struct PullLoop {
+    std::string name;                 // "channel '<id>'", or the mixer's own
+    std::vector<std::string> roots;   // ids of the nodes the loop pulls first
+};
+
+static void refuse_shared_nodes(const std::unordered_map<std::string, json>& nodeMap,
+                                const std::vector<std::string>& nodeOrder,
+                                const std::vector<PullLoop>& loops)
+{
+    std::vector<std::unordered_set<std::string>> reached(loops.size());
+    for (size_t k = 0; k < loops.size(); ++k) {
+        std::vector<std::string> pending = loops[k].roots;
+        std::function<void(const json&)> refs = [&](const json& v) {
+            if (v.is_object() && v.size() == 1 && v.contains("ref") && v["ref"].is_string())
+                pending.push_back(v["ref"].get<std::string>());
+            else if (v.is_object())
+                for (auto it = v.begin(); it != v.end(); ++it) refs(it.value());
+            else if (v.is_array())
+                for (const auto& item : v) refs(item);
+        };
+        while (!pending.empty()) {
+            const std::string id = pending.back();
+            pending.pop_back();
+            if (!reached[k].insert(id).second) continue;
+            auto it = nodeMap.find(id);
+            if (it != nodeMap.end() && it->second.contains("params")) refs(it->second["params"]);
+        }
+    }
+    for (const auto& id : nodeOrder) {
+        std::vector<size_t> in;
+        for (size_t k = 0; k < loops.size(); ++k)
+            if (reached[k].count(id)) in.push_back(k);
+        if (in.size() > 1)
+            throw std::runtime_error("'" + id + "' is reached from " + loops[in[0]].name + " and from "
+                                     + loops[in[1]].name + ": each pulls its nodes on its own clock, "
+                                     "so a node belongs to one");
+    }
+}
+
+// A mixer pin's signal: the source wired into it, else a constant of the
+// pin's declared value.
+static std::shared_ptr<ValueSource> pin_signal(const Param& pin)
+{
+    return pin.source ? pin.source : std::make_shared<ConstantSource>(pin.constant);
 }
 
 // ---------------------------------------------------------------------------
@@ -1194,76 +1304,67 @@ BuiltSound load_patch_file(const std::string& path)
             "instrument block, or take audio output from the loop tail\n",
             aid.c_str());
 
-    auto outIt = nodeMap.find(outputId);
-    if (outIt == nodeMap.end())
-        throw std::runtime_error("graph.output not found");
+    auto outIt = graphNodes.find(outputId);
+    if (outIt == graphNodes.end())
+        throw std::runtime_error(
+            "graph.output must be a StereoMixer or a mono-renderable source: " + outputId);
 
     auto mixer = std::make_unique<Mixer>();
 
-    // A bare mono source as graph.output used to be a hard error, which made
-    // seven patches unrenderable from the CLI while working fine in the UI
-    // (CombineTest, ks_morph_*, mux_*). The instrument path above already
-    // auto-wraps a bare output in a unity channel; this does the same for the
-    // standard path so the two agree. Unity volume + centre pan matches the
-    // instrument path exactly rather than inventing a second convention.
-    if (outIt->second.at("type").get<std::string>() != "StereoMixer") {
-        auto it = graphNodes.find(outputId);
-        if (it == graphNodes.end())
-            throw std::runtime_error(
-                "graph.output must be a StereoMixer or a mono-renderable source: " + outputId);
-
+    // The output as built: a StereoMixer is the mixer form; anything else is
+    // the bare form, a signal in one unity channel at centre pan, as the
+    // instrument path plays its voice. A part other than the mixer is refused
+    // as one.
+    const auto mixPart = std::dynamic_pointer_cast<StereoMixer>(outIt->second);
+    if (!mixPart) {
         Channel ch;
         ch.volume = std::make_shared<ConstantSource>(1.0f);
         ch.pan    = std::make_shared<ConstantSource>(0.0f);
-        ch.source = std::make_unique<ValueSourceMono>(as_signal(it->second, outputId));
+        ch.source = std::make_unique<ValueSourceMono>(as_signal(outIt->second, outputId));
         mixer->channels.push_back(std::move(ch));
         mixer->prepare(RenderContext{sampleRate});
         built.mixer = std::move(mixer);
         return built;
     }
 
-    if (outIt->second.contains("params")) {
-        const auto& params = outIt->second["params"];
-        mixer->gainL = resolve_param_or(params, "gainL", 1.0f, graphNodes);
-        mixer->gainR = resolve_param_or(params, "gainR", 1.0f, graphNodes);
+    // A built part's id, for a message: the build's map, by pointer.
+    auto id_of = [&](const Component* node) {
+        for (const auto& [nid, n] : graphNodes)
+            if (n.get() == node) return nid;
+        return std::string();
+    };
+
+    // The mixer form, from the parts' pins. Each listed channel needs its
+    // source; then no node may be reached from two pull loops.
+    PullLoop mixerLoop{"the mixer's gains, volumes and pans", {}};
+    auto root_of = [&](const Param& pin) {
+        const std::string id = pin.source ? id_of(pin.source.get()) : std::string();
+        if (!id.empty()) mixerLoop.roots.push_back(id);
+    };
+    root_of(mixPart->gainL);
+    root_of(mixPart->gainR);
+    std::vector<PullLoop> loops;
+    for (const SoundChannel* view : mixPart->channels.views) {
+        const std::string chId = id_of(view);
+        if (!view->source.source)
+            throw std::runtime_error("node '" + chId + "' (SoundChannel): 'source' is not wired; "
+                                     "a channel the mixer lists needs a source");
+        PullLoop loop{"channel '" + chId + "'", {}};
+        if (std::string id = id_of(view->source.source.get()); !id.empty()) loop.roots.push_back(id);
+        loops.push_back(std::move(loop));
+        root_of(view->volume);
+        root_of(view->pan);
     }
+    loops.push_back(std::move(mixerLoop));
+    refuse_shared_nodes(nodeMap, nodeOrder, loops);
 
-    const auto& chIds = outIt->second.at("inputs").at("channels");
-
-    // Each channel's adapter is its own pull loop with its own clock. A node
-    // two adapters prepare follows only the second one's clock, so the first
-    // channel would render one held sample: a source feeds one channel.
-    std::unordered_map<std::string, std::string> channelOfSource;
-    for (const auto& chIdVal : chIds) {
-        std::string chId = chIdVal.get<std::string>();
-        const auto& chNode = nodeMap.at(chId);
-
-        if (chNode.at("type").get<std::string>() != "SoundChannel")
-            throw std::runtime_error("Node is not SoundChannel: " + chId);
-
+    mixer->gainL = pin_signal(mixPart->gainL);
+    mixer->gainR = pin_signal(mixPart->gainR);
+    for (const SoundChannel* view : mixPart->channels.views) {
         Channel ch;
-
-        if (chNode.contains("params")) {
-            const auto& p = chNode["params"];
-            ch.volume = resolve_param_or(p, "volume", 1.0f, graphNodes);
-            ch.pan    = resolve_param_or(p, "pan",    0.0f, graphNodes);
-        } else {
-            ch.volume = std::make_shared<ConstantSource>(1.0f);
-            ch.pan    = std::make_shared<ConstantSource>(0.0f);
-        }
-
-        std::string srcId =
-            chNode.at("inputs").at("source").get<std::string>();
-
-        auto it = graphNodes.find(srcId);
-        if (it == graphNodes.end())
-            throw std::runtime_error("No mono source for: " + srcId);
-        const auto [taken, fresh] = channelOfSource.emplace(srcId, chId);
-        if (!fresh)
-            throw std::runtime_error("channels '" + taken->second + "' and '" + chId + "' name one source '"
-                                     + srcId + "': a source feeds one channel");
-
-        ch.source = std::make_unique<ValueSourceMono>(as_signal(it->second, srcId));
+        ch.volume = pin_signal(view->volume);
+        ch.pan    = pin_signal(view->pan);
+        ch.source = std::make_unique<ValueSourceMono>(view->source.get());
         mixer->channels.push_back(std::move(ch));
     }
 

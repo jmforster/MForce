@@ -32,19 +32,23 @@ using JsonConfigurator = std::function<void(
 // registered: its family (the families table in docs/architecture/part3-nodes.md),
 // the label the editor's menus show (derived from the type name unless given)
 // and the shelf it sits on — Main for the create menu's family menus,
-// Experimental for the parked and the unclassified. The editor's menus,
-// colours and the folder a type's header lives in all follow from the family;
-// nothing asks a node object.
-enum class Family { Oscillator, Noise, Wavetable, Additive, Physical, Filter, Envelope, Modulator, Combiner, Utility };
-constexpr int kFamilyCount = 10;
-// Menu order: the sound-making families, then the shaping ones.
+// Experimental for the parked and the unclassified, None for a registered
+// type that no generated menu offers: the host makes one by an item of its
+// own, because the item carries a rule the registration does not (the two
+// output parts belong to a plain sound, one mixer to a graph; a note field to
+// an instrument). The editor's menus, colours and the folder a type's header
+// lives in all follow from the family; nothing asks a node object.
+enum class Family { Oscillator, Noise, Wavetable, Additive, Physical, Filter, Envelope, Modulator, Combiner, Utility, Output };
+constexpr int kFamilyCount = 11;
+// Menu order: the sound-making families, then the shaping ones, then the output.
 inline constexpr Family kFamilyOrder[kFamilyCount] = {
   Family::Oscillator, Family::Noise, Family::Wavetable, Family::Additive, Family::Physical,
   Family::Filter, Family::Envelope, Family::Modulator, Family::Combiner, Family::Utility,
+  Family::Output,
 };
-const char* family_name(Family f);      // "Oscillators", "Noise", "Wavetable", "Additive", "Physical", "Filters", "Envelopes", "Modulators", "Combiners", "Utility"
+const char* family_name(Family f);      // "Oscillators", "Noise", "Wavetable", "Additive", "Physical", "Filters", "Envelopes", "Modulators", "Combiners", "Utility", "Output"
 
-enum class Shelf { Main, Experimental };
+enum class Shelf { Main, Experimental, None };
 
 struct TypeTag {
   Family family;

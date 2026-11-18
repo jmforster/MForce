@@ -22,6 +22,7 @@ const char* family_name(Family f) {
     case Family::Modulator:  return "Modulators";
     case Family::Combiner:   return "Combiners";
     case Family::Utility:    return "Utility";
+    case Family::Output:     return "Output";
   }
   return "Utility";
 }

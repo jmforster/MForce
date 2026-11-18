@@ -5897,6 +5897,7 @@ static const std::set<std::string> kPartTypes = {
     "PluckEvolution", "AveragingEvolution", "EKSEvolution", "ReedEvolution", "BowedStringEvolution",
     "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution",
     "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution", "TargetEvolution",
+    "SoundChannel", "StereoMixer",
 };
 
 static void run_split_equivalence_tests() {
@@ -9318,6 +9319,7 @@ static void run_enum_column_tests() {
         int walked = 0;
         std::vector<std::string> skipped;
         for (const auto& e : reg.registered_types()) {
+            if (e.name == "PerformNode") { skipped.push_back(e.name + " (loads as the voice's adapter, which declares no setting; run_perform_node_field_tests loads each label)"); continue; }
             std::shared_ptr<Component> s;
             try { s = reg.create(e.name); } catch (const std::exception&) { skipped.push_back(e.name + " (the registry cannot build it alone)"); continue; }
             if (!s) { skipped.push_back(e.name + " (the registry cannot build it alone)"); continue; }
@@ -9885,14 +9887,14 @@ static void run_target_evolution_registry_tests() {
 }
 
 // The audit: every registered type is created once; exactly the named parts
-// are not signals, every other type is. The twenty-one parts are the four
-// Partials types and the expand rule, the three formant types and the
-// thirteen evolutions.
+// are not signals, every other type is. The twenty-three parts are the four
+// Partials types and the expand rule, the three formant types, the
+// thirteen evolutions and the two output parts.
 static void run_component_root_tests() {
     std::printf("the root: parts and signals\n");
     register_all_sources();
     auto& reg = SourceRegistry::instance();
-    CHECK(kPartTypes.size() == 21);
+    CHECK(kPartTypes.size() == 23);
     int seen = 0, parts = 0;
     for (const auto& entry : reg.registered_types()) {
         const std::string& name = entry.name;
@@ -9903,7 +9905,7 @@ static void run_component_root_tests() {
         CHECK(isPart == (kPartTypes.count(name) == 1));
         ++seen; parts += isPart;
     }
-    CHECK(parts == 21);
+    CHECK(parts == 23);
     CHECK(seen == int(reg.registered_types().size()));
 }
 
@@ -9965,18 +9967,18 @@ static void run_review_gap_tests() {
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
           {"id":"ch1","type":"SoundChannel","inputs":{"source":"parts"},"params":{"volume":1.0,"pan":0.0}},
           {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
-        "'parts' is a FullPartials, a part, not a signal"));
+        "node 'ch1' (SoundChannel): 'source' does not accept a FullPartials, a part, not a signal"));
     // a channel as the output, and a channel whose source names no node
     CHECK(file_fails_naming("renders/scratch/_channel_as_output.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"ch1","nodes":[
           {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
           {"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}}]}})",
-        "mono-renderable"));
+        "'ch1' is a SoundChannel, a part, not a signal"));
     CHECK(file_fails_naming("renders/scratch/_channel_source_missing.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"ch1","type":"SoundChannel","inputs":{"source":"nowhere"},"params":{"volume":1.0,"pan":0.0}},
           {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
-        "No mono source for"));
+        "Unresolved node ref: nowhere"));
 }
 
 // A patch the standalone loader reads from the scratch folder, rendered for
@@ -10071,7 +10073,7 @@ static void run_channel_clock_tests() {
           {"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}},
           {"id":"ch2","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}},
           {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1","ch2"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
-        "name one source"));
+        "'osc' is reached from channel 'ch1' and from channel 'ch2'"));
 }
 
 // Whether a mixer signal is a constant of `v` (prepared, not yet rendered:
@@ -10156,7 +10158,8 @@ static void run_review_gap_lifecycle_tests() {
 
 // The one classification, declared where a type is registered: every type's
 // family, label and shelf (the families table in docs/architecture/part3-nodes.md;
-// the shelf is today's menu — everything not in a main family menu is Experimental), the label
+// the shelf is today's menu — everything not in a main family menu is Experimental,
+// and a type the host makes by an item of its own is on no shelf), the label
 // derived from the type name where today's menu had none, the loading alias
 // still building its type, and labels unique within a family and shelf.
 struct FamilyRow { const char* name; Family family; const char* label; Shelf shelf; };
@@ -10236,6 +10239,9 @@ static const FamilyRow kFamilyTable[] = {
     {"NameGate", Family::Modulator, "Name Gate", Shelf::Experimental},
     {"StaticVarSource", Family::Utility, "Static Var", Shelf::Experimental},
     {"StaticRangeSource", Family::Utility, "Static Range", Shelf::Experimental},
+    {"PerformNode", Family::Modulator, "Note Field", Shelf::None},
+    {"SoundChannel", Family::Output, "Channel", Shelf::None},
+    {"StereoMixer", Family::Output, "Mixer", Shelf::None},
 };
 
 // The registry refuses a name it does not know, naming it; label() and shelf()
@@ -10251,7 +10257,7 @@ static void run_registry_family_tests() {
     std::printf("the registry: families, labels, shelves\n");
     register_all_sources();
     auto& reg = SourceRegistry::instance();
-    int main = 0, experimental = 0;
+    int main = 0, experimental = 0, none = 0;
     for (const auto& row : kFamilyTable) {
         const TypeTag* tag = reg.find(row.name);
         if (!tag) { std::printf("  in kFamilyTable but not registered: %s\n", row.name); CHECK(tag != nullptr); continue; }
@@ -10261,9 +10267,9 @@ static void run_registry_family_tests() {
         CHECK(tag->family == row.family);
         CHECK(label == row.label);
         CHECK(tag->shelf == row.shelf);
-        (row.shelf == Shelf::Main ? main : experimental)++;
+        (row.shelf == Shelf::Main ? main : row.shelf == Shelf::Experimental ? experimental : none)++;
     }
-    CHECK(main == 53 && experimental == 22);
+    CHECK(main == 53 && experimental == 22 && none == 3);
     for (const auto& e : reg.registered_types()) {                             // every registered type is in the table
         bool inTable = false;
         for (const auto& row : kFamilyTable) inTable = inTable || e.name == row.name;
@@ -10285,7 +10291,7 @@ static void run_registry_family_tests() {
     // labels are non-empty and unique within a family and shelf; types_in walks every type once
     int walked = 0;
     for (Family f : kFamilyOrder)
-        for (Shelf s : {Shelf::Main, Shelf::Experimental}) {
+        for (Shelf s : {Shelf::Main, Shelf::Experimental, Shelf::None}) {
             std::set<std::string> labels;
             for (const auto& e : reg.types_in(f, s)) {
                 CHECK(e.tag.family == f);
@@ -10294,7 +10300,7 @@ static void run_registry_family_tests() {
                 ++walked;
             }
         }
-    CHECK(walked == 75);
+    CHECK(walked == 78);
     CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
           && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
     CHECK(reg.find("NoSuchType") == nullptr && reg.find("SineSource") != nullptr);
@@ -10349,6 +10355,37 @@ static void run_menu_content_tests() {
     // a family with nothing on a shelf draws nothing: no placeholder
     CHECK(reg.types_in(Family::Oscillator, Shelf::Experimental).empty());
     CHECK(reg.types_in(Family::Additive, Shelf::Experimental).empty());
+}
+
+// The third shelf: the three types a host makes by an item of its own sit on
+// no generated menu's shelf. Main and Experimental hold exactly the 75 types
+// they held; Output's two and the note field are on None alone.
+static void run_registry_shelf_none_tests() {
+    std::printf("the registry: the types no generated menu offers\n");
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    const std::set<std::string> none = {"PerformNode", "SoundChannel", "StereoMixer"};
+    int shelved = 0;
+    for (Family f : kFamilyOrder)
+        for (Shelf s : {Shelf::Main, Shelf::Experimental})
+            for (const auto& e : reg.types_in(f, s)) {
+                CHECK(none.count(e.name) == 0);
+                ++shelved;
+            }
+    CHECK(shelved == 75);
+    auto names = [&](Family f, Shelf s) {
+        std::vector<std::string> out;
+        for (const auto& e : reg.types_in(f, s)) out.push_back(e.name);
+        return out;
+    };
+    CHECK((names(Family::Output, Shelf::None) == std::vector<std::string>{"SoundChannel", "StereoMixer"}));
+    CHECK((names(Family::Modulator, Shelf::None) == std::vector<std::string>{"PerformNode"}));
+    CHECK(names(Family::Output, Shelf::Main).empty() && names(Family::Output, Shelf::Experimental).empty());
+    int onNone = 0;
+    for (Family f : kFamilyOrder) onNone += int(names(f, Shelf::None).size());
+    CHECK(onNone == 3);
+    CHECK(std::string(family_name(Family::Output)) == "Output");
+    CHECK(kFamilyOrder[kFamilyCount - 1] == Family::Output);
 }
 
 // The twins of the nodes that declare what the loader read. Each case is
@@ -11632,6 +11669,466 @@ static void run_branch_key_tests() {
     CHECK(loads_both(node("SegmentSource", R"({"values":[0.0,1.0],"oneShot":true})")));
 }
 
+// The plain sounds the build of the two output parts is compared on. Each is
+// written in both forms: the parts' feeds in the node-level `inputs` block
+// (the old form) and in `params` as {"ref": id} (the new). Their stereo
+// output's 64-bit FNV-1a under the base's loader is held as a literal.
+namespace plain_parts {
+// One channel: its id, the id of the node its source holds, and the params
+// beside the source (null: no params).
+struct Chan { std::string id, source; nlohmann::json params; };
+struct Case { const char* name; nlohmann::json signals; std::vector<Chan> chans; nlohmann::json mix; };
+static nlohmann::json node(const char* id, const char* type, nlohmann::json params) {
+    return nlohmann::json{{"id", id}, {"type", type}, {"params", std::move(params)}};
+}
+static nlohmann::json ref(const char* id) { return nlohmann::json{{"ref", id}}; }
+// A plain sound of 0.25 s at 48 kHz: the signals, each channel, then the
+// mixer `mix` (`mixParams` null: no params) as the output.
+static std::string sound(const nlohmann::json& signals, const std::vector<Chan>& chans,
+                         const nlohmann::json& mixParams, bool feeds) {
+    nlohmann::json nodes = signals;
+    nlohmann::json ids = nlohmann::json::array();
+    for (const auto& c : chans) {
+        nlohmann::json n = {{"id", c.id}, {"type", "SoundChannel"}};
+        nlohmann::json p = c.params.is_null() ? nlohmann::json::object() : c.params;
+        if (feeds) p["source"] = nlohmann::json{{"ref", c.source}};
+        else n["inputs"] = nlohmann::json{{"source", c.source}};
+        if (!p.empty()) n["params"] = p;
+        nodes.push_back(n);
+        ids.push_back(feeds ? nlohmann::json{{"ref", c.id}} : nlohmann::json(c.id));
+    }
+    nlohmann::json m = {{"id", "mix"}, {"type", "StereoMixer"}};
+    nlohmann::json mp = mixParams.is_null() ? nlohmann::json::object() : mixParams;
+    if (feeds) mp["channels"] = ids;
+    else m["inputs"] = nlohmann::json{{"channels", ids}};
+    if (!mp.empty()) m["params"] = mp;
+    nodes.push_back(m);
+    return nlohmann::json{{"sampleRate", 48000}, {"seconds", 0.25},
+                          {"graph", {{"output", "mix"}, {"nodes", nodes}}}}.dump();
+}
+static std::vector<Case> cases() {
+    const auto osc   = node("osc", "SineSource", {{"frequency", 220.0}, {"amplitude", 0.5}});
+    const auto saw   = node("saw", "SawSource", {{"frequency", 330.0}, {"amplitude", 0.4}});
+    const auto tri   = node("tri", "TriangleSource", {{"frequency", 440.0}, {"amplitude", 0.3}});
+    const auto noise = node("noise", "WhiteNoiseSource", {{"amplitude", 0.2}, {"seed", 12345}});
+    const auto lfo   = node("lfo", "SineSource", {{"frequency", 3.0}, {"amplitude", 0.4}});
+    using J = nlohmann::json;
+    return {
+        {"one channel, all four numbers", J::array({osc}), {{"ch1", "osc", {{"volume", 0.7}, {"pan", -0.3}}}},
+         {{"gainL", 0.9}, {"gainR", 0.8}}},
+        {"no params on either part", J::array({osc}), {{"ch1", "osc", J()}}, J()},
+        {"two channels", J::array({osc, noise}),
+         {{"chA", "osc", {{"volume", 0.3}, {"pan", -0.7}}}, {"chB", "noise", {{"volume", 0.9}, {"pan", 0.4}}}},
+         {{"gainL", 0.8}, {"gainR", 0.6}}},
+        {"three channels", J::array({osc, saw, tri}),
+         {{"chA", "osc", {{"volume", 0.6}, {"pan", -0.5}}}, {"chB", "saw", {{"volume", 0.7}, {"pan", 0.5}}}, {"chC", "tri", J()}},
+         {{"gainL", 0.9}, {"gainR", 0.7}}},
+        {"volume wired", J::array({lfo, osc}), {{"ch1", "osc", {{"volume", ref("lfo")}, {"pan", 0.2}}}},
+         {{"gainL", 1.0}, {"gainR", 1.0}}},
+        {"pan wired", J::array({lfo, osc}), {{"ch1", "osc", {{"volume", 0.8}, {"pan", ref("lfo")}}}},
+         {{"gainL", 1.0}, {"gainR", 1.0}}},
+        {"gainL wired", J::array({lfo, osc}), {{"ch1", "osc", {{"volume", 0.8}, {"pan", 0.0}}}},
+         {{"gainL", ref("lfo")}, {"gainR", 0.7}}},
+    };
+}
+// The FNV-1a of a sound's stereo render; 0 when the load or the render throws.
+static uint64_t render_hash(const std::string& text) {
+    std::vector<float> buf;
+    if (!render_scratch_patch("renders/scratch/_plain_parts.json", text, buf)) return 0;
+    return node_twins::fnv(buf);
+}
+}
+
+#include "mforce/source/output/sound_channel.h"
+#include "mforce/source/output/stereo_mixer.h"
+#include "mforce/source/modulator/perform_node.h"
+#include <algorithm>
+#include <cctype>
+
+// The two output parts as declared: each pin with its default, and the
+// wiring door — a mixer's channels take a SoundChannel and nothing else, a
+// channel's source a signal and nothing else.
+static void run_output_part_tests() {
+    std::printf("the output parts: their pins and the wiring door\n");
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    auto ch = reg.has("SoundChannel") ? std::dynamic_pointer_cast<SoundChannel>(reg.create("SoundChannel")) : nullptr;
+    auto mix = reg.has("StereoMixer") ? std::dynamic_pointer_cast<StereoMixer>(reg.create("StereoMixer")) : nullptr;
+    CHECK(ch != nullptr && mix != nullptr);
+    if (!ch || !mix) return;
+    CHECK(dynamic_cast<ValueSource*>(static_cast<Component*>(ch.get())) == nullptr);   // neither is a signal
+    CHECK(dynamic_cast<ValueSource*>(static_cast<Component*>(mix.get())) == nullptr);
+    auto param_is = [](const ParamDescriptor& d, const char* name, float def, float mn, float mx) {
+        return std::string(d.name) == name && d.default_value == def && d.min_value == mn && d.max_value == mx;
+    };
+    const auto chParams = ch->param_descriptors();
+    CHECK(chParams.size() == 2 && param_is(chParams[0], "volume", 1.0f, 0.0f, 4.0f) && param_is(chParams[1], "pan", 0.0f, -1.0f, 1.0f));
+    const auto chInputs = ch->input_descriptors();
+    CHECK(chInputs.size() == 1 && std::string(chInputs[0].name) == "source" && !chInputs[0].multi && !chInputs[0].slot);
+    const auto mixParams = mix->param_descriptors();
+    CHECK(mixParams.size() == 2 && param_is(mixParams[0], "gainL", 1.0f, 0.0f, 4.0f) && param_is(mixParams[1], "gainR", 1.0f, 0.0f, 4.0f));
+    const auto mixInputs = mix->input_descriptors();
+    CHECK(mixInputs.size() == 1 && std::string(mixInputs[0].name) == "channels" && mixInputs[0].multi && mixInputs[0].slot
+          && mixInputs[0].hint && std::string(mixInputs[0].hint) == "a SoundChannel");
+    CHECK(ch->setting_descriptors().empty() && ch->array_descriptors().empty());
+    CHECK(mix->setting_descriptors().empty() && mix->array_descriptors().empty());
+    // channels: a channel by set_param, a second appended, a signal and another part refused
+    auto ch2 = std::make_shared<SoundChannel>();
+    auto sine = std::make_shared<SineSource>();
+    auto peaks = std::make_shared<FormantPeaks>();
+    CHECK(mix->set_param("channels", ch));
+    CHECK(mix->add_param("channels", ch2));
+    auto holds_both = [&] {
+        return mix->channels.views.size() == 2 && mix->channels.views[0] == ch.get() && mix->channels.views[1] == ch2.get();
+    };
+    CHECK(holds_both());
+    CHECK(!mix->set_param("channels", sine) && holds_both());
+    CHECK(!mix->add_param("channels", sine) && holds_both());
+    CHECK(!mix->add_param("channels", peaks) && holds_both());
+    // source: a signal taken, a part refused
+    CHECK(ch->set_param("source", sine) && ch->source.source == sine);
+    CHECK(!ch->set_param("source", peaks) && ch->source.source == sine);
+}
+
+namespace plain_parts {
+// The standalone loader's refusal of a patch file, whole; empty when it loads.
+static std::string file_refusal(const char* path, const std::string& text) {
+    ScratchPatch file(path, text);
+    try { (void)load_patch_file(file.path); }
+    catch (const std::exception& e) { return e.what(); }
+    return {};
+}
+// The mixer the standalone loader builds from a patch file; null, with the
+// refusal printed, when the load throws.
+static std::unique_ptr<Mixer> built_mixer(const std::string& text) {
+    ScratchPatch file("renders/scratch/_plain_built.json", text);
+    try { return std::move(load_patch_file(file.path).mixer); }
+    catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
+    return nullptr;
+}
+// The same sound with the mixer's channel list reversed, the file's node order kept.
+static std::string reversed_channels(const std::string& text) {
+    auto doc = nlohmann::json::parse(text);
+    for (auto& n : doc["graph"]["nodes"]) {
+        if (n["type"] != "StereoMixer") continue;
+        auto& list = n.contains("inputs") ? n["inputs"]["channels"] : n["params"]["channels"];
+        std::reverse(list.begin(), list.end());
+    }
+    return doc.dump();
+}
+}
+
+// The twin: each plain sound in both forms renders the base's bytes.
+static void run_plain_part_twin_tests() {
+    using namespace plain_parts;
+    std::printf("the plain-sound build: both forms against the base's render\n");
+    // The base's loader on the old form (the hashes printed before the build changed).
+    const uint64_t kBase[] = {
+        0xbd803f232d11c7d6ull,   // one channel, all four numbers
+        0x428f79ca36025021ull,   // no params on either part
+        0x6a4b98ef60321f25ull,   // two channels
+        0x6da350faa0c174a3ull,   // three channels
+        0x8f96948dd16fb3c3ull,   // volume wired
+        0xbe932bc542335611ull,   // pan wired
+        0x94a4b14bfce0b145ull,   // gainL wired
+    };
+    const auto all = cases();
+    CHECK(all.size() == std::size(kBase));
+    for (size_t k = 0; k < all.size() && k < std::size(kBase); ++k)
+        for (bool feeds : {false, true}) {
+            const uint64_t h = render_hash(sound(all[k].signals, all[k].chans, all[k].mix, feeds));
+            if (h != kBase[k]) std::printf("  %s (%s): 0x%016llx\n", all[k].name, feeds ? "params" : "inputs", (unsigned long long)h);
+            CHECK(h == kBase[k]);
+        }
+}
+
+// What the build reads from the parts: the channels in the mixer's order, a
+// number on a pin as given, a pin the file leaves out at its declared
+// constant; an empty channel list renders silence.
+static void run_plain_part_build_tests() {
+    using namespace plain_parts;
+    std::printf("the plain-sound build: the channels' order, each pin's number or default\n");
+    const auto all = cases();
+    for (bool feeds : {false, true}) {
+        const auto three = sound(all[3].signals, all[3].chans, all[3].mix, feeds);
+        auto m = built_mixer(three);
+        CHECK(m && m->channels.size() == 3);
+        if (m && m->channels.size() == 3)
+            CHECK(is_constant_of(m->channels[0].volume, 0.6f) && is_constant_of(m->channels[1].volume, 0.7f)
+                  && is_constant_of(m->channels[2].volume, 1.0f) && is_constant_of(m->channels[0].pan, -0.5f)
+                  && is_constant_of(m->channels[1].pan, 0.5f) && is_constant_of(m->channels[2].pan, 0.0f)
+                  && is_constant_of(m->gainL, 0.9f) && is_constant_of(m->gainR, 0.7f));
+        auto r = built_mixer(reversed_channels(three));                        // the mixer's list, not the file's node order
+        CHECK(r && r->channels.size() == 3);
+        if (r && r->channels.size() == 3)
+            CHECK(is_constant_of(r->channels[0].volume, 1.0f) && is_constant_of(r->channels[1].volume, 0.7f)
+                  && is_constant_of(r->channels[2].volume, 0.6f));
+        auto bare = built_mixer(sound(all[1].signals, all[1].chans, all[1].mix, feeds));
+        CHECK(bare && bare->channels.size() == 1);
+        if (bare && bare->channels.size() == 1)
+            CHECK(is_constant_of(bare->gainL, 1.0f) && is_constant_of(bare->gainR, 1.0f)
+                  && is_constant_of(bare->channels[0].volume, 1.0f) && is_constant_of(bare->channels[0].pan, 0.0f));
+        std::vector<float> buf;
+        CHECK(render_scratch_patch("renders/scratch/_plain_empty.json", sound(all[1].signals, {}, nlohmann::json(), feeds), buf));
+        bool silent = !buf.empty();
+        for (float s : buf) silent = silent && s == 0.0f;
+        CHECK(silent);
+    }
+}
+
+// An instrument may hold a mixer and a channel beside its voice: they are
+// built and play no part. A mixer as the instrument's output is a part where
+// a signal is required.
+static void run_instrument_holding_parts_tests() {
+    std::printf("the output parts in an instrument: built beside the voice, not its output\n");
+    const std::string head = R"({"sampleRate":48000,"instrument":{"polyphony":1},
+      "score":[{"note":60,"time":0,"duration":0.05}],"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":0.5}})";
+    std::vector<float> plain, inputsForm, paramsForm;
+    CHECK(render_scratch_patch("renders/scratch/_instrument_alone.json", head + "]}}", plain));
+    CHECK(render_scratch_patch("renders/scratch/_instrument_parts_inputs.json", head
+        + R"(,{"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":0.5,"pan":0.3}},)"
+        + R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":0.25,"gainR":0.5}}]}})", inputsForm));
+    CHECK(render_scratch_patch("renders/scratch/_instrument_parts_params.json", head
+        + R"(,{"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"volume":0.5,"pan":0.3}},)"
+        + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":0.25,"gainR":0.5}}]}})", paramsForm));
+    for (const auto* other : {&inputsForm, &paramsForm})
+        CHECK(!plain.empty() && plain.size() == other->size()
+              && std::memcmp(plain.data(), other->data(), plain.size() * sizeof(float)) == 0);
+    CHECK(load_fails_naming(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"mix","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
+      {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"}}},
+      {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})", "'mix' is a StereoMixer, a part, not a signal"));
+}
+
+// The plain sound's refusals, each with its sentence.
+static void run_plain_part_refusal_tests() {
+    using plain_parts::file_refusal;
+    std::printf("the plain-sound build: its refusals\n");
+    const std::string osc = R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}},)";
+    CHECK(file_refusal("renders/scratch/_plain_no_source.json", osc
+        + R"({"id":"ch1","type":"SoundChannel","params":{"volume":1.0}},
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})")
+          == "node 'ch1' (SoundChannel): 'source' is not wired; a channel the mixer lists needs a source");
+    for (const char* mixer : {R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"osc"}]}}]}})",
+                              R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["osc"]}}]}})"}) {
+        const std::string got = file_refusal("renders/scratch/_plain_signal_channel.json", osc + mixer);
+        CHECK(got == "node 'mix' (StereoMixer): 'channels' does not accept a SineSource; 'channels' takes a SoundChannel");
+    }
+    CHECK(file_fails_naming("renders/scratch/_plain_part_source.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"parts"}}},
+          {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})",
+        "node 'ch1' (SoundChannel): 'source' does not accept a FullPartials, a part, not a signal"));
+    CHECK(file_refusal("renders/scratch/_plain_source_nowhere.json", osc
+        + R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"nowhere"}}},
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})") == "Unresolved node ref: nowhere");
+    CHECK(file_refusal("renders/scratch/_plain_channel_output.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"ch1","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
+          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"}}}]}})") == "'ch1' is a SoundChannel, a part, not a signal");
+    CHECK(file_refusal("renders/scratch/_plain_channel_key.json", osc
+        + R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"bogus":1}},
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})") == "node 'ch1' (SoundChannel): unknown key 'bogus'");
+    CHECK(file_refusal("renders/scratch/_plain_mixer_key.json", osc
+        + R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"}}},
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"bogus":1}}]}})") == "node 'mix' (StereoMixer): unknown key 'bogus'");
+}
+
+// A node two of a plain sound's pull loops reach is refused, naming the node
+// and both loops in the mixer's channel order, the mixer's own loop last.
+static void run_plain_sharing_refusal_tests() {
+    using namespace plain_parts;
+    using J = nlohmann::json;
+    std::printf("the plain sound's pull loops: a node two loops reach is refused\n");
+    const std::string tail = ": each pulls its nodes on its own clock, so a node belongs to one";
+    struct Shared { const char* what; J signals; std::vector<Chan> chans; std::string sentence; };
+    const Shared cases[] = {
+        {"two channels on one source", J::array({node("osc", "SineSource", {{"frequency", 220.0}})}),
+         {{"ch1", "osc", J()}, {"ch2", "osc", J()}}, "'osc' is reached from channel 'ch1' and from channel 'ch2'" + tail},
+        {"one node two levels down", J::array({node("lfo", "SineSource", {{"frequency", 2.0}}),
+                                               node("mid", "SineSource", {{"frequency", 5.0}, {"amplitude", ref("lfo")}}),
+                                               node("srcA", "SineSource", {{"frequency", 220.0}, {"amplitude", ref("mid")}}),
+                                               node("srcB", "SawSource", {{"frequency", 330.0}, {"amplitude", ref("lfo")}})}),
+         {{"chA", "srcA", J()}, {"chB", "srcB", J()}}, "'lfo' is reached from channel 'chA' and from channel 'chB'" + tail},
+        {"a source and a pan on one node", J::array({node("X", "SineSource", {{"frequency", 0.5}}),
+                                                     node("src", "SineSource", {{"frequency", 220.0}, {"amplitude", ref("X")}})}),
+         {{"ch1", "src", {{"pan", ref("X")}}}}, "'X' is reached from channel 'ch1' and from the mixer's gains, volumes and pans" + tail},
+        {"through a list pin", J::array({node("s1", "SineSource", {{"frequency", 220.0}}), node("s2", "SawSource", {{"frequency", 330.0}}),
+                                         node("multi", "MultiSource", {{"source", J::array({ref("s1"), ref("s2")})}})}),
+         {{"chA", "multi", J()}, {"chB", "s2", J()}}, "'s2' is reached from channel 'chA' and from channel 'chB'" + tail},
+    };
+    for (const auto& c : cases)
+        for (bool feeds : {false, true}) {
+            const std::string got = file_refusal("renders/scratch/_plain_shared.json", sound(c.signals, c.chans, J(), feeds));
+            if (got != c.sentence) std::printf("  %s (%s): %s\n", c.what, feeds ? "params" : "inputs", got.c_str());
+            CHECK(got == c.sentence);
+        }
+    // the loops in the mixer's channel order, not the file's node order
+    const auto& two = cases[0];
+    CHECK(file_refusal("renders/scratch/_plain_shared.json", reversed_channels(sound(two.signals, two.chans, J(), true)))
+          == "'osc' is reached from channel 'ch2' and from channel 'ch1'" + tail);
+    // a gain on a node a channel's source reads: the mixer's loop is named last
+    CHECK(file_refusal("renders/scratch/_plain_shared.json",
+                       sound(cases[2].signals, {{"ch1", "src", J()}}, J{{"gainL", ref("X")}}, true))
+          == "'X' is reached from channel 'ch1' and from the mixer's gains, volumes and pans" + tail);
+}
+
+// What the walk must let through: separate sources, a pin with a node of its
+// own, and a tap across two channels (a tap pulls nothing).
+static void run_plain_sharing_load_tests() {
+    using namespace plain_parts;
+    using J = nlohmann::json;
+    std::printf("the plain sound's pull loops: what loads\n");
+    const auto all = cases();
+    const J tapAcross = J::array({node("oscA", "SineSource", {{"frequency", 220.0}, {"amplitude", 0.4}}),
+                                  node("oscB", "SawSource", {{"frequency", 330.0}, {"amplitude", 0.4}}),
+                                  node("comb", "CombinedSource", {{"operation", 0}, {"gainAdj", 0.0}, {"source1", ref("oscA")},
+                                                                  {"source2", J{{"tap", "oscB"}}}})});
+    const std::string texts[] = {
+        sound(all[2].signals, all[2].chans, all[2].mix, false), sound(all[2].signals, all[2].chans, all[2].mix, true),
+        sound(all[5].signals, all[5].chans, all[5].mix, false), sound(all[5].signals, all[5].chans, all[5].mix, true),
+        sound(tapAcross, {{"chA", "comb", J()}, {"chB", "oscB", J()}}, J(), false),
+        sound(tapAcross, {{"chA", "comb", J()}, {"chB", "oscB", J()}}, J(), true),
+    };
+    for (const auto& t : texts) {
+        std::vector<float> buf;
+        CHECK(render_scratch_patch("renders/scratch/_plain_loads.json", t, buf));
+        bool sound_ = false;
+        for (float s : buf) sound_ = sound_ || s != 0.0f;
+        CHECK(sound_);
+    }
+}
+
+// Which of the voice's six adapters a PerformNode `f` loads as: its index in
+// the labels' order, -1 for none, -2 with the refusal when the load throws.
+static int perform_field_of(const nlohmann::json& perfNode, std::string& refusal) {
+    using J = nlohmann::json;
+    const J osc = {{"id", "osc"}, {"type", "SineSource"}, {"params", J{{"frequency", J{{"ref", "f"}}}}}};
+    const J doc = {{"sampleRate", 48000}, {"instrument", J{{"polyphony", 1}}},
+                   {"graph", J{{"output", "osc"}, {"nodes", J::array({perfNode, osc})}}}};
+    try {
+        auto ip = load_instrument_patch_json(doc.dump());
+        const auto& v = ip.instrument->voicePool[0];
+        const Component* f = v.nodesById.at("f").get();
+        const Component* six[] = {v.freqOut.get(), v.velOut.get(), v.wheelOut.get(),
+                                  v.pressOut.get(), v.durOut.get(), v.onsetOut.get()};
+        for (int k = 0; k < 6; ++k)
+            if (f == six[k]) return k;
+        return -1;
+    }
+    catch (const std::exception& e) { refusal = e.what(); }
+    return -2;
+}
+
+// A PerformNode's field is read against the type's declared labels: a label
+// in any case, an index, absent as the first; the adapter is the voice's own.
+static void run_perform_node_field_tests() {
+    using J = nlohmann::json;
+    std::printf("PerformNode: the field against its declared labels\n");
+    auto field_node = [](const J& v) { return J{{"id", "f"}, {"type", "PerformNode"}, {"params", J{{"field", v}}}}; };
+    std::string refusal;
+    for (int k = 0; k < 6; ++k) {
+        const std::string label = PerformNode::kFieldLabels[k];
+        std::string upper = label;
+        for (auto& c : upper) c = char(std::toupper(static_cast<unsigned char>(c)));
+        CHECK(perform_field_of(field_node(label), refusal) == k);
+        CHECK(perform_field_of(field_node(upper), refusal) == k);
+        CHECK(perform_field_of(field_node(k), refusal) == k);
+    }
+    CHECK(perform_field_of(J{{"id", "f"}, {"type", "PerformNode"}}, refusal) == 0);
+    CHECK(perform_field_of(J{{"id", "f"}, {"type", "PerformNode"}, {"params", J::object()}}, refusal) == 0);
+    for (const J& bad : {J("bogus"), J(6), J(2.5), J(true)}) {
+        refusal.clear();
+        CHECK(perform_field_of(field_node(bad), refusal) == -2);
+        const std::string want = "PerformNode 'f': unknown field " + bad.dump()
+                               + " (expected frequency|velocity|wheel|pressure|duration|onset)";
+        if (refusal != want) std::printf("  %s: %s\n", bad.dump().c_str(), refusal.c_str());
+        CHECK(refusal == want);
+    }
+    // the bend check reads the field the same way: an index loads beside a node that reads frequency once
+    bool loaded = true;
+    try {
+        (void)load_instrument_patch_json(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"ks","nodes":[
+          {"id":"f","type":"PerformNode","params":{"field":0}},
+          {"id":"ks","type":"KSString","params":{"frequency":{"ref":"f"}}}]}})");
+    } catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); loaded = false; }
+    CHECK(loaded);
+    CHECK(file_fails_naming("renders/scratch/_plain_perform.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"osc","nodes":[
+          {"id":"f","type":"PerformNode","params":{"field":"velocity"}},
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"f"}}}]}})", "no voice context"));
+}
+
+// The registered type: a Generator with one enum setting, the six labels.
+static void run_perform_node_type_tests() {
+    std::printf("PerformNode: the registered declaration\n");
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    auto n = reg.has("PerformNode") ? reg.create("PerformNode") : nullptr;
+    CHECK(std::dynamic_pointer_cast<Generator>(n) != nullptr);
+    if (!n) return;
+    const auto settings = n->setting_descriptors();
+    CHECK(settings.size() == 1);
+    if (settings.size() == 1) {
+        const auto& d = settings[0];
+        CHECK(std::string(d.name) == "field" && d.type == SettingType::Int && d.default_value == 0.0f
+              && d.min_value == 0.0f && d.max_value == 5.0f && d.enum_labels != nullptr);
+        const char* want[] = {"frequency", "velocity", "wheel", "pressure", "duration", "onset"};
+        bool same = d.enum_labels != nullptr;
+        for (int k = 0; same && k < 6; ++k) same = d.enum_labels[k] && std::string(d.enum_labels[k]) == want[k];
+        CHECK(same && d.enum_labels[6] == nullptr);
+    }
+    CHECK(n->param_descriptors().empty() && n->input_descriptors().empty() && n->array_descriptors().empty());
+    PerformNode p;
+    CHECK(p.compute() == 0.0f);
+}
+
+// The preset form's curve keys: a label of the stage type, in any case, reads
+// as its index; Hold, any other word and an index outside 0 to 3 are refused.
+static void run_preset_curve_label_tests() {
+    using J = nlohmann::json;
+    std::printf("the preset form: a curve key as a label or as its index\n");
+    auto columns = [](const J& p) {
+        std::vector<std::vector<float>> out;
+        try {
+            auto env = envelope_from_preset_json(p);
+            for (const auto& d : env->array_descriptors())
+                if (d.groupName && std::string_view(d.groupName) == "stages") out.push_back(env->get_array(d.name));
+        } catch (const std::exception& e) { std::printf("  %s: %s\n", p.dump().c_str(), e.what()); }
+        return out;
+    };
+    struct Preset { const char* name; std::vector<std::string> keys; };
+    const Preset presets[] = {{"ar", {"attack", "release"}}, {"as", {"attack"}}, {"asr", {"attack", "release"}},
+                              {"ads", {"attack", "decay"}}, {"adr", {"attack", "decay", "release"}},
+                              {"adsr", {"attack", "decay", "release"}}};
+    for (const auto& pr : presets)
+        for (const auto& key : pr.keys)
+            for (int i = 0; i < 4; ++i) {
+                const std::string label = Envelope::kStageTypeLabels[i];
+                std::string lower = label;
+                for (auto& c : lower) c = char(std::tolower(static_cast<unsigned char>(c)));
+                auto with = [&](const J& v) { return J{{"preset", pr.name}, {key + "Curve", v}, {key + "Power", 0.5}}; };
+                const auto byIndex = columns(with(i));
+                CHECK(byIndex.size() == 8);
+                CHECK(columns(with(label)) == byIndex);
+                CHECK(columns(with(lower)) == byIndex);
+            }
+    CHECK(columns(J{{"preset", "ar"}, {"attackCurve", "Expo"}}) != columns(J{{"preset", "ar"}, {"attackCurve", "Linear"}}));
+    auto refusal = [](const J& v) {
+        try { (void)envelope_from_preset_json(J{{"preset", "ar"}, {"attackCurve", v}}); }
+        catch (const std::exception& e) { return std::string(e.what()); }
+        return std::string();
+    };
+    for (const char* word : {"Hold", "bogus"})
+        CHECK(refusal(word) == "envelope preset: attackCurve is \"" + std::string(word)
+                               + "\"; a curve is Linear, Expo, InverseExpo or Sine, or its index 0 to 3");
+    CHECK(refusal(4).find("attackCurve is 4; a curve is 0 (Linear)") != std::string::npos);
+    CHECK(refusal(-1).find("attackCurve is -1; a curve is 0 (Linear)") != std::string::npos);
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -11664,11 +12161,22 @@ int main() {
     run_component_root_tests();
     run_target_evolution_registry_tests();
     run_registry_family_tests();   // before the lifecycle test registers its probe
+    run_registry_shelf_none_tests();
     run_menu_content_tests();
     run_review_gap_tests();
     run_channel_source_tests();
     run_channel_clock_tests();
     run_instrument_mixer_unity_tests();
+    run_output_part_tests();
+    run_plain_part_twin_tests();
+    run_plain_part_build_tests();
+    run_instrument_holding_parts_tests();
+    run_plain_part_refusal_tests();
+    run_plain_sharing_refusal_tests();
+    run_plain_sharing_load_tests();
+    run_perform_node_field_tests();
+    run_perform_node_type_tests();
+    run_preset_curve_label_tests();
     run_review_gap_lifecycle_tests();
     run_enum_column_tests();       // after the registry's tests: it registers its probe
     run_string_setting_tests();

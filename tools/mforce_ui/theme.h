@@ -30,6 +30,7 @@ inline constexpr Theme kDefaultTheme = {
         IM_COL32(95, 165, 150, 255),    // Modulator   — greenish teal
         IM_COL32(95, 165, 150, 255),    // Combiner    — greenish teal
         IM_COL32(128, 128, 128, 255),   // Utility     — grey
+        IM_COL32(120, 130, 145, 255),   // Output      — blue grey, as .output
     },
     .output        = IM_COL32(120, 130, 145, 255),   // blue grey
     .parameter     = IM_COL32(190, 140, 170, 255),   // pink

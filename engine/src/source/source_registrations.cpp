@@ -1,5 +1,8 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/source/modulator/name_gate.h"
+#include "mforce/source/modulator/perform_node.h"
+#include "mforce/source/output/sound_channel.h"
+#include "mforce/source/output/stereo_mixer.h"
 #include <stdexcept>
 
 // All source types
@@ -426,6 +429,13 @@ void register_all_sources() {
         [](auto) { return std::make_shared<NameGate>(); });
 
     // -----------------------------------------------------------------------
+    // Modulators, on no shelf: the editor's Note node makes it
+    // -----------------------------------------------------------------------
+
+    reg.register_type("PerformNode", {.family = Family::Modulator, .label = "Note Field", .shelf = Shelf::None},
+        [](auto) { return std::make_shared<PerformNode>(); });
+
+    // -----------------------------------------------------------------------
     // Combiners
     // -----------------------------------------------------------------------
 
@@ -464,6 +474,16 @@ void register_all_sources() {
 
     reg.register_type("StaticRangeSource", {.family = Family::Utility, .shelf = Shelf::Experimental},
         [](auto seed) { return std::make_shared<StaticRangeSource>(seed.value_or(0x57A7'0002u)); });
+
+    // -----------------------------------------------------------------------
+    // Output: made by the host's own menu items
+    // -----------------------------------------------------------------------
+
+    reg.register_type("SoundChannel", {.family = Family::Output, .label = "Channel", .shelf = Shelf::None},
+        [](auto) { return std::make_shared<SoundChannel>(); });
+
+    reg.register_type("StereoMixer", {.family = Family::Output, .label = "Mixer", .shelf = Shelf::None},
+        [](auto) { return std::make_shared<StereoMixer>(); });
 
 }
 

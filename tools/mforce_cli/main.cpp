@@ -937,7 +937,19 @@ static int run_dump_descriptors(int argc, char** argv)
             e[key] = nlohmann::json::array();
         for (const auto& d : s->input_descriptors())  e["inputs"].push_back(d.name);
         for (const auto& d : s->param_descriptors())  e["params"].push_back(d.name);
-        for (const auto& d : s->array_descriptors())  e["arrays"].push_back(d.name);
+        // An enum setting and a column of indices carry their labels: every
+        // label up to the null, in index order.
+        auto labels_of = [](const char* const* labels) {
+            nlohmann::json l = nlohmann::json::array();
+            for (int i = 0; labels[i]; ++i) l.push_back(labels[i]);
+            return l;
+        };
+        nlohmann::json arrayLabels = nlohmann::json::object();
+        for (const auto& d : s->array_descriptors()) {
+            e["arrays"].push_back(d.name);
+            if (d.enum_labels) arrayLabels[d.name] = labels_of(d.enum_labels);
+        }
+        if (!arrayLabels.empty()) e["arrayLabels"] = std::move(arrayLabels);
         // Configs carry their type and enum-ness: a Float config is a value
         // that happens to be expensive to change, while a Bool/enum config is
         // structural and could never take a chain. The two are worth telling
@@ -954,6 +966,7 @@ static int run_dump_descriptors(int argc, char** argv)
                 {"min", d.min_value},
                 {"max", d.max_value},
             };
+            if (d.enum_labels) c["labels"] = labels_of(d.enum_labels);
             e["settings"].push_back(std::move(c));
         }
         out[name] = std::move(e);

@@ -12,9 +12,11 @@ namespace mforce {
 // patch loader and the UI graph loader so the two cannot drift. A builder
 // reads its layout's keys with the layout's defaults, lays the stages out
 // through the factory, then shapes each curved stage from its "<stage>Curve"
-// (0 Linear, 1 Expo, 2 InverseExpo, 3 Sine) and "<stage>Power" keys. Throws
-// on an unknown preset, a curve outside 0..3, and on key combinations that
-// would otherwise be silently dead knobs. The table form (the eight stage
+// and "<stage>Power" keys. A curve is one of the first four of
+// Envelope::kStageTypeLabels (Linear, Expo, InverseExpo, Sine), matched
+// ignoring ASCII case, or its index 0 to 3. Throws on an unknown preset, any
+// other curve, and on key combinations that would otherwise be silently dead
+// knobs. The table form (the eight stage
 // columns) is read by the generic array pass.
 
 namespace envelope_form {
@@ -22,6 +24,15 @@ namespace envelope_form {
 using nlohmann::json;
 
 inline RampType curve(const json& p, const std::string& key, int fallback) {
+  if (p.contains(key) && p.at(key).is_string()) {
+    const char* const curves[] = {Envelope::kStageTypeLabels[0], Envelope::kStageTypeLabels[1],
+                                  Envelope::kStageTypeLabels[2], Envelope::kStageTypeLabels[3], nullptr};
+    const int i = enum_index(curves, p.at(key).get<std::string>());
+    if (i < 0)
+      throw std::runtime_error("envelope preset: " + key + " is " + p.at(key).dump()
+                               + "; a curve is Linear, Expo, InverseExpo or Sine, or its index 0 to 3");
+    return RampType(i);
+  }
   const int v = p.value(key, fallback);
   if (v < 0 || v > 3)
     throw std::runtime_error("envelope preset: " + key + " is " + std::to_string(v)
