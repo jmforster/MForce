@@ -518,9 +518,9 @@ struct PitchedInstrument final : Instrument {
                                  std::move(glide), onsetId);
     // A dynamic pin HOLDS its line-start value: its node laid the line out
     // from it when the line started, and a setting changed mid-render would
-    // at best do nothing and at worst rewrite a stage that is playing. Pull
-    // chains (noteFaces curves) need no delivery: they read the new
-    // NoteState.
+    // at best do nothing and at worst rewrite a stage that is playing. A pull
+    // chain (a node reading a note field's adapter through an ordinary pin)
+    // needs no delivery: it reads the new NoteState.
     fire_triggers(vg);   // the onset gesture restarts from current value
   }
 

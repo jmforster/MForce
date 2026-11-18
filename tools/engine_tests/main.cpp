@@ -11983,6 +11983,43 @@ static void run_plain_sharing_load_tests() {
     }
 }
 
+// A Multiplex over a template plays copies of what its `source` reaches, so
+// no loop pulls the file's template nodes through it: two channels each a
+// Multiplex over one template load, and so does a template reading a node
+// another channel reads directly. A node a Multiplex's channel reaches beside
+// the Multiplex, through an ordinary pin, is refused as any shared node is.
+static void run_plain_sharing_multiplex_tests() {
+    using namespace plain_parts;
+    using J = nlohmann::json;
+    std::printf("the plain sound's pull loops: a Multiplex's template is not walked\n");
+    const std::string tail = ": each pulls its nodes on its own clock, so a node belongs to one";
+    const auto mux = [](const char* id, int count) {
+        return node(id, "MultiplexSource", {{"count", count}, {"source", ref("t")}});
+    };
+    const J lfo = node("lfo", "SineSource", {{"frequency", 2.0}, {"amplitude", 0.5}});
+    const J saw = node("b", "SawSource", {{"frequency", 330.0}, {"amplitude", ref("lfo")}});
+    const std::string texts[] = {
+        sound(J::array({node("t", "SineSource", {{"frequency", 220.0}, {"amplitude", 0.3}}), mux("m1", 2), mux("m2", 3)}),
+              {{"c1", "m1", J()}, {"c2", "m2", J()}}, J()),
+        sound(J::array({lfo, node("t", "SineSource", {{"frequency", 220.0}, {"amplitude", ref("lfo")}}), mux("m1", 2), saw}),
+              {{"c1", "m1", J()}, {"c2", "b", J()}}, J()),
+    };
+    for (const auto& t : texts) {
+        std::vector<float> buf;
+        CHECK(render_scratch_patch("renders/scratch/_plain_mux_loads.json", t, buf));
+        bool sound_ = false;
+        for (float s : buf) sound_ = sound_ || s != 0.0f;
+        CHECK(sound_);
+    }
+    const J comb = node("comb", "CombinedSource", {{"operation", 0}, {"gainAdj", 0.0}, {"source1", ref("m1")},
+                                                   {"source2", ref("lfo")}});
+    const std::string got = file_refusal("renders/scratch/_plain_mux_shared.json",
+        sound(J::array({lfo, node("t", "SineSource", {{"frequency", 220.0}}), mux("m1", 2), comb, saw}),
+              {{"c1", "comb", J()}, {"c2", "b", J()}}, J()));
+    if (got != "'lfo' is reached from channel 'c1' and from channel 'c2'" + tail) std::printf("  beside a Multiplex: %s\n", got.c_str());
+    CHECK(got == "'lfo' is reached from channel 'c1' and from channel 'c2'" + tail);
+}
+
 // The table's rows for a node's own keys and for the document's: each gives
 // its sentence at its place and nothing at another; a row with no type
 // answers for every type.
@@ -12233,6 +12270,7 @@ int main() {
     run_plain_part_refusal_tests();
     run_plain_sharing_refusal_tests();
     run_plain_sharing_load_tests();
+    run_plain_sharing_multiplex_tests();
     run_retired_spelling_table_tests();
     run_retired_spelling_load_tests();
     run_perform_node_field_tests();

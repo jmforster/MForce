@@ -221,22 +221,30 @@ class RefusalTests(unittest.TestCase):
     def test_a_node_with_no_id_is_named(self):
         self.refused({"operation": 9}, ["<no id>"], nid=None)
 
-    def test_a_table_without_labels_stops_a_node_that_holds_the_enum(self):
-        # The dump of a tool that prints "isEnum" and no labels.
+    def test_a_table_without_labels_stops_every_document_it_is_asked_for(self):
+        # The dump of a tool that prints "isEnum" and no labels: no
+        # "arrayLabels", and no PerformNode.
         stale = {"CombinedSource": {"params": [], "inputs": [], "arrays": [], "settings": [
-            {"name": "operation", "type": "int", "isEnum": True, "default": 0.0, "min": 0.0, "max": 3.0},
-            {"name": "gainAdj", "type": "float", "isEnum": False, "default": 0.0, "min": -1.0, "max": 10.0}]}}
-        for value in (1, "multiply", "Mix"):
-            doc = patch(node("CombinedSource", {"operation": value, "gainAdj": 0.5}))
+                     {"name": "operation", "type": "int", "isEnum": True, "default": 0.0, "min": 0.0, "max": 3.0},
+                     {"name": "gainAdj", "type": "float", "isEnum": False, "default": 0.0, "min": -1.0,
+                      "max": 10.0}]},
+                 "Envelope": {"params": ["minValue", "maxValue", "trigger"], "inputs": [],
+                              "arrays": ["startVal", "endVal", "power", "type", "percent", "minSec", "maxSec",
+                                         "nominal"], "settings": []}}
+        for doc in (patch(node("Envelope", {"type": [0, "expo"], "percent": [0.5, 0.5]})),
+                    patch(node("PerformNode", {"field": "Velocity"})),
+                    patch(node("CombinedSource", {"operation": 1, "gainAdj": 0.5}))):
             before = copy.deepcopy(doc)
             with self.assertRaises(RuntimeError) as cm:
                 enum_labels.apply(doc, [], Context(descriptors=stale))
             self.assertIn("CombinedSource.operation", str(cm.exception))
             self.assertIn("no labels", str(cm.exception))
             self.assertEqual(doc, before)
-        # A node that does not hold the enum is not stopped by it.
-        doc = patch(node("CombinedSource", {"gainAdj": 0.5}))
+        # A document the rule never asks the table for is untouched.
+        doc = patch(node("CombinedSource", {"source1": {"ref": "a"}, "on": True}))
+        before = copy.deepcopy(doc)
         self.assertEqual(enum_labels.apply(doc, [], Context(descriptors=stale)), Counter())
+        self.assertEqual(doc, before)
 
 
 class AskTests(unittest.TestCase):

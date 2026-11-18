@@ -9,7 +9,7 @@
 // this is the object they land in.
 struct Theme {
     ImU32 family[mforce::kFamilyCount];   // indexed by int(mforce::Family)
-    ImU32 output;          // the output, channel and mixer nodes
+    ImU32 output;          // the Output node (the Channel and the Mixer take the Output family's)
     ImU32 parameter;       // the parameter node
     ImU32 note;            // the note (performance) node
     ImU32 curve;           // the curve node: a transfer, drawn in its own dark gold

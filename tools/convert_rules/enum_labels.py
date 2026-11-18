@@ -22,11 +22,13 @@ string, or a list holding either.
 
 Refused, naming the node and the key, before anything in the document
 changes: a number that is not whole or not an index of the labels; a string
-that matches no label in any case. A table that marks a setting an enum and
-gives it no labels cannot say what the node's value means: a node holding
-that setting stops the file with a RuntimeError, which the driver reports as
-the file's refusal, so a table dumped by a tool that prints no labels leaves
-no enum silently unwritten.
+that matches no label in any case. A table in which any setting of any type
+is marked an enum and given no labels was dumped by an mforce_cli that
+prints no labels, and such a tool prints no "arrayLabels" and no PerformNode
+either: when the rule takes the table, that stops the file with a
+RuntimeError, which the driver reports as the file's refusal, whatever the
+document holds, so a stale table leaves no setting, column element or
+PerformNode field silently unwritten.
 """
 from collections import Counter
 
@@ -86,13 +88,8 @@ def plan(node, params, entry):
             writes.append((container, key, got[0], kind or got[1]))
 
     for s in entry.get("settings", []):
-        if s["name"] not in params:
-            continue
-        if "labels" in s:
+        if s["name"] in params and "labels" in s:
             check(params, s["name"], s["labels"], s["name"])
-        elif s.get("isEnum"):
-            raise RuntimeError("the descriptor table marks %s.%s an enum and gives it no labels: it was "
-                               "dumped by an mforce_cli that prints none (rebuild it)" % (ntype, s["name"]))
     for column, labels in entry.get("arrayLabels", {}).items():
         cells = params.get(column)
         if isinstance(cells, list):
@@ -110,15 +107,26 @@ def plan(node, params, entry):
     return writes
 
 
+def refuse_stale(desc):
+    """Stop on a table in which some setting is marked an enum and given no labels."""
+    for ntype, entry in desc.items():
+        for s in entry.get("settings", []):
+            if s.get("isEnum") and "labels" not in s:
+                raise RuntimeError("the descriptor table marks %s.%s an enum and gives it no labels: it was "
+                                   "dumped by an mforce_cli that prints none (rebuild it)" % (ntype, s["name"]))
+
+
 def apply(doc, notes, ctx):
     """The rule's entry point. Returns a Counter ("index" per number written
     as its label, "case" per label respelled, "preset curve" per preset
     curve key written as a label), empty when nothing changed. Every node is
     checked before any is written, so a refused document is unchanged. Asks
-    `ctx` for the descriptor table only when some node could need it."""
+    `ctx` for the descriptor table only when some node could need it, and
+    stops on a stale table there."""
     if not could_need(doc):
         return Counter()
     desc = ctx.descriptors()
+    refuse_stale(desc)
     writes = []
     for node in walk_nodes(doc):
         params = node.get("params")

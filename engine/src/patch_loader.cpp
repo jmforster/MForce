@@ -136,6 +136,28 @@ static std::shared_ptr<ValueSource> resolve_signal(
 }
 
 // ---------------------------------------------------------------------------
+// The feeds in a JSON value. An object of exactly one key, "ref" or "tap",
+// holding a string is a feed: `visit` is given its kind and the id it names.
+// Any other object and any array is walked into, so a feed given alone, in a
+// list or nested in an object is found.
+// ---------------------------------------------------------------------------
+enum class FeedKind { Ref, Tap };
+
+static void for_each_feed(const json& v, const std::function<void(FeedKind, const std::string&)>& visit)
+{
+    if (v.is_object()) {
+        if (v.size() == 1 && v.contains("ref") && v["ref"].is_string())
+            visit(FeedKind::Ref, v["ref"].get<std::string>());
+        else if (v.size() == 1 && v.contains("tap") && v["tap"].is_string())
+            visit(FeedKind::Tap, v["tap"].get<std::string>());
+        else
+            for (auto it = v.begin(); it != v.end(); ++it) for_each_feed(it.value(), visit);
+    } else if (v.is_array()) {
+        for (const auto& item : v) for_each_feed(item, visit);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Advance list (feedback_loop_design.md §3.3): a node consumed ONLY by tap
 // edges is never reached by the root pull — the loop tail would be silently
 // dead — so the voice pulls it once per sample after the root. Membership is
@@ -152,21 +174,12 @@ static std::vector<std::string> collect_advance_ids(
     const std::string& outputId)
 {
     std::unordered_set<std::string> normal, tapped;
-    std::function<void(const json&)> scan = [&](const json& v) {
-        if (v.is_object()) {
-            if (v.size() == 1 && v.contains("ref") && v["ref"].is_string())
-                normal.insert(v["ref"].get<std::string>());
-            else if (v.size() == 1 && v.contains("tap") && v["tap"].is_string())
-                tapped.insert(v["tap"].get<std::string>());
-            else
-                for (auto it = v.begin(); it != v.end(); ++it) scan(it.value());
-        } else if (v.is_array()) {
-            for (const auto& item : v) scan(item);
-        }
+    const auto count = [&](FeedKind kind, const std::string& id) {
+        (kind == FeedKind::Ref ? normal : tapped).insert(id);
     };
     for (const auto& id : nodeOrder) {
         const auto& node = nodeMap.at(id);
-        if (node.contains("params")) scan(node["params"]);
+        if (node.contains("params")) for_each_feed(node["params"], count);
     }
     std::vector<std::string> out;
     for (const auto& id : nodeOrder)
@@ -821,19 +834,10 @@ static json extract_subgraph_json(
         if (!nodeMap.count(id)) return;
         visited.insert(id);
         const auto& node = nodeMap.at(id);
-        if (node.contains("params")) {
-            std::function<void(const json&)> scanRefs = [&](const json& v) {
-                if (v.is_object()) {
-                    if (v.size() == 1 && v.contains("ref") && v["ref"].is_string())
-                        walk(v["ref"].get<std::string>());
-                    else
-                        for (auto it = v.begin(); it != v.end(); ++it) scanRefs(it.value());
-                } else if (v.is_array()) {
-                    for (const auto& item : v) scanRefs(item);
-                }
-            };
-            scanRefs(node["params"]);
-        }
+        if (node.contains("params"))
+            for_each_feed(node["params"], [&](FeedKind kind, const std::string& ref) {
+                if (kind == FeedKind::Ref) walk(ref);
+            });
         order.push_back(id);
     };
 
@@ -1055,7 +1059,11 @@ static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
 // roots reach through {"ref": id} values anywhere in a node's params, single
 // or in a list; a {"tap": id} reads its target's last value and pulls
 // nothing, so the walk does not follow it, and dynamicPins are not walked.
-// Each loop pulls its nodes on its own clock, so a node two loops reach fails
+// A MultiplexSource whose `source` holds a ref plays copies it builds of
+// everything that ref reaches (extract_subgraph_json) and never pulls the
+// file's nodes there, so at a MultiplexSource the walk does not follow the
+// refs under `source`; its other keys are followed as any node's. Each loop
+// pulls its nodes on its own clock, so a node two loops reach fails
 // the load: the first such node in the file's order, and the first two loops
 // that reach it in the order given (the mixer's channel order, its own loop
 // last).
@@ -1072,20 +1080,22 @@ static void refuse_shared_nodes(const std::unordered_map<std::string, json>& nod
     std::vector<std::unordered_set<std::string>> reached(loops.size());
     for (size_t k = 0; k < loops.size(); ++k) {
         std::vector<std::string> pending = loops[k].roots;
-        std::function<void(const json&)> refs = [&](const json& v) {
-            if (v.is_object() && v.size() == 1 && v.contains("ref") && v["ref"].is_string())
-                pending.push_back(v["ref"].get<std::string>());
-            else if (v.is_object())
-                for (auto it = v.begin(); it != v.end(); ++it) refs(it.value());
-            else if (v.is_array())
-                for (const auto& item : v) refs(item);
+        const auto refs = [&](FeedKind kind, const std::string& ref) {
+            if (kind == FeedKind::Ref) pending.push_back(ref);
         };
         while (!pending.empty()) {
             const std::string id = pending.back();
             pending.pop_back();
             if (!reached[k].insert(id).second) continue;
             auto it = nodeMap.find(id);
-            if (it != nodeMap.end() && it->second.contains("params")) refs(it->second["params"]);
+            if (it == nodeMap.end() || !it->second.contains("params")) continue;
+            const json& params = it->second["params"];
+            if (it->second.value("type", std::string()) != "MultiplexSource" || !params.is_object()) {
+                for_each_feed(params, refs);
+                continue;
+            }
+            for (auto p = params.begin(); p != params.end(); ++p)
+                if (p.key() != "source") for_each_feed(p.value(), refs);
         }
     }
     for (const auto& id : nodeOrder) {

@@ -34,6 +34,7 @@
 #include "mforce/source/envelope/envelope.h"      // needed for Envelope::make_adsr
 #include "mforce/source/envelope/envelope_json.h" // shared preset-form dispatch (both loaders)
 #include "mforce/source/modulator/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
+#include "mforce/source/modulator/perform_node.h"   // the Note field's labels
 #include "mforce/source/filter/shaper_source.h" // shape editor Shaper client probe
 #include "mforce/core/smoothness_interpolator.h"  // SegmentSource shape preview
 #include "mforce/source/additive/formant.h"
@@ -495,18 +496,14 @@ struct GraphNode {
         // shape (which stays one node per field, invisible here). Each
         // output pin's constantSrc is that field's preview stand-in.
         if (typeName == NT_PERFORM) {
-            outputs.emplace_back("frequency", UiPinKind::Output, 440.0f);
-            outputs.emplace_back("velocity",  UiPinKind::Output, 0.8f);
-            outputs.emplace_back("wheel",     UiPinKind::Output, 0.0f);
-            outputs.emplace_back("pressure",  UiPinKind::Output, 0.0f);
-            // Backlog 64 Tier 1: the note's length in SECONDS, known at
-            // note-on for score playback and fixed-duration live mode;
-            // the patch reacts via curves/dynamicPins like any field.
-            outputs.emplace_back("duration",  UiPinKind::Output, 1.0f);
-            // The note's interned onset id (spec 2026-09-20-note-onsets-v2
-            // §6/§8): 0 = none, 1.. = the instrument's
-            // onsets[] vocabulary. Held level, like velocity.
-            outputs.emplace_back("onset", UiPinKind::Output, 0.0f);
+            // One pin per label of PerformNode::kFieldLabels, in its order,
+            // each previewing: frequency 440, velocity 0.8, wheel and
+            // pressure at rest, duration (the note's length in seconds) 1,
+            // onset (the note's onset id; 0 is none) 0.
+            static constexpr float kPreview[] = {440.0f, 0.8f, 0.0f, 0.0f, 1.0f, 0.0f};
+            static_assert(std::size(kPreview) + 1 == std::size(PerformNode::kFieldLabels));
+            for (size_t f = 0; f < std::size(kPreview); ++f)
+                outputs.emplace_back(PerformNode::kFieldLabels[f], UiPinKind::Output, kPreview[f]);
             return;
         }
 
@@ -646,6 +643,9 @@ static nlohmann::json s_loadedSeconds = nlohmann::json();
 // The file's top-level comment, written back by the save as it came; the
 // editor shows it nowhere.
 static std::string s_loadedComment;
+// The GraphNode id of the node the file's graph.output named; -1 when the load
+// made no node under that id. A node-graph save with no Mixer writes it back.
+static int s_loadedOutputNode = -1;
 
 // Convert-graph stash (Edit > Convert to <type> graph). Converting a Patch
 // graph to a Node graph strips the instrument-level data the node graph
@@ -1186,6 +1186,7 @@ static void clear_graph_state() {
     s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
     s_loadedComment.clear();
+    s_loadedOutputNode = -1;
     s_loadedScoreAbsent = false;  // fresh graphs get the default score
     s_groups.clear();
     s_groupPath.clear();
@@ -1347,6 +1348,29 @@ static float enum_column_element(const std::string& id, const std::string& type,
                              + ") or an index into them");
 }
 
+// A PerformNode file node's `field`, read as the engine loader reads it: its
+// index in PerformNode::kFieldLabels for a label in any ASCII case or a whole
+// number inside the labels; 0 when the node gives none. Anything else fails
+// with the engine loader's sentence, the labels listed.
+static int perform_field_index(const std::string& id, const nlohmann::json& jnode) {
+    if (!jnode.contains("params") || !jnode["params"].is_object() || !jnode["params"].contains("field"))
+        return 0;
+    const auto& labels = PerformNode::kFieldLabels;
+    const nlohmann::json& v = jnode["params"]["field"];
+    const int count = int(std::size(labels)) - 1;
+    int index = -1;
+    if (v.is_string())
+        index = enum_index(labels, v.get<std::string>());
+    else if (v.is_number()) {
+        const double d = v.get<double>();
+        if (d >= 0.0 && d < double(count) && d == std::floor(d)) index = int(d);
+    }
+    if (index >= 0) return index;
+    std::string expected;
+    for (int k = 0; k < count; ++k) expected += std::string(k ? "|" : "") + labels[k];
+    throw std::runtime_error("PerformNode '" + id + "': unknown field " + v.dump() + " (expected " + expected + ")");
+}
+
 // A setting as both savers write it: a bool as a bool; an int with labels as
 // its label, or as the int when the index has none; any other int as the
 // int; a float as the float.
@@ -1428,6 +1452,8 @@ static void load_graph_from_path(const std::string& path) {
             };
             for (auto k = jnode.begin(); k != jnode.end(); ++k)
                 refuse("", mforce::retired_key_refusal(type, k.key(), mforce::RetiredAt::NodeKey));
+            // A PerformNode's field the engine refuses, refused with its sentence.
+            if (type == NT_PERFORM) (void)perform_field_index(id, jnode);
             if (!jnode.contains("params") || !jnode["params"].is_object()) continue;
             const auto feed_keys = [&](const std::string& pin, const json& feed) {
                 if (!feed.is_object() || !(feed.contains("ref") || feed.contains("tap"))) return;
@@ -1546,10 +1572,8 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
     std::unordered_map<std::string, std::string> perfFileComment;  // id -> comment
     for (const auto& jnode : nodes) {
         if (jnode.value("type", std::string()) != NT_PERFORM) continue;
-        std::string f = "frequency";
-        if (jnode.contains("params"))
-            f = jnode["params"].value("field", std::string("frequency"));
-        perfFileField[jnode["id"].get<std::string>()] = f;
+        const std::string pid = jnode["id"].get<std::string>();
+        perfFileField[pid] = PerformNode::kFieldLabels[perform_field_index(pid, jnode)];
         if (jnode.contains("comment") && jnode["comment"].is_string())
             perfFileComment[jnode["id"].get<std::string>()] = jnode["comment"].get<std::string>();
     }
@@ -1591,6 +1615,7 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
         // (__perf_freq -> _perf_freq). Renders are unaffected, but silently
         // renaming nodes the converter created makes later diffs unreadable.
         gn.synthesizedId = (id.rfind("__", 0) == 0);
+        if (id == outputId) s_loadedOutputNode = gn.id;
 
         // Dynamic pins ride ALONGSIDE params, not inside them — read here
         // rather than in the params block, since a node can carry dynamicPins
@@ -2945,11 +2970,15 @@ static void save_node_graph(const std::string& path) {
         nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName,
                                               node.synthesizedId);
 
-    // Find mixer for output
+    // The output: the Mixer (the last when there are several); with none, the
+    // node the file's graph.output named while it is in the graph; else none.
     std::string outputId;
     for (auto& node : s_nodes)
         if (node.typeName == NT_STEREO_MIXER)
             outputId = nodeIds[node.id];
+    if (outputId.empty())
+        for (auto& node : s_nodes)
+            if (node.id == s_loadedOutputNode) outputId = nodeIds[node.id];
 
     // Build nodes (topologically sorted)
     auto sorted = topo_sort();

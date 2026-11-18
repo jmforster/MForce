@@ -25,7 +25,7 @@ Same contract as the full gate: ids must not be lost or gain a non-"__" id,
 and the render must be byte-identical. Green here is NOT a substitute for the
 full gate before a commit — it is the check between edits.
 
-After the shapes, twenty-six cases, each on its own line and not counted
+After the shapes, twenty-nine cases, each on its own line and not counted
 among the shapes. Six fixtures written to the temp folder must be refused by
 mforce_ui --roundtrip, each with a non-zero exit, tools/convert_patch.py named
 in its output, and no file written: a patch carrying an instrument.paramMap
@@ -71,9 +71,19 @@ and the face comes back with that layout, positions holding no face label and
 no __output. comment: a patch's comment, a node's and a PerformNode file
 node's all come back.
 
+Three more. note-field: an instrument whose two PerformNodes give the velocity
+as "Velocity" and as 1 comes back with both nodes under their ids, each field
+written "velocity", and renders the original's bytes; a PerformNode whose
+field is "bogus" is refused with the engine's sentence and nothing written.
+bare-output: a plain sound whose output is a SineSource, with no channel and
+no mixer, comes back with that output and renders the original's bytes.
+plain-stream: mforce_ui --dump-stream on a plain sound of two channels on
+different oscillators at pans -1 and 1 exits 0 and writes a wav that is not
+silent and whose left and right differ.
+
 Usage: python tools/rt_smoke.py
 """
-import hashlib, json, subprocess, sys, tempfile
+import hashlib, json, struct, subprocess, sys, tempfile, wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -289,6 +299,36 @@ COMMENT_FIXTURE = dict(instrument_doc([
     {"id": "osc", "type": "SineSource", "comment": "the voice",
      "params": {"frequency": {"ref": "pf"}, "amplitude": 0.5}}], "osc"), comment="a patch's notes")
 
+# Two PerformNodes naming the velocity, one by a label in another case and one
+# by its index, each wired to a voice of its own; and one whose field is a word
+# no label answers to.
+NOTE_FIELD_FIXTURE = instrument_doc([
+    PERFORM_FREQUENCY,
+    {"id": "v1", "type": "PerformNode", "params": {"field": "Velocity"}},
+    {"id": "v2", "type": "PerformNode", "params": {"field": 1}},
+    {"id": "s1", "type": "SineSource", "params": {"frequency": {"ref": "pf"}, "amplitude": {"ref": "v1"}}},
+    {"id": "s2", "type": "SawSource", "params": {"frequency": {"ref": "pf"}, "amplitude": {"ref": "v2"}}},
+    {"id": "mix", "type": "MultiSource", "params": {"source": [{"ref": "s1"}, {"ref": "s2"}]}}], "mix")
+NOTE_FIELD_BOGUS = instrument_doc([
+    PERFORM_FREQUENCY,
+    {"id": "v1", "type": "PerformNode", "params": {"field": "bogus"}},
+    {"id": "osc", "type": "SineSource", "params": {"frequency": {"ref": "pf"}, "amplitude": {"ref": "v1"}}}], "osc")
+NOTE_FIELD_SENTENCE = ("PerformNode 'v1': unknown field \"bogus\" "
+                       "(expected frequency|velocity|wheel|pressure|duration|onset)")
+
+# A plain sound whose output is a bare signal: no channel, no mixer.
+BARE_OUTPUT_FIXTURE = plain_doc([
+    {"id": "tone", "type": "SineSource", "params": {"frequency": 220.0, "amplitude": 0.5}}], "tone")
+
+# A plain sound of two channels on different oscillators, panned hard left and
+# hard right.
+PLAIN_STREAM_FIXTURE = plain_doc([
+    {"id": "srcL", "type": "SineSource", "params": {"frequency": 220.0, "amplitude": 0.5}},
+    {"id": "srcR", "type": "SawSource", "params": {"frequency": 330.0, "amplitude": 0.3}},
+    {"id": "chL", "type": "SoundChannel", "params": {"source": {"ref": "srcL"}, "volume": 1.0, "pan": -1.0}},
+    {"id": "chR", "type": "SoundChannel", "params": {"source": {"ref": "srcR"}, "volume": 1.0, "pan": 1.0}},
+    {"id": "mix", "type": "StereoMixer", "params": {"channels": [{"ref": "chL"}, {"ref": "chR"}]}}], "mix")
+
 
 def roundtrip_doc(td, src, name):
     """Round-trip the file `src` into `td`; return (why it failed, the output
@@ -394,6 +434,62 @@ def comment_failures(td):
     perf = [n.get("comment") for n in doc["graph"]["nodes"] if n.get("type") == "PerformNode"]
     if perf != ["the note's pitch"]:
         why.append("the PerformNode comments are %s" % json.dumps(perf))
+    return why
+
+
+def note_field_failures(td):
+    """Round-trip NOTE_FIELD_FIXTURE; return why its two velocity nodes do not
+    come back under their ids, each with the field 'velocity', rendering the
+    original's bytes, or NOTE_FIELD_BOGUS is not refused with its sentence."""
+    src = Path(td) / "note_field.json"
+    src.write_text(json.dumps(NOTE_FIELD_FIXTURE), encoding="utf-8")
+    why, out, doc = roundtrip_doc(td, src, "note_field")
+    if not why:
+        for node_id in ("v1", "v2"):
+            got = (node_of(doc, node_id).get("params") or {}).get("field")
+            if got != "velocity":
+                why.append("%s's field is %s" % (node_id, json.dumps(got)))
+        why += same_render_failures(td, src, out, "note_field")[0]
+    return why + ["bogus: " + w for w in refusal_failures(td, NOTE_FIELD_BOGUS, "note_field_bogus",
+                                                          NOTE_FIELD_SENTENCE)]
+
+
+def bare_output_failures(td):
+    """Round-trip BARE_OUTPUT_FIXTURE; return why it does not come back with
+    its output and render the original's bytes."""
+    src = Path(td) / "bare_output.json"
+    src.write_text(json.dumps(BARE_OUTPUT_FIXTURE), encoding="utf-8")
+    why, out, doc = roundtrip_doc(td, src, "bare_output")
+    if why:
+        return why
+    if doc["graph"].get("output") != "tone":
+        why.append("the output is %s" % json.dumps(doc["graph"].get("output")))
+    return why + same_render_failures(td, src, out, "bare_output")[0]
+
+
+def plain_stream_failures(td):
+    """Dump the editor's stream of PLAIN_STREAM_FIXTURE for a second; return
+    why it did not exit 0 with a wav that is not silent and whose left and
+    right differ."""
+    src, wav = Path(td) / "plain_stream.json", Path(td) / "plain_stream.wav"
+    src.write_text(json.dumps(PLAIN_STREAM_FIXTURE), encoding="utf-8")
+    r = subprocess.run([str(UI), "--dump-stream", str(src), str(wav), "--secs", "1"],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    if r.returncode != 0:
+        return ["exit %d %s" % (r.returncode, r.stderr.strip()[:70])]
+    if not wav.exists():
+        return ["wrote nothing"]
+    with wave.open(str(wav), "rb") as w:
+        if w.getnchannels() != 2 or w.getsampwidth() != 2:
+            return ["not 16-bit stereo"]
+        frames = w.readframes(w.getnframes())
+    samples = struct.unpack("<%dh" % (len(frames) // 2), frames)
+    left, right = samples[0::2], samples[1::2]
+    why = []
+    if not any(samples):
+        why.append("silent")
+    elif left == right:
+        why.append("left and right are the same")
     return why
 
 
@@ -684,7 +780,10 @@ def main():
                            ("plain", lambda: plain_failures(td)),
                            ("two-channels", lambda: two_channels_failures(td)),
                            ("layout", lambda: layout_failures(td)),
-                           ("comment", lambda: comment_failures(td))):
+                           ("comment", lambda: comment_failures(td)),
+                           ("note-field", lambda: note_field_failures(td)),
+                           ("bare-output", lambda: bare_output_failures(td)),
+                           ("plain-stream", lambda: plain_stream_failures(td))):
             reasons = why()
             failed = failed or bool(reasons)
             print(f"{label:<16} " + (f"FAIL {', '.join(reasons)}" if reasons else "ok"))
