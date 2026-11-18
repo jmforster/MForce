@@ -9322,7 +9322,7 @@ static void run_enum_column_tests() {
             try { s = reg.create(e.name); } catch (const std::exception&) { skipped.push_back(e.name + " (the registry cannot build it alone)"); continue; }
             if (!s) { skipped.push_back(e.name + " (the registry cannot build it alone)"); continue; }
             for (const auto& d : s->setting_descriptors()) {
-                if (!d.enum_labels) continue;
+                if (!d.enum_labels || d.type == SettingType::String) continue;   // a string setting takes no label
                 for (int i = 0; d.enum_labels[i]; ++i) {
                     const float got = load_setting(e.name.c_str(), d.name, d.enum_labels[i]);
                     if (got != float(i)) std::printf("  %s.%s \"%s\": got %g, want %d\n", e.name.c_str(), d.name, d.enum_labels[i], got, i);
@@ -9334,6 +9334,289 @@ static void run_enum_column_tests() {
         std::printf("  enum labels walked: %d; skipped: %zu\n", walked, skipped.size());
         for (const auto& s : skipped) std::printf("  skipped: %s\n", s.c_str());
         CHECK(walked > 0);
+    }
+}
+
+// The three kinds on test-local nodes: a string setting, a list of signal
+// inputs, and a node's own check of itself. The registry builds each under a
+// name no patch uses; the loader cases reach them through the instrument
+// loader and the patch-file loader.
+namespace three_kinds {
+struct StringProbe final : Generator {
+    Setting<float> gain{this, "gain", 1.0f, 0.0f, 2.0f};
+    StringSetting label{this, "label", "x"};
+    std::vector<std::string> changed;                 // each name on_setting_changed saw, in order
+    static inline std::string lastLabel;              // the label after the last change, for a load whose node the test cannot reach
+    void on_setting_changed(std::string_view n) override { changed.emplace_back(n); lastLabel = label.value; }
+    float compute() override { return 0.0f; }
+    const char* type_name() const override { return "StringProbe"; }
+};
+struct ListProbe final : Generator {
+    InputList feeds{this, "feeds"};
+    int hooks{0};                                     // on_input_list_changed calls for "feeds"
+    void on_input_list_changed(std::string_view n) override { if (n == "feeds") ++hooks; }
+    float compute() override {
+        float sum = 0.0f;
+        for (const auto& f : feeds.sources) sum += f->current();
+        return sum;
+    }
+    const char* type_name() const override { return "ListProbe"; }
+};
+// Counts its prepares, starts and computes: a feed the owner's sweep must not reach.
+struct CountingFeed final : Generator {
+    int prepares{0}, starts{0}, nexts{0};
+    void on_prepare(const RenderContext&) override { ++prepares; }
+    void on_start(int) override { ++starts; }
+    float compute() override { ++nexts; return 1.0f; }
+    const char* type_name() const override { return "CountingFeed"; }
+};
+// Refuses itself when `refuse` is on, or when `refuseSeeded` is on and the
+// registry built it with a seed (a Multiplex clone always is); two warnings
+// when `warn` is on. Counts the calls of both.
+struct CheckProbe final : Generator {
+    Setting<bool> refuse{this, "refuse", false, false, true};
+    Setting<bool> refuseSeeded{this, "refuseSeeded", false, false, true};
+    Setting<bool> warn{this, "warn", false, false, true};
+    bool seeded{false};
+    static inline int validated{0}, warned{0};
+    std::string validate() const override {
+        ++validated;
+        return refuse.value || (refuseSeeded.value && seeded) ? "probe says no" : "";
+    }
+    std::vector<std::string> warnings() const override {
+        ++warned;
+        if (!warn.value) return {};
+        return {"probe warns once", "probe warns twice"};
+    }
+    float compute() override { return 0.0f; }
+    const char* type_name() const override { return "CheckProbe"; }
+};
+static void register_probes() {
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    const TypeTag tag{.family = Family::Utility, .shelf = Shelf::Experimental};
+    if (!reg.has("StringProbe")) reg.register_type("StringProbe", tag, [](auto) { return std::make_shared<StringProbe>(); });
+    if (!reg.has("ListProbe"))   reg.register_type("ListProbe", tag, [](auto) { return std::make_shared<ListProbe>(); });
+    if (!reg.has("CheckProbe"))
+        reg.register_type("CheckProbe", tag, [](std::optional<uint32_t> seed) {
+            auto p = std::make_shared<CheckProbe>();
+            p->seeded = seed.has_value();
+            return p;
+        });
+}
+// The one-node instrument document as a plain sound: no instrument block.
+static std::string plain(const std::string& instrumentDoc) {
+    auto doc = nlohmann::json::parse(instrumentDoc);
+    doc.erase("instrument");
+    doc["seconds"] = 0.05;
+    return doc.dump();
+}
+// Loads `text` through the patch-file loader (file) or the instrument loader.
+static void load(const std::string& text, bool file) {
+    if (!file) { (void)load_instrument_patch_json(text); return; }
+    ScratchPatch patch("renders/scratch/engine_tests_three_kinds.json", text);
+    (void)load_patch_file(patch.path);
+}
+// Whether the load of `text` is refused with every one of `needles`.
+static bool refused_naming(const std::string& text, bool file, std::initializer_list<const char*> needles) {
+    try { load(text, file); }
+    catch (const std::exception& e) {
+        const std::string msg = e.what();
+        bool all = true;
+        for (const char* n : needles) all = all && msg.find(n) != std::string::npos;
+        if (!all) std::printf("  refused for another reason: %s\n", msg.c_str());
+        return all;
+    }
+    std::printf("  loaded: %s\n", text.c_str());
+    return false;
+}
+static bool loads(const std::string& text, bool file) {
+    try { load(text, file); return true; }
+    catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
+}
+// A voice graph of three nodes: two sines `a` and `b` beside the node `n`.
+static std::string list_doc(const nlohmann::json& feeds, const char* extraType = nullptr) {
+    nlohmann::json nodes = nlohmann::json::array({
+        nlohmann::json{{"id", "a"}, {"type", "SineSource"}},
+        nlohmann::json{{"id", "b"}, {"type", "SineSource"}},
+        nlohmann::json{{"id", "n"}, {"type", "ListProbe"}, {"params", {{"feeds", feeds}}}}});
+    if (extraType) nodes.insert(nodes.begin(), nlohmann::json{{"id", "pk"}, {"type", extraType}});
+    return nlohmann::json{{"sampleRate", 48000}, {"instrument", {{"polyphony", 1}}},
+                          {"graph", {{"output", "a"}, {"nodes", nodes}}}}.dump();
+}
+}
+
+static void run_string_setting_tests() {
+    using namespace three_kinds;
+    std::printf("the string setting: by name, structural, untouched by the float door\n");
+    StringProbe p;
+    const auto sd = p.setting_descriptors();
+    CHECK(sd.size() == 2);
+    CHECK(std::string(sd[0].name) == "gain" && sd[0].type == SettingType::Float && !sd[0].structural);
+    CHECK(std::string(sd[1].name) == "label" && sd[1].type == SettingType::String && sd[1].structural);
+    CHECK(sd[1].default_value == 0.0f && sd[1].min_value == 0.0f && sd[1].max_value == 0.0f && sd[1].enum_labels == nullptr);
+    CHECK(p.get_string("label") == "x");
+    p.set_string("label", "y");
+    CHECK(p.label.value == "y" && p.get_string("label") == "y");
+    CHECK((p.changed == std::vector<std::string>{"label"}));
+    p.set_setting("label", 1.0f);                                  // the float door finds no string
+    CHECK(p.label.value == "y" && p.get_setting("label") == 0.0f && p.changed.size() == 1);
+    CHECK(!p.structural_setting("label"));                         // the float door's question; the descriptor says structural
+    CHECK(p.get_string("nosuch").empty() && p.get_string("gain").empty());
+    p.set_string("nosuch", "z");
+    p.set_string("gain", "z");
+    CHECK(p.changed.size() == 1 && p.get_setting("gain") == 1.0f);
+    p.set_setting("gain", 0.5f);
+    CHECK((p.changed == std::vector<std::string>{"label", "gain"}) && p.label.value == "y");
+}
+
+static void run_string_setting_loader_tests() {
+    using namespace three_kinds;
+    std::printf("the string setting through the loader: a string read, a number and a pin refused\n");
+    register_probes();
+    {
+        InstrumentPatch ip;
+        auto n = enum_column::load_node("StringProbe", {{"label", "hello"}}, ip);
+        CHECK(n != nullptr && n->get_string("label") == "hello");
+        InstrumentPatch absent;
+        auto d = enum_column::load_node("StringProbe", nlohmann::json::object(), absent);
+        CHECK(d != nullptr && d->get_string("label") == "x");      // absent: the default
+        StringProbe::lastLabel.clear();
+        CHECK(loads(plain(enum_column::one_node("StringProbe", {{"label", "plain"}})), true));
+        CHECK(StringProbe::lastLabel == "plain");
+    }
+    for (const bool file : {false, true}) {
+        const std::string doc = enum_column::one_node("StringProbe", {{"label", 3}});
+        CHECK(refused_naming(file ? plain(doc) : doc, file, {"node 'n' (StringProbe): 'label' takes a string, not 3"}));
+        const std::string flag = enum_column::one_node("StringProbe", {{"label", true}});
+        CHECK(refused_naming(file ? plain(flag) : flag, file, {"node 'n' (StringProbe): 'label' takes a string, not true"}));
+    }
+    {
+        auto doc = nlohmann::json::parse(enum_column::one_node("StringProbe", nlohmann::json::object()));
+        doc["graph"]["nodes"][1]["dynamicPins"] = {{"label", {{"ref", "out"}}}};
+        for (const bool file : {false, true})
+            CHECK(refused_naming(doc.dump(), file, {"'n.dynamicPins.label' is a structural setting on StringProbe"}));
+    }
+}
+
+static void run_input_list_tests() {
+    using namespace three_kinds;
+    std::printf("the list of signal inputs: set replaces, add appends, clear empties, a part refused\n");
+    ListProbe p;
+    const auto id = p.input_descriptors();
+    CHECK(id.size() == 1 && std::string(id[0].name) == "feeds" && id[0].multi && !id[0].slot);
+    CHECK(p.param_descriptors().empty() && p.setting_descriptors().empty());
+    CHECK(p.pins().size() == 1 && p.pins()[0]->pull == Pull::Manual);
+    CrossfadeSource xf;                                                    // a single Input is not a list
+    CHECK(!xf.input_descriptors().empty() && !xf.input_descriptors()[0].multi);
+    auto a = std::make_shared<CountingFeed>(), b = std::make_shared<CountingFeed>(), c = std::make_shared<CountingFeed>();
+    using Feeds = std::vector<std::shared_ptr<ValueSource>>;
+    CHECK(p.set_param("feeds", a));
+    CHECK((p.feeds.sources == Feeds{a}) && p.hooks == 1);
+    CHECK(p.add_param("feeds", b) && p.add_param("feeds", c));
+    CHECK((p.feeds.sources == Feeds{a, b, c}) && p.hooks == 3);
+    CHECK(p.set_param("feeds", b));
+    CHECK((p.feeds.sources == Feeds{b}) && p.hooks == 4);
+    CHECK(p.set_param("feeds", nullptr));
+    CHECK(p.feeds.sources.empty() && p.hooks == 5);
+    CHECK(p.add_param("feeds", a) && p.add_param("feeds", nullptr));
+    CHECK(p.feeds.sources.empty() && p.hooks == 7);
+    CHECK(p.add_param("feeds", a) && p.clear_param("feeds"));
+    CHECK(p.feeds.sources.empty() && p.hooks == 9);
+    CHECK(p.add_param("feeds", a) && p.hooks == 10);
+    auto part = std::make_shared<FormantPeaks>();
+    CHECK(!p.set_param("feeds", part));
+    CHECK(!p.add_param("feeds", part));
+    CHECK((p.feeds.sources == Feeds{a}) && p.hooks == 10);
+    CHECK(p.get_param("feeds") == nullptr && p.get_part("feeds") == nullptr);
+    // the owner's sweep does not prepare, start or pull a list's feeds
+    CHECK(p.add_param("feeds", b));
+    p.prepare(RenderContext{48000});
+    p.start(16);
+    for (int i = 0; i < 8; ++i) (void)p.next();
+    CHECK(a->nexts == 0 && b->nexts == 0 && a->prepares == 0 && b->prepares == 0 && a->starts == 0 && b->starts == 0);
+}
+
+static void run_input_list_loader_tests() {
+    using namespace three_kinds;
+    std::printf("the list of signal inputs through the loader: refs and taps in file order\n");
+    register_probes();
+    auto feeds_of = [](const std::string& doc, InstrumentPatch& ip) -> ListProbe* {
+        try { ip = load_instrument_patch_json(doc); }
+        catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return nullptr; }
+        return dynamic_cast<ListProbe*>(ip.instrument->voicePool[0].nodesById.at("n").get());
+    };
+    {
+        InstrumentPatch ip;
+        auto* n = feeds_of(list_doc(nlohmann::json::array({{{"ref", "a"}}, {{"tap", "b"}}, {{"ref", "b"}}})), ip);
+        CHECK(n != nullptr);
+        if (n) {
+            const auto& nodes = ip.instrument->voicePool[0].nodesById;
+            CHECK(n->feeds.sources.size() == 3);
+            auto* tap = n->feeds.sources.size() == 3 ? dynamic_cast<TapSource*>(n->feeds.sources[1].get()) : nullptr;
+            CHECK(n->feeds.sources.size() == 3 && n->feeds.sources[0] == nodes.at("a") && n->feeds.sources[2] == nodes.at("b"));
+            CHECK(tap != nullptr && tap->source == nodes.at("b"));
+        }
+    }
+    {
+        InstrumentPatch ip;
+        auto* n = feeds_of(list_doc({{"ref", "b"}}), ip);
+        CHECK(n != nullptr && n->feeds.sources.size() == 1);
+        if (n && n->feeds.sources.size() == 1) CHECK(n->feeds.sources[0] == ip.instrument->voicePool[0].nodesById.at("b"));
+    }
+    for (const bool file : {false, true}) {
+        const std::string inList = list_doc(nlohmann::json::array({{{"ref", "a"}}, {{"ref", "pk"}}}), "FormantPeaks");
+        const std::string alone = list_doc({{"ref", "pk"}}, "FormantPeaks");
+        CHECK(refused_naming(inList, file, {"node 'n' (ListProbe): 'feeds' does not accept a FormantPeaks, a part, not a signal"}));
+        CHECK(refused_naming(alone, file, {"node 'n' (ListProbe): 'feeds' does not accept a FormantPeaks, a part, not a signal"}));
+    }
+}
+
+static void run_validate_tests() {
+    using namespace three_kinds;
+    std::printf("a node's own check: a refusal fails the load naming the node, a warning does not\n");
+    register_probes();
+    CheckProbe p;
+    CHECK(p.validate().empty() && p.warnings().empty());
+    p.refuse.value = true;
+    p.warn.value = true;
+    CHECK(p.validate() == "probe says no");
+    CHECK((p.warnings() == std::vector<std::string>{"probe warns once", "probe warns twice"}));
+    // a voice's node and a plain sound's node
+    for (const bool file : {false, true}) {
+        const std::string doc = enum_column::one_node("CheckProbe", {{"refuse", true}});
+        CHECK(refused_naming(file ? plain(doc) : doc, file, {"node 'n' (CheckProbe): probe says no"}));
+        const std::string warned = enum_column::one_node("CheckProbe", {{"warn", true}});
+        CHECK(loads(file ? plain(warned) : warned, file));
+        CHECK(loads(file ? plain(enum_column::one_node("CheckProbe", nullptr)) : enum_column::one_node("CheckProbe", nullptr), file));
+    }
+    // asked once per built node: one voice builds the probe once
+    {
+        const int v0 = CheckProbe::validated, w0 = CheckProbe::warned;
+        CHECK(loads(enum_column::one_node("CheckProbe", {{"warn", true}}), false));
+        CHECK(CheckProbe::validated - v0 == 1 && CheckProbe::warned - w0 == 1);
+    }
+    // inside a Multiplex template: each clone's build asks its own node
+    auto mux_doc = [](const nlohmann::json& params) {
+        return nlohmann::json{{"sampleRate", 48000}, {"instrument", {{"polyphony", 1}}},
+            {"graph", {{"output", "mux"}, {"nodes", nlohmann::json::array({
+                nlohmann::json{{"id", "n"}, {"type", "CheckProbe"}, {"params", params}},
+                nlohmann::json{{"id", "mux"}, {"type", "MultiplexSource"},
+                               {"params", {{"count", 3}, {"source", {{"ref", "n"}}}}}}})}}}}.dump();
+    };
+    {
+        const int v0 = CheckProbe::validated, w0 = CheckProbe::warned;
+        CHECK(loads(mux_doc({{"warn", true}}), false));
+        if (CheckProbe::validated - v0 != 4) std::printf("  validated %d times, want 4\n", CheckProbe::validated - v0);
+        CHECK(CheckProbe::validated - v0 == 4 && CheckProbe::warned - w0 == 4);   // the template's node, then three clones
+    }
+    for (const bool file : {false, true}) {
+        const std::string refused = mux_doc({{"refuse", true}}), seeded = mux_doc({{"refuseSeeded", true}});
+        CHECK(refused_naming(file ? plain(refused) : refused, file, {"node 'n' (CheckProbe): probe says no"}));
+        // seeded only in a clone: the main pass passes, the clone's build refuses
+        const std::string alone = enum_column::one_node("CheckProbe", {{"refuseSeeded", true}});
+        CHECK(loads(file ? plain(alone) : alone, file));
+        CHECK(refused_naming(file ? plain(seeded) : seeded, file, {"node 'n' (CheckProbe): probe says no"}));
     }
 }
 
@@ -10096,6 +10379,11 @@ int main() {
     run_instrument_mixer_unity_tests();
     run_review_gap_lifecycle_tests();
     run_enum_column_tests();       // after the registry's tests: it registers its probe
+    run_string_setting_tests();
+    run_string_setting_loader_tests();   // these four register their probes, as the enum test does
+    run_input_list_tests();
+    run_input_list_loader_tests();
+    run_validate_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

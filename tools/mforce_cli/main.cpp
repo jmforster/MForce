@@ -945,9 +945,10 @@ static int run_dump_descriptors(int argc, char** argv)
         for (const auto& d : s->setting_descriptors()) {
             nlohmann::json c = {
                 {"name", d.name},
-                {"type", d.type == SettingType::Bool  ? "bool"
-                       : d.type == SettingType::Int   ? "int"
-                       :                               "float"},
+                {"type", d.type == SettingType::Bool   ? "bool"
+                       : d.type == SettingType::Int    ? "int"
+                       : d.type == SettingType::String ? "string"
+                       :                                "float"},
                 {"isEnum", d.enum_labels != nullptr},
                 {"default", d.default_value},
                 {"min", d.min_value},

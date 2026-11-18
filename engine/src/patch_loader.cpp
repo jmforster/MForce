@@ -419,10 +419,19 @@ static void wire_params_generic(
         auto part = resolve_param(params.at(desc.name), graphNodes);
         if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
     }
-    // Scalar settings (int/float/bool) — apply if present in JSON.
+    // Settings, applied if present in JSON: a string setting takes a string
+    // and nothing else; an int, float or bool takes a number, a bool, or an
+    // enum label.
     for (const auto& desc : src.setting_descriptors()) {
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
+        if (desc.type == SettingType::String) {
+            if (!v.is_string())
+                throw std::runtime_error("node '" + id + "' (" + src.type_name() + "): '" + desc.name
+                                         + "' takes a string, not " + v.dump());
+            src.set_string(desc.name, v.get<std::string>());
+            continue;
+        }
         float fv = 0.0f;
         if      (v.is_boolean()) fv = v.get<bool>() ? 1.0f : 0.0f;
         else if (v.is_number())  fv = v.get<float>();
@@ -844,6 +853,16 @@ static GraphResult build_graph(
         // Whichever path built the node, every key it was given is one the
         // engine read; an unknown key fails the load.
         if (pp && graphNodes.count(id)) reject_unknown_keys(*graphNodes[id], id, *pp);
+        // Then the node checks itself, filled: a refusal fails the build
+        // naming the node, and each warning is printed.
+        if (auto it = graphNodes.find(id); it != graphNodes.end() && it->second) {
+            const Component& built = *it->second;
+            const std::string problem = built.validate();
+            if (!problem.empty())
+                throw std::runtime_error("node '" + id + "' (" + built.type_name() + "): " + problem);
+            for (const auto& text : built.warnings())
+                std::fprintf(stderr, "[load] %s (%s): %s\n", id.c_str(), built.type_name(), text.c_str());
+        }
     } // end for each node
 
     // Pass 2: bind tap targets (feedback_loop_design.md §3.2).

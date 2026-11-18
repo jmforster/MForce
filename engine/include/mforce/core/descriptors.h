@@ -24,7 +24,7 @@ struct ParamDescriptor {
 
 struct InputDescriptor {
   const char* name;
-  bool multi{false};  // true = accepts multiple connections (e.g. spectra, stages)
+  bool multi{false};  // true = accepts multiple connections: a list of inputs, a multi slot
   // Optional UI advisory tag — same semantics as ParamDescriptor::hint. On a
   // slot, what the slot takes ("a Formant part"): the loader names it when
   // it refuses a wire.
@@ -32,8 +32,10 @@ struct InputDescriptor {
   bool slot = false;  // a structural input: a part, not a signal
 };
 
-enum class SettingType { Float, Int, Bool };
+enum class SettingType { Float, Int, Bool, String };
 
+// A String descriptor holds no number: its default, min and max are 0,
+// structural is true, and the value is read through Component::get_string.
 struct SettingDescriptor {
   const char* name;
   SettingType type;

@@ -22,7 +22,7 @@ struct WavetableSource final : WaveSource {
   // the table's reserve, started per note, adjusted at a note's first
   // sample, evolved once per sample.
   Param speedFactor{this, "speedFactor", 1.0f, 0.01f, 10.0f, "ratio", Pull::Manual};
-  Input inputSource{this, "inputSource", Input::Optional, nullptr, false, Pull::Manual};
+  Input inputSource{this, "inputSource", Input::Optional, nullptr, Pull::Manual};
   Slot<WaveEvolution> evolution{this, "evolution", "an evolution"};
   Setting<bool> interpolate{this, "interpolate", false, false, true};
 

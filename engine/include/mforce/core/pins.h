@@ -3,6 +3,7 @@
 // dsp_value_source.h, which defines the pin methods that need ValueSource;
 // include that header, not this one.
 #include <memory>
+#include <string>
 #include <type_traits>
 #include <vector>
 #include "mforce/core/descriptors.h"
@@ -13,7 +14,7 @@ struct Component;
 struct ValueSource;
 struct RenderContext;
 
-enum class PinKind { Param, Input, Slot, Setting, Array };
+enum class PinKind { Param, Input, InputList, Slot, Setting, String, Array };
 
 // Who prepares and advances a connectable pin's source: the node's base,
 // every sample in declaration order (Auto, the rule), or the node itself
@@ -44,8 +45,9 @@ struct PinBase {
   Pull pull;
   virtual ~PinBase() = default;
   PinBase(const PinBase&) = delete;               // a copy would not be registered
-  // A connectable pin forwards both host calls to its source; a setting or
-  // an array has nothing to forward.
+  // A connectable pin forwards both host calls to its source; a setting, a
+  // string, an array or a list of inputs (whose node drives its feeds) has
+  // nothing to forward.
   virtual void prepare(const RenderContext&) {}
   virtual void start(int) {}
 protected:
@@ -85,23 +87,37 @@ struct Input final : PinBase {
   enum Required { RequiredInput, Optional };
   Required required;
   const char* hint;
-  bool multi;
   std::shared_ptr<ValueSource> source;
   Input(Component* owner, const char* n, Required r = RequiredInput,
-        const char* h = nullptr, bool m = false, Pull p = Pull::Auto)
-    : PinBase(n, kKind, p), required(r), hint(h), multi(m) { attach(owner); }
+        const char* h = nullptr, Pull p = Pull::Auto)
+    : PinBase(n, kKind, p), required(r), hint(h) { attach(owner); }
   float current() const;
   float next();                                   // Manual pins only: the source's value this tick, or 0
   float step();                                   // Manual pins only: one sample of the source now, or 0
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); source_changed(); }
   std::shared_ptr<ValueSource> get() const { return source; }
-  InputDescriptor descriptor() const { return {name, multi, hint}; }
+  InputDescriptor descriptor() const { return {name, false, hint}; }
   void prepare(const RenderContext& ctx) override;
   void start(int frames) override;
 };
 
+// A list of signal inputs on one pin: several feeds, in wiring order, which
+// is the order of any array the node declares beside the list. Always
+// Manual: a node with a list pulls each feed its own way (at its own delay,
+// only while its stage plays), so the node prepares, starts and advances
+// the feeds itself.
+struct InputList final : PinBase {
+  static constexpr PinKind kKind = PinKind::InputList;
+  std::vector<std::shared_ptr<ValueSource>> sources;
+  const char* hint;
+  InputList(Component* owner, const char* n, const char* h = nullptr)
+    : PinBase(n, kKind, Pull::Manual), hint(h) { attach(owner); }
+  InputDescriptor descriptor() const { return {name, true, hint}; }
+};
+
 // A scalar configuration value (float, int or bool), not connectable. The
-// base addresses every Setting<T> through SettingBase.
+// base addresses every Setting<T> through SettingBase; a string is a
+// StringSetting, below.
 struct SettingBase : PinBase {
   static constexpr PinKind kKind = PinKind::Setting;
   bool structural;                                // SettingRole::Structural, or an int or bool; fixed at declaration
@@ -143,6 +159,17 @@ private:
     : SettingBase(n, !std::is_same_v<T, float> || role == SettingRole::Structural),
       value(def), min(mn), max(mx), labels(lb), default_(def) { attach(owner); }
   T default_;                                     // what the descriptor reports after a change
+};
+
+// A string configuration value, not connectable: a name the builder
+// resolves against a vocabulary. Structural by kind: no signal can feed a
+// string, so it takes no per-note push.
+struct StringSetting final : PinBase {
+  static constexpr PinKind kKind = PinKind::String;
+  std::string value;
+  StringSetting(Component* owner, const char* n, std::string def = {})
+    : PinBase(n, kKind), value(std::move(def)) { attach(owner); }
+  SettingDescriptor descriptor() const { return {name, SettingType::String, 0.0f, 0.0f, 0.0f, nullptr, true}; }
 };
 
 // A user-editable float vector.

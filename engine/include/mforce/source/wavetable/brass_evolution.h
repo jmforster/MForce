@@ -22,7 +22,7 @@ struct BrassEvolution final : WaveEvolution {
   // The two pins are advanced here, once per evolve() that has a loop to run
   // (an empty loop returns early and advances nothing), so they are Manual.
   Param brassiness{this, "brassiness", 1.5f, 0.0f, 10.0f, "exp", Pull::Manual};   // tanh drive → wave-steepening harmonics
-  Input breath    {this, "breath", Input::Optional, "0-1", false, Pull::Manual};
+  Input breath    {this, "breath", Input::Optional, "0-1", Pull::Manual};
   Setting<float> tubeLoss    {this, "tubeLoss",     0.01f, 0.0f, 0.5f};    // per-sample loop loss
   Setting<float> lipTension  {this, "lipTension",   0.92f, 0.0f, 0.99f};   // in-loop one-pole lowpass (0..0.99, high = dark)
   Setting<float> lipFreqRatio{this, "lipFreqRatio", 1.2f,  0.5f, 4.0f};    // out-of-loop biquad resonance, as multiple of played freq

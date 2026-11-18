@@ -16,8 +16,8 @@ namespace mforce {
 // is started for that part's length, so the node prepares, starts and pulls them.
 struct CrossfadeSource final : ValueSource {
   Param amplitude{this, "amplitude", 1.0f, 0.0f, 10.0f, "0-1"};
-  Input source1{this, "source1", Input::RequiredInput, nullptr, false, Pull::Manual};
-  Input source2{this, "source2", Input::RequiredInput, nullptr, false, Pull::Manual};
+  Input source1{this, "source1", Input::RequiredInput, nullptr, Pull::Manual};
+  Input source2{this, "source2", Input::RequiredInput, nullptr, Pull::Manual};
   Setting<float> ratio  {this, "ratio",   0.5f, 0.0f, 1.0f};
   Setting<float> overlap{this, "overlap", 0.1f, 0.0f, 1.0f};
   Setting<float> gainAdj{this, "gainAdj", 0.0f, -1.0f, 10.0f};

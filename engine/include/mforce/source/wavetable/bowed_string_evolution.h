@@ -30,7 +30,7 @@ struct BowedStringEvolution final : WaveEvolution {
   // The two pins are advanced here, once per evolve() that runs the lines (an
   // evolve() before adjust() has sized them returns early and advances
   // nothing), so they are Manual.
-  Input bow         {this, "bow", Input::Optional, "0-1", false, Pull::Manual};   // bow pressure envelope (0..1)
+  Input bow         {this, "bow", Input::Optional, "0-1", Pull::Manual};   // bow pressure envelope (0..1)
   Param frictionGain{this, "frictionGain", 4.0f, 0.0f, 20.0f, "gain", Pull::Manual};   // slope of Friedlander bow table
   Setting<float> tubeLoss   {this, "tubeLoss",    0.005f, 0.0f,  0.5f};   // per-sample loop loss on each line
   Setting<float> bowSpeed   {this, "bowSpeed",    0.3f,   0.01f, 1.0f};   // bow velocity scale

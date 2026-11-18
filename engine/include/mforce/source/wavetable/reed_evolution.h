@@ -17,7 +17,7 @@ namespace mforce {
 struct ReedEvolution final : WaveEvolution {
   // The two pins are advanced here, once per evolve(), so they are Manual.
   Param reedStiffness{this, "reedStiffness", 1.5f, 0.0f, 8.0f, "exp", Pull::Manual};   // tanh drive on bore signal (0 = linear tube)
-  Input breath       {this, "breath", Input::Optional, "0-1", false, Pull::Manual};
+  Input breath       {this, "breath", Input::Optional, "0-1", Pull::Manual};
   Setting<float> tubeLoss  {this, "tubeLoss",   0.02f, 0.0f,  0.5f};   // per-sample loop loss
   Setting<float> loopFilter{this, "loopFilter", 0.5f,  0.05f, 1.0f};   // one-pole loop lowpass coefficient (0..1; higher = brighter)
 

@@ -25,7 +25,7 @@ namespace mforce {
 struct HybridKSSource final : WaveSource {
   // After WaveSource's three. The seed waveform is advanced only while a
   // note's table is filled, so inputSource is Manual; this node prepares it.
-  Input inputSource{this, "inputSource", Input::Optional, nullptr, false, Pull::Manual};
+  Input inputSource{this, "inputSource", Input::Optional, nullptr, Pull::Manual};
   Setting<int>   holdCycles   {this, "holdCycles",    5,    1,     50};
   Setting<float> morphDuration{this, "morphDuration", 0.5f, 0.01f, 5.0f};
   Setting<int>   numPartials  {this, "numPartials",   30,   1,     200};

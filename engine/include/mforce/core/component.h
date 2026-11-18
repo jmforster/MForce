@@ -3,6 +3,7 @@
 #include <cassert>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 #include "mforce/core/pins.h"
@@ -27,13 +28,14 @@ struct Component {
   virtual std::span<const ArrayDescriptor> array_descriptors() const { return arrayDescs_; }
 
   // The by-name wiring door, one for every pin kind: a Param or Input takes
-  // a signal, a Slot takes the interface it was declared for, and anything
-  // else is refused. This is the type-check at wiring, paid at load or at an
-  // editor change and never on a render path; the builder turns false into a
-  // load failure naming the node, the pin and the reason. A null part clears
-  // the pin. Defined in component.cpp, where ValueSource is complete.
+  // a signal, an InputList takes a signal as its one feed, a Slot takes the
+  // interface it was declared for, and anything else is refused. This is the
+  // type-check at wiring, paid at load or at an editor change and never on a
+  // render path; the builder turns false into a load failure naming the
+  // node, the pin and the reason. A null part clears the pin. Defined in
+  // component.cpp, where ValueSource is complete.
   virtual bool set_param(std::string_view name, std::shared_ptr<Component> part);
-  // The signal a Param or Input holds; nullptr for a slot or an unknown name.
+  // The signal a Param or Input holds; nullptr for a slot, a list or an unknown name.
   virtual std::shared_ptr<ValueSource> get_param(std::string_view name) const {
     if (auto* p = find<Param>(name)) return p->get();
     if (auto* i = find<Input>(name)) return i->get();
@@ -44,21 +46,16 @@ struct Component {
     auto* s = find<SlotBase>(name);
     return s ? s->first() : nullptr;
   }
-  // Wiring one more: a multi slot appends; a single slot, a Param or an Input
-  // replaces (a node that keeps a hand-written list may append in its override).
-  virtual bool add_param(std::string_view name, std::shared_ptr<Component> part) {
-    if (auto* s = find<SlotBase>(name)) {
-      if (!part) { s->clear(); on_slot_changed(name); return true; }
-      if (!s->add(std::move(part))) return false;
-      on_slot_changed(name);
-      return true;
-    }
-    return set_param(name, std::move(part));
-  }
+  // Wiring one more: a multi slot and an InputList append, and a null part
+  // empties them; a single slot, a Param or an Input replaces (a node that
+  // keeps a hand-written list may append in its override). Defined in
+  // component.cpp beside set_param.
+  virtual bool add_param(std::string_view name, std::shared_ptr<Component> part);
   // The Param pin of that name, or nullptr when the node has none.
   Param* param(std::string_view name) { return find<Param>(name); }
   virtual bool clear_param(std::string_view name) {
     if (auto* s = find<SlotBase>(name)) { s->clear(); on_slot_changed(name); return true; }
+    if (auto* l = find<InputList>(name)) { l->sources.clear(); on_input_list_changed(name); return true; }
     return set_param(name, nullptr);
   }
 
@@ -74,6 +71,15 @@ struct Component {
     auto* s = find<SettingBase>(name);
     return s && s->structural;
   }
+  // A string setting, by name. A set calls on_setting_changed; an unknown
+  // name is ignored on a set and reads as empty.
+  void set_string(std::string_view name, std::string value) {
+    if (auto* s = find<StringSetting>(name)) { s->value = std::move(value); on_setting_changed(name); }
+  }
+  std::string get_string(std::string_view name) const {
+    auto* s = find<StringSetting>(name);
+    return s ? s->value : std::string{};
+  }
   virtual void set_array(std::string_view name, std::vector<float> values) {
     if (auto* a = find<Array>(name)) { a->values = std::move(values); on_array_changed(name); }
   }
@@ -81,13 +87,22 @@ struct Component {
     auto* a = find<Array>(name);
     return a ? a->values : std::vector<float>{};
   }
-  // Hooks for a node that derives state from a setting, an array or a slot:
-  // called after the change, by name. A slot's owner that keeps a view into
-  // its part (a copy of the part's arrays, say) refreshes it here, so a view
-  // into a part the slot no longer holds is never read.
+  // Hooks for a node that derives state from a setting, an array, a slot or
+  // a list of inputs: called after the change, by name. A slot's owner that
+  // keeps a view into its part (a copy of the part's arrays, say) refreshes
+  // it here, so a view into a part the slot no longer holds is never read;
+  // a node that derives state from a list refreshes it here.
   virtual void on_setting_changed(std::string_view) {}
   virtual void on_array_changed(std::string_view) {}
   virtual void on_slot_changed(std::string_view) {}
+  virtual void on_input_list_changed(std::string_view) {}
+
+  // The node's own check of itself once it is filled: empty, or the first
+  // problem in words. The builder fails the build with it, naming the node.
+  virtual std::string validate() const { return {}; }
+  // What a host should be told about the node as it stands: legal, and
+  // probably not what was meant. None fails a build.
+  virtual std::vector<std::string> warnings() const { return {}; }
 
   const std::vector<PinBase*>& pins() const { return pins_; }
 
@@ -127,8 +142,11 @@ private:
         if (i->pull == Pull::Auto) add_auto_source(&i->source);
         break;
       }
+      // A list is Manual by kind: its node drives the feeds, no sweep pulls them.
+      case PinKind::InputList: inputDescs_.push_back(static_cast<InputList*>(pin)->descriptor()); break;
       case PinKind::Slot:    inputDescs_.push_back(static_cast<SlotBase*>(pin)->descriptor()); break;
       case PinKind::Setting: settingDescs_.push_back(static_cast<SettingBase*>(pin)->descriptor()); break;
+      case PinKind::String:  settingDescs_.push_back(static_cast<StringSetting*>(pin)->descriptor()); break;
       case PinKind::Array:   arrayDescs_.push_back(static_cast<Array*>(pin)->descriptor()); break;
     }
   }

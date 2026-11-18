@@ -256,7 +256,7 @@ struct Generator : ValueSource {
 struct Processor : ValueSource {
   Input input;
   explicit Processor(Pull inputPull = Pull::Auto)
-    : input{this, "source", Input::RequiredInput, nullptr, false, inputPull} {}
+    : input{this, "source", Input::RequiredInput, nullptr, inputPull} {}
 };
 
 struct ConstantSource final : Generator {

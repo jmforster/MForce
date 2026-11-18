@@ -230,6 +230,10 @@ struct GraphNode {
     // Config values (non-connectable params like holdCycles, absolute, etc.)
     std::vector<std::pair<SettingDescriptor, float>> settingValues;
 
+    // String settings, in descriptor order: a cache of their own, so
+    // settingValues holds numbers only.
+    std::vector<std::pair<SettingDescriptor, std::string>> stringValues;
+
     // Array values (user-editable vectors — gains, partial multipliers, etc.)
     // Preserves descriptor order; inspector groups consecutive entries with
     // the same groupName into a parallel-columns table.
@@ -432,8 +436,13 @@ struct GraphNode {
         if (!dspSource) return;
         auto descs = dspSource->setting_descriptors();
         settingValues.clear();
-        for (const auto& desc : descs)
-            settingValues.push_back({desc, desc.default_value});
+        stringValues.clear();
+        for (const auto& desc : descs) {
+            if (desc.type == SettingType::String)
+                stringValues.push_back({desc, dspSource->get_string(desc.name)});
+            else
+                settingValues.push_back({desc, desc.default_value});
+        }
     }
 
     // Populate editable array cache from the live DSP object. Called once on
@@ -461,6 +470,8 @@ struct GraphNode {
         if (!dspSource) return;
         for (auto& [desc, val] : settingValues)
             dspSource->set_setting(desc.name, val);
+        for (auto& [desc, val] : stringValues)
+            dspSource->set_string(desc.name, val);
         // An Envelope's cached table follows the object: sustainLevel writes
         // the table's four sustain slots, and at load a preset form has built
         // the object before its settings are applied.
@@ -1634,6 +1645,16 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                             "keeping default\n", id.c_str(), desc.name, s.c_str());
                 }
             }
+            // A string setting takes a string, and nothing else: the engine
+            // loader's sentence.
+            for (auto& [desc, val] : gn.stringValues) {
+                if (!params.contains(desc.name)) continue;
+                const auto& jval = params[desc.name];
+                if (!jval.is_string())
+                    throw std::runtime_error("node '" + id + "' (" + gn.dspSource->type_name() + "): '"
+                                             + desc.name + "' takes a string, not " + jval.dump());
+                val = jval.get<std::string>();
+            }
             gn.apply_config();
 
             // Restore user-editable arrays (ExplicitPartials mult/ampl,
@@ -1684,6 +1705,8 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
                 };
                 auto is_config = [&](const std::string& k) {
                     for (auto& [desc, v] : gn.settingValues)
+                        if (k == desc.name) return true;
+                    for (auto& [desc, v] : gn.stringValues)
                         if (k == desc.name) return true;
                     return false;
                 };
@@ -2724,6 +2747,10 @@ static nlohmann::json serialize_patch_graph(
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"][desc.name] = setting_to_json(desc, val);
         }
+        for (auto& [desc, val] : node.stringValues) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"][desc.name] = val;
+        }
 
         // Array values (ExplicitPartials mult/ampl, FormantBands gains, …).
         // An empty array is skipped, but for an Envelope's stage columns: a
@@ -2991,6 +3018,10 @@ static void save_node_graph(const std::string& path) {
                 continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"][desc.name] = setting_to_json(desc, val);
+        }
+        for (auto& [desc, val] : node.stringValues) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"][desc.name] = val;
         }
 
         // Array values (ExplicitPartials mult/ampl, FormantBands gains, …).
@@ -8097,6 +8128,9 @@ static void draw_node(GraphNode& node) {
         && !node.paramName.empty()) {
         ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", node.paramName.c_str());
     }
+    // Each non-empty string setting on a line of its own, as the name above.
+    for (const auto& [desc, val] : node.stringValues)
+        if (!val.empty()) ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", val.c_str());
 
 
     // Input pins — compact: show name + read-only value, no editing widgets
@@ -8637,6 +8671,34 @@ static void draw_properties_panel() {
             // Envelope: all settings inline, straight under maxValue.
             for (auto& [desc, val] : node->settingValues)
                 render_setting_row(desc, val);
+        }
+    }
+
+    // String settings: one text row each, after the settings rows. An edit
+    // reaches the node under the audio lock, as a setting's does.
+    if (!node->stringValues.empty()) {
+        if (node->settingValues.empty()) {
+            if (hasParams) { ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing(); }
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Settings");
+        }
+        for (auto& [desc, val] : node->stringValues) {
+            ImGui::Text("%s", desc.name);
+            ImGui::SameLine(labelW);
+            ImGui::PushItemWidth(widgetW);
+            char strLabel[64];
+            snprintf(strLabel, sizeof(strLabel), "##pstr_%s_%d", desc.name, node->id);
+            char buf[128];
+            snprintf(buf, sizeof(buf), "%s", val.c_str());
+            if (ImGui::InputText(strLabel, buf, sizeof(buf))) {
+                val = buf;
+                if (node->dspSource) {
+                    std::lock_guard<std::mutex> lock(g_audioMutex);
+                    node->dspSource->set_string(desc.name, val);
+                }
+                node->jsonExtras.erase(desc.name);  // edit wins over carried value
+                mark_graph_dirty();
+            }
+            ImGui::PopItemWidth();
         }
     }
 
@@ -9288,8 +9350,8 @@ static void draw_properties_panel() {
 // Node clipboard — Edit > Cut/Copy/Paste, Ctrl+X/C/V.
 //
 // Copy serializes the imnodes selection into an in-memory JSON clipboard:
-// per-node state (pin defaults, configs, arrays — an Envelope's stage
-// columns among them — seed, polyphony, paramName) plus the links whose
+// per-node state (pin defaults, configs, string settings, arrays — an
+// Envelope's stage columns among them — seed, polyphony, paramName) plus the links whose
 // BOTH endpoints are inside the selection.
 // Paste instantiates fresh nodes (fresh ids) from that state, rewires the
 // intra-selection links by pin name, and offsets positions a little further
@@ -9335,6 +9397,11 @@ static nlohmann::json clip_node_state(const GraphNode& node) {
         for (const auto& [desc, val] : node.settingValues) cfg[desc.name] = val;
         j["settings"] = cfg;
     }
+    if (!node.stringValues.empty()) {
+        json strs = json::object();
+        for (const auto& [desc, val] : node.stringValues) strs[desc.name] = val;
+        j["strings"] = strs;
+    }
     // An Envelope's stage columns go even when empty, so a pasted Envelope
     // with no stages has none.
     for (const auto& [desc, vec] : node.arrayValues)
@@ -9378,6 +9445,13 @@ static int clip_instantiate(const nlohmann::json& j) {
                 val = j["settings"][desc.name].get<float>();
         }
         gn.apply_config();
+    }
+    if (j.contains("strings")) {
+        for (auto& [desc, val] : gn.stringValues) {
+            if (!j["strings"].contains(desc.name)) continue;
+            val = j["strings"][desc.name].get<std::string>();
+            if (gn.dspSource) gn.dspSource->set_string(desc.name, val);
+        }
     }
 
     // A CurveNode's columns fill the cache alone; the curve then reaches the
@@ -10391,6 +10465,11 @@ static void show_node_context_menu() {
             dup.settingValues[i].second = node->settingValues[i].second;
             if (dup.dspSource)
                 dup.dspSource->set_setting(dup.settingValues[i].first.name, dup.settingValues[i].second);
+        }
+        for (int i = 0; i < (int)node->stringValues.size() && i < (int)dup.stringValues.size(); ++i) {
+            dup.stringValues[i].second = node->stringValues[i].second;
+            if (dup.dspSource)
+                dup.dspSource->set_string(dup.stringValues[i].first.name, dup.stringValues[i].second);
         }
         // An Envelope's sustainLevel wrote its table's four sustain slots:
         // the cached table follows the object.
