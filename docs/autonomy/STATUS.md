@@ -62,9 +62,10 @@ WHAT 4.5'S PLAN INHERITS:
   that clears and refills every pin (Part 7).
 Usage at the close, Tuesday 2026-11-17 at 23:05 HST: weekly Fable 24 percent
 (11 at the plan: thirteen points for the checkpoint), all-models 19, both
-resetting Saturday 2026-11-21 at 02:00 HST. GIT: main is ahead of origin by
-this checkpoint's commits; not pushed (push only on Matt's word). GOALS.md
-stays Matt's uncommitted edit, never staged.
+resetting Saturday 2026-11-21 at 02:00 HST. GIT: main was pushed to origin
+through `3dc0fb0` on Matt's word, 2026-11-18, at the session's close-out
+(push only on Matt's word). GOALS.md stays Matt's uncommitted edit, never
+staged.
 ---
 
 Updated: 2026-11-14 (refactor session XVII, Fable 5.2 xhigh coordinating;
