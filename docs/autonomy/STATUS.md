@@ -1,5 +1,141 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-18, evening (refactor session XX, Fable 5.2: xhigh for the
+survey, max for the plan — Matt flipped it in the menu, "Changed to max, go
+ahead").
+NEXT SESSION STARTS HERE: CHECKPOINT 4.6'S PLAN IS WRITTEN —
+`docs/superpowers/plans/2026-11-18-part4-checkpoint-4.6.md` ("the module,
+beside the loader"), in 4.5's shape with the module's headers given as code.
+IT AWAITS MATT'S GO-AHEAD; nothing of 4.6 is built, no code changed, and the
+plan is uncommitted with this file (Task 0 commits both). Seven tasks: 0 the
+base, the arms, the census, a synthetic set with a refusal fixture per kind;
+1 THE GROUND, every edit to code the loader runs, once (`gainAdj`'s range,
+the four hooks, `fire_triggers` on the value, the Multiplex's builder, the
+three exports and the preset table into `patch/`, `BuiltSound`, the mixer's
+fault list), proved under the loader by the whole gate set; 2 the records,
+the declarations table, `Patch::check()`; 3 the codec, `--check`, the dump
+from the table; 4 `build_graph`, `build_instrument`, `build_sound`, a
+generated reader twin over all 78 types, the tests' one helper with the
+module beside the loader; 5 the twin gate (offline and live paths, floats
+compared, a control arm, two order arms, a sparse arm); 6 the close. WHAT THE
+PLAN ASKS MATT TO NOTICE (its italic rulings): Ledger 2 (`gainAdj` -100 to
+100; the editor's step on that row 0.11 to 2), 3 (the four hooks only;
+thirteen clamps stay), 4 (`fire_triggers` on the value), 6 (a template with
+a tap-only tail is refused by name, not built), 9 (a bool reads as 0 or 1
+too), 17 (the module map's row now), 19 (envelope lists in file order), 20
+(warnings: a member on `BuiltSound`, a third parameter on
+`build_instrument`), 23 (the dump from the table now), 24 (the tests' helper
+now), 27 (what the new reader refuses that the loader reads; it becomes real
+at 4.7). Execution in a FRESH SESSION on Fable 5.2 at xhigh (this one stands
+at about 660k tokens), with the prompt "Execute
+docs/superpowers/plans/2026-11-18-part4-checkpoint-4.6.md. Go." The block
+below (session XIX) still holds what 4.6 inherits; the survey's findings
+follow here, and the plan's Architecture paragraph carries them in full. Read
+for the survey: Part 4 sections 2 to 5 and 7 to 9 whole, 6.1, 6.5 and 6.9;
+4.5's plan and Ledger; `patch_loader.{h,cpp}` whole; `component.h`,
+`pins.h`, `descriptors.h`, `source_registry.{h,cpp}`, the registrations,
+`envelope.h`, `envelope_json.h`, `multiplex_source.h`, `mixer.{h,cpp}`, the
+voice structs of `instrument.h`, `alloc_gate/main.cpp`, the CLI's render and
+dump, the meter's module map, CLEANUP whole. The census is two scripts that
+import nothing of the converter or the lint, over the four folders (883
+files, 10,467 nodes): `renders/scratch/ab46/planning/census46.py` and
+`census46b.py`, their outputs beside them, the build's descriptor dump as
+`descriptors.json`. THE BUILD'S COMMAND-LINE BINARY IS BYTE-EQUAL TO
+`cli_post45.exe` (`69eaf251...6b438a`), so 4.5's close arms are 4.6's old
+arms with no render.
+WHAT THE SURVEY FOUND THAT THE PLAN MUST CARRY:
+- The out-of-range count (the row's first task). Library and baselines: 0
+  settings outside their declared range. Audition and pending: one setting,
+  `CombinedSource.gainAdj` (declared -1 to 10) at -2, -3 and -18.088 on Sum
+  nodes of the trombone family (five audition files, `pending/brass/
+  Trombone_att1.json`): a signed scale, so the declaration widens. Every
+  declaration is consistent with itself (no default outside its own range;
+  a bool's range is 0 to 1; an enum's is its labels).
+- "The four clamp hooks" are CLEANUP 19's four evolutions (Cellular
+  Automaton, ReactionDiffusion, HistogramEqualize, SortErosion: five int
+  settings, all structural, so never pushed). Seventeen node types clamp in
+  `on_setting_changed`: nine more through `Setting::clamp()` (KSString,
+  AllpassResonator, Envelope, Mesh2D, FMSource, SVFSource, HammerBank,
+  SegmentSource, MultiplexSource) and four by hand (the three Partials
+  types, LayeredRedNoise). Several of those guard a value a dynamic pin
+  pushes per note (KSString's `brightness` and `dispersion` on 59 and 51
+  nodes, the Envelope's `timeScale` on 75), which no codec sees: they stay.
+  The editor clamps an int and a float setting at edit (`main.cpp:8641`,
+  `8647`). The hooks go while the old loader is still the reader (until
+  4.7); the folders hold no out-of-range value for the five.
+- Shapes. Every enum is an exact label, no int holds a fraction, every seed
+  is a whole number below 2^31, every dynamic pin (383) is a `{"ref"}` on a
+  float setting, no tap sits in a list or on a slot. ONE WRONG SHAPE IN
+  SCOPE: `patches/baselines/algev_test_sort.json` gives the bool
+  `SortErosionEvolution.descending` as `0`. The row says nothing changes on
+  disk, so the codec reads a bool as true, false, 0 or 1 (the plan's Ledger
+  9).
+- Keys. Outside a type's declarations the four folders hold `seed`, the
+  Envelope's preset keys, and four pending files that do not load today
+  (three hold `GrayScottSource`; `slow_attack_horn` holds `formants`). So
+  `--check` is green on library, baselines and audition once `gainAdj`
+  widens, and pending shows those four.
+- The preset form is most of the library: 363 preset-form Envelopes, in 60
+  library and 42 baseline files; only `adsr`, `as`, `asr` and `ar` occur; no
+  Envelope holds both forms or neither. The factories put everything in the
+  columns but `timeMode` (`make_adsr_abs`); the `sustainLevel` hook rewrites
+  four cells only on the four-stage shape, which the registry's default
+  (`make_ar`) is not, so settings before arrays gives today's layout.
+- 5.2's sentence "today's order and the sort agree on every file that loads"
+  has one exception in scope: `patches/library/keys/acoustic_piano/
+  piano_seg.json`, where a dynamic pin on `Strings` (node 7) reads
+  `String_detune_curve` (node 8). Legal today, since dynamic pins bind after
+  every node is built. A sort over dynamic-pin feeds builds node 8 first.
+- The reversed-order measurement of 8.3 has a real subject:
+  `double_advance_bug` and `double_advance_ok` hold four tap-only tails each
+  (`loop_tap_starved` one, `loop_tap_counter` none), and the voice ticks the
+  tails in the file's order. 3.4's "order carries no meaning" may need a
+  clause; measure it in two arms (construction order alone; the file's list
+  reversed).
+- A wiring test outside the nodes: `fire_triggers` restarts an Envelope when
+  `trigger.source` is set and reads nonzero, and the loader lists an
+  Envelope by `trigger.source`. Under 5.3 a number is the pin's constant and
+  would never fire. No file holds a nonzero number there (two pending files
+  hold 0). Inside the nodes the tests of a wire are on Inputs alone
+  (`DelayLine`, `KSString.bow`, `NameGate.in`), which keep their constants;
+  `DelayLine`'s walk follows inputs only.
+- The complete model calls every `on_setting_changed` hook once per node at
+  build, where the loader calls those the file names. Twenty hooks, each
+  read: every one leaves a fresh node at its declared default as it found
+  it. Arrays must not be filled from the prototype (an `ExplicitPartials`'
+  rows follow `maxPartials`). No node overrides a by-name door.
+- No `MultiplexSource` is in the four folders and five `NameGate`s are in
+  audition and pending: 5.5's template and 5.4's vocabulary are heard by
+  tests and synthetics alone. 5.5 lets a tap-closed loop into a template
+  and does not say who ticks a clone's tails (the plan's Ledger 6: refused
+  by name, not built). 58 of the 78 registered types appear in library and
+  baselines; the other twenty are heard by a generated test alone.
+- The meter requires every source file to belong to a module, so the
+  `patch` row of `tools/structure/modules.json` lands at 4.6, where 8.1
+  gives it to 4.7; the JSON allowlist gains the codec's file and loses
+  `envelope_json.h`. `engine/CMakeLists.txt` lists its sources by name.
+- `envelope_json.h` has three callers (the loader, the editor's load and
+  its Preset combo, `engine_tests`); `retired_key_refusal` and
+  `ragged_table_refusal` are the loader's exports the codec also needs.
+- The twin gate has no home yet: `alloc_gate/main.cpp` already plays the
+  live path with the probe armed, a C4 where a file has no score.
+- Found while writing the plan: the loader's settings pass reads a preset
+  Envelope's `timeMode` and `sustainLevel` like any setting, so the preset
+  form yields columns and nothing else; `KSString`'s hook also floors `t60`
+  (305 of the 383 dynamic pins land on a setting a hook guards);
+  `engine_tests` registers six probe types as it runs, so the declarations
+  are read a type at a time; the editor writes `null` under `dynamicPins`
+  for a promoted, unwired setting (`main.cpp:8591`, `13217`, `13338`), which
+  the codec refuses — 4.7's translation layer must not write it.
+Usage as read Wed 11-18 at 17:52 HST: weekly Fable 50 percent (43 at the
+session's start: the survey cost three points at xhigh, the plan four at
+max), all-models 37, both resetting Saturday 2026-11-21 at 02:00 HST. The
+plan guesses fourteen to sixteen Fable points for the execution. GIT: main
+level with origin at `815c1c7`; uncommitted — the plan (new), this file;
+GOALS.md Matt's own, never staged.
+
+---
+
 Updated: 2026-11-18, afternoon (refactor session XIX, Fable 5.2 xhigh
 coordinating; Opus 5.5 executors, reviewer and re-reader).
 NEXT SESSION STARTS HERE: CHECKPOINT 4.5 LANDED on main — `e96e245` (the
@@ -80,8 +216,9 @@ Usage as read Wed 11-18 at 14:30 HST: weekly Fable 41 percent (26 at the
 session's start, 29 when the plan was approved: 4.5 cost twelve Fable
 points to execute), all-models 32, both resetting Saturday 2026-11-21 at
 02:00 HST. This session stands at about 360k tokens after one compaction.
-GIT: main ahead of origin by the checkpoint's commits (the plan's `e96e245`
-onward); GOALS.md Matt's own, never staged.
+GIT: main pushed and level with origin at `815c1c7` (Matt's "Push",
+11-18, the ten commits from the plan's `e96e245`); uncommitted — this line
+of this file; GOALS.md Matt's own, never staged.
 
 ---
 
