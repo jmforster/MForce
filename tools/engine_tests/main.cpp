@@ -1438,28 +1438,47 @@ namespace reader_twin {
 // Every load whose patch the module refuses or renders otherwise than the
 // loader: the function the load sits in, a piece of the patch's text that
 // tells it apart (empty: every patch that function loads), the verdict
-// ("refused" or "differs") and why.
-struct Known { const char* test; const char* patch; const char* verdict; const char* reason; };
+// ("refused" or "differs"), the fixed words the module's refusal holds (a
+// refused row), and why.
+struct Known { const char* test; const char* patch; const char* verdict; const char* needle; const char* reason; };
 static const std::vector<Known>& known() {
     static const std::vector<Known> rows = {
-        {"perform_field_of", R"("field":"FREQUENCY")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"VELOCITY")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"WHEEL")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"PRESSURE")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"DURATION")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"ONSET")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("kind":["Expo",0,"hold"])", "refused", "a labelled column's label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"MULTIPLY")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"multiply")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"mix")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"fade")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"sum")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"add")", "refused", "an enum word that is no label: the loader keeps the default and says so on stderr"},
-        {"run_curve_table_tests", R"("exprForm":["linear","POWER")", "refused", "a labelled column's label in another case: the loader matches labels ignoring case"},
-        {"run_curve_table_tests", R"("interp":"LogLog")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"run_curve_table_tests", R"("interp":"cubic")", "refused", "an enum word that is no label: the loader keeps the default and says so on stderr"},
-        {"run_envelope_table_tests", R"("timeMode":"Seconds")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
-        {"run_envelope_table_tests", R"("type":["expo","SINE","Hold"])", "refused", "a labelled column's label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"FREQUENCY")", "refused", R"('field' holds "FREQUENCY", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"VELOCITY")", "refused", R"('field' holds "VELOCITY", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"WHEEL")", "refused", R"('field' holds "WHEEL", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"PRESSURE")", "refused", R"('field' holds "PRESSURE", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"DURATION")", "refused", R"('field' holds "DURATION", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"ONSET")", "refused", R"('field' holds "ONSET", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("kind":["Expo",0,"hold"])", "refused", R"('kind' holds "hold", which is not one of its labels)",
+         "a labelled column's label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"MULTIPLY")", "refused", R"('operation' holds "MULTIPLY", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"multiply")", "refused", R"('operation' holds "multiply", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"mix")", "refused", R"('operation' holds "mix", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"fade")", "refused", R"('operation' holds "fade", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"sum")", "refused", R"('operation' holds "sum", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"add")", "refused", R"('operation' holds "add", which is not one of its labels)",
+         "an enum word that is no label: the loader keeps the default and says so on stderr"},
+        {"run_curve_table_tests", R"("exprForm":["linear","POWER")", "refused", R"('exprForm' holds "POWER", which is not one of its labels)",
+         "a labelled column's label in another case: the loader matches labels ignoring case"},
+        {"run_curve_table_tests", R"("interp":"LogLog")", "refused", R"('interp' holds "LogLog", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"run_curve_table_tests", R"("interp":"cubic")", "refused", R"('interp' holds "cubic", which is not one of its labels)",
+         "an enum word that is no label: the loader keeps the default and says so on stderr"},
+        {"run_envelope_table_tests", R"("timeMode":"Seconds")", "refused", R"('timeMode' holds "Seconds", which is not one of its labels)",
+         "an enum label in another case: the loader matches labels ignoring case"},
+        {"run_envelope_table_tests", R"("type":["expo","SINE","Hold"])", "refused", R"('type' holds "expo", which is not one of its labels)",
+         "a labelled column's label in another case: the loader matches labels ignoring case"},
     };
     return rows;
 }
@@ -1474,7 +1493,8 @@ static const Known* row_for(std::string_view where, const std::string& text) {
     return nullptr;
 }
 // The verdict on one load against the table: "same" holds where no row
-// names the load; any other verdict needs its row.
+// names the load; any other verdict needs its row, and a refusal also needs
+// the row's fixed words in the module's sentence.
 static void judge(std::string_view where, const std::string& text, const std::string& verdict, const std::string& why) {
     const Known* row = row_for(where, text);
     if (verdict == "same") {
@@ -1485,7 +1505,13 @@ static void judge(std::string_view where, const std::string& text, const std::st
     if (!row || verdict != row->verdict)
         std::printf("  not in the table: %.*s: %s: %s\n", int(where.size()), where.data(), verdict.c_str(), why.c_str());
     CHECK(row != nullptr && verdict == row->verdict);
-    if (row) met().insert(row);
+    if (!row) return;
+    met().insert(row);
+    if (verdict != "refused") return;
+    const bool onItsReason = why.find(row->needle) != std::string::npos;
+    if (!onItsReason)
+        std::printf("  the row %s (%s) wants '%s'; the module said: %s\n", row->test, row->patch, row->needle, why.c_str());
+    CHECK(onItsReason);
 }
 static bool same_samples(const std::vector<float>& a, const std::vector<float>& b) {
     return a.size() == b.size() && (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0);
@@ -12529,6 +12555,26 @@ static void run_multiplex_builder_tests() {
     CHECK_NEAR(mux.next(), 3.0f, 1e-6f);                  // (1 + 2 + 3 + 4 + 5) / 5
 }
 
+// A builder given by set_template is the one the next prepare() asks: a
+// Multiplex prepared and pulled with builder A, then given builder B and
+// prepared and pulled again, asks B for every clone and emits B's mean.
+static void run_multiplex_template_change_tests() {
+    std::printf("MultiplexSource: the next prepare asks the builder set_template gave it\n");
+    int askedA = 0, askedB = 0;
+    MultiplexSource mux;
+    mux.set_setting("count", 2.0f);
+    mux.set_template([&askedA](int) -> std::shared_ptr<ValueSource> { ++askedA; return konst(1.0f); });
+    TestHost h;
+    mux.prepare(h.ctx);
+    mux.start(64); h.clock.tick();
+    CHECK_NEAR(mux.next(), 1.0f, 1e-6f);
+    mux.set_template([&askedB](int i) -> std::shared_ptr<ValueSource> { ++askedB; return konst(float(10 + i)); });
+    mux.prepare(h.ctx);
+    mux.start(64); h.clock.tick();
+    CHECK(askedA == 2 && askedB == 2);
+    CHECK_NEAR(mux.next(), 10.5f, 1e-6f);                 // (10 + 11) / 2
+}
+
 // The mixer's listed signals report under their ids after the channels'
 // reports, each once, as their bits are taken; with none listed the mixer
 // reports what its channels report.
@@ -12909,6 +12955,29 @@ static void run_type_declaration_default_tests() {
     CHECK(differing == 0);
 }
 
+// The table is read from each type's prototype and asks slot acceptance of a
+// scratch owner, so no slot of any type's prototype holds a part.
+static void run_type_declaration_prototype_tests() {
+    std::printf("the declarations table: no slot of any prototype holds a part\n");
+    int slots = 0, holding = 0;
+    for (const auto& t : declared_types()) {
+        const TypeDeclarations* d = type_declarations(t);
+        const Component* proto = prototype(t);
+        if (!d || !proto) continue;
+        for (const auto& in : d->inputs) {
+            if (!in.slot) continue;
+            ++slots;
+            const auto part = proto->get_part(in.name);
+            if (!part) continue;
+            ++holding;
+            std::printf("  %s.%s holds a %s\n", t.c_str(), in.name.c_str(), part->type_name());
+        }
+    }
+    std::printf("  %d slots over every type's prototype, %d hold a part\n", slots, holding);
+    CHECK(slots > 0);
+    CHECK(holding == 0);
+}
+
 // A name the registry does not have caches nothing: registered after it was
 // asked, and after the table was first read, it is found.
 static void run_type_declaration_late_tests() {
@@ -13285,8 +13354,9 @@ static void run_refusals(const std::vector<Refused>& cases) {
 }  // namespace patch_codec
 
 // Every patch of patches/library and patches/baselines, walked as it stands:
-// load_patch reads it, a write and a read give the same record, and the text
-// of a save read and saved again is byte-equal.
+// load_patch reads it, a write and a read give the same record, the saved
+// text ends in one newline, and the text of a save read and saved again is
+// byte-equal.
 static void run_codec_identity_tests() {
     using namespace patch_codec;
     std::printf("the codec: every patch of library and baselines reads, writes and reads back the same\n");
@@ -13308,6 +13378,9 @@ static void run_codec_identity_tests() {
                 CHECK(same);
                 save_patch(scratch, p);
                 const std::string first = text_of(scratch);
+                const bool oneNewline = first.size() >= 2 && first.back() == '\n' && first[first.size() - 2] != '\n';
+                if (!oneNewline) std::printf("  the saved text does not end in one newline: %s\n", path.string().c_str());
+                CHECK(oneNewline);
                 const Patch again = load_patch(scratch);
                 save_patch(scratch, again);
                 const bool equal = text_of(scratch) == first && again == p;
@@ -13676,6 +13749,7 @@ static std::vector<Refused> document_refusals() {
         {"sampleRate with a fraction", top(R"J("sampleRate":44100.5)J"), "sampleRate: 'sampleRate' takes a whole number, not 44100.5"},
         {"seconds as a string", top(R"J("seconds":"2")J"), "seconds: 'seconds' takes a number, not \"2\""},
         {"a comment that is not a string", top(R"J("comment":5)J"), "comment: 'comment' takes a string, not 5"},
+        {"a comment as a list", top(R"J("comment":["a"])J"), "comment: 'comment' takes a string, not [\"a\"]"},
         {"a graph that is not an object", R"J({"graph":[]})J", "graph: 'graph' takes an object, not []"},
         {"nodes that are not a list", R"J({"graph":{"nodes":{}}})J", "graph.nodes: 'nodes' takes a list, not {}"},
         {"an output that is not a string", R"J({"graph":{"output":3}})J", "graph.output: 'output' takes a string, not 3"},
@@ -13688,6 +13762,9 @@ static std::vector<Refused> document_refusals() {
         {"polyphony as a string", block(R"J({"polyphony":"4"})J"), "instrument.polyphony: 'polyphony' takes a whole number, not \"4\""},
         {"volume as a bool", block(R"J({"volume":true})J"), "instrument.volume: 'volume' takes a number, not true"},
         {"glideMs as null", block(R"J({"glideMs":null})J"), "instrument.glideMs: 'glideMs' takes a number, not null"},
+        {"glideMs as a bool", block(R"J({"glideMs":true})J"), "instrument.glideMs: 'glideMs' takes a number, not true"},
+        {"polyphony with a fraction", block(R"J({"polyphony":1.5})J"),
+         "instrument.polyphony: 'polyphony' takes a whole number, not 1.5"},
         {"sustaining as 1", block(R"J({"sustaining":1})J"), "instrument.sustaining: 'sustaining' takes true or false, not 1"},
         {"onsets holding a number", block(R"J({"onsets":[1]})J"), "instrument.onsets: 'onsets' takes a list of strings, not [1]"},
         {"a layout that is not an object", R"J({"layout":[]})J", "layout: 'layout' takes an object, not []"},
@@ -13759,6 +13836,8 @@ static std::vector<Refused> node_refusals() {
         {"a type that is not a string", with_node(R"J({"id":"x","type":[]})J"), "graph.nodes[1].type: 'type' takes a string, not []"},
         {"a node comment that is not a string", with_node(R"J({"id":"x","type":"SineSource","comment":5})J"),
          "graph.nodes[1].comment: node 'x' (SineSource): 'comment' takes a string, not 5"},
+        {"a node comment as a list", with_node(R"J({"id":"x","type":"SineSource","comment":["a","b"]})J"),
+         "graph.nodes[1].comment: node 'x' (SineSource): 'comment' takes a string, not [\"a\",\"b\"]"},
         {"params that are not an object", with_node(R"J({"id":"x","type":"SineSource","params":[]})J"),
          "graph.nodes[1].params: node 'x' (SineSource): 'params' takes an object, not []"},
         {"an unknown type", with_node(R"J({"id":"x","type":"NoSuchSource"})J"),
@@ -13775,10 +13854,13 @@ static std::vector<Refused> node_refusals() {
          pin + "{\"ref\":\"o\",\"x\":1}"},
         {"dynamicPins that are not an object", with_node(R"J({"id":"e","type":"Envelope","dynamicPins":3})J"),
          "graph.nodes[1].dynamicPins: node 'e' (Envelope): 'dynamicPins' takes an object, not 3"},
+        {"dynamicPins as null", with_node(R"J({"id":"e","type":"Envelope","dynamicPins":null})J"),
+         "graph.nodes[1].dynamicPins: node 'e' (Envelope): 'dynamicPins' takes an object, not null"},
         {"a negative seed", with_params("x", "SineSource", R"J({"seed":-5})J"), seed + "-5"},
         {"a fractional seed", with_params("x", "SineSource", R"J({"seed":7.5})J"), seed + "7.5"},
         {"a seed past 32 bits", with_params("x", "SineSource", R"J({"seed":4294967296})J"), seed + "4294967296"},
         {"a seed as a string", with_params("x", "SineSource", R"J({"seed":"7"})J"), seed + "\"7\""},
+        {"a seed as a bool", with_params("x", "SineSource", R"J({"seed":true})J"), seed + "true"},
     };
 }
 // A pin, a list pin and a slot given what they do not take.
@@ -13835,6 +13917,12 @@ static std::vector<Refused> value_refusals() {
          "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' takes a number, not \"1.5\""},
         {"a bool on a float setting", with_params("b", "Biquad", R"J({"b0":true})J"),
          "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' takes a number, not true"},
+        {"null on a float setting", with_params("b", "Biquad", R"J({"b0":null})J"),
+         "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' takes a number, not null"},
+        {"a list on a float setting", with_params("b", "Biquad", R"J({"b0":[1.5]})J"),
+         "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' takes a number, not [1.5]"},
+        {"a feed on a float setting", with_params("b", "Biquad", R"J({"b1":{"ref":"o"}})J"),
+         "graph.nodes[1].params.b1: node 'b' (Biquad): 'b1' takes a number, not {\"ref\":\"o\"}"},
         {"an int given a fraction", with_params("f", "BWLowpassFilter", R"J({"sections":2.5})J"),
          "graph.nodes[1].params.sections: node 'f' (BWLowpassFilter): 'sections' takes a whole number, not 2.5"},
         {"a bool given 2", with_params("s", "SVFSource", R"J({"normalize":2})J"),
@@ -13852,6 +13940,8 @@ static std::vector<Refused> value_refusals() {
          "graph.nodes[1].params.values: node 'sg' (SegmentSource): 'values' takes a list of numbers, not 0.5"},
         {"a string in an array", with_params("sg", "SegmentSource", R"J({"values":[1,"a"]})J"),
          "graph.nodes[1].params.values: node 'sg' (SegmentSource): 'values' takes a list of numbers, not [1,\"a\"]"},
+        {"a bool in an array", with_params("sg", "SegmentSource", R"J({"values":[1,true]})J"),
+         "graph.nodes[1].params.values: node 'sg' (SegmentSource): 'values' takes a list of numbers, not [1,true]"},
         {"a labelled column holding no label", with_params("e", "Envelope", "{" + stage_columns(R"J(["Linear","Bogus"])J") + "}"),
          column + "\"Bogus\"" + stageLabels},
         {"a labelled column's label in another case", with_params("e", "Envelope", "{" + stage_columns(R"J(["linear",0])J") + "}"),
@@ -14091,6 +14181,12 @@ static void run_build_fill_tests() {
     CHECK(build_refusal(signalOnSlot) == "node 'add' (AdditiveSource): 'partials' does not accept a SineSource; 'partials' takes " +
                                              type_declarations("AdditiveSource")->input("partials")->hint);
     CHECK(text_refusal(inst(bad_shaper("sh"), "sh")) == "node 'sh' (Shaper): " + kShaperRefusal);
+    // The table rule on a record made in memory and never checked.
+    Graph ragged = graph_of({node("env", "Envelope")}, "env");
+    ragged.nodes[0].arrays["startVal"] = {0.0f, 1.0f};
+    CHECK(build_refusal(ragged) == "node 'env' (Envelope): table 'stages' takes its columns at one length, all present or "
+                                   "all absent (got startVal 2, endVal absent, power absent, type absent, percent absent, "
+                                   "minSec absent, maxSec absent, nominal absent)");
 }
 
 // The three names: a PerformNode is the note's signal its field names, and
@@ -14128,7 +14224,9 @@ static void run_build_named_tests() {
 }
 
 namespace build_tests {
-// Task 0's Multiplex files a1 to a7 and b2, without their layout, score and length.
+// Instruments around a MultiplexSource, a1 to a7 (the synthetic set's files of
+// those names, without their layout, score and length), and a NameGate inside
+// a Multiplex template.
 struct Named { const char* name; const char* text; };
 static const Named kMultiplexTexts[] = {
     {"a1", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"N","type":"WhiteNoiseSource","params":{"amplitude":0.3,"seed":1101}},{"id":"S","type":"SawSource","params":{"amplitude":0.3,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"F","type":"SVFSource","params":{"source":{"ref":"S"},"cutoffFreq":1500.0,"resonance":0.3,"mode":"Lowpass"}},{"id":"R","type":"CombinedSource","params":{"source1":{"ref":"N"},"source2":{"ref":"F"},"operation":"Sum","gainAdj":0.0,"seed":1201}},{"id":"mux","type":"MultiplexSource","params":{"count":5,"source":{"ref":"R"}}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"mux"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
@@ -14143,8 +14241,8 @@ static const Named kMultiplexTexts[] = {
 static const char* const kGateInTemplate = R"J({"graph":{"nodes":[{"id":"pfF","type":"PerformNode","params":{"field":"frequency"}},{"id":"pfO","type":"PerformNode","params":{"field":"onset"}},{"id":"ng","type":"NameGate","params":{"name":"tongue","in":{"ref":"pfO"}}},{"id":"gest","type":"Envelope","params":{"minValue":0.0,"maxValue":1.0,"ramp_accuracy":1.0,"stage_accuracy":1.0,"timeMode":"seconds","timeScale":1.0,"startVal":[1.0,0.1,1.0],"endVal":[0.1,1.0,1.0],"power":[0.0,0.0,0.0],"type":["Linear","Linear","Linear"],"percent":[0.01,0.02,0.0],"minSec":[0.0,0.0,0.0],"maxSec":[0.0,0.0,0.0],"nominal":[0.0,0.0,0.0],"trigger":{"ref":"ng"}}},{"id":"lift","type":"CombinedSource","params":{"source1":{"ref":"ng"},"source2":1.0,"operation":"Sum","gainAdj":0.0}},{"id":"amp2","type":"CombinedSource","params":{"source1":{"ref":"gest"},"source2":{"ref":"lift"},"operation":"Multiply","gainAdj":0.0}},{"id":"R","type":"SawSource","params":{"amplitude":{"ref":"amp2"},"frequency":{"ref":"pfF"},"phase":0.0}},{"id":"mux","type":"MultiplexSource","params":{"count":2,"source":{"ref":"R"}}}],"output":"mux"},"instrument":{"polyphony":1,"volume":0.5,"onsets":["tongue"],"sustaining":true},"sampleRate":48000})J";
 }  // namespace build_tests
 
-// The template against the loader, sample for sample, on Task 0's Multiplex
-// files: a held line and a note alone. A NameGate inside a template resolves
+// The template against the loader, sample for sample, on the Multiplex
+// texts: a held line and a note alone. A NameGate inside a template resolves
 // against the block's onsets, where the loader's clones are given none.
 static void run_build_template_reader_tests() {
     using namespace build_tests;
@@ -14291,6 +14389,13 @@ static void run_build_list_tests() {
     for (size_t k = 0; k < g4.advance.size() && k < 4; ++k) CHECK(g4.advance[k].get() == g4.nodes.at("D" + std::to_string(k)).get());
     const std::string one = R"({"id":"T","type":"SawSource"},{"id":"out","type":"CombinedSource","params":{"source1":{"tap":"T"}}})";
     CHECK(tails(one, "out") == Ids({"T"}));
+    // T1, first in the file, reads L, listed after T2: T2 is built before T1,
+    // and advance still holds T1 then T2.
+    const BuiltGraph late = built(inst(R"({"id":"T1","type":"SawSource","params":{"amplitude":{"ref":"L"}}},)"
+        R"({"id":"T2","type":"SawSource"},{"id":"L","type":"SineSource"},)"
+        R"({"id":"out","type":"MultiSource","params":{"source":[{"tap":"T2"},{"tap":"T1"}]}})", "out"));
+    CHECK(late.advance.size() == 2 && late.advance[0].get() == late.nodes.at("T1").get() &&
+          late.advance[1].get() == late.nodes.at("T2").get());
     CHECK(tails(R"({"id":"out","type":"SawSource"})", "out").empty());
     CHECK(tails(R"({"id":"T","type":"SawSource","params":{"amplitude":{"tap":"T"}}})", "T").empty());
     CHECK(tails(R"({"id":"T","type":"SawSource"},{"id":"env","type":"Envelope","dynamicPins":{"timeScale":{"ref":"T"}}},)"
@@ -14365,6 +14470,9 @@ static void run_build_instrument_tests() {
     msg.clear();
     try { (void)build_instrument(load_text(plain(R"({"id":"o","type":"SineSource"})", "o"))); } catch (const std::exception& e) { msg = e.what(); }
     CHECK(msg == "Patch has no 'instrument' section");
+    const Patch slow = load_text(R"({"sampleRate":22050,"instrument":{"polyphony":1},)"
+                                 R"("graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"}]}})");
+    CHECK(build_instrument(slow)->voicePool[0].ctx.sampleRate == 22050);
 }
 
 // build_sound: the base's seven plain-sound hashes; the sharing refusal's
@@ -14430,14 +14538,15 @@ static void run_build_sound_tests() {
 // the declarations table writes, read by both readers.
 namespace reader_twin {
 using J = nlohmann::json;
-// The three texts per type: the sparse one; one whose arrays all hold rows;
-// one whose scalar settings all stand off their defaults.
+// The three texts per type: the sparse one; one whose arrays all hold rows
+// and whose Params the text does not feed all hold a number off their
+// defaults; one whose scalar settings all stand off their defaults.
 enum class TwinText { Sparse, Rows, Settings };
-// The settings whose maximum makes the quarter-second render too slow or too
-// large, and the value each takes in the Settings text instead, off its
-// default: a Partials' count of partials the midpoint of its range; an
-// ExpandRule's two sizes one each, since a rule makes (1 + 2 * count) to the
-// power (1 + recurse) partials of every one its host has.
+// The settings and Params whose usual value makes the quarter-second render
+// too slow or too large, and the value each takes instead, off its default:
+// a Partials' count of partials the midpoint of its range; an ExpandRule's
+// two sizes one each, since a rule makes (1 + 2 * count) to the power
+// (1 + recurse) partials of every one its host has.
 static const float* chosen_value(const std::string& type, const std::string& setting) {
     static const std::map<std::pair<std::string, std::string>, float> kChosen = {
         {{"FullPartials", "maxPartials"}, 100.0f},
@@ -14488,10 +14597,25 @@ static void give_settings(J& params, const TypeDeclarations& d) {
         else params[s.name] = s.max;
     }
 }
+// Every declared Param the text does not feed a number off its default and
+// inside its range (or the value chosen_value gives it): a quarter of the way
+// to its maximum, or to its minimum where the default is the maximum. A
+// Param whose range is one value keeps its default.
+static void give_params(J& params, const TypeDeclarations& d) {
+    for (const auto& p : d.params) {
+        if (params.contains(p.name) || p.min == p.max) continue;
+        if (const float* chosen = chosen_value(d.type, p.name)) params[p.name] = *chosen;
+        else if (p.defaultValue == p.max) params[p.name] = p.defaultValue - (p.defaultValue - p.min) / 4.0f;
+        else params[p.name] = p.defaultValue + (p.max - p.defaultValue) / 4.0f;
+    }
+}
 static void add_node(J& nodes, const std::string& id, const std::string& type, bool note, int depth, TwinText text) {
     const TypeDeclarations* d = type_declarations(type);
     J params = pins(nodes, id, *d, note, depth);
-    if (text == TwinText::Rows) give_rows(params, *d);
+    if (text == TwinText::Rows) {
+        give_rows(params, *d);
+        give_params(params, *d);
+    }
     if (text == TwinText::Settings) give_settings(params, *d);
     nodes.push_back(J{{"id", id}, {"type", type}, {"params", params}});
 }
@@ -14618,8 +14742,10 @@ static void twin_all(TwinText kind, const char* name) {
 }  // namespace reader_twin
 
 // For every registered type, three texts the declarations table writes: the
-// sparse one, one whose every array holds rows, one whose every scalar
-// setting stands off its default. Of each: (i) the loader and the module
+// sparse one; one whose every array holds rows and whose every Param the
+// text does not feed holds a number off its default, so a Param's number is
+// heard as the pin's own constant against the loader's wired constant; one
+// whose every scalar setting stands off its default. Of each: (i) the loader and the module
 // build it alike and render a C4 of a quarter second the same, and (ii)
 // from_json(to_json(p)) == p; of the first two also (iii) the module renders
 // the text and the text of to_json(from_json(text)) the same.
@@ -14833,12 +14959,14 @@ int main() {
     run_evolution_unclamped_setting_tests();
     run_trigger_value_tests();
     run_multiplex_builder_tests();
+    run_multiplex_template_change_tests();
     run_mixer_signal_fault_tests();
     run_patch_record_tests();
     run_type_declaration_identity_tests();   // the table's first ask: before any other test reads it
     run_type_declaration_field_tests();
     run_type_declaration_accept_tests();
     run_type_declaration_default_tests();
+    run_type_declaration_prototype_tests();
     run_patch_check_tests();
     patch_codec::guarded("run_codec_identity_tests", run_codec_identity_tests);
     patch_codec::guarded("run_codec_complete_model_tests", run_codec_complete_model_tests);

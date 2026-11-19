@@ -18,9 +18,14 @@ Usage:
       [--expect WHAT.txt] <patch.json | folder>...
 
 Exit: 3 if a child exited other than 0 or 1 (a crash) or the children's
-summaries do not account for every file, else 1 if any child exited 1, else 0.
+summaries do not account for every file, else 1 if any child exited 1, else 1
+with a line saying which when an arm changed nothing and so tested nothing (a
+run that judged an instrument and compared no live note, a --sparse run that
+removed no key, a --resaved run whose saved texts all equal their files),
+else 0.
 """
 import concurrent.futures as cf
+import json
 import os
 import re
 import subprocess
@@ -34,6 +39,7 @@ TIME_LINE = re.compile(r"^TIME (.*)\t([0-9.]+)\t([0-9.]+)\s*$")
 TIME_TOTAL = re.compile(r"^time: ")
 VALUED = ("--order", "--resaved", "--sparse", "--time", "--expect")
 FLAGS = ("--self", "--warnings")
+JUDGED = re.compile(r"^(?:SAME|DIFFER) ([^:]+?)(?::|$)")
 
 
 def expand(args):
@@ -63,7 +69,7 @@ def run_slice(flags, paths):
 
 
 def merge(results, expected):
-    """Fold the children's (code, stdout, stderr) into (lines, errs, summary lines, exit)."""
+    """Fold the children's (code, stdout, stderr) into (lines, errs, summary lines, exit, counts)."""
     total, counts, order = 0, {}, []
     told = tnew = 0.0
     timed = False
@@ -97,11 +103,35 @@ def merge(results, expected):
     bad = [c for c in exits if c not in (0, 1)]
     if bad:
         errs.append("a gate process crashed (exit %s): its files were not checked" % bad)
-        return lines, errs, summary, 3
+        return lines, errs, summary, 3, counts
     if total != expected:
         errs.append("the children reported %d files of %d" % (total, expected))
-        return lines, errs, summary, 3
-    return lines, errs, summary, 1 if 1 in exits else 0
+        return lines, errs, summary, 3, counts
+    return lines, errs, summary, 1 if 1 in exits else 0, counts
+
+
+def is_instrument(path):
+    try:
+        with open(os.path.join(ROOT, path), encoding="utf-8") as f:
+            root = json.load(f)
+    except (OSError, ValueError):
+        return False
+    return isinstance(root, dict) and "instrument" in root
+
+
+def idle_arms(flags, lines, counts):
+    """The arms that changed nothing, each in a sentence; empty when every arm did its work."""
+    if "live notes" not in counts:
+        return []
+    idle = []
+    judged = {m.group(1) for m in (JUDGED.match(l) for l in lines) if m}
+    if counts["live notes"] == 0 and any(is_instrument(p) for p in judged):
+        idle.append("the live path compared no note, where an instrument was judged")
+    if "--sparse" in flags and counts.get("keys removed", 0) == 0:
+        idle.append("--sparse removed no key")
+    if "--resaved" in flags and counts.get("saved texts differ", 0) == 0:
+        idle.append("--resaved found no saved text that differs from its file")
+    return idle
 
 
 def main(argv):
@@ -131,14 +161,17 @@ def main(argv):
 
     with cf.ThreadPoolExecutor(max_workers=jobs) as ex:
         results = list(ex.map(lambda s: run_slice(flags, s), slices))
-    lines, errs, summary, code = merge(results, len(patches))
+    lines, errs, summary, code, counts = merge(results, len(patches))
     for line in lines:
         print(line)
     for err in errs:
         print(err, file=sys.stderr)
     for line in summary:
         print(line)
-    return code
+    idle = idle_arms(flags, lines, counts)
+    for sentence in idle:
+        print("AN ARM TESTED NOTHING: " + sentence)
+    return code if code or not idle else 1
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/patch/patch_json.h"
 #include "mforce/patch/type_declarations.h"
+#include "mforce/render/build_instrument.h"
+#include "mforce/render/build_sound.h"
 #include "explore.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
@@ -980,16 +982,25 @@ static std::vector<std::string> check_paths(int argc, char** argv)
     return paths;
 }
 
-// --check <path>...: each patch file read through the codec, nothing built
-// or rendered. A refused file is printed with each line of its refusal
-// beneath it; exit 1 when any file is refused.
+// --check <path>...: will each patch file load? Each is read through the
+// codec and built: an instrument as build_instrument builds it, a plain
+// sound as build_sound does. Nothing is played or written, so an embedded
+// score the player would refuse is not found. A file the reader or the
+// builder refuses is printed with each line of the refusal beneath it; the
+// build's warnings are not printed. Exit 1 when any file is refused.
 static int run_check(int argc, char** argv)
 {
+    if (argc < 3) {
+        std::cerr << "Usage: mforce_cli --check <patch.json | folder>...  (reads and builds each file; plays and writes nothing)\n";
+        return 1;
+    }
     const std::vector<std::string> paths = check_paths(argc, argv);
     int refused = 0;
     for (const auto& path : paths) {
         try {
-            (void)load_patch(path);
+            const Patch patch = load_patch(path);
+            if (patch.instrument) (void)build_instrument(patch);
+            else (void)build_sound(patch);
         } catch (const std::exception& e) {
             ++refused;
             std::string message = e.what();
@@ -1152,7 +1163,7 @@ int main(int argc, char** argv)
     try {
         if (argc >= 2 && std::string(argv[1]) == "--dump-descriptors")
             return run_dump_descriptors(argc, argv);
-        if (argc >= 3 && std::string(argv[1]) == "--check")
+        if (argc >= 2 && std::string(argv[1]) == "--check")
             return run_check(argc, argv);
         if (argc >= 3 && std::string(argv[1]) == "--lint-template")
             return run_lint_template(argc, argv);

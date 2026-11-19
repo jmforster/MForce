@@ -177,13 +177,12 @@ struct PitchedInstrument final : Instrument {
     // rationale as CaptureEntry). fire_triggers reads each trigger via
     // current() at note Setup — never in the sample loop.
     std::vector<Envelope*> triggerBindings;
-    // EVERY envelope in this voice (spec 2026-09-20-note-onsets-v2 §4/§5),
-    // collected at load from the same node table. A held line flips them
-    // all to gated before prepare so they hold at sustain across the note
-    // boundary, and re-references their release to the releasing note's
-    // length at line end. Raw pointers, same lifetime rationale as
-    // triggerBindings. Empty (a Multiplex-output voice, whose envelopes
-    // live inside clones) = hold is not supported on that voice.
+    // Every Envelope of this voice's graph, each once. A held line flips
+    // them all to gated before prepare so they hold at sustain across the
+    // note boundary, and re-references their release to the releasing
+    // note's length at line end. An Envelope inside a Multiplex's clones is
+    // not among them, so a held line does not reach it. Raw pointers, same
+    // lifetime rationale as triggerBindings.
     std::vector<Envelope*> allEnvelopes;
   };
 

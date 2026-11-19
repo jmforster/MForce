@@ -71,6 +71,8 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME tool_tests
              COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tools/tests -p "test_*.py"
              WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # The tool tests that run mforce_cli are given this configuration's binary.
+    set_tests_properties(tool_tests PROPERTIES ENVIRONMENT "MFORCE_CLI=$<TARGET_FILE:mforce_cli>")
 else()
     message(WARNING "Python3 not found: the structure meter tests are not registered")
 endif()

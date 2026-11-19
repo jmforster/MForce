@@ -23,11 +23,10 @@ struct MultiplexSource final : Processor {
 
     Setting<int> count{this, "count", 10, 1, 50};
 
-    // The wired `source` (the inherited input) is a solo preview for the UI.
-    // Without clones (the CLI loader's set_template path is the one that
-    // produces real N-instance fan-out) the node passes it through so the UI
-    // isn't silent, and only then does it prepare and advance it, so the
-    // input is Manual.
+    // set_template gives the node the builder its next prepare() calls once
+    // per instance. With no template set, the node has no instances: it
+    // passes the wired `source` (the inherited input) through, and only then
+    // prepares and advances it, so the input is Manual.
     MultiplexSource() : Processor(Pull::Manual) {}
 
     const char* type_name() const override { return "MultiplexSource"; }

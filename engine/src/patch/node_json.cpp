@@ -322,6 +322,10 @@ json array_json(const Decl::Array* a, const std::vector<float>& rows) {
 
 // The bag by kind from the type's declarations; a name the type does not
 // declare, or any name of a type the registry lacks, by the map it sits in.
+// The seed and the maps are written in this order into one object, so a
+// record that holds one name in two of its maps, or a `seed` among its
+// values, is written with the later map's entry alone. That is a record
+// check() names; the writer never throws.
 json params_json(const Node& n) {
   const Decl* d = type_declarations(n.type);
   json params = json::object();

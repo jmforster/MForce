@@ -46,7 +46,7 @@ void adopt_build(PitchedInstrument::VoiceGraph& vg, BuiltGraph& g, const Graph& 
   for (const auto& n : graph.nodes) {
     auto it = g.nodes.find(n.id);
     auto* env = it == g.nodes.end() ? nullptr : dynamic_cast<Envelope*>(it->second.get());
-    if (!env || std::find(vg.allEnvelopes.begin(), vg.allEnvelopes.end(), env) != vg.allEnvelopes.end()) continue;
+    if (!env) continue;
     vg.allEnvelopes.push_back(env);
     if (env->trigger.source || env->trigger.constant != 0.0f) vg.triggerBindings.push_back(env);
   }

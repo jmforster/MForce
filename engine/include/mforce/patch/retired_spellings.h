@@ -4,9 +4,8 @@
 
 namespace mforce {
 
-// The sentence a file that carries instrument.paramMap is refused with, by the
-// loader, by the codec and by the editor, which refuses before it touches its
-// open graph.
+// The sentence a file that carries instrument.paramMap is refused with, by
+// every reader of a patch file.
 inline constexpr char kParamMapRefusal[] = "instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring";
 
 // Where a retired spelling sat: a key of a node's params, a key on one of a
@@ -22,10 +21,9 @@ enum class RetiredAt { Key, FeedKey, InlineSlot, NodeKey, TopKey };
 // exprKnots), a key under another name (cutoff, gap), a MultiSource feed's
 // weight and delay, an inline expandRule on a Partials host, the `inputs`
 // block beside a SoundChannel's or a StereoMixer's params, and the document's
-// ui, groups, _comment and _provenance. The loader and the codec throw a
+// ui, groups, _comment and _provenance. A reader of a patch file throws a
 // node's row after the node's id and type (and, for a feed key, the pin), and
-// so does the editor, before it touches its open graph. The loader asks every
-// place but TopKey; the codec and the editor ask every place.
+// asks at each place it reads.
 std::string retired_key_refusal(std::string_view type, std::string_view key,
                                 RetiredAt at = RetiredAt::Key);
 
