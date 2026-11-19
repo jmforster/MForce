@@ -3,10 +3,10 @@
 #include "mforce/patch/table_rule.h"
 #include "mforce/patch/type_declarations.h"
 #include "float_text.h"
+#include "graph_cycles.h"
 #include "sentence.h"
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -264,49 +264,9 @@ void check_node(Checker& c, size_t i) {
   check_dynamic_pins(c, at);
 }
 
-// The nodes each node reads over wires that are not taps and over its
-// dynamic pins, each once, in the order the node names them.
-std::vector<std::vector<size_t>> reads_of(const Checker& c) {
-  const auto& nodes = c.patch.graph.nodes;
-  std::vector<std::vector<size_t>> reads(nodes.size());
-  const auto read = [&](size_t i, const std::string& id) {
-    auto it = c.index.find(id);
-    if (it != c.index.end() && std::find(reads[i].begin(), reads[i].end(), it->second) == reads[i].end())
-      reads[i].push_back(it->second);
-  };
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    for (const auto& [pin, feeds] : nodes[i].wires)
-      for (const auto& w : feeds)
-        if (!w.tap) read(i, w.source);
-    for (const auto& [setting, source] : nodes[i].dynamicPins) read(i, source);
-  }
-  return reads;
-}
-
-// A depth-first walk from each node in the graph's order; every read that
-// returns to a node still on the walk's path is a cycle with no tap in it,
-// named from that node along the path and back to it.
+// Every cycle the graph's reads close with no tap in it.
 void check_cycles(Checker& c) {
-  const auto reads = reads_of(c);
-  const auto& nodes = c.patch.graph.nodes;
-  std::vector<int> state(nodes.size(), 0);               // 0 unwalked, 1 on the path, 2 done
-  std::vector<size_t> path;
-  std::function<void(size_t)> walk = [&](size_t i) {
-    state[i] = 1;
-    path.push_back(i);
-    for (size_t j : reads[i]) {
-      if (state[j] == 0) { walk(j); continue; }
-      if (state[j] != 1) continue;
-      std::string cycle;
-      for (auto k = std::find(path.begin(), path.end(), j); k != path.end(); ++k)
-        cycle += nodes[*k].id + " -> ";
-      c.add("graph", "a cycle with no tap in it: " + cycle + nodes[j].id);
-    }
-    path.pop_back();
-    state[i] = 2;
-  };
-  for (size_t i = 0; i < nodes.size(); ++i)
-    if (state[i] == 0) walk(i);
+  for (const auto& cycle : untapped_cycles(c.patch.graph)) c.add("graph", cycle);
 }
 
 // A plain sound has no note: no PerformNode reads one, no dynamic pin is pushed.

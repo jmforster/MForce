@@ -1420,6 +1420,162 @@ static void run_onset_field_tests() {
 #include <sstream>
 #include <cstring>
 
+// ---------------------------------------------------------------------------
+// The tests' one door to a patch: load_inst and load_sound return the
+// loader's result, and beside it build the same text through the module
+// (the codec, then build_instrument or build_sound) and compare a render with
+// one of a second loader build, sample for sample: a C4 on the live path for
+// an instrument, the opening of the mix for a sound. A load the module
+// refuses or renders otherwise fails the run unless the table below names it.
+#include "mforce/patch/patch_json.h"
+#include "mforce/render/build_instrument.h"
+#include "mforce/render/build_sound.h"
+#include <set>
+#include <source_location>
+#include <string_view>
+
+namespace reader_twin {
+// Every load whose patch the module refuses or renders otherwise than the
+// loader: the function the load sits in, a piece of the patch's text that
+// tells it apart (empty: every patch that function loads), the verdict
+// ("refused" or "differs") and why.
+struct Known { const char* test; const char* patch; const char* verdict; const char* reason; };
+static const std::vector<Known>& known() {
+    static const std::vector<Known> rows = {
+        {"perform_field_of", R"("field":"FREQUENCY")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"VELOCITY")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"WHEEL")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"PRESSURE")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"DURATION")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"perform_field_of", R"("field":"ONSET")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("kind":["Expo",0,"hold"])", "refused", "a labelled column's label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"MULTIPLY")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"multiply")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"mix")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"fade")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"sum")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"load_node", R"("operation":"add")", "refused", "an enum word that is no label: the loader keeps the default and says so on stderr"},
+        {"run_curve_table_tests", R"("exprForm":["linear","POWER")", "refused", "a labelled column's label in another case: the loader matches labels ignoring case"},
+        {"run_curve_table_tests", R"("interp":"LogLog")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"run_curve_table_tests", R"("interp":"cubic")", "refused", "an enum word that is no label: the loader keeps the default and says so on stderr"},
+        {"run_envelope_table_tests", R"("timeMode":"Seconds")", "refused", "an enum label in another case: the loader matches labels ignoring case"},
+        {"run_envelope_table_tests", R"("type":["expo","SINE","Hold"])", "refused", "a labelled column's label in another case: the loader matches labels ignoring case"},
+    };
+    return rows;
+}
+// The rows a load has met, for the closing check that none is stale.
+static std::set<const Known*>& met() {
+    static std::set<const Known*> rows;
+    return rows;
+}
+static const Known* row_for(std::string_view where, const std::string& text) {
+    for (const auto& k : known())
+        if (where.find(k.test) != std::string_view::npos && text.find(k.patch) != std::string::npos) return &k;
+    return nullptr;
+}
+// The verdict on one load against the table: "same" holds where no row
+// names the load; any other verdict needs its row.
+static void judge(std::string_view where, const std::string& text, const std::string& verdict, const std::string& why) {
+    const Known* row = row_for(where, text);
+    if (verdict == "same") {
+        if (row) std::printf("  the table names %s (%s), and the readers agree\n", row->test, row->patch);
+        CHECK(row == nullptr);
+        return;
+    }
+    if (!row || verdict != row->verdict)
+        std::printf("  not in the table: %.*s: %s: %s\n", int(where.size()), where.data(), verdict.c_str(), why.c_str());
+    CHECK(row != nullptr && verdict == row->verdict);
+    if (row) met().insert(row);
+}
+static bool same_samples(const std::vector<float>& a, const std::vector<float>& b) {
+    return a.size() == b.size() && (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0);
+}
+// The first index where two renders differ; their common length when one is a prefix of the other.
+static size_t first_difference(const std::vector<float>& a, const std::vector<float>& b) {
+    size_t i = 0;
+    while (i < a.size() && i < b.size() && std::memcmp(&a[i], &b[i], sizeof(float)) == 0) ++i;
+    return i;
+}
+static std::string difference(const std::vector<float>& a, const std::vector<float>& b) {
+    const size_t i = first_difference(a, b);
+    char text[160];
+    std::snprintf(text, sizeof text, "first at sample %zu of %zu and %zu: %.9g %.9g", i, a.size(), b.size(),
+                  i < a.size() ? double(a[i]) : 0.0, i < b.size() ? double(b[i]) : 0.0);
+    return text;
+}
+// A C4 of `seconds` on the live path: one prepared voice pulled sample by
+// sample, its tails after it, until the voice's life ends.
+static std::vector<float> live_c4(PitchedInstrument& pi, float seconds = 0.25f) {
+    auto v = pi.prepare_voice(60.0f, 0.8f, seconds);
+    std::vector<float> out(size_t(v.durSamples));
+    for (int i = 0; i < v.durSamples; ++i) {
+        v.tick();
+        out[size_t(i)] = v.source->next() * v.gain;
+        for (auto& a : v.advanceList) a->next();
+    }
+    return out;
+}
+// A sound's first `frames` (all of it for -1) through its mixer, stereo interleaved.
+static std::vector<float> render_sound(BuiltSound& s, int frames = -1) {
+    const int n = frames < 0 ? s.frames : std::min(frames, s.frames);
+    std::vector<float> buf(2 * size_t(n), 0.0f);
+    s.mixer->render(buf.data(), n);
+    return buf;
+}
+static mforce::Patch read_text(const std::string& text) {
+    mforce::Patch p;
+    from_json(nlohmann::json::parse(text), p);
+    return p;
+}
+// The instrument `json` makes through the module against a second loader build.
+static void twin_instrument(const std::string& json, int minPolyphony, std::string_view where) {
+    std::string verdict = "same", why;
+    auto second = load_instrument_patch_json(json, minPolyphony);
+    const auto old = live_c4(*second.instrument);
+    std::unique_ptr<PitchedInstrument> mod;
+    try { mod = build_instrument(read_text(json), minPolyphony); }
+    catch (const std::exception& e) { verdict = "refused"; why = e.what(); }
+    if (mod) {
+        const auto neu = live_c4(*mod);
+        if (!same_samples(old, neu)) { verdict = "differs"; why = difference(old, neu); }
+    }
+    judge(where, json, verdict, why);
+}
+// The sound the file at `path` makes through the module against a second loader build.
+static void twin_sound(const std::string& path, std::string_view where) {
+    std::string verdict = "same", why;
+    BuiltSound second = load_patch_file(path);
+    const auto old = render_sound(second, 24000);
+    try {
+        BuiltSound mod = build_sound(load_patch(path));
+        const auto neu = render_sound(mod, 24000);
+        if (mod.frames != second.frames || mod.sampleRate != second.sampleRate) {
+            verdict = "differs";
+            why = "frames " + std::to_string(second.frames) + " and " + std::to_string(mod.frames);
+        } else if (!same_samples(old, neu)) { verdict = "differs"; why = difference(old, neu); }
+    } catch (const std::exception& e) { verdict = "refused"; why = e.what(); }
+    std::ifstream f(path, std::ios::binary);
+    std::stringstream text;
+    text << f.rdbuf();
+    judge(where, text.str(), verdict, why);
+}
+}  // namespace reader_twin
+
+// The loader's instrument from `json`, twinned through the module.
+static InstrumentPatch load_inst(const std::string& json, int minPolyphony = 0,
+                                 const std::source_location& where = std::source_location::current()) {
+    InstrumentPatch ip = load_instrument_patch_json(json, minPolyphony);
+    reader_twin::twin_instrument(json, minPolyphony, where.function_name());
+    return ip;
+}
+// The loader's sound from the file at `path`, twinned through the module.
+static BuiltSound load_sound(const std::string& path,
+                             const std::source_location& where = std::source_location::current()) {
+    BuiltSound built = load_patch_file(path);
+    reader_twin::twin_sound(path, where.function_name());
+    return built;
+}
+
 // Load a baseline patch with its score block stripped (the tests schedule
 // their own notes). Run engine_tests from the repo root.
 static InstrumentPatch load_scoreless(const char* path) {
@@ -1428,7 +1584,7 @@ static InstrumentPatch load_scoreless(const char* path) {
     std::string txt = ss.str();
     auto j = nlohmann::json::parse(txt);
     j.erase("score");
-    return load_instrument_patch_json(j.dump());
+    return load_inst(j.dump());
 }
 
 // A minimal sustaining patch: percent-mode adsr (attack 5%, decay 10%,
@@ -1503,7 +1659,7 @@ static void run_hold_delivery_tests() {
     //     and the voice releases after 0.8 s.
     {
         const int N = int(2.0f * sr);
-        auto ip = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto ip = load_inst(hold_patch_json(15.0f));
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         CHECK(pi != nullptr);
         pi->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
@@ -1522,7 +1678,7 @@ static void run_hold_delivery_tests() {
     //     of the quarter that prepared the voice (which would be 0.1 s).
     {
         const int N = int(2.4f * sr);
-        auto ip = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto ip = load_inst(hold_patch_json(15.0f));
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         pi->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
         pi->play_note({60.0f, 0.8f, 0.8f, 0.0f, false}, 0.4f);
@@ -1542,13 +1698,13 @@ static void run_hold_delivery_tests() {
     //     boundary's per-sample step is smaller than an instant retarget's.
     {
         const int N = int(1.6f * sr);
-        auto glided = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto glided = load_inst(hold_patch_json(15.0f));
         auto* pg = dynamic_cast<PitchedInstrument*>(glided.instrument.get());
         pg->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
         pg->play_note({67.0f, 0.8f, 0.4f, 0.0f, false}, 0.4f);
         auto bg = render_all(glided, N);
 
-        auto instant = load_instrument_patch_json(hold_patch_json(0.0f));
+        auto instant = load_inst(hold_patch_json(0.0f));
         auto* pn = dynamic_cast<PitchedInstrument*>(instant.instrument.get());
         pn->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
         pn->play_note({67.0f, 0.8f, 0.4f, 0.0f, false}, 0.4f);
@@ -1589,7 +1745,7 @@ static void run_hold_delivery_tests() {
     //     released, not leaked — the output decays away.
     {
         const int N = int(2.0f * sr);
-        auto ip = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto ip = load_inst(hold_patch_json(15.0f));
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         pi->play_note({60.0f, 0.8f, 0.5f, 0.0f, true}, 0.0f);
         pi->finish_open_lines();
@@ -1628,7 +1784,7 @@ static void run_hold_delivery_tests() {
 static void check_note_pitch_reaches_osc(const std::string& patch) {
     const int n = 12000;
     auto render = [&](float midi) {
-        auto ip = load_instrument_patch_json(patch);
+        auto ip = load_inst(patch);
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         pi->play_note({midi, 0.8f, 0.4f}, 0.0f);
         std::vector<float> b(size_t(n), 0.0f);
@@ -1700,7 +1856,7 @@ static void run_multiplex_bend_tests() {
     up7.dur = {0.0f};                  // one hold that fills the note
     const int n = 12000;               // inside the 0.4 s note
     auto render = [&](const PitchCurve* curve) {
-        auto ip = load_instrument_patch_json(patch);
+        auto ip = load_inst(patch);
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         pi->play_note({60.0f, 0.8f, 0.4f, 0.0f, false, curve}, 0.0f);
         std::vector<float> b(size_t(n), 0.0f);
@@ -1836,7 +1992,7 @@ static void run_onset_trigger_tests() {
         ]
       }
     })";
-    auto ip = load_instrument_patch_json(kJson);
+    auto ip = load_inst(kJson);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
     pi->play_note({57.0f, 0.8f, 0.5f, 0.0f, true}, 0.0f);
@@ -1859,7 +2015,7 @@ static void run_onset_trigger_tests() {
     CHECK(dip < 0.5f * before);                // the consonant fired
     CHECK(after > 0.9f * before);              // and got out of the way
     // Control: same line, no onset name — no dip.
-    auto ip2 = load_instrument_patch_json(kJson);
+    auto ip2 = load_inst(kJson);
     auto* pi2 = dynamic_cast<PitchedInstrument*>(ip2.instrument.get());
     pi2->play_note({57.0f, 0.8f, 0.5f, 0.0f, true}, 0.0f);
     pi2->play_note({57.0f, 0.8f, 0.5f, 0.0f, false}, 0.5f);
@@ -1896,7 +2052,7 @@ static void run_note_reseed_tests() {
         ]
       }
     })";
-    auto ip = load_instrument_patch_json(kJson);
+    auto ip = load_inst(kJson);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
     pi->play_note({57.0f, 0.8f, 0.5f, 0.0f, true,  nullptr}, 0.0f);
@@ -1944,7 +2100,7 @@ static int file_voice_count(const char* path, const std::string& text) {
     ScratchPatch file(path, text);
     int voices = -1;
     try {
-        auto built = load_patch_file(file.path);
+        auto built = load_sound(file.path);
         if (built.mixer && built.mixer->channels.size() == 1)
             if (auto* pi = dynamic_cast<PitchedInstrument*>(built.mixer->channels[0].source.get()))
                 voices = int(pi->voicePool.size());
@@ -1968,11 +2124,11 @@ static void run_voice_pool_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
     const char* none = R"({"sampleRate":48000,"instrument":{"polyphony":0},"graph":{"output":"osc","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
-    CHECK(load_instrument_patch_json(two, 5).instrument->voicePool.size() == 5);
-    CHECK(load_instrument_patch_json(two, 0).instrument->voicePool.size() == 2);
-    CHECK(load_instrument_patch_json(six, 3).instrument->voicePool.size() == 6);   // a floor below is no cut
-    CHECK(load_instrument_patch_json(unstated, 0).instrument->voicePool.size() == 4);
-    auto defaultRate = load_instrument_patch_json(noRate);
+    CHECK(load_inst(two, 5).instrument->voicePool.size() == 5);
+    CHECK(load_inst(two, 0).instrument->voicePool.size() == 2);
+    CHECK(load_inst(six, 3).instrument->voicePool.size() == 6);   // a floor below is no cut
+    CHECK(load_inst(unstated, 0).instrument->voicePool.size() == 4);
+    auto defaultRate = load_inst(noRate);
     CHECK(defaultRate.sampleRate == 48000);
     CHECK(defaultRate.instrument->render_context().sampleRate == 48000);
     CHECK(file_voice_count("renders/scratch/_voice_pool_two.json", two) == 2);
@@ -1987,7 +2143,7 @@ static void run_voice_gain_tests() {
     std::printf("the streaming voice's gain: velocity times the instrument's volume\n");
     const char* one = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
-    auto ip = load_instrument_patch_json(one);
+    auto ip = load_inst(one);
     ip.instrument->volume = 0.5f;
     CHECK(ip.instrument->prepare_voice_at(0, 60.0f, 0.8f, 0.1f).gain == 0.8f * 0.5f);
     ip.instrument->volume = 1.0f;
@@ -1999,7 +2155,7 @@ static void run_voice_gain_tests() {
 static int frames_of(const char* path, const char* text) {
     ScratchPatch file(path, text);
     int frames = -1;
-    try { frames = load_patch_file(file.path).frames; }
+    try { frames = load_sound(file.path).frames; }
     catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
     return frames;
 }
@@ -2014,7 +2170,7 @@ static void run_embedded_score_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
     // A fresh instrument per score.
     auto end_of = [](const char* patch, const char* score) {
-        auto ip = load_instrument_patch_json(patch);
+        auto ip = load_inst(patch);
         return play_embedded_score(*ip.instrument, score);
     };
     // A note with no "time" starts where its predecessor ended.
@@ -2071,7 +2227,7 @@ static void run_embedded_score_end_tests() {
     const char* plain = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
     {
-        auto ip = load_instrument_patch_json(plain);
+        auto ip = load_inst(plain);
         // 0.1 + 0.2 in double is not 0.1f + 0.2f widened.
         CHECK(play_embedded_score(*ip.instrument, R"([{"note":60,"time":0.1,"duration":0.2}])") == 0.1 + 0.2);
     }
@@ -2092,7 +2248,7 @@ static void run_embedded_score_delivery_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
     // A note with no "time" starts where its predecessor ended.
     {
-        auto ip = load_instrument_patch_json(plain);
+        auto ip = load_inst(plain);
         (void)play_embedded_score(*ip.instrument,
             R"([{"note":60,"time":0.25,"duration":0.5},{"note":62,"duration":0.25},{"note":64,"duration":0.5}])");
         const auto& notes = ip.instrument->renderedNotes;
@@ -2104,7 +2260,7 @@ static void run_embedded_score_delivery_tests() {
     // A note with no "velocity" is played at 0.8.
     {
         auto delivered = [&](const char* score) {
-            auto ip = load_instrument_patch_json(plain);
+            auto ip = load_inst(plain);
             (void)play_embedded_score(*ip.instrument, score);
             const auto& notes = ip.instrument->renderedNotes;
             return notes.size() == 1 ? notes[0].samples : std::vector<float>{};
@@ -2121,13 +2277,13 @@ static void run_embedded_score_delivery_tests() {
           {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
         bool named = false;
         try {
-            auto ip = load_instrument_patch_json(plucked);
+            auto ip = load_inst(plucked);
             (void)play_embedded_score(*ip.instrument,
                 R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck","articulation":{"type":"Staccato"}}])");
         }
         catch (const std::exception& e) { named = std::string(e.what()).find("phrased") != std::string::npos; }
         CHECK(named);
-        auto ip = load_instrument_patch_json(plucked);
+        auto ip = load_inst(plucked);
         (void)play_embedded_score(*ip.instrument, R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck"}])");
         CHECK(ip.instrument->renderedNotes.size() == 1);
     }
@@ -2139,7 +2295,7 @@ static void run_embedded_score_delivery_tests() {
             "power":[0.0,0.0,0.0],"type":["Linear","Linear","Linear"],"percent":[0.05,0.0,0.25],
             "minSec":[0.0,0.0,0.0],"maxSec":[0.0,0.0,0.0],"nominal":[0.0,0.0,0.0]}},
           {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"env"}}}]}})";
-        auto ip = load_instrument_patch_json(sustaining);
+        auto ip = load_inst(sustaining);
         (void)play_embedded_score(*ip.instrument,
             R"([{"note":60,"time":0,"duration":0.5},{"note":62,"duration":0.5,"hold":true}])");
         CHECK(ip.instrument->renderedNotes.size() == 2);
@@ -3408,7 +3564,7 @@ static void run_shared_source_tests() {
         for (int i = a; i < z; ++i) s += double(b[size_t(i)]) * b[size_t(i)];
         return float(std::sqrt(s / double(std::max(1, z - a))));
     };
-    auto ip = load_instrument_patch_json(shared_env_patch_json(false));
+    auto ip = load_inst(shared_env_patch_json(false));
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr && !pi->voicePool.empty());
     auto& vg = pi->voicePool[0];
@@ -3418,7 +3574,7 @@ static void run_shared_source_tests() {
     const int N = 24000;
     pi->play_note({60.0f, 0.8f, 0.25f, 0.0f, false}, 0.0f);
     auto shared = render_all(ip, N);
-    auto dupIp = load_instrument_patch_json(shared_env_patch_json(true));
+    auto dupIp = load_inst(shared_env_patch_json(true));
     auto* dp = dynamic_cast<PitchedInstrument*>(dupIp.instrument.get());
     dp->play_note({60.0f, 0.8f, 0.25f, 0.0f, false}, 0.0f);
     auto dup = render_all(dupIp, N);
@@ -6636,7 +6792,7 @@ static std::shared_ptr<SineSource> sine_at(float hz) {
 // The voice source of a loaded patch whose output is a three-clone multiplex
 // over a two-node template (a sine under an AR envelope).
 static std::shared_ptr<ValueSource> make_multiplex_voice() {
-    auto ip = load_instrument_patch_json(R"({
+    auto ip = load_inst(R"({
       "sampleRate": 48000,
       "instrument": { "polyphony": 1 },
       "graph": { "output": "mux", "nodes": [
@@ -7054,7 +7210,7 @@ static void run_fault_tests() {
         {"id":"b","type":"SineSource","params":{"frequency":0.0,"amplitude":1.0}},
         {"id":"a","type":"SineSource","params":{"frequency":0.0,"amplitude":1.0}},
         {"id":"sum","type":"CombinedSource","params":{"source1":{"ref":"b"},"source2":{"ref":"a"},"operation":3}}]}})";
-    auto ip = load_instrument_patch_json(json);
+    auto ip = load_inst(json);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
     pi->play_note({60.0f, 0.8f, 0.1f, 0.0f, false}, 0.0f);
@@ -7123,7 +7279,7 @@ static void run_string_pin_refusal_tests() {
     const char* node = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"wt","nodes":[
         {"id":"wt_evolution","type":"PluckEvolution","params":{"muting":0.0,"seed":42}},
         {"id":"wt","type":"WavetableSource","params":{"frequency":330.0,"evolution":{"ref":"wt_evolution"}}}]}})";
-    auto ip = load_instrument_patch_json(node);
+    auto ip = load_inst(node);
     CHECK(ip.instrument != nullptr);
 }
 
@@ -7253,7 +7409,7 @@ static void run_envelope_form_tests() {
 // columns, render the same bytes; a seed and the accuracy knobs reach the
 // form node as they reach the table node.
 static std::vector<float> render_loaded_note(const char* json, int n) {
-    auto ip = load_instrument_patch_json(json);
+    auto ip = load_inst(json);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     pi->play_note({60.0f, 0.8f, 0.2f, 0.0f, false}, 0.0f);
     std::vector<float> out(static_cast<size_t>(n));
@@ -7272,7 +7428,7 @@ static void run_envelope_form_loader_tests() {
     CHECK(same_bits(a, b));
     CHECK(a[1000] != 0.0f);                       // inside the attack: reversed, the shape falls to 0 and holds there
     auto env_of = [](const char* json) {
-        auto ip = load_instrument_patch_json(json);
+        auto ip = load_inst(json);
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         return std::dynamic_pointer_cast<Envelope>(pi->voicePool.at(0).nodesById.at("Env"));
     };
@@ -7530,7 +7686,7 @@ static void run_envelope_table_tests() {
                 {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
         };
         auto env_of = [](const std::string& json) {
-            auto ip = load_instrument_patch_json(json);
+            auto ip = load_inst(json);
             auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
             return std::dynamic_pointer_cast<Envelope>(pi->voicePool.at(0).nodesById.at("Env"));
         };
@@ -7856,7 +8012,7 @@ static void run_curve_table_tests() {
                 {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"cv"}}}]}})";
         };
         auto curve_of = [](const std::string& json) {
-            auto ip = load_instrument_patch_json(json);
+            auto ip = load_inst(json);
             auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
             return std::dynamic_pointer_cast<CurveNode>(pi->voicePool.at(0).nodesById.at("cv"));
         };
@@ -7960,7 +8116,7 @@ static void run_alloc_probe_tests() {
 // voice and its tails), one pull per sample for the note's life — armed from
 // note-on to the last sample, must count nothing. Returns the count.
 static std::size_t allocations_in_one_note(const char* patchJson, float noteNumber = 60.0f) {
-    auto ip = load_instrument_patch_json(patchJson);
+    auto ip = load_inst(patchJson);
     PitchedInstrument& inst = *ip.instrument;
     inst.release_voice(inst.acquire_voice());        // the slot table is sized on first use
     alloc_probe::reset();
@@ -8021,10 +8177,10 @@ static void run_allocation_tests_partials() {
           {"id":"rule","type":"ExpandRule","params":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}},
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4,"expandRule":{"ref":"rule"}}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
-        auto once = load_instrument_patch_json(expanded);
+        auto once = load_inst(expanded);
         (void)render_one_live_note(*once.instrument, 60.0f);
         const auto second = render_one_live_note(*once.instrument, 60.0f);
-        auto again = load_instrument_patch_json(expanded);
+        auto again = load_inst(expanded);
         (void)render_one_live_note(*again.instrument, 60.0f);
         again.instrument->prepare(RenderContext{48000});
         const auto secondAfterPrepare = render_one_live_note(*again.instrument, 60.0f);
@@ -8044,12 +8200,12 @@ static void run_allocation_tests_partials() {
           {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.1,0.1,0.1],"mult2":[1.0,2.0,3.0,4.0],"ampl2":[1.0,0.1,0.1,0.1],"evolve":false,
              "expandRule":{"ref":"rule"}}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
-        auto edited = load_instrument_patch_json(rows);
+        auto edited = load_inst(rows);
         (void)render_one_live_note(*edited.instrument, 60.0f);
         edited.instrument->voicePool[0].nodesById.at("parts")->set_array("ampl1", {1.0f, 0.1f, 0.1f, 0.1f});
         edited.instrument->prepare(RenderContext{48000});
         const auto afterEdit = render_one_live_note(*edited.instrument, 60.0f);
-        auto loaded = load_instrument_patch_json(editedRows);
+        auto loaded = load_inst(editedRows);
         (void)render_one_live_note(*loaded.instrument, 60.0f);
         const auto asLoaded = render_one_live_note(*loaded.instrument, 60.0f);
         CHECK(same_bits(afterEdit, asLoaded));
@@ -8162,7 +8318,7 @@ static void run_allocation_tests_pins() {
         const char* held = R"({"sampleRate":48000,"instrument":{"polyphony":2,"sustaining":true},"graph":{"output":"osc","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
           {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.05,"decay":0.1,"sustainLevel":0.8,"release":0.2}},
           {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":{"ref":"env"}}}]}})";
-        auto ip = load_instrument_patch_json(held);
+        auto ip = load_inst(held);
         PitchedInstrument& inst = *ip.instrument;
         inst.release_voice(inst.acquire_voice());
         const int slot = std::max(0, inst.acquire_voice());
@@ -8191,7 +8347,7 @@ static void run_allocation_tests_pins() {
         const char* drum = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
           {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.001,"decay":0.1,"sustainLevel":0.0,"release":0.05}},
           {"id":"osc","type":"SineSource","params":{"frequency":180.0,"amplitude":{"ref":"env"}}}]}})";
-        auto ip = load_instrument_patch_json(drum);
+        auto ip = load_inst(drum);
         DrumKit kit;
         DrumKit::DrumSource ds;
         ds.source = ip.instrument->voicePool[0].source;
@@ -8241,12 +8397,12 @@ static void run_structural_setting_tests() {
         const char* odd = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4,"evenWeight1":0.0}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
-        auto edited = load_instrument_patch_json(even);
+        auto edited = load_inst(even);
         const auto before = render_one_live_note(*edited.instrument, 60.0f);
         edited.instrument->voicePool[0].nodesById.at("parts")->set_setting("evenWeight1", 0.0f);
         edited.instrument->prepare(RenderContext{48000});
         const auto after = render_one_live_note(*edited.instrument, 60.0f);
-        auto loaded = load_instrument_patch_json(odd);
+        auto loaded = load_inst(odd);
         (void)render_one_live_note(*loaded.instrument, 60.0f);
         const auto asLoaded = render_one_live_note(*loaded.instrument, 60.0f);
         CHECK(!same_bits(before, after));
@@ -8273,7 +8429,7 @@ static bool load_fails_naming(const char* patch, const char* needle) {
 static void run_structural_push_refusal_tests() {
     std::printf("structural settings: the loader refuses the wire\n");
     auto loads = [](const char* patch) {
-        try { (void)load_instrument_patch_json(patch); return true; }
+        try { (void)load_inst(patch); return true; }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
     };
     // The wiring format's dynamic pin into a shaping float (refused), an int
@@ -8336,7 +8492,7 @@ static void run_param_map_refusal_tests() {
         CHECK(msg.find("tools/convert_patch.py") != std::string::npos);
     }
     bool loaded = true;
-    try { (void)load_instrument_patch_json(without); }
+    try { (void)load_inst(without); }
     catch (const std::exception& e) { loaded = false; std::printf("  load failed: %s\n", e.what()); }
     CHECK(loaded);
 }
@@ -8364,7 +8520,7 @@ static void run_retired_key_refusal_tests() {
         return std::string();
     };
     auto loads = [](const std::string& json) {
-        try { (void)load_instrument_patch_json(json); return true; }
+        try { (void)load_inst(json); return true; }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
     };
 
@@ -8452,7 +8608,7 @@ static void run_dynamic_pin_tests() {
     //    on its own voice: with two voices, play_note's rotation hands the
     //    first fresh note voice 0 and the second voice 1.
     {
-        auto ip = load_instrument_patch_json(dynamic_pin_patch_json(2));
+        auto ip = load_inst(dynamic_pin_patch_json(2));
         PitchedInstrument& pi = *ip.instrument;
         CHECK(pi.voicePool.size() == 2);
         pi.play_note({60.0f, 0.8f, 0.4f, 0.0f, false}, 0.0f);
@@ -8472,7 +8628,7 @@ static void run_dynamic_pin_tests() {
     // 2. A held line: the second note continues the first, and the setting
     //    keeps the first note's value.
     {
-        auto ip = load_instrument_patch_json(dynamic_pin_patch_json(1));
+        auto ip = load_inst(dynamic_pin_patch_json(1));
         PitchedInstrument& pi = *ip.instrument;
         pi.play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
         CHECK_NEAR(timescale(pi), at60, 1e-5f);
@@ -8517,7 +8673,7 @@ static void run_wiring_door_tests() {
     const char* additive = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
-    auto ip = load_instrument_patch_json(additive);
+    auto ip = load_inst(additive);
     const auto& vg = ip.instrument->voicePool[0];
     CHECK(vg.signals.size() == 1 && vg.signals[0].id == "add");   // the part is no signal
     CHECK(vg.nodesById.count("parts") == 1 && vg.nodesById.count("add") == 1);
@@ -8551,7 +8707,7 @@ static void run_formant_part_tests() {
           {"id":"parts","type":"FullPartials","params":{"maxPartials":8}},
           {"id":"fm","type":"FormantPeaks","params":{"frequency":[440.0],"gain":[1.0],"width":[300.0],"power":[2.0]}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"fm"},"formantWeight":1.0}}]}})";
-        auto ip = load_instrument_patch_json(shaped);
+        auto ip = load_inst(shaped);
         const auto before = render_one_live_note(*ip.instrument, 60.0f);
         ip.instrument->voicePool[0].nodesById.at("fm")->set_array("gain", {0.0f});
         ip.instrument->prepare(RenderContext{48000});
@@ -9177,7 +9333,7 @@ static void run_formant_peaks_load_tests() {
       {"id":"parts","type":"FullPartials","params":{"maxPartials":8}},
       {"id":"pk","type":"FormantPeaks","params":{"frequency":[440.0,1320.0],"gain":[1.0,0.5],"width":[300.0,400.0],"power":[2.0,2.0]}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"pk"},"formantWeight":1.0,"formantFloor":0.0}}]}})";
-    auto ip = load_instrument_patch_json(rows);
+    auto ip = load_inst(rows);
     auto* pk = dynamic_cast<FormantPeaks*>(ip.instrument->voicePool[0].nodesById.at("pk").get());
     CHECK(pk != nullptr && pk->peak_count() == 2);
     const auto before = render_one_live_note(*ip.instrument, 60.0f);
@@ -9190,7 +9346,7 @@ static void run_formant_peaks_load_tests() {
       {"id":"parts","type":"FullPartials","params":{"maxPartials":8}},
       {"id":"pk","type":"FormantPeaks"},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"pk"},"formantWeight":1.0}}]}})";
-    auto empty = load_instrument_patch_json(none);                            // no rows: a formant that gains nothing
+    auto empty = load_inst(none);                            // no rows: a formant that gains nothing
     auto* pk0 = dynamic_cast<FormantPeaks*>(empty.instrument->voicePool[0].nodesById.at("pk").get());
     CHECK(pk0 != nullptr && pk0->peak_count() == 0 && same_bits(pk0->gain(1000.0f), 0.0f));
 }
@@ -9218,7 +9374,7 @@ static std::string one_node(const char* type, const nlohmann::json& params) {
 }
 // The node `n` of a loaded one-node graph, or null with the refusal printed.
 static std::shared_ptr<Component> load_node(const char* type, const nlohmann::json& params, InstrumentPatch& ip) {
-    try { ip = load_instrument_patch_json(one_node(type, params)); }
+    try { ip = load_inst(one_node(type, params)); }
     catch (const std::exception& e) { std::printf("  %s %s: %s\n", type, params.dump().c_str(), e.what()); return nullptr; }
     return ip.instrument->voicePool[0].nodesById.at("n");
 }
@@ -9410,9 +9566,9 @@ static std::string plain(const std::string& instrumentDoc) {
 }
 // Loads `text` through the patch-file loader (file) or the instrument loader.
 static void load(const std::string& text, bool file) {
-    if (!file) { (void)load_instrument_patch_json(text); return; }
+    if (!file) { (void)load_inst(text); return; }
     ScratchPatch patch("renders/scratch/engine_tests_three_kinds.json", text);
-    (void)load_patch_file(patch.path);
+    (void)load_sound(patch.path);
 }
 // Whether the load of `text` is refused with every one of `needles`.
 static bool refused_naming(const std::string& text, bool file, std::initializer_list<const char*> needles) {
@@ -9539,7 +9695,7 @@ static void run_input_list_loader_tests() {
     std::printf("the list of signal inputs through the loader: refs and taps in file order\n");
     register_probes();
     auto feeds_of = [](const std::string& doc, InstrumentPatch& ip) -> ListProbe* {
-        try { ip = load_instrument_patch_json(doc); }
+        try { ip = load_inst(doc); }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return nullptr; }
         return dynamic_cast<ListProbe*>(ip.instrument->voicePool[0].nodesById.at("n").get());
     };
@@ -9591,11 +9747,20 @@ static void run_validate_tests() {
         CHECK(nlohmann::json::parse(bare)["graph"]["nodes"][1].count("params") == 0);
         CHECK(refused_naming(file ? plain(bare) : bare, file, {"node 'n' (RefusingProbe): probe refuses as built"}));
     }
-    // asked once per built node: one voice builds the probe once
+    // asked once per built node: one voice builds the probe once, in each
+    // reader (the loader's load alone is counted, then the module's build)
+    const auto loader_loads = [](const std::string& doc) {
+        try { (void)load_instrument_patch_json(doc); return true; }
+        catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
+    };
+    const auto module_builds = [](const std::string& doc) { (void)build_instrument(reader_twin::read_text(doc)); };
     {
+        const std::string doc = enum_column::one_node("CheckProbe", {{"warn", true}});
         const int v0 = CheckProbe::validated, w0 = CheckProbe::warned;
-        CHECK(loads(enum_column::one_node("CheckProbe", {{"warn", true}}), false));
+        CHECK(loader_loads(doc));
         CHECK(CheckProbe::validated - v0 == 1 && CheckProbe::warned - w0 == 1);
+        module_builds(doc);
+        CHECK(CheckProbe::validated - v0 == 2 && CheckProbe::warned - w0 == 2);
     }
     // inside a Multiplex template: each clone's build asks its own node
     auto mux_doc = [](const nlohmann::json& params) {
@@ -9607,9 +9772,11 @@ static void run_validate_tests() {
     };
     {
         const int v0 = CheckProbe::validated, w0 = CheckProbe::warned;
-        CHECK(loads(mux_doc({{"warn", true}}), false));
+        CHECK(loader_loads(mux_doc({{"warn", true}})));
         if (CheckProbe::validated - v0 != 4) std::printf("  validated %d times, want 4\n", CheckProbe::validated - v0);
         CHECK(CheckProbe::validated - v0 == 4 && CheckProbe::warned - w0 == 4);   // the template's node, then three clones
+        module_builds(mux_doc({{"warn", true}}));
+        CHECK(CheckProbe::validated - v0 == 8 && CheckProbe::warned - w0 == 8);
     }
     for (const bool file : {false, true}) {
         const std::string refused = mux_doc({{"refuse", true}}), seeded = mux_doc({{"refuseSeeded", true}});
@@ -9976,7 +10143,7 @@ static bool render_scratch_patch(const char* path, const std::string& text, std:
     ScratchPatch file(path, text);
     bool rendered = false;
     try {
-        auto p = load_patch_file(file.path);
+        auto p = load_sound(file.path);
         buf.assign(2 * size_t(p.frames), 0.0f);
         p.mixer->render(buf.data(), p.frames);
         rendered = true;
@@ -10091,7 +10258,7 @@ static void run_instrument_mixer_unity_tests() {
     ScratchPatch file("renders/scratch/_instrument_unity.json", head + "]}}");
     bool unity = false;
     try {
-        auto built = load_patch_file(file.path);
+        auto built = load_sound(file.path);
         const auto& m = *built.mixer;
         unity = m.channels.size() == 1
              && is_constant_of(m.gainL, 1.0f) && is_constant_of(m.gainR, 1.0f)
@@ -10132,7 +10299,7 @@ static void run_review_gap_lifecycle_tests() {
         const char* probed = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"p","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
           {"id":"p","type":"ReseedProbe"}]}})";
-        auto ip = load_instrument_patch_json(probed);
+        auto ip = load_inst(probed);
         PitchedInstrument& inst = *ip.instrument;
         inst.release_voice(inst.acquire_voice());
         const int slot = std::max(0, inst.acquire_voice());
@@ -10730,7 +10897,7 @@ static void run_name_gate_name_tests() {
     for (const auto& [name, id] : {std::pair<const char*, float>{"tongue", 1.0f}, {"pluck", 2.0f}, {"slur", -1.0f}}) {
         InstrumentPatch ip;
         bool loaded = true;
-        try { ip = load_instrument_patch_json(gate_doc(name)); }
+        try { ip = load_inst(gate_doc(name)); }
         catch (const std::exception& e) { std::printf("  %s: %s\n", name, e.what()); loaded = false; }
         CHECK(loaded);
         if (!loaded) continue;
@@ -11052,7 +11219,7 @@ static std::string voice_doc(const nlohmann::json& nodes) {
 static uint64_t loaded_render(const std::string& doc, const char* id, std::vector<float>* arrays = nullptr,
                               std::initializer_list<const char*> names = {}) {
     try {
-        InstrumentPatch ip = load_instrument_patch_json(doc);
+        InstrumentPatch ip = load_inst(doc);
         auto n = ip.instrument->voicePool[0].nodesById.at(id);
         if (arrays) for (const char* a : names) for (float v : n->get_array(a)) arrays->push_back(v);
         return node_twins::render(*std::dynamic_pointer_cast<ValueSource>(n), 4800, 2);
@@ -11777,7 +11944,7 @@ static std::string file_refusal(const char* path, const std::string& text) {
 // refusal printed, when the load throws.
 static std::unique_ptr<Mixer> built_mixer(const std::string& text) {
     ScratchPatch file("renders/scratch/_plain_built.json", text);
-    try { return std::move(load_patch_file(file.path).mixer); }
+    try { return std::move(load_sound(file.path).mixer); }
     catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
     return nullptr;
 }
@@ -11905,13 +12072,14 @@ static void run_plain_part_refusal_tests() {
 
 // A node two of a plain sound's pull loops reach is refused, naming the node
 // and both loops in the mixer's channel order, the mixer's own loop last.
-static void run_plain_sharing_refusal_tests() {
-    using namespace plain_parts;
+namespace plain_parts {
+// A plain sound whose pull loops share a node, and the sentence that refuses it.
+struct Shared { std::string what, text, sentence; };
+static std::vector<Shared> shared_cases() {
     using J = nlohmann::json;
-    std::printf("the plain sound's pull loops: a node two loops reach is refused\n");
     const std::string tail = ": each pulls its nodes on its own clock, so a node belongs to one";
-    struct Shared { const char* what; J signals; std::vector<Chan> chans; std::string sentence; };
-    const Shared cases[] = {
+    struct Shape { const char* what; J signals; std::vector<Chan> chans; std::string sentence; };
+    const Shape shapes[] = {
         {"two channels on one source", J::array({node("osc", "SineSource", {{"frequency", 220.0}})}),
          {{"ch1", "osc", J()}, {"ch2", "osc", J()}}, "'osc' is reached from channel 'ch1' and from channel 'ch2'" + tail},
         {"one node two levels down", J::array({node("lfo", "SineSource", {{"frequency", 2.0}}),
@@ -11926,38 +12094,43 @@ static void run_plain_sharing_refusal_tests() {
                                          node("multi", "MultiSource", {{"source", J::array({ref("s1"), ref("s2")})}})}),
          {{"chA", "multi", J()}, {"chB", "s2", J()}}, "'s2' is reached from channel 'chA' and from channel 'chB'" + tail},
     };
-    for (const auto& c : cases) {
-        const std::string got = file_refusal("renders/scratch/_plain_shared.json", sound(c.signals, c.chans, J()));
-        if (got != c.sentence) std::printf("  %s: %s\n", c.what, got.c_str());
-        CHECK(got == c.sentence);
-    }
+    std::vector<Shared> out;
+    for (const auto& s : shapes) out.push_back({s.what, sound(s.signals, s.chans, J()), s.sentence});
     // the loops in the mixer's channel order, not the file's node order
-    const auto& two = cases[0];
-    CHECK(file_refusal("renders/scratch/_plain_shared.json", reversed_channels(sound(two.signals, two.chans, J())))
-          == "'osc' is reached from channel 'ch2' and from channel 'ch1'" + tail);
+    out.push_back({"the first, its channels reversed", reversed_channels(out[0].text),
+                   "'osc' is reached from channel 'ch2' and from channel 'ch1'" + tail});
     // a gain on a node a channel's source reads: the mixer's loop is named last
-    CHECK(file_refusal("renders/scratch/_plain_shared.json",
-                       sound(cases[2].signals, {{"ch1", "src", J()}}, J{{"gainL", ref("X")}}))
-          == "'X' is reached from channel 'ch1' and from the mixer's gains, volumes and pans" + tail);
+    out.push_back({"a gain on the source's node", sound(shapes[2].signals, {{"ch1", "src", J()}}, J{{"gainL", ref("X")}}),
+                   "'X' is reached from channel 'ch1' and from the mixer's gains, volumes and pans" + tail});
+    return out;
 }
-
-// What the walk must let through: separate sources, a pin with a node of its
-// own, and a tap across two channels (a tap pulls nothing).
-static void run_plain_sharing_load_tests() {
-    using namespace plain_parts;
+// Plain sounds whose pull loops share no node: two channels on two sources,
+// a wired pan on a node of its own, and a tap from one loop into another.
+static std::vector<std::string> sharing_sounds_that_load() {
     using J = nlohmann::json;
-    std::printf("the plain sound's pull loops: what loads\n");
     const auto all = cases();
     const J tapAcross = J::array({node("oscA", "SineSource", {{"frequency", 220.0}, {"amplitude", 0.4}}),
                                   node("oscB", "SawSource", {{"frequency", 330.0}, {"amplitude", 0.4}}),
                                   node("comb", "CombinedSource", {{"operation", 0}, {"gainAdj", 0.0}, {"source1", ref("oscA")},
                                                                   {"source2", J{{"tap", "oscB"}}}})});
-    const std::string texts[] = {
-        sound(all[2].signals, all[2].chans, all[2].mix),
-        sound(all[5].signals, all[5].chans, all[5].mix),
-        sound(tapAcross, {{"chA", "comb", J()}, {"chB", "oscB", J()}}, J()),
-    };
-    for (const auto& t : texts) {
+    return {sound(all[2].signals, all[2].chans, all[2].mix), sound(all[5].signals, all[5].chans, all[5].mix),
+            sound(tapAcross, {{"chA", "comb", J()}, {"chB", "oscB", J()}}, J())};
+}
+}  // namespace plain_parts
+
+static void run_plain_sharing_refusal_tests() {
+    using namespace plain_parts;
+    std::printf("the plain sound's pull loops: a node two loops reach is refused\n");
+    for (const auto& c : shared_cases()) {
+        const std::string got = file_refusal("renders/scratch/_plain_shared.json", c.text);
+        if (got != c.sentence) std::printf("  %s: %s\n", c.what.c_str(), got.c_str());
+        CHECK(got == c.sentence);
+    }
+}
+static void run_plain_sharing_load_tests() {
+    using namespace plain_parts;
+    std::printf("the plain sound's pull loops: what loads\n");
+    for (const auto& t : sharing_sounds_that_load()) {
         std::vector<float> buf;
         CHECK(render_scratch_patch("renders/scratch/_plain_loads.json", t, buf));
         bool sound_ = false;
@@ -11965,12 +12138,6 @@ static void run_plain_sharing_load_tests() {
         CHECK(sound_);
     }
 }
-
-// A Multiplex over a template plays copies of what its `source` reaches, so
-// no loop pulls the file's template nodes through it: two channels each a
-// Multiplex over one template load, and so does a template reading a node
-// another channel reads directly. A node a Multiplex's channel reaches beside
-// the Multiplex, through an ordinary pin, is refused as any shared node is.
 static void run_plain_sharing_multiplex_tests() {
     using namespace plain_parts;
     using J = nlohmann::json;
@@ -12089,7 +12256,7 @@ static int perform_field_of(const nlohmann::json& perfNode, std::string& refusal
     const J doc = {{"sampleRate", 48000}, {"instrument", J{{"polyphony", 1}}},
                    {"graph", J{{"output", "osc"}, {"nodes", J::array({perfNode, osc})}}}};
     try {
-        auto ip = load_instrument_patch_json(doc.dump());
+        auto ip = load_inst(doc.dump());
         const auto& v = ip.instrument->voicePool[0];
         const Component* f = v.nodesById.at("f").get();
         const Component* six[] = {v.freqOut.get(), v.velOut.get(), v.wheelOut.get(),
@@ -12130,7 +12297,7 @@ static void run_perform_node_field_tests() {
     // the bend check reads the field the same way: an index loads beside a node that reads frequency once
     bool loaded = true;
     try {
-        (void)load_instrument_patch_json(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"ks","nodes":[
+        (void)load_inst(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"ks","nodes":[
           {"id":"f","type":"PerformNode","params":{"field":0}},
           {"id":"ks","type":"KSString","params":{"frequency":{"ref":"f"}}}]}})");
     } catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); loaded = false; }
@@ -12283,7 +12450,7 @@ static std::string trigger_line_patch(int trigger) {
 // constant to it. `listed` says whether env1 stayed in every voice's trigger
 // bindings.
 static std::vector<float> render_trigger_line(int trigger, int constant, bool& listed) {
-    auto ip = load_instrument_patch_json(trigger_line_patch(trigger));
+    auto ip = load_inst(trigger_line_patch(trigger));
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     listed = pi != nullptr && !pi->voicePool.empty();
     if (!pi) return {};
@@ -13068,11 +13235,7 @@ static void run_patch_check_tests() {
 namespace patch_codec {
 using J = nlohmann::json;
 // A patch read from JSON text through the codec; throws as from_json does.
-static Patch load_text(const std::string& text) {
-    Patch p;
-    from_json(J::parse(text), p);
-    return p;
-}
+static Patch load_text(const std::string& text) { return reader_twin::read_text(text); }
 // The refusal reading `text` gives, whole; empty when it reads.
 static std::string refusal(const std::string& text) {
     try { (void)load_text(text); } catch (const std::exception& e) { return e.what(); }
@@ -13764,6 +13927,720 @@ static void run_codec_untouched_tests() {
     CHECK(fragmentTarget == fragmentGiven);
 }
 
+// ---------------------------------------------------------------------------
+// The builder: build_graph over a Patch's graph, build_instrument and
+// build_sound, each against what the loader builds from the same text.
+#include "mforce/patch/build_graph.h"
+#include "mforce/render/build_instrument.h"
+#include "mforce/render/build_sound.h"
+#include "mforce/source/combiner/multi_source.h"
+#include "mforce/source/combiner/multiplex_source.h"
+#include "mforce/source/modulator/name_gate.h"
+
+namespace build_tests {
+using patch_codec::load_text;
+using J = nlohmann::json;
+using reader_twin::first_difference;
+using reader_twin::live_c4;
+using reader_twin::render_sound;
+using reader_twin::same_samples;
+
+// The six note signals as the constants 1 to 6, each its own object.
+static NoteSignals constant_note() {
+    const auto c = [](float v) { return std::make_shared<ConstantSource>(v); };
+    return NoteSignals{c(1.0f), c(2.0f), c(3.0f), c(4.0f), c(5.0f), c(6.0f)};
+}
+// An instrument around `nodes` (the inside of a JSON array), `output` its output.
+static std::string inst(const std::string& nodes, const char* output,
+                        const std::string& block = R"({"polyphony":1})") {
+    return R"({"instrument":)" + block + R"(,"graph":{"output":")" + output + R"(","nodes":[)" + nodes + "]}}";
+}
+// A plain sound around `nodes`, `output` its output, a quarter second long.
+static std::string plain(const std::string& nodes, const char* output) {
+    return std::string(R"({"seconds":0.25,"graph":{"output":")") + output + R"(","nodes":[)" + nodes + "]}}";
+}
+// `text` read through the codec, its graph built with the constant note and the patch's block.
+static BuiltGraph built(const std::string& text) {
+    const Patch p = load_text(text);
+    const NoteSignals note = constant_note();
+    return build_graph(p.graph, &note, p.instrument ? &*p.instrument : nullptr);
+}
+// The refusal a graph's build gives, whole; empty when it builds.
+static std::string build_refusal(const Graph& g, bool withNote = true, const InstrumentBlock* block = nullptr) {
+    const NoteSignals note = constant_note();
+    try { (void)build_graph(g, withNote ? &note : nullptr, block); } catch (const std::exception& e) { return e.what(); }
+    return {};
+}
+static std::string text_refusal(const std::string& text) { return build_refusal(load_text(text).graph); }
+// One feed by ref, one by tap.
+static std::vector<Wire> ref(const char* id) { return {Wire{id, false}}; }
+static std::vector<Wire> tap(const char* id) { return {Wire{id, true}}; }
+// A node of the record made by hand: one pin's feeds, or none.
+static Node node(const char* id, const char* type, const char* pin = nullptr, std::vector<Wire> feeds = {}) {
+    Node n;
+    n.id = id;
+    n.type = type;
+    if (pin) n.wires[pin] = std::move(feeds);
+    return n;
+}
+static Graph graph_of(std::vector<Node> nodes, const char* output) {
+    Graph g;
+    g.nodes = std::move(nodes);
+    g.output = output;
+    return g;
+}
+// A Shaper whose values2 is not as long as its values, which validate()
+// refuses; `source` names the node it reads, or none.
+static std::string bad_shaper(const char* id, const char* source = nullptr) {
+    return std::string(R"({"id":")") + id + R"(","type":"Shaper","params":{"values2":[-1,-1,0,0,1,1])" +
+           (source ? std::string(R"(,"source":{"ref":")") + source + R"("})" : std::string()) + "}}";
+}
+const std::string kShaperRefusal = "values2 length must match values";
+// `src` rendered for `n` samples on a clock of its own at 48 kHz.
+static std::vector<float> render_signal(ValueSource& src, int n) {
+    SampleClock clock;
+    src.prepare(RenderContext{48000}.with_clock(&clock));
+    src.start(n);
+    std::vector<float> out(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) { clock.tick(); out[size_t(i)] = src.next(); }
+    return out;
+}
+// Three notes on the offline path: a held one, the note that ends its line, and one alone.
+static std::vector<float> play_three(PitchedInstrument& pi, float onset = 0.0f) {
+    pi.play_note({48.0f, 0.9f, 0.4f, onset, true}, 0.0f);
+    pi.play_note({60.0f, 0.4f, 0.4f, onset, false}, 0.4f);
+    pi.play_note({67.0f, 0.9f, 0.4f, onset, false}, 1.0f);
+    std::vector<float> b(size_t(2 * 48000), 0.0f);
+    pi.render(b.data(), int(b.size()));
+    return b;
+}
+}  // namespace build_tests
+
+// The order of construction: the file's, where every feed comes first; a
+// node a feed names later is built before its reader, the rest in the file's
+// order; a dynamic pin's later source builds; a cycle with no tap, and a node
+// reading itself, are refused naming their nodes; a tap closes a loop.
+static void run_build_sort_tests() {
+    using namespace build_tests;
+    std::printf("the builder's order: the file's where feeds come first; cycles refused by name\n");
+    CHECK(text_refusal(inst(bad_shaper("A") + "," + bad_shaper("B"), "A")) == "node 'A' (Shaper): " + kShaperRefusal);
+    CHECK(text_refusal(inst(bad_shaper("B") + "," + bad_shaper("A"), "A")) == "node 'B' (Shaper): " + kShaperRefusal);
+    CHECK(text_refusal(inst(bad_shaper("A", "C") + "," + bad_shaper("C"), "A")) == "node 'C' (Shaper): " + kShaperRefusal);
+    CHECK(text_refusal(inst(bad_shaper("A", "C") + "," + bad_shaper("B") + R"(,{"id":"C","type":"SineSource"})", "A")) ==
+          "node 'B' (Shaper): " + kShaperRefusal);
+    const BuiltGraph pinned = built(inst(
+        R"({"id":"env","type":"Envelope","dynamicPins":{"timeScale":{"ref":"late"}}},)"
+        R"({"id":"out","type":"SawSource","params":{"amplitude":{"ref":"env"}}},{"id":"late","type":"SineSource"})", "out"));
+    CHECK(pinned.dynamicPins.size() == 1 && pinned.dynamicPins[0].source.get() == pinned.nodes.at("late").get());
+    const Graph cycle = graph_of({node("A", "SineSource", "amplitude", ref("B")), node("B", "SineSource", "amplitude", ref("A"))}, "A");
+    CHECK(build_refusal(cycle) == "a cycle with no tap in it: A -> B -> A");
+    CHECK(build_refusal(graph_of({node("A", "SineSource", "amplitude", ref("A"))}, "A")) == "a cycle with no tap in it: A -> A");
+    Graph loop = cycle;
+    loop.nodes[1].wires["amplitude"] = tap("A");
+    CHECK(build_refusal(loop).empty());
+    CHECK(build_refusal(graph_of({node("A", "SineSource", "amplitude", ref("ghost"))}, "A")) == "Unresolved node ref: ghost");
+    CHECK(build_refusal(graph_of({node("A", "SineSource", "amplitude", tap("ghost"))}, "A")) == "Unresolved tap target: ghost");
+    CHECK(build_refusal(graph_of({node("A", "SineSource")}, "")) == "the patch has no output");
+    CHECK(build_refusal(graph_of({node("A", "NoSuchSource")}, "A")) == "Unknown node type: NoSuchSource");
+}
+
+// The fill: a Param's number its own constant with nothing wired, an Input's
+// a wired constant; a list's feeds in order; a slot's part; a setting, a
+// string, an array, a labelled column by index; settings before arrays.
+static void run_build_fill_tests() {
+    using namespace build_tests;
+    std::printf("the builder's fill: a Param's number, an Input's, feeds in order, settings before arrays\n");
+    const BuiltGraph g = built(inst(
+        R"({"id":"a","type":"SineSource","params":{"amplitude":0.3,"frequency":220}},{"id":"b","type":"SawSource"},)"
+        R"({"id":"sum","type":"CombinedSource","params":{"source1":{"ref":"a"},"source2":0.5}},)"
+        R"({"id":"list","type":"MultiSource","params":{"source":[{"ref":"b"},{"ref":"a"}]}},)"
+        R"({"id":"parts","type":"FullPartials","params":{"maxPartials":4}},)"
+        R"({"id":"add","type":"AdditiveSource","params":{"partials":{"ref":"parts"}}},)"
+        R"({"id":"svf","type":"SVFSource","params":{"source":{"ref":"b"},"mode":"Highpass"}},)"
+        R"({"id":"gate","type":"NameGate","params":{"name":"tongue"}},{"id":"seg","type":"SegmentSource","params":{"values":[0,1,0.5]}},)"
+        R"({"id":"env","type":"Envelope","params":{)" + patch_codec::stage_columns("[0,3]") + "}}", "sum"));
+    Param* amp = g.nodes.at("a")->param("amplitude");
+    CHECK(amp && amp->source == nullptr && amp->constant == 0.3f);
+    const auto s2 = g.nodes.at("sum")->get_param("source2");
+    const auto* k = dynamic_cast<const ConstantSource*>(s2.get());
+    CHECK(k && k->current() == 0.5f);
+    CHECK(g.nodes.at("sum")->get_param("source1").get() == g.nodes.at("a").get());
+    const auto* list = dynamic_cast<const MultiSource*>(g.nodes.at("list").get());
+    CHECK(list && list->source.sources.size() == 2 && list->source.sources[0].get() == g.nodes.at("b").get() &&
+          list->source.sources[1].get() == g.nodes.at("a").get());
+    CHECK(g.nodes.at("add")->get_part("partials") == g.nodes.at("parts"));
+    const auto& modes = type_declarations("SVFSource")->setting("mode")->labels;
+    CHECK(g.nodes.at("svf")->get_setting("mode") == float(std::find(modes.begin(), modes.end(), "Highpass") - modes.begin()));
+    CHECK(g.nodes.at("gate")->get_string("name") == "tongue");
+    CHECK(g.nodes.at("seg")->get_array("values") == std::vector<float>({0.0f, 1.0f, 0.5f}));
+    CHECK(g.nodes.at("env")->get_array("type") == std::vector<float>({0.0f, 3.0f}));
+    // Settings before arrays: a sustainLevel beside four-stage columns leaves the file's cells.
+    const BuiltGraph four = built(inst(R"({"id":"env","type":"Envelope","params":{"sustainLevel":0.9,)"
+        R"("startVal":[0,1,0.5,0.5],"endVal":[1,0.5,0.5,0],"power":[0,0,0,0],"type":[0,0,0,0],)"
+        R"("percent":[0.05,0.1,0,0.25],"minSec":[0,0,0,0],"maxSec":[0,0,0,0],"nominal":[0,0,0,0]}})", "env"));
+    CHECK(four.nodes.at("env")->get_array("startVal") == std::vector<float>({0.0f, 1.0f, 0.5f, 0.5f}));
+    CHECK(four.nodes.at("env")->get_setting("sustainLevel") == 0.5f);
+    // The door's refusals, on records the codec would not have read.
+    Patch p = load_text(inst(R"({"id":"a","type":"SineSource"},{"id":"parts","type":"FullPartials"},)"
+                             R"({"id":"add","type":"AdditiveSource"})", "a"));
+    Graph partOnSignal = p.graph;
+    partOnSignal.nodes[0].wires["amplitude"] = ref("parts");
+    CHECK(build_refusal(partOnSignal) == "node 'a' (SineSource): 'amplitude' does not accept a FullPartials, a part, not a signal");
+    Graph signalOnSlot = p.graph;
+    signalOnSlot.nodes[2].wires["partials"] = ref("a");
+    CHECK(build_refusal(signalOnSlot) == "node 'add' (AdditiveSource): 'partials' does not accept a SineSource; 'partials' takes " +
+                                             type_declarations("AdditiveSource")->input("partials")->hint);
+    CHECK(text_refusal(inst(bad_shaper("sh"), "sh")) == "node 'sh' (Shaper): " + kShaperRefusal);
+}
+
+// The three names: a PerformNode is the note's signal its field names, and
+// refused with no note; a NameGate's name finds its 1-based place among the
+// onsets, and one outside them, or any name with no block, is one warning.
+static void run_build_named_tests() {
+    using namespace build_tests;
+    std::printf("the builder's three names: the note's fields, the onsets, the template\n");
+    std::string fields;
+    for (int k = 0; k < 6; ++k)
+        fields += std::string(R"({"id":"f)") + char('0' + k) + R"(","type":"PerformNode","params":{"field":")" +
+                  PerformNode::kFieldLabels[k] + R"("}},)";
+    const Patch p = load_text(inst(fields + R"({"id":"out","type":"SineSource","params":{"frequency":{"ref":"f0"}}})", "out"));
+    const NoteSignals note = constant_note();
+    const BuiltGraph g = build_graph(p.graph, &note, nullptr);
+    for (int k = 0; k < 6; ++k) CHECK(g.nodes.at(std::string("f") + char('0' + k)).get() == note.field(k).get());
+    CHECK(note.field(0) == note.frequency && note.field(1) == note.velocity && note.field(2) == note.wheel &&
+          note.field(3) == note.pressure && note.field(4) == note.duration && note.field(5) == note.onset);
+    CHECK(build_refusal(p.graph, false) == "node 'f0' (PerformNode): a plain sound has no note to read");
+    const Patch gp = load_text(inst(R"({"id":"g1","type":"NameGate","params":{"name":"bow"}},)"
+                                    R"({"id":"g2","type":"NameGate","params":{"name":"tongue"}},)"
+                                    R"({"id":"g3","type":"NameGate","params":{"name":"slap"}},)"
+                                    R"({"id":"g4","type":"NameGate"},{"id":"out","type":"SineSource"})",
+                                    "out", R"({"polyphony":1,"onsets":["tongue","bow"]})"));
+    const BuiltGraph gg = build_graph(gp.graph, &note, &*gp.instrument);
+    const auto target = [&](const BuiltGraph& b, const char* id) { return static_cast<NameGate&>(*b.nodes.at(id)).targetId; };
+    CHECK(target(gg, "g1") == 2.0f && target(gg, "g2") == 1.0f && target(gg, "g3") < 0.0f && target(gg, "g4") < 0.0f);
+    CHECK(gg.warnings == std::vector<std::string>(
+        {"node 'g3' (NameGate): the name 'slap' is not one of the instrument's onsets, so the gate never fires"}));
+    const BuiltGraph none = build_graph(gp.graph, &note, nullptr);
+    CHECK(none.warnings.size() == 3 && target(none, "g2") < 0.0f);
+    if (!none.warnings.empty())
+        CHECK(none.warnings[0] == "node 'g1' (NameGate): the name 'bow' finds no onsets: the graph is built without an "
+                                  "instrument block, so the gate never fires");
+}
+
+namespace build_tests {
+// Task 0's Multiplex files a1 to a7 and b2, without their layout, score and length.
+struct Named { const char* name; const char* text; };
+static const Named kMultiplexTexts[] = {
+    {"a1", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"N","type":"WhiteNoiseSource","params":{"amplitude":0.3,"seed":1101}},{"id":"S","type":"SawSource","params":{"amplitude":0.3,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"F","type":"SVFSource","params":{"source":{"ref":"S"},"cutoffFreq":1500.0,"resonance":0.3,"mode":"Lowpass"}},{"id":"R","type":"CombinedSource","params":{"source1":{"ref":"N"},"source2":{"ref":"F"},"operation":"Sum","gainAdj":0.0,"seed":1201}},{"id":"mux","type":"MultiplexSource","params":{"count":5,"source":{"ref":"R"}}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"mux"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+    {"a2", R"J({"graph":{"nodes":[{"id":"pfF","type":"PerformNode","params":{"field":"frequency"}},{"id":"pfV","type":"PerformNode","params":{"field":"velocity"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"S","type":"SawSource","params":{"amplitude":0.4,"frequency":{"ref":"pfF"},"phase":0.0}},{"id":"N","type":"WhiteNoiseSource","params":{"amplitude":0.1,"seed":1301}},{"id":"SN","type":"CombinedSource","params":{"source1":{"ref":"S"},"source2":{"ref":"N"},"operation":"Sum","gainAdj":0.0}},{"id":"R","type":"CombinedSource","params":{"source1":{"ref":"SN"},"source2":{"ref":"pfV"},"operation":"Multiply","gainAdj":0.0}},{"id":"mux","type":"MultiplexSource","params":{"count":3,"source":{"ref":"R"}}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"mux"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+    {"a3", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"N","type":"WhiteNoiseSource","params":{"amplitude":0.2,"seed":1401}},{"id":"S","type":"SawSource","params":{"amplitude":0.3,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"R2","type":"CombinedSource","params":{"source1":{"ref":"N"},"source2":{"ref":"S"},"operation":"Sum","gainAdj":0.0}},{"id":"inner","type":"MultiplexSource","params":{"count":2,"source":{"ref":"R2"}}},{"id":"F","type":"SVFSource","params":{"source":{"ref":"inner"},"cutoffFreq":2000.0,"resonance":0.3,"mode":"Lowpass"}},{"id":"outer","type":"MultiplexSource","params":{"count":3,"source":{"ref":"F"}}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"outer"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+    {"a4", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"E","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7,"stage_accuracy":0.6}},{"id":"R","type":"SawSource","params":{"amplitude":{"ref":"E"},"frequency":{"ref":"pf"},"phase":0.0}},{"id":"mux","type":"MultiplexSource","params":{"count":4,"source":{"ref":"R"}}}],"output":"mux"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+    {"a5", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"N","type":"WhiteNoiseSource","params":{"amplitude":0.3,"seed":1501}},{"id":"F","type":"SVFSource","params":{"source":{"ref":"N"},"cutoffFreq":800.0,"resonance":0.6,"mode":"Lowpass"}},{"id":"mux","type":"MultiplexSource","params":{"count":3,"source":{"ref":"F"}}},{"id":"S","type":"SawSource","params":{"amplitude":0.2,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"sum","type":"CombinedSource","params":{"source1":{"ref":"mux"},"source2":{"ref":"S"},"operation":"Sum","gainAdj":0.0}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"sum"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+    {"a6a", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"T","type":"SawSource","params":{"amplitude":0.3,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"mux","type":"MultiplexSource","params":{"count":3,"source":{"tap":"T"}}},{"id":"S0","type":"SineSource","params":{"amplitude":0.3,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"sum","type":"CombinedSource","params":{"source1":{"ref":"S0"},"source2":{"ref":"mux"},"operation":"Sum","gainAdj":0.0}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"sum"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+    {"a6b", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"mux","type":"MultiplexSource","params":{"count":3}},{"id":"S0","type":"SineSource","params":{"amplitude":0.3,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"sum","type":"CombinedSource","params":{"source1":{"ref":"S0"},"source2":{"ref":"mux"},"operation":"Sum","gainAdj":0.0}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"sum"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+    {"a7", R"J({"graph":{"nodes":[{"id":"pf","type":"PerformNode","params":{"field":"frequency"}},{"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.02,"decay":0.1,"release":0.1,"sustainLevel":0.7}},{"id":"X","type":"SawSource","params":{"amplitude":0.3,"frequency":{"ref":"pf"},"phase":0.0}},{"id":"N","type":"WhiteNoiseSource","params":{"amplitude":0.05,"seed":1701}},{"id":"XN","type":"CombinedSource","params":{"source1":{"ref":"X"},"source2":{"ref":"N"},"operation":"Sum","gainAdj":0.0}},{"id":"Y","type":"CombinedSource","params":{"source1":{"tap":"XN"},"source2":0.5,"operation":"Multiply","gainAdj":0.0}},{"id":"R","type":"CombinedSource","params":{"source1":{"ref":"XN"},"source2":{"ref":"Y"},"operation":"Sum","gainAdj":0.0}},{"id":"mux","type":"MultiplexSource","params":{"count":3,"source":{"ref":"R"}}},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"mux"},"source2":{"ref":"amp"},"operation":"Multiply","gainAdj":0.0}}],"output":"out"},"instrument":{"polyphony":1,"volume":0.5},"sampleRate":48000})J"},
+};
+static const char* const kGateInTemplate = R"J({"graph":{"nodes":[{"id":"pfF","type":"PerformNode","params":{"field":"frequency"}},{"id":"pfO","type":"PerformNode","params":{"field":"onset"}},{"id":"ng","type":"NameGate","params":{"name":"tongue","in":{"ref":"pfO"}}},{"id":"gest","type":"Envelope","params":{"minValue":0.0,"maxValue":1.0,"ramp_accuracy":1.0,"stage_accuracy":1.0,"timeMode":"seconds","timeScale":1.0,"startVal":[1.0,0.1,1.0],"endVal":[0.1,1.0,1.0],"power":[0.0,0.0,0.0],"type":["Linear","Linear","Linear"],"percent":[0.01,0.02,0.0],"minSec":[0.0,0.0,0.0],"maxSec":[0.0,0.0,0.0],"nominal":[0.0,0.0,0.0],"trigger":{"ref":"ng"}}},{"id":"lift","type":"CombinedSource","params":{"source1":{"ref":"ng"},"source2":1.0,"operation":"Sum","gainAdj":0.0}},{"id":"amp2","type":"CombinedSource","params":{"source1":{"ref":"gest"},"source2":{"ref":"lift"},"operation":"Multiply","gainAdj":0.0}},{"id":"R","type":"SawSource","params":{"amplitude":{"ref":"amp2"},"frequency":{"ref":"pfF"},"phase":0.0}},{"id":"mux","type":"MultiplexSource","params":{"count":2,"source":{"ref":"R"}}}],"output":"mux"},"instrument":{"polyphony":1,"volume":0.5,"onsets":["tongue"],"sustaining":true},"sampleRate":48000})J";
+}  // namespace build_tests
+
+// The template against the loader, sample for sample, on Task 0's Multiplex
+// files: a held line and a note alone. A NameGate inside a template resolves
+// against the block's onsets, where the loader's clones are given none.
+static void run_build_template_reader_tests() {
+    using namespace build_tests;
+    std::printf("the template against the loader: the Multiplex files, sample for sample\n");
+    for (const auto& t : kMultiplexTexts) {
+        auto old = load_instrument_patch_json(t.text);
+        auto mod = build_instrument(load_text(t.text));
+        const auto a = play_three(*old.instrument), b = play_three(*mod);
+        const bool audible = std::any_of(b.begin(), b.end(), [](float s) { return s != 0.0f; });
+        if (!same_samples(a, b)) std::printf("  %s: the readers differ first at sample %zu\n", t.name, first_difference(a, b));
+        CHECK(same_samples(a, b));
+        CHECK(audible);
+    }
+    std::string outside = kGateInTemplate;
+    outside.replace(outside.find(R"("name":"tongue")"), 15, R"("name":"slap")");
+    auto old = load_instrument_patch_json(kGateInTemplate);
+    auto mod = build_instrument(load_text(kGateInTemplate));
+    auto modOutside = build_instrument(load_text(outside));
+    const auto a = play_three(*old.instrument, 1.0f), b = play_three(*mod, 1.0f), c = play_three(*modOutside, 1.0f);
+    CHECK(!same_samples(a, b));                  // the clone's gate fires in the module
+    CHECK(same_samples(a, c));                   // as the loader's never does, nor the module's on a name it lacks
+}
+
+namespace build_tests {
+// One node of `type` holding `params`, as text.
+static std::string node_text(const char* id, const char* type, const std::string& params) {
+    return std::string(R"({"id":")") + id + R"(","type":")" + type + R"(","params":)" + params + "}";
+}
+// A white noise of amplitude 0.3 and `seed`, rendered alone for `n` samples.
+static std::vector<float> noise_alone(uint32_t seed, int n) {
+    Patch p = load_text(plain(node_text("N", "WhiteNoiseSource", R"({"amplitude":0.3})"), "N"));
+    p.graph.nodes[0].seed = seed;
+    BuiltGraph g = build_graph(p.graph, nullptr, nullptr);
+    return render_signal(*std::dynamic_pointer_cast<ValueSource>(g.output), n);
+}
+// The mean of renders, summed in order and divided as a MultiplexSource divides.
+static std::vector<float> mean_of(const std::vector<std::vector<float>>& renders) {
+    std::vector<float> out(renders.front().size());
+    for (size_t s = 0; s < out.size(); ++s) {
+        float sum = 0.0f;
+        for (const auto& r : renders) sum += r[s];
+        out[s] = sum / float(renders.size());
+    }
+    return out;
+}
+}  // namespace build_tests
+
+// The seed rule, read back through each clone's noise: clone i's every node's
+// seed is its own XOR-ed with base ^ (i * 0x9E3779B9), base the root's seed,
+// and that value where a node has none; a template inside a template applies
+// the rule again over the seeds its clone was given.
+static void run_build_template_seed_tests() {
+    using namespace build_tests;
+    std::printf("the template's seed rule: each clone's seeds, nested included\n");
+    const int n = 4800;
+    const std::string three = node_text("N", "WhiteNoiseSource", R"({"amplitude":0.3,"seed":1101})") + "," +
+                              node_text("M", "WhiteNoiseSource", R"({"amplitude":0.3})") + "," +
+                              node_text("R", "CombinedSource", R"({"source1":{"ref":"N"},"source2":{"ref":"M"},"operation":"Sum","seed":77})");
+    BuiltGraph flat = built(plain(three + "," + node_text("mux", "MultiplexSource", R"({"count":3,"source":{"ref":"R"}})"), "mux"));
+    std::vector<std::vector<float>> clones;
+    for (uint32_t i = 0; i < 3; ++i) {
+        const uint32_t pert = 77u ^ (i * 0x9E3779B9u);
+        Patch p = load_text(plain(three, "R"));
+        p.graph.nodes[0].seed = 1101u ^ pert;
+        p.graph.nodes[1].seed = pert;
+        p.graph.nodes[2].seed = 77u ^ pert;
+        BuiltGraph g = build_graph(p.graph, nullptr, nullptr);
+        clones.push_back(render_signal(*std::dynamic_pointer_cast<ValueSource>(g.output), n));
+    }
+    CHECK(!same_samples(clones[0], clones[1]));
+    CHECK(same_samples(render_signal(*std::dynamic_pointer_cast<ValueSource>(flat.output), n), mean_of(clones)));
+    BuiltGraph nested = built(plain(node_text("N", "WhiteNoiseSource", R"({"amplitude":0.3,"seed":1101})") + "," +
+                                    node_text("inner", "MultiplexSource", R"({"count":2,"source":{"ref":"N"},"seed":55})") + "," +
+                                    node_text("outer", "MultiplexSource", R"({"count":2,"source":{"ref":"inner"}})"), "outer"));
+    std::vector<std::vector<float>> outerClones;
+    for (uint32_t i = 0; i < 2; ++i) {
+        const uint32_t p = 55u ^ (i * 0x9E3779B9u);           // the outer root, `inner`, holds 55
+        const uint32_t noiseSeed = 1101u ^ p;                 // N in outer clone i, the inner template's root
+        std::vector<std::vector<float>> innerClones;
+        for (uint32_t j = 0; j < 2; ++j) innerClones.push_back(noise_alone(noiseSeed ^ (noiseSeed ^ (j * 0x9E3779B9u)), n));
+        outerClones.push_back(mean_of(innerClones));
+    }
+    CHECK(same_samples(render_signal(*std::dynamic_pointer_cast<ValueSource>(nested.output), n), mean_of(outerClones)));
+}
+
+// The closure holds copies: an instrument's Multiplex rebuilt after the
+// patch, its graph and the note's holder that made it are gone renders as a
+// fresh one. A dynamic pin and a tap-only tail inside a template are refused.
+static void run_build_template_closure_tests() {
+    using namespace build_tests;
+    std::printf("the template's closure outlives its patch; the two refusals inside a template\n");
+    std::unique_ptr<PitchedInstrument> kept;
+    {
+        const Patch p = load_text(kMultiplexTexts[0].text);
+        kept = build_instrument(p);
+    }
+    static_cast<MultiplexSource&>(*kept->voicePool[0].nodesById.at("mux")).mark_dirty();
+    kept->prepare(RenderContext{48000});
+    auto fresh = build_instrument(load_text(kMultiplexTexts[0].text));
+    CHECK(same_samples(play_three(*kept), play_three(*fresh)));
+    CHECK(text_refusal(inst(R"({"id":"pf","type":"PerformNode"},{"id":"c","type":"SineSource"},)"
+                            R"({"id":"env","type":"Envelope","dynamicPins":{"timeScale":{"ref":"c"}}},)"
+                            R"({"id":"R","type":"SawSource","params":{"amplitude":{"ref":"env"},"frequency":{"ref":"pf"}}},)"
+                            R"({"id":"mux","type":"MultiplexSource","params":{"source":{"ref":"R"}}})", "mux")) ==
+          "node 'env' (Envelope): a dynamic pin inside the template of 'mux' is not supported: each clone would need its own");
+    CHECK(text_refusal(inst(R"({"id":"T","type":"SawSource"},{"id":"Y","type":"CombinedSource","params":{"source1":{"tap":"T"}}},)"
+                            R"({"id":"mux","type":"MultiplexSource","params":{"source":{"ref":"Y"}}})", "mux")) ==
+          "node 'T' (SawSource): inside the template of 'mux' only a tap reads it, and nothing advances a clone's tail");
+}
+
+// A record with two nodes under one id never passed check(): each builder
+// refuses it naming the second node, and none crashes.
+static void run_build_duplicate_id_tests() {
+    using namespace build_tests;
+    std::printf("the builder refuses two nodes under one id\n");
+    const auto refused = [](const auto& build) {
+        try { build(); } catch (const std::exception& e) { return std::string(e.what()); }
+        return std::string();
+    };
+    Patch env = load_text(inst(R"({"id":"x","type":"Envelope"},{"id":"y","type":"SineSource"})", "x"));
+    env.graph.nodes[1].id = "x";
+    const std::string want = "node 'x' (SineSource): the id 'x' names an earlier node too; an id names one node";
+    CHECK(build_refusal(env.graph) == want);
+    CHECK(refused([&] { (void)build_instrument(env); }) == want);
+    Patch mix = load_text(plain(R"({"id":"o","type":"SineSource"},{"id":"ch","type":"SoundChannel","params":{"source":{"ref":"o"}}},)"
+                                R"({"id":"m","type":"StereoMixer","params":{"channels":[{"ref":"ch"}]}},{"id":"s","type":"SawSource"})", "m"));
+    mix.graph.nodes[3].id = "m";
+    CHECK(refused([&] { (void)build_sound(mix); }) == "node 'm' (SawSource): the id 'm' names an earlier node too; an id names one node");
+}
+
+// The lists: the tails in the graph's order, a dynamic pin's read not a read;
+// the dynamic pins in the graph's order, a node's by setting; the signals in
+// id order, a PerformNode's id among them; the bend's warning.
+static void run_build_list_tests() {
+    using namespace build_tests;
+    std::printf("the builder's lists: tails, dynamic pins, signals, the bend's warning\n");
+    const auto tails = [](const std::string& nodes, const char* output) { return advance_ids(load_text(inst(nodes, output)).graph); };
+    using Ids = std::vector<std::string>;
+    const std::string four = R"({"id":"D0","type":"SawSource"},{"id":"D1","type":"SawSource"},{"id":"D2","type":"SawSource"},)"
+        R"({"id":"D3","type":"SawSource"},{"id":"out","type":"MultiSource","params":{"source":[{"tap":"D3"},{"tap":"D2"},{"tap":"D1"},{"tap":"D0"}]}})";
+    CHECK(tails(four, "out") == Ids({"D0", "D1", "D2", "D3"}));
+    const BuiltGraph g4 = built(inst(four, "out"));
+    CHECK(g4.advance.size() == 4);
+    for (size_t k = 0; k < g4.advance.size() && k < 4; ++k) CHECK(g4.advance[k].get() == g4.nodes.at("D" + std::to_string(k)).get());
+    const std::string one = R"({"id":"T","type":"SawSource"},{"id":"out","type":"CombinedSource","params":{"source1":{"tap":"T"}}})";
+    CHECK(tails(one, "out") == Ids({"T"}));
+    CHECK(tails(R"({"id":"out","type":"SawSource"})", "out").empty());
+    CHECK(tails(R"({"id":"T","type":"SawSource","params":{"amplitude":{"tap":"T"}}})", "T").empty());
+    CHECK(tails(R"({"id":"T","type":"SawSource"},{"id":"env","type":"Envelope","dynamicPins":{"timeScale":{"ref":"T"}}},)"
+                R"({"id":"out","type":"CombinedSource","params":{"source1":{"tap":"T"},"source2":{"ref":"env"}}})", "out") == Ids({"T"}));
+    const BuiltGraph pins = built(inst(
+        R"({"id":"eB","type":"Envelope","dynamicPins":{"timeScale":{"ref":"late"}}},{"id":"s","type":"SineSource"},)"
+        R"({"id":"eA","type":"Envelope","dynamicPins":{"timeScale":{"ref":"s"},"sustainLevel":{"ref":"s"}}},)"
+        R"({"id":"late","type":"SineSource"},{"id":"out","type":"CombinedSource","params":{"source1":{"ref":"eA"},"source2":{"ref":"eB"}}})", "out"));
+    const auto pin_is = [&](size_t k, const char* id, const char* setting, const char* source) {
+        return k < pins.dynamicPins.size() && pins.dynamicPins[k].node == pins.nodes.at(id) && pins.dynamicPins[k].setting == setting &&
+               pins.dynamicPins[k].source.get() == pins.nodes.at(source).get();
+    };
+    CHECK(pins.dynamicPins.size() == 3 && pin_is(0, "eB", "timeScale", "late") && pin_is(1, "eA", "sustainLevel", "s") &&
+          pin_is(2, "eA", "timeScale", "s"));
+    const BuiltGraph sig = built(inst(R"({"id":"z","type":"SineSource","params":{"frequency":{"ref":"pf"}}},{"id":"pf","type":"PerformNode"},)"
+                                      R"({"id":"parts","type":"FullPartials"},{"id":"a","type":"SawSource"})", "z"));
+    CHECK(sig.signals.size() == 3 && sig.signals[0].id == "a" && sig.signals[1].id == "pf" && sig.signals[2].id == "z");
+    if (sig.signals.size() == 3) CHECK(sig.signals[1].node == sig.nodes.at("pf").get());
+    const auto ks = [](const std::string& frequency, const char* field) {
+        return built(inst(std::string(R"({"id":"pf","type":"PerformNode","params":{"field":")") + field + R"("}},)"
+                          R"({"id":"x2","type":"CombinedSource","params":{"source1":{"ref":"pf"},"source2":2.0,"operation":"Multiply"}},)"
+                          R"({"id":"exc","type":"WhiteNoiseSource"},)"
+                          R"({"id":"ks","type":"KSString","params":{"source":{"ref":"exc"},"frequency":)" + frequency + "}}", "ks")).warnings;
+    };
+    const Ids bend{"node 'ks' (KSString): it reads its frequency once at note start, so a bend does not reach it"};
+    CHECK(ks(R"({"ref":"pf"})", "frequency") == bend);
+    CHECK(ks(R"({"ref":"x2"})", "frequency") == bend);
+    CHECK(ks("220", "frequency").empty());
+    CHECK(ks(R"({"ref":"pf"})", "velocity").empty());
+}
+
+// build_instrument: the block's five fields, the floor, every voice's lists,
+// the warnings once; a part as the output and a patch with no block refused.
+static void run_build_instrument_tests() {
+    using namespace build_tests;
+    std::printf("build_instrument: the block, the floor, each voice's lists, the warnings once\n");
+    const Patch p = load_text(inst(
+        R"({"id":"pf","type":"PerformNode"},{"id":"g","type":"NameGate","params":{"name":"x"}},)"
+        R"({"id":"env","type":"Envelope","params":{"trigger":1}},{"id":"env0","type":"Envelope"},)"
+        R"({"id":"envW","type":"Envelope","params":{"trigger":{"ref":"g"}}},{"id":"T","type":"SineSource"},)"
+        R"({"id":"c","type":"SineSource"},{"id":"ks","type":"KSString","dynamicPins":{"t60":{"ref":"c"}},"params":{"frequency":{"ref":"pf"}}},)"
+        R"({"id":"m","type":"CombinedSource","params":{"source1":{"ref":"env"},"source2":{"ref":"env0"},"operation":"Multiply"}},)"
+        R"({"id":"m2","type":"CombinedSource","params":{"source1":{"ref":"m"},"source2":{"ref":"envW"},"operation":"Multiply"}},)"
+        R"({"id":"m3","type":"CombinedSource","params":{"source1":{"ref":"m2"},"source2":{"tap":"T"},"operation":"Sum"}},)"
+        R"({"id":"out","type":"CombinedSource","params":{"source1":{"ref":"m3"},"source2":{"ref":"ks"},"operation":"Sum"}})",
+        "out", R"({"polyphony":3,"volume":0.5,"sustaining":true,"onsets":["tongue"],"glideMs":20})"));
+    std::vector<std::string> w;
+    const auto pi = build_instrument(p, 0, &w);
+    CHECK(pi->voicePool.size() == 3 && pi->volume == 0.5f && pi->sustaining && pi->glideSec == 20.0f / 1000.0f);
+    CHECK(pi->onsetNames == std::vector<std::string>({"tongue"}));
+    CHECK(w.size() == 2);                        // the gate's name and the bend: once, not once per voice
+    CHECK(build_instrument(p, 5)->voicePool.size() == 5 && build_instrument(p, 2)->voicePool.size() == 3);
+    for (const auto& vg : pi->voicePool) {
+        const auto at = [&](const char* id) { return vg.nodesById.at(id).get(); };
+        CHECK(vg.source.get() == at("out"));
+        CHECK(vg.allEnvelopes.size() == 3 && vg.allEnvelopes[0] == at("env") && vg.allEnvelopes[1] == at("env0") &&
+              vg.allEnvelopes[2] == at("envW"));
+        CHECK(vg.triggerBindings.size() == 2 && vg.triggerBindings[0] == at("env") && vg.triggerBindings[1] == at("envW"));
+        CHECK(vg.pushBindings.size() == 1 && vg.pushBindings[0].consumer.get() == at("ks") &&
+              vg.pushBindings[0].paramName == "t60" && vg.pushBindings[0].chain.get() == at("c"));
+        CHECK(vg.advanceList.size() == 1 && vg.advanceList[0].get() == at("T"));
+        CHECK(vg.signals.size() == vg.nodesById.size() && std::is_sorted(vg.signals.begin(), vg.signals.end(),
+                                                                         [](const auto& x, const auto& y) { return x.id < y.id; }));
+        CHECK(at("pf") == vg.freqOut.get() && vg.performSource != nullptr);
+    }
+    CHECK(pi->voicePool[0].nodesById.at("out") != pi->voicePool[1].nodesById.at("out"));
+    Patch partOut = load_text(inst(R"({"id":"o","type":"SineSource"},{"id":"parts","type":"FullPartials"})", "o"));
+    partOut.graph.output = "parts";
+    std::string msg;
+    try { (void)build_instrument(partOut); } catch (const std::exception& e) { msg = e.what(); }
+    CHECK(msg == "'parts' is a FullPartials, a part, not a signal");
+    msg.clear();
+    try { (void)build_instrument(load_text(plain(R"({"id":"o","type":"SineSource"})", "o"))); } catch (const std::exception& e) { msg = e.what(); }
+    CHECK(msg == "Patch has no 'instrument' section");
+}
+
+// build_sound: the base's seven plain-sound hashes; the sharing refusal's
+// shapes with the loader's sentences and the shapes that load; the bare
+// output; the instrument form and the frame count's three cases against the
+// loader; a tail in a plain sound and a faulting node, each named by id.
+static void run_build_sound_tests() {
+    using namespace build_tests;
+    std::printf("build_sound: the base's plain sounds, the sharing walk, the three forms, the frames\n");
+    const uint64_t kBase[] = {0xbd803f232d11c7d6ull, 0x428f79ca36025021ull, 0x6a4b98ef60321f25ull, 0x6da350faa0c174a3ull,
+                              0x8f96948dd16fb3c3ull, 0xbe932bc542335611ull, 0x94a4b14bfce0b145ull};
+    const auto all = plain_parts::cases();
+    CHECK(all.size() == std::size(kBase));
+    for (size_t k = 0; k < all.size() && k < std::size(kBase); ++k) {
+        BuiltSound s = build_sound(load_text(plain_parts::sound(all[k].signals, all[k].chans, all[k].mix)));
+        const uint64_t h = node_twins::fnv(render_sound(s));
+        if (h != kBase[k]) std::printf("  %s: 0x%016llx\n", all[k].name, (unsigned long long)h);
+        CHECK(h == kBase[k]);
+    }
+    const auto refusal = [](const std::string& text) {
+        try { (void)build_sound(load_text(text)); } catch (const std::exception& e) { return std::string(e.what()); }
+        return std::string();
+    };
+    for (const auto& c : plain_parts::shared_cases()) {
+        const std::string got = refusal(c.text);
+        if (got != c.sentence) std::printf("  %s: %s\n", c.what, got.c_str());
+        CHECK(got == c.sentence);
+    }
+    for (const auto& text : plain_parts::sharing_sounds_that_load()) {
+        BuiltSound s = build_sound(load_text(text));
+        const auto buf = render_sound(s);
+        CHECK(std::any_of(buf.begin(), buf.end(), [](float v) { return v != 0.0f; }));
+    }
+    BuiltSound bare = build_sound(load_text(plain(R"({"id":"osc","type":"SineSource","params":{"frequency":220}})", "osc")));
+    CHECK(bare.mixer->channels.size() == 1 && bare.frames == 12000 && bare.mixer->signals.size() == 1 &&
+          bare.mixer->signals[0].id == "osc");
+    const std::string head = R"({"instrument":{"polyphony":1},)";
+    const std::string tail = R"("graph":{"output":"osc","nodes":[{"id":"osc","type":"SineSource","params":{"frequency":220}}]}})";
+    const std::string score = R"("score":[{"note":60,"time":0,"duration":0.5}],)";
+    const std::string forms[] = {head + tail, head + score + tail, head + score + R"("seconds":0.25,)" + tail,
+                                 head + score + R"("seconds":2,)" + tail, head + R"("seconds":0.25,)" + tail};
+    const int frames[] = {240000, -1, -1, 96000, 12000};
+    for (size_t k = 0; k < std::size(forms); ++k) {
+        ScratchPatch file("renders/scratch/_build_sound_form.json", forms[k]);
+        BuiltSound old = load_patch_file(file.path);
+        BuiltSound mod = build_sound(load_text(forms[k]));
+        CHECK(old.frames == mod.frames && mod.sampleRate == 48000 && (frames[k] < 0 || mod.frames == frames[k]));
+        CHECK(same_samples(render_sound(old), render_sound(mod)));
+    }
+    BuiltSound tailed = build_sound(load_text(plain(R"({"id":"T","type":"SawSource"},)"
+        R"({"id":"out","type":"CombinedSource","params":{"source1":{"tap":"T"}}})", "out")));
+    CHECK(tailed.warnings.size() == 1 && tailed.warnings[0].rfind("node 'T' is read only through a tap", 0) == 0);
+    BuiltSound faulty = build_sound(load_text(R"J({"sampleRate":48000,"graph":{"nodes":[{"id":"zero","type":"SawSource","params":{"amplitude":0.3,"frequency":0.0,"phase":0.0}},{"id":"tone","type":"SineSource","params":{"amplitude":0.3,"frequency":220.0,"phase":0.0}},{"id":"chZ","type":"SoundChannel","params":{"volume":0.8,"pan":-0.5,"source":{"ref":"zero"}}},{"id":"chT","type":"SoundChannel","params":{"volume":0.8,"pan":0.5,"source":{"ref":"tone"}}},{"id":"mix","type":"StereoMixer","params":{"gainL":1.0,"gainR":1.0,"channels":[{"ref":"chZ"},{"ref":"chT"}]}}],"output":"mix"}})J"));
+    (void)render_sound(faulty, 4800);
+    std::vector<FaultReport> faults;
+    faulty.mixer->collect_faults(faults);
+    CHECK(faults.size() == 1 && faults[0].nodeId == "zero");
+    if (!faults.empty()) std::printf("  the faulting node: %s\n", fault_report_text(faults[0]).c_str());
+}
+
+// ---------------------------------------------------------------------------
+// The generated reader twin: for every registered type, three small patches
+// the declarations table writes, read by both readers.
+namespace reader_twin {
+using J = nlohmann::json;
+// The three texts per type: the sparse one; one whose arrays all hold rows;
+// one whose scalar settings all stand off their defaults.
+enum class TwinText { Sparse, Rows, Settings };
+// The settings whose maximum makes the quarter-second render too slow or too
+// large, and the value each takes in the Settings text instead, off its
+// default: a Partials' count of partials the midpoint of its range; an
+// ExpandRule's two sizes one each, since a rule makes (1 + 2 * count) to the
+// power (1 + recurse) partials of every one its host has.
+static const float* chosen_value(const std::string& type, const std::string& setting) {
+    static const std::map<std::pair<std::string, std::string>, float> kChosen = {
+        {{"FullPartials", "maxPartials"}, 100.0f},
+        {{"SequencePartials", "maxPartials"}, 100.0f},
+        {{"ExplicitPartials", "maxPartials"}, 100.0f},
+        {{"ExpandRule", "count"}, 1.0f},
+        {{"ExpandRule", "recurse"}, 1.0f},
+    };
+    const auto it = kChosen.find({type, setting});
+    return it == kChosen.end() ? nullptr : &it->second;
+}
+// The first registered type whose slot `slot` of an owner takes; empty when none.
+static std::string first_accepted(const TypeDeclarations::Input& slot) { return slot.accepts.empty() ? "" : slot.accepts.front(); }
+static void add_node(J& nodes, const std::string& id, const std::string& type, bool note, int depth,
+                     TwinText text = TwinText::Sparse);
+// A node's pins: each signal input fed the saw, each slot but `skip` the first
+// type it accepts (made by add_node, to a depth of three), `frequency` the
+// note where the type has the pin and the patch has a note.
+static J pins(J& nodes, const std::string& id, const TypeDeclarations& d, bool note, int depth, const std::string& skip = "") {
+    J params = J::object();
+    for (const auto& in : d.inputs) {
+        if (in.name == skip) continue;
+        if (!in.slot) { params[in.name] = in.list ? J::array({J{{"ref", "drive"}}}) : J{{"ref", "drive"}}; continue; }
+        const std::string part = first_accepted(in);
+        if (part.empty() || depth >= 3) continue;
+        const std::string partId = id + "_" + in.name;
+        add_node(nodes, partId, part, note, depth + 1);
+        params[in.name] = in.list ? J::array({J{{"ref", partId}}}) : J{{"ref", partId}};
+    }
+    if (d.param("frequency") && note) params["frequency"] = J{{"ref", "pf"}};
+    return params;
+}
+// Three rows of every array: its row default, or a labelled column's first label.
+static void give_rows(J& params, const TypeDeclarations& d) {
+    for (const auto& a : d.arrays)
+        params[a.name] = a.labels.empty() ? J::array({a.rowDefault, a.rowDefault, a.rowDefault})
+                                          : J::array({a.labels.front(), a.labels.front(), a.labels.front()});
+}
+// Every scalar setting off its default and inside its range: a number its
+// maximum (or the value chosen_value gives it), an enum its last label, a
+// bool the other value.
+static void give_settings(J& params, const TypeDeclarations& d) {
+    for (const auto& s : d.settings) {
+        if (s.type == SettingType::String) continue;
+        if (s.type == SettingType::Bool) params[s.name] = s.defaultValue == 0.0f;
+        else if (!s.labels.empty()) params[s.name] = s.labels.back();
+        else if (const float* chosen = chosen_value(d.type, s.name)) params[s.name] = *chosen;
+        else params[s.name] = s.max;
+    }
+}
+static void add_node(J& nodes, const std::string& id, const std::string& type, bool note, int depth, TwinText text) {
+    const TypeDeclarations* d = type_declarations(type);
+    J params = pins(nodes, id, *d, note, depth);
+    if (text == TwinText::Rows) give_rows(params, *d);
+    if (text == TwinText::Settings) give_settings(params, *d);
+    nodes.push_back(J{{"id", id}, {"type", type}, {"params", params}});
+}
+// The first registered type with a slot that takes `part`, and that slot; empty when none.
+static std::pair<std::string, std::string> host_of(const std::string& part) {
+    for (const auto& t : declared_types())
+        for (const auto& in : type_declarations(t)->inputs)
+            if (in.slot && std::find(in.accepts.begin(), in.accepts.end(), part) != in.accepts.end()) return {t, in.name};
+    return {};
+}
+}  // namespace reader_twin
+
+namespace reader_twin {
+// The text for `type`: an instrument whose output is the node `x` of that
+// type, or the signal that hosts it in a slot (a part's host chain followed
+// until a signal, each host's other slots filled too); a plain sound when the
+// chain ends at the mixer. Empty, with `why` said, when no slot takes the part.
+static std::string twin_text(const std::string& type, TwinText text, std::string& why) {
+    std::vector<std::pair<std::string, std::string>> hosts;   // each host's type and the slot it holds the one before in
+    std::string at = type;
+    while (!type_declarations(at)->signal && at != "StereoMixer" && hosts.size() < 3) {
+        const auto host = host_of(at);
+        if (host.first.empty()) { why = "no registered type's slot takes a " + at; return {}; }
+        hosts.push_back(host);
+        at = host.first;
+    }
+    if (!type_declarations(at)->signal && at != "StereoMixer") { why = "no signal hosts it within three slots"; return {}; }
+    const bool instrument = at != "StereoMixer";
+    J nodes = J::array();
+    if (instrument) nodes.push_back(J{{"id", "pf"}, {"type", "PerformNode"}, {"params", {{"field", "frequency"}}}});
+    nodes.push_back(J{{"id", "drive"}, {"type", "SawSource"},
+                      {"params", {{"amplitude", 0.3}, {"frequency", instrument ? J{{"ref", "pf"}} : J(261.6256)}}}});
+    add_node(nodes, "x", type, instrument, 0, text);
+    std::string inner = "x";
+    for (size_t k = 0; k < hosts.size(); ++k) {
+        const std::string id = "h" + std::to_string(k);
+        const TypeDeclarations* d = type_declarations(hosts[k].first);
+        J params = pins(nodes, id, *d, instrument, 1, hosts[k].second);
+        params[hosts[k].second] = d->input(hosts[k].second)->list ? J::array({J{{"ref", inner}}}) : J{{"ref", inner}};
+        nodes.push_back(J{{"id", id}, {"type", hosts[k].first}, {"params", params}});
+        inner = id;
+    }
+    J doc{{"sampleRate", 48000}, {"graph", {{"output", inner}, {"nodes", nodes}}}};
+    if (instrument) doc["instrument"] = J{{"polyphony", 1}};
+    else doc["seconds"] = 0.25;
+    return doc.dump();
+}
+// One render of `text` through a reader: the loader (`old`) or the module.
+static std::vector<float> twin_render(const std::string& text, bool old) {
+    if (old) {
+        if (nlohmann::json::parse(text).contains("instrument")) return live_c4(*load_instrument_patch_json(text).instrument);
+        ScratchPatch file("renders/scratch/_reader_twin.json", text);
+        BuiltSound s = load_patch_file(file.path);
+        return render_sound(s);
+    }
+    const Patch p = read_text(text);
+    if (p.instrument) return live_c4(*build_instrument(p));
+    BuiltSound s = build_sound(p);
+    return render_sound(s);
+}
+// What one text of one type gave: each reader's refusal, and what the
+// properties found (empty fields where they hold).
+struct TwinResult {
+    std::string unbuilt, oldRefusal, newRefusal, loaderVsModule, sparseVsWritten, identity;
+    bool audible{false};
+    double seconds{0.0};
+};
+// One reader's render of `text`, or its refusal.
+static std::vector<float> render_or_refusal(const std::string& text, bool old, std::string& refusal) {
+    try { return twin_render(text, old); } catch (const std::exception& e) { refusal = e.what(); }
+    return {};
+}
+static TwinResult twin_one(const std::string& type, TwinText kind) {
+    TwinResult r;
+    const std::string text = twin_text(type, kind, r.unbuilt);
+    if (text.empty()) return r;
+    const auto start = std::chrono::steady_clock::now();
+    const auto old = render_or_refusal(text, true, r.oldRefusal);
+    const auto mod = render_or_refusal(text, false, r.newRefusal);
+    r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    if (!r.oldRefusal.empty() || !r.newRefusal.empty()) return r;
+    if (!same_samples(old, mod)) r.loaderVsModule = difference(old, mod);
+    r.audible = std::any_of(mod.begin(), mod.end(), [](float s) { return s != 0.0f; });
+    const Patch p = read_text(text);
+    J written;
+    to_json(written, p);
+    Patch back;
+    from_json(written, back);
+    if (!(back == p)) r.identity = "from_json(to_json(p)) differs from p";
+    if (kind == TwinText::Settings) return r;
+    const auto again = twin_render(written.dump(), false);
+    if (!same_samples(mod, again)) r.sparseVsWritten = difference(mod, again);
+    return r;
+}
+// One text over every registered type: each finding printed and failed, a
+// type both readers refuse listed with the two sentences, the counts printed.
+static void twin_all(TwinText kind, const char* name) {
+    int types = 0, built = 0, audible = 0;
+    std::vector<std::string> silent;
+    for (const auto& type : declared_types()) {
+        ++types;
+        const TwinResult r = twin_one(type, kind);
+        const char* t = type.c_str();
+        if (!r.unbuilt.empty()) std::printf("  %s %s: no text: %s\n", name, t, r.unbuilt.c_str());
+        const bool oldRefused = !r.oldRefusal.empty(), newRefused = !r.newRefusal.empty();
+        if (oldRefused || newRefused)
+            std::printf("  %s %s: refused by %s: the loader \"%s\"; the module \"%s\"\n", name, t,
+                        oldRefused && newRefused ? "both" : "one reader", r.oldRefusal.c_str(), r.newRefusal.c_str());
+        if (!r.loaderVsModule.empty()) std::printf("  %s %s: the loader and the module differ, %s\n", name, t, r.loaderVsModule.c_str());
+        if (!r.sparseVsWritten.empty()) std::printf("  %s %s: the text and the written text differ, %s\n", name, t, r.sparseVsWritten.c_str());
+        if (!r.identity.empty()) std::printf("  %s %s: %s\n", name, t, r.identity.c_str());
+        if (r.seconds > 2.0) std::printf("  %s %s: took %.1f s\n", name, t, r.seconds);
+        CHECK(oldRefused == newRefused && r.loaderVsModule.empty() && r.sparseVsWritten.empty() && r.identity.empty());
+        if (!r.unbuilt.empty() || oldRefused || newRefused) continue;
+        ++built;
+        if (r.audible) ++audible;
+        else silent.push_back(type);
+    }
+    std::printf("  %s: %d types, %d built by both, %d render something, %zu render silence:", name, types, built, audible, silent.size());
+    for (const auto& s : silent) std::printf(" %s", s.c_str());
+    std::printf("\n");
+    CHECK(types > 0);
+}
+}  // namespace reader_twin
+
+// For every registered type, three texts the declarations table writes: the
+// sparse one, one whose every array holds rows, one whose every scalar
+// setting stands off its default. Of each: (i) the loader and the module
+// build it alike and render a C4 of a quarter second the same, and (ii)
+// from_json(to_json(p)) == p; of the first two also (iii) the module renders
+// the text and the text of to_json(from_json(text)) the same.
+static void run_generated_reader_twin_tests() {
+    using namespace reader_twin;
+    std::printf("the generated reader twin: every registered type through both readers, three texts\n");
+    twin_all(TwinText::Sparse, "sparse");
+    twin_all(TwinText::Rows, "rows");
+    twin_all(TwinText::Settings, "settings");
+}
+
+// Every row of the tests' table was met by a load: a row no load meets is stale.
+static void run_reader_twin_table_tests() {
+    std::printf("the tests' table: %zu rows, each met by a load\n", reader_twin::known().size());
+    for (const auto& k : reader_twin::known()) {
+        const bool met = reader_twin::met().count(&k) != 0;
+        if (!met) std::printf("  a row no load met: %s (%s)\n", k.test, k.patch);
+        CHECK(met);
+    }
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -13972,7 +14849,19 @@ int main() {
     patch_codec::guarded("run_codec_layout_fragment_tests", run_codec_layout_fragment_tests);
     patch_codec::guarded("run_codec_refusal_tests", run_codec_refusal_tests);
     patch_codec::guarded("run_codec_untouched_tests", run_codec_untouched_tests);
+    patch_codec::guarded("run_build_sort_tests", run_build_sort_tests);
+    patch_codec::guarded("run_build_fill_tests", run_build_fill_tests);
+    patch_codec::guarded("run_build_named_tests", run_build_named_tests);
+    patch_codec::guarded("run_build_template_reader_tests", run_build_template_reader_tests);
+    patch_codec::guarded("run_build_template_seed_tests", run_build_template_seed_tests);
+    patch_codec::guarded("run_build_template_closure_tests", run_build_template_closure_tests);
+    patch_codec::guarded("run_build_duplicate_id_tests", run_build_duplicate_id_tests);
+    patch_codec::guarded("run_build_list_tests", run_build_list_tests);
+    patch_codec::guarded("run_build_instrument_tests", run_build_instrument_tests);
+    patch_codec::guarded("run_build_sound_tests", run_build_sound_tests);
+    patch_codec::guarded("run_generated_reader_twin_tests", run_generated_reader_twin_tests);
     run_type_declaration_late_tests();       // registers its probe: last
+    patch_codec::guarded("run_reader_twin_table_tests", run_reader_twin_table_tests);   // after every load
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

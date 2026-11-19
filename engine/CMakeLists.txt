@@ -9,6 +9,9 @@ add_library(mforce_engine
   src/wav_writer.cpp
   src/wav_reader.cpp
   src/patch_loader.cpp
+  src/build_instrument.cpp
+  src/build_sound.cpp
+  src/patch/build_graph.cpp
   src/patch/node_json.cpp
   src/patch/patch.cpp
   src/patch/patch_json.cpp
