@@ -9,8 +9,10 @@ add_library(mforce_engine
   src/wav_writer.cpp
   src/wav_reader.cpp
   src/patch_loader.cpp
+  src/patch/patch.cpp
   src/patch/retired_spellings.cpp
   src/patch/table_rule.cpp
+  src/patch/type_declarations.cpp
   src/embedded_score.cpp
   src/component.cpp
   src/source_registry.cpp

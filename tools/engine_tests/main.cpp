@@ -12402,6 +12402,664 @@ static void run_mixer_signal_fault_tests() {
     CHECK(got.size() == 1 && got[0].nodeId == "ch" && got[0].faults == fault_bit(Fault::TableClamped));
 }
 
+// ---------------------------------------------------------------------------
+// The patch module's records, its declarations table and Patch::check().
+#include "mforce/patch/fragment.h"
+#include "mforce/patch/patch.h"
+#include "mforce/patch/table_rule.h"
+#include "mforce/patch/type_declarations.h"
+#include <chrono>
+
+namespace patch_records {
+// A Patch with every member of every record set away from its default.
+static Patch full_patch() {
+    Node a;
+    a.id = "osc"; a.type = "SineSource"; a.seed = 7u;
+    a.values["phase"] = 0.25f;
+    a.wires["amplitude"] = {Wire{"env", false}, Wire{"lfo", true}};
+    a.settings["mode"] = 1.0f;
+    a.strings["name"] = "tongue";
+    a.arrays["col"] = {0.5f, 1.0f};
+    a.dynamicPins["t60"] = "curve";
+    a.comment = "the tone";
+    Patch p;
+    p.graph.nodes = {a, Node{"env", "Envelope"}};
+    p.graph.output = "osc";
+    p.instrument = InstrumentBlock{2, 0.5f, true, {"tongue", "slur"}, 20.0f};
+    p.layout.positions["osc"] = Vec2{1, 2};
+    p.layout.outputPos = Vec2{3, 4};
+    p.layout.panning = Vec2{5, 6};
+    p.layout.groups = {Group{"Voice", {"osc", "env"}, Vec2{7, 8}}};
+    p.layout.faces = {NoteFace{"Note", {{"frequency", "freq"}}, Vec2{9, 10}}};
+    p.sampleRate = 44100;
+    p.seconds = 2.5;
+    p.score = "[]";
+    p.comment = "a patch";
+    return p;
+}
+static Fragment full_fragment() {
+    const Patch p = full_patch();
+    return Fragment{p.graph.nodes, p.layout.positions, p.layout.groups, p.layout.faces};
+}
+struct PatchCase { const char* member; void (*change)(Patch&); };
+static std::vector<PatchCase> patch_cases() {
+    return {
+        {"Wire.source", [](Patch& p) { p.graph.nodes[0].wires["amplitude"][1].source = "lfo2"; }},
+        {"Wire.tap", [](Patch& p) { p.graph.nodes[0].wires["amplitude"][1].tap = false; }},
+        {"Node.id", [](Patch& p) { p.graph.nodes[0].id = "osc2"; }},
+        {"Node.type", [](Patch& p) { p.graph.nodes[0].type = "SawSource"; }},
+        {"Node.seed", [](Patch& p) { p.graph.nodes[0].seed = 8u; }},
+        {"Node.seed (absent)", [](Patch& p) { p.graph.nodes[0].seed.reset(); }},
+        {"Node.values", [](Patch& p) { p.graph.nodes[0].values["phase"] = 0.5f; }},
+        {"Node.wires", [](Patch& p) { p.graph.nodes[0].wires["phase"] = {Wire{"env"}}; }},
+        {"Node.settings", [](Patch& p) { p.graph.nodes[0].settings["mode"] = 2.0f; }},
+        {"Node.strings", [](Patch& p) { p.graph.nodes[0].strings["name"] = "slur"; }},
+        {"Node.arrays", [](Patch& p) { p.graph.nodes[0].arrays["col"][1] = 2.0f; }},
+        {"Node.dynamicPins", [](Patch& p) { p.graph.nodes[0].dynamicPins["t60"] = "curve2"; }},
+        {"Node.comment", [](Patch& p) { p.graph.nodes[0].comment = "another"; }},
+        {"Graph.nodes", [](Patch& p) { p.graph.nodes.pop_back(); }},
+        {"Graph.output", [](Patch& p) { p.graph.output = "env"; }},
+        {"InstrumentBlock.polyphony", [](Patch& p) { p.instrument->polyphony = 3; }},
+        {"InstrumentBlock.volume", [](Patch& p) { p.instrument->volume = 0.25f; }},
+        {"InstrumentBlock.sustaining", [](Patch& p) { p.instrument->sustaining = false; }},
+        {"InstrumentBlock.onsets", [](Patch& p) { p.instrument->onsets.pop_back(); }},
+        {"InstrumentBlock.glideMs", [](Patch& p) { p.instrument->glideMs = 15.0f; }},
+        {"Vec2.x", [](Patch& p) { p.layout.positions["osc"].x = 1.5f; }},
+        {"Vec2.y", [](Patch& p) { p.layout.positions["osc"].y = 2.5f; }},
+        {"Group.name", [](Patch& p) { p.layout.groups[0].name = "Body"; }},
+        {"Group.members", [](Patch& p) { p.layout.groups[0].members.pop_back(); }},
+        {"Group.pos", [](Patch& p) { p.layout.groups[0].pos.y = 0.0f; }},
+        {"NoteFace.label", [](Patch& p) { p.layout.faces[0].label = "Note2"; }},
+        {"NoteFace.fields", [](Patch& p) { p.layout.faces[0].fields["velocity"] = "vel"; }},
+        {"NoteFace.pos", [](Patch& p) { p.layout.faces[0].pos.reset(); }},
+        {"Layout.positions", [](Patch& p) { p.layout.positions["env"] = Vec2{}; }},
+        {"Layout.outputPos", [](Patch& p) { p.layout.outputPos->x = 0.0f; }},
+        {"Layout.panning", [](Patch& p) { p.layout.panning.reset(); }},
+        {"Layout.groups", [](Patch& p) { p.layout.groups.push_back(Group{"Body"}); }},
+        {"Layout.faces", [](Patch& p) { p.layout.faces.clear(); }},
+        {"Patch.graph", [](Patch& p) { p.graph = Graph{}; }},
+        {"Patch.instrument", [](Patch& p) { p.instrument.reset(); }},
+        {"Patch.layout", [](Patch& p) { p.layout = Layout{}; }},
+        {"Patch.sampleRate", [](Patch& p) { p.sampleRate = 48000; }},
+        {"Patch.seconds", [](Patch& p) { p.seconds = 3.0; }},
+        {"Patch.score", [](Patch& p) { p.score = ""; }},
+        {"Patch.comment", [](Patch& p) { p.comment = ""; }},
+    };
+}
+struct FragmentCase { const char* member; void (*change)(Fragment&); };
+static std::vector<FragmentCase> fragment_cases() {
+    return {
+        {"Fragment.nodes", [](Fragment& f) { f.nodes[1].type = "SawSource"; }},
+        {"Fragment.positions", [](Fragment& f) { f.positions["env"] = Vec2{}; }},
+        {"Fragment.groups", [](Fragment& f) { f.groups[0].members.push_back("lfo"); }},
+        {"Fragment.faces", [](Fragment& f) { f.faces[0].fields.clear(); }},
+    };
+}
+}  // namespace patch_records
+
+// The records are plain values: a copy compares equal, and a change to any
+// one member of any record, at its own depth, compares unequal.
+static void run_patch_record_tests() {
+    using namespace patch_records;
+    std::printf("the patch records: a copy equal, a change to any member unequal\n");
+    const Patch whole = full_patch();
+    Patch copy = whole;
+    CHECK(copy == whole);
+    for (const auto& c : patch_cases()) {
+        Patch changed = whole;
+        c.change(changed);
+        const bool unequal = !(changed == whole);
+        if (!unequal) std::printf("  %s: the change compares equal\n", c.member);
+        CHECK(unequal);
+    }
+    const Fragment fragment = full_fragment();
+    Fragment fragmentCopy = fragment;
+    CHECK(fragmentCopy == fragment);
+    for (const auto& c : fragment_cases()) {
+        Fragment changed = fragment;
+        c.change(changed);
+        const bool unequal = !(changed == fragment);
+        if (!unequal) std::printf("  %s: the change compares equal\n", c.member);
+        CHECK(unequal);
+    }
+    // What == on a float cannot see: a negative zero compares equal to a
+    // zero, so two records that would be written as "-0" and "0" are equal.
+    Patch zero = whole, negativeZero = whole;
+    zero.graph.nodes[0].values["phase"] = 0.0f;
+    negativeZero.graph.nodes[0].values["phase"] = -0.0f;
+    CHECK(zero == negativeZero);
+    // What == on a float sees oddly: a NaN compares unequal to itself, so a
+    // record holding one is unequal to its own copy.
+    Patch nan = whole;
+    nan.graph.nodes[0].values["phase"] = std::numeric_limits<float>::quiet_NaN();
+    const Patch nanCopy = nan;
+    CHECK(!(nanCopy == nan));
+}
+
+namespace patch_table {
+static std::vector<std::string> labels(const char* const* l) {
+    std::vector<std::string> out;
+    for (int i = 0; l && l[i]; ++i) out.emplace_back(l[i]);
+    return out;
+}
+static std::string text(const char* s) { return s ? s : ""; }
+// Every field of every descriptor of `fresh` against the entry `d`, in
+// declaration order; the first difference is printed.
+static bool same_declarations(const Component& fresh, const TypeDeclarations& d) {
+    const auto differ = [&](const char* what, const char* name) {
+        std::printf("  %s: %s '%s' differs from a fresh instance's\n", d.type.c_str(), what, name);
+        return false;
+    };
+    const auto ps = fresh.param_descriptors();
+    if (ps.size() != d.params.size()) return differ("the param count", "");
+    for (size_t i = 0; i < ps.size(); ++i) {
+        const auto& e = d.params[i];
+        if (e.name != ps[i].name || e.defaultValue != ps[i].default_value || e.min != ps[i].min_value ||
+            e.max != ps[i].max_value || e.hint != text(ps[i].hint)) return differ("param", ps[i].name);
+    }
+    const auto is = fresh.input_descriptors();
+    if (is.size() != d.inputs.size()) return differ("the input count", "");
+    for (size_t i = 0; i < is.size(); ++i) {
+        const auto& e = d.inputs[i];
+        if (e.name != is[i].name || e.list != is[i].multi || e.slot != is[i].slot ||
+            e.hint != text(is[i].hint) || (!e.slot && !e.accepts.empty())) return differ("input", is[i].name);
+    }
+    const auto ss = fresh.setting_descriptors();
+    if (ss.size() != d.settings.size()) return differ("the setting count", "");
+    for (size_t i = 0; i < ss.size(); ++i) {
+        const auto& e = d.settings[i];
+        const std::string defaultText = ss[i].type == SettingType::String ? fresh.get_string(ss[i].name) : "";
+        if (e.name != ss[i].name || e.type != ss[i].type || e.defaultValue != ss[i].default_value ||
+            e.min != ss[i].min_value || e.max != ss[i].max_value || e.defaultText != defaultText ||
+            e.labels != labels(ss[i].enum_labels) || e.structural != ss[i].structural)
+            return differ("setting", ss[i].name);
+    }
+    const auto as = fresh.array_descriptors();
+    if (as.size() != d.arrays.size()) return differ("the array count", "");
+    for (size_t i = 0; i < as.size(); ++i) {
+        const auto& e = d.arrays[i];
+        if (e.name != as[i].name || e.group != text(as[i].groupName) || e.rowDefault != as[i].default_value ||
+            e.min != as[i].min_value || e.max != as[i].max_value || e.labels != labels(as[i].enum_labels))
+            return differ("array", as[i].name);
+    }
+    return true;
+}
+// A probe registered only after the table has been asked.
+struct LateProbe final : Generator {
+    Param level{this, "level", 0.5f, 0.0f, 1.0f};
+    float compute() override { return level.current(); }
+    const char* type_name() const override { return "LateDeclarationProbe"; }
+};
+}  // namespace patch_table
+
+// The table's first ask, its pointers' lifetime, and an unknown name. The
+// whole table's build time is printed.
+static void run_type_declaration_identity_tests() {
+    std::printf("the declarations table: read a type at a time, pointers stable, unknown names null\n");
+    const auto start = std::chrono::steady_clock::now();
+    const TypeDeclarations* sine = type_declarations("SineSource");
+    const Component* sineProto = prototype("SineSource");
+    CHECK(sine != nullptr);
+    CHECK(sineProto != nullptr);
+    const auto types = declared_types();
+    for (const auto& t : types) CHECK(type_declarations(t) != nullptr);
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    std::printf("  %zu types declared; the table read whole in %.1f ms\n", types.size(), ms);
+    CHECK(type_declarations("SineSource") == sine);
+    CHECK(prototype("SineSource") == sineProto);
+    CHECK(std::find(types.begin(), types.end(), "SineSource") != types.end());
+    CHECK(sine && sine->type == "SineSource" && sine->signal);
+    if (sine) {
+        CHECK(sine->param("frequency") && sine->param("frequency")->name == "frequency");
+        CHECK(sine->param("nope") == nullptr);
+        CHECK(sine->input("nope") == nullptr && sine->setting("nope") == nullptr && sine->array("nope") == nullptr);
+    }
+    if (const auto* env = type_declarations("Envelope")) {
+        CHECK(env->setting("timeMode") && env->setting("timeMode")->labels ==
+                                              std::vector<std::string>({"fraction", "seconds"}));
+        CHECK(env->array("type") && env->array("type")->group == "stages" && env->array("type")->labels.size() == 5);
+        CHECK(env->input("trigger") == nullptr && env->param("trigger") != nullptr);
+    }
+    if (const auto* gate = type_declarations("NameGate"))
+        CHECK(gate->setting("name") && gate->setting("name")->type == SettingType::String &&
+              gate->setting("name")->structural && gate->input("in") != nullptr);
+    CHECK(type_declarations("NoSuchSource") == nullptr);
+    CHECK(prototype("NoSuchSource") == nullptr);
+    const auto again = declared_types();
+    CHECK(std::find(again.begin(), again.end(), "NoSuchSource") == again.end());
+    CHECK(again == types);
+}
+
+// Every field of every descriptor of a fresh instance made through the
+// registry, the string settings' defaults, and whether the type is a signal.
+static void run_type_declaration_field_tests() {
+    using namespace patch_table;
+    std::printf("the declarations table: every descriptor field, as a fresh instance says\n");
+    const auto& reg = SourceRegistry::instance();
+    int types = 0, strings = 0;
+    for (const auto& t : declared_types()) {
+        const TypeDeclarations* d = type_declarations(t);
+        CHECK(d != nullptr);
+        if (!d) continue;
+        ++types;
+        const auto fresh = reg.create(t);
+        CHECK(d->type == t);
+        CHECK(same_declarations(*fresh, *d));
+        const bool signal = dynamic_cast<ValueSource*>(fresh.get()) != nullptr;
+        if (d->signal != signal) std::printf("  %s: signal is %d, the cast says %d\n", t.c_str(), d->signal, signal);
+        CHECK(d->signal == signal);
+        for (const auto& s : d->settings) strings += s.type == SettingType::String;
+    }
+    std::printf("  %d types compared; %d string settings among them\n", types, strings);
+    const auto* gate = type_declarations("NameGate");
+    CHECK(gate && gate->setting("name") && gate->setting("name")->defaultText == "");
+    const auto* mixer = type_declarations("StereoMixer");
+    CHECK(mixer && !mixer->signal);
+    const auto* channel = type_declarations("SoundChannel");
+    CHECK(channel && !channel->signal);
+}
+
+// A slot's accepted types against the door: for every slot of every type and
+// every registered type, listed exactly when a fresh owner's set_param takes
+// a fresh instance; and three slots by name.
+static void run_type_declaration_accept_tests() {
+    std::printf("the declarations table: a slot accepts what the door takes\n");
+    const auto& reg = SourceRegistry::instance();
+    const auto types = declared_types();
+    int slots = 0, probes = 0, disagreements = 0;
+    for (const auto& owner : types) {
+        const TypeDeclarations* d = type_declarations(owner);
+        if (!d) continue;
+        for (const auto& in : d->inputs) {
+            if (!in.slot) continue;
+            ++slots;
+            for (const auto& candidate : types) {
+                ++probes;
+                const bool door = reg.create(owner)->set_param(in.name, reg.create(candidate));
+                const bool listed = std::find(in.accepts.begin(), in.accepts.end(), candidate) != in.accepts.end();
+                if (door == listed) continue;
+                ++disagreements;
+                std::printf("  %s.%s and %s: the door says %d, the table %d\n",
+                            owner.c_str(), in.name.c_str(), candidate.c_str(), door, listed);
+            }
+        }
+    }
+    std::printf("  %d slots, %d probes\n", slots, probes);
+    CHECK(slots > 0);
+    CHECK(disagreements == 0);
+    const auto accepts = [](const char* type, const char* slot) {
+        const auto* d = type_declarations(type);
+        const auto* in = d ? d->input(slot) : nullptr;
+        return in ? in->accepts : std::vector<std::string>{"(no such slot)"};
+    };
+    CHECK(accepts("StereoMixer", "channels") == std::vector<std::string>({"SoundChannel"}));
+    CHECK(accepts("AdditiveSource", "partials") ==
+          std::vector<std::string>({"FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials"}));
+    CHECK(accepts("WavetableSource", "evolution") ==
+          std::vector<std::string>({"EKSEvolution", "PluckEvolution", "AveragingEvolution", "BowedStringEvolution",
+                                    "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution",
+                                    "SortErosionEvolution", "CellularAutomatonEvolution",
+                                    "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution",
+                                    "TargetEvolution"}));
+    const auto* sine = type_declarations("SineSource");
+    CHECK(sine && sine->input("frequency") == nullptr && sine->param("frequency") != nullptr);
+}
+
+// A fresh instance holds its declared defaults: every Param's constant and
+// every scalar setting's stored value. Envelope.sustainLevel is the one
+// exception: its get_setting answers from the stage table.
+static void run_type_declaration_default_tests() {
+    std::printf("the declarations table: a fresh instance holds its declared defaults\n");
+    const auto& reg = SourceRegistry::instance();
+    int differing = 0, compared = 0;
+    for (const auto& t : declared_types()) {
+        const TypeDeclarations* d = type_declarations(t);
+        if (!d) continue;
+        const auto fresh = reg.create(t);
+        for (const auto& p : d->params) {
+            ++compared;
+            const Param* pin = fresh->param(p.name);
+            if (pin && pin->constant == p.defaultValue) continue;
+            ++differing;
+            std::printf("  %s.%s: the constant is %g, declared %g\n", t.c_str(), p.name.c_str(),
+                        pin ? pin->constant : -1.0f, p.defaultValue);
+        }
+        for (const auto& s : d->settings) {
+            if (s.type == SettingType::String) continue;
+            const float got = fresh->get_setting(s.name);
+            if (t == "Envelope" && s.name == "sustainLevel") {
+                std::printf("  Envelope.sustainLevel (the view): reads %g, declared %g\n", got, s.defaultValue);
+                continue;
+            }
+            ++compared;
+            if (got == s.defaultValue) continue;
+            ++differing;
+            std::printf("  %s.%s: holds %g, declared %g\n", t.c_str(), s.name.c_str(), got, s.defaultValue);
+        }
+    }
+    std::printf("  %d values compared, %d differ\n", compared, differing);
+    CHECK(compared > 0);
+    CHECK(differing == 0);
+}
+
+// A name the registry does not have caches nothing: registered after it was
+// asked, and after the table was first read, it is found.
+static void run_type_declaration_late_tests() {
+    using namespace patch_table;
+    std::printf("the declarations table: a type registered after the first ask is found\n");
+    auto& reg = SourceRegistry::instance();
+    CHECK(type_declarations("SineSource") != nullptr);
+    if (!reg.has("LateDeclarationProbe")) {
+        CHECK(type_declarations("LateDeclarationProbe") == nullptr);
+        CHECK(prototype("LateDeclarationProbe") == nullptr);
+        reg.register_type("LateDeclarationProbe", {.family = Family::Utility, .shelf = Shelf::Experimental},
+                          [](auto) { return std::make_shared<LateProbe>(); });
+    }
+    const auto* late = type_declarations("LateDeclarationProbe");
+    CHECK(late && late->signal && late->params.size() == 1 && late->param("level") &&
+          late->param("level")->defaultValue == 0.5f);
+    CHECK(prototype("LateDeclarationProbe") != nullptr);
+    const auto types = declared_types();
+    CHECK(!types.empty() && types.back() == "LateDeclarationProbe");
+}
+
+namespace patch_check {
+static Node node(const char* id, const char* type) {
+    Node n;
+    n.id = id;
+    n.type = type;
+    return n;
+}
+static Node& at(Patch& p, const char* id) {
+    for (auto& n : p.graph.nodes)
+        if (n.id == id) return n;
+    std::printf("  no node '%s' in the case's patch\n", id);
+    std::abort();
+}
+// A three-node instrument: a note's frequency and an Envelope into a sine,
+// the Envelope's timeScale pushed from the frequency per note, with a
+// position per node, a group and a note face.
+static Patch instrument() {
+    Patch p;
+    Node freq = node("freq", "PerformNode");
+    freq.settings["field"] = 0.0f;
+    Node env = node("env", "Envelope");
+    env.values["maxValue"] = 0.8f;
+    env.settings["timeMode"] = 1.0f;
+    env.dynamicPins["timeScale"] = "freq";
+    Node osc = node("osc", "SineSource");
+    osc.wires["frequency"] = {Wire{"freq"}};
+    osc.wires["amplitude"] = {Wire{"env"}};
+    p.graph.nodes = {freq, env, osc};
+    p.graph.output = "osc";
+    p.instrument = InstrumentBlock{};
+    p.layout.positions = {{"freq", Vec2{0, 0}}, {"env", Vec2{0, 100}}, {"osc", Vec2{200, 50}}};
+    p.layout.groups = {Group{"Voice", {"osc", "env", "Note"}, Vec2{100, 50}}};
+    p.layout.faces = {NoteFace{"Note", {{"frequency", "freq"}}, Vec2{-100, 0}}};
+    return p;
+}
+// A two-channel plain sound: a sine and a saw, each on a channel of the mixer.
+static Patch plain_sound() {
+    Patch p;
+    Node ch1 = node("ch1", "SoundChannel");
+    ch1.wires["source"] = {Wire{"a"}};
+    Node ch2 = node("ch2", "SoundChannel");
+    ch2.wires["source"] = {Wire{"b"}};
+    ch2.values["pan"] = -0.5f;
+    Node mix = node("mix", "StereoMixer");
+    mix.wires["channels"] = {Wire{"ch1"}, Wire{"ch2"}};
+    p.graph.nodes = {node("a", "SineSource"), node("b", "SawSource"), ch1, ch2, mix};
+    p.graph.output = "mix";
+    p.seconds = 1.0;
+    return p;
+}
+// One break: the patch it starts from, the change, and the one line check() gives.
+struct Break { const char* name; bool plain; void (*change)(Patch&); const char* line; };
+static void run_breaks(const std::vector<Break>& breaks) {
+    for (const auto& b : breaks) {
+        Patch p = b.plain ? plain_sound() : instrument();
+        b.change(p);
+        const auto got = p.check();
+        const std::vector<std::string> want = *b.line ? std::vector<std::string>{b.line} : std::vector<std::string>{};
+        if (got != want) {
+            std::printf("  %s: check() gave %zu lines\n", b.name, got.size());
+            for (const auto& l : got) std::printf("    %s\n", l.c_str());
+        }
+        CHECK(got == want);
+    }
+}
+}  // namespace patch_check
+
+namespace patch_check {
+constexpr const char* kShared = "; ids, group names and face labels share one namespace";
+static std::string shared(const char* head) { return std::string(head) + kShared; }
+// Every stage column of `env` at two rows, the second stage of type `type`.
+static void stages(Node& env, float type) {
+    for (const char* column : {"startVal", "endVal", "power", "percent", "minSec", "maxSec", "nominal"})
+        env.arrays[column] = {0.0f, 1.0f};
+    env.arrays["type"] = {0.0f, type};
+}
+// Patches that hold, and the ids, the namespace and the output.
+static std::vector<Break> name_breaks() {
+    static const std::string twoNodes = shared("graph.nodes[3].id: 'osc' names two things: a node, a node");
+    static const std::string groupNode = shared("layout.groups[1].name: 'env' names two things: a node, a group");
+    static const std::string faceGroup = shared("layout.faces[1].label: 'Voice' names two things: a group, a face");
+    static const std::string threeOnce = shared("layout.groups[1].name: 'osc' names two things: a node, a group");
+    return {
+        {"the instrument holds", false, [](Patch&) {}, ""},
+        {"the plain sound holds", true, [](Patch&) {}, ""},
+        {"a tap closes a loop", false, [](Patch& p) { at(p, "env").wires["minValue"] = {Wire{"osc", true}}; }, ""},
+        {"an empty output", false, [](Patch& p) { p.graph.output.clear(); }, ""},
+        {"a member naming a group", false, [](Patch& p) { p.layout.groups.push_back(Group{"Outer", {"Voice"}}); }, ""},
+        {"a full stage table", false, [](Patch& p) { stages(at(p, "env"), 4.0f); }, ""},
+        {"an empty id", false, [](Patch& p) { p.graph.nodes.push_back(node("", "SineSource")); },
+         "graph.nodes[3].id: an id is empty"},
+        {"two nodes under one id", false, [](Patch& p) { p.graph.nodes.push_back(node("osc", "SawSource")); },
+         twoNodes.c_str()},
+        {"a group named as a node", false, [](Patch& p) { p.layout.groups.push_back(Group{"env"}); },
+         groupNode.c_str()},
+        {"a face labelled as a group", false, [](Patch& p) { p.layout.faces.push_back(NoteFace{"Voice"}); },
+         faceGroup.c_str()},
+        {"three things under one name, once", false,
+         [](Patch& p) { p.layout.groups.push_back(Group{"osc"}); p.layout.faces.push_back(NoteFace{"osc"}); },
+         threeOnce.c_str()},
+        {"the output naming no node", false, [](Patch& p) { p.graph.output = "nope"; },
+         "graph.output: 'nope' names no node"},
+        {"the output a part", false,
+         [](Patch& p) {
+             Node ch = node("ch", "SoundChannel");
+             ch.wires["source"] = {Wire{"osc"}};
+             p.graph.nodes.push_back(ch);
+             p.graph.output = "ch";
+         },
+         "graph.output: 'ch' is a SoundChannel, a part, not a signal"},
+    };
+}
+// A node's type, the names of its maps, and the shape of its pins.
+static std::vector<Break> declaration_breaks() {
+    return {
+        {"an unknown type", false, [](Patch& p) { p.graph.nodes.push_back(node("x", "NoSuchSource")); },
+         "graph.nodes[3].type: node 'x' (NoSuchSource): Unknown node type: NoSuchSource"},
+        {"a retired type", false, [](Patch& p) { p.graph.nodes.push_back(node("x", "AREnvelope")); },
+         "graph.nodes[3].type: node 'x' (AREnvelope): Unknown node type: AREnvelope; "
+         "python tools/convert_patch.py <patch> rewrites a type this engine no longer has"},
+        {"an unknown type checked no further", false,
+         [](Patch& p) {
+             Node x = node("x", "NoSuchSource");
+             x.values["frequncy"] = 1.0f;
+             x.wires["in"] = {Wire{"ghost"}};
+             p.graph.nodes.push_back(x);
+         },
+         "graph.nodes[3].type: node 'x' (NoSuchSource): Unknown node type: NoSuchSource"},
+        {"a number under an undeclared name", false, [](Patch& p) { at(p, "osc").values["frequncy"] = 1.0f; },
+         "graph.nodes[2].params.frequncy: node 'osc' (SineSource): 'frequncy' is not a pin of SineSource"},
+        {"a feed under an undeclared name", false, [](Patch& p) { at(p, "osc").wires["source"] = {Wire{"env"}}; },
+         "graph.nodes[2].params.source: node 'osc' (SineSource): 'source' is not a pin of SineSource"},
+        {"a setting under a pin's name", false, [](Patch& p) { at(p, "env").settings["maxValue"] = 1.0f; },
+         "graph.nodes[1].params.maxValue: node 'env' (Envelope): 'maxValue' is not a setting of Envelope"},
+        {"a number under a string setting's name", false,
+         [](Patch& p) { Node g = node("g", "NameGate"); g.settings["name"] = 1.0f; p.graph.nodes.push_back(g); },
+         "graph.nodes[3].params.name: node 'g' (NameGate): 'name' is not a setting of NameGate"},
+        {"a string under a float setting's name", false, [](Patch& p) { at(p, "env").strings["timeScale"] = "fast"; },
+         "graph.nodes[1].params.timeScale: node 'env' (Envelope): 'timeScale' is not a string setting of Envelope"},
+        {"an array under an undeclared name", false, [](Patch& p) { at(p, "osc").arrays["startVal"] = {0.0f}; },
+         "graph.nodes[2].params.startVal: node 'osc' (SineSource): 'startVal' is not an array of SineSource"},
+        {"a number and a feed on one pin", false, [](Patch& p) { at(p, "osc").values["frequency"] = 440.0f; },
+         "graph.nodes[2].params.frequency: node 'osc' (SineSource): 'frequency' holds a number and a feed: a pin takes one"},
+        {"an empty feed list", false, [](Patch& p) { at(p, "env").wires["minValue"] = {}; },
+         "graph.nodes[1].params.minValue: node 'env' (Envelope): 'minValue' holds an empty feed list: "
+         "a pin with no feed has no entry"},
+        {"two feeds on a single pin", false, [](Patch& p) { at(p, "osc").wires["amplitude"].push_back(Wire{"freq"}); },
+         "graph.nodes[2].params.amplitude: node 'osc' (SineSource): 'amplitude' takes one feed, and holds 2"},
+        {"a number on a slot", false,
+         [](Patch& p) { Node w = node("wt", "WavetableSource"); w.values["evolution"] = 1.0f; p.graph.nodes.push_back(w); },
+         "graph.nodes[3].params.evolution: node 'wt' (WavetableSource): 'evolution' is a slot: it takes a part, not a number"},
+        {"a tap on a slot", true, [](Patch& p) { at(p, "mix").wires["channels"][1].tap = true; },
+         "graph.nodes[4].params.channels: node 'mix' (StereoMixer): 'channels' is a slot: it takes a part by ref, "
+         "not through a tap"},
+    };
+}
+// Feeds, settings and columns against the declarations.
+static std::vector<Break> value_breaks() {
+    return {
+        {"a feed naming no node", false, [](Patch& p) { at(p, "osc").wires["phase"] = {Wire{"ghost"}}; },
+         "graph.nodes[2].params.phase: node 'osc' (SineSource): 'phase' reads 'ghost', which names no node"},
+        {"a tap naming no node", false, [](Patch& p) { at(p, "env").wires["minValue"] = {Wire{"ghost", true}}; },
+         "graph.nodes[1].params.minValue: node 'env' (Envelope): 'minValue' reads 'ghost', which names no node"},
+        {"a signal on a slot", true, [](Patch& p) { at(p, "mix").wires["channels"].push_back(Wire{"a"}); },
+         "graph.nodes[4].params.channels: node 'mix' (StereoMixer): 'channels' does not accept a SineSource; "
+         "'channels' takes a SoundChannel"},
+        {"a wrong part on a slot", true,
+         [](Patch& p) { p.graph.nodes.push_back(node("fp", "FullPartials")); at(p, "mix").wires["channels"].push_back(Wire{"fp"}); },
+         "graph.nodes[4].params.channels: node 'mix' (StereoMixer): 'channels' does not accept a FullPartials, "
+         "a part, not a signal; 'channels' takes a SoundChannel"},
+        {"a part on a Param", false,
+         [](Patch& p) { p.graph.nodes.push_back(node("fp", "FullPartials")); at(p, "osc").wires["phase"] = {Wire{"fp"}}; },
+         "graph.nodes[2].params.phase: node 'osc' (SineSource): 'phase' does not accept a FullPartials, a part, not a signal"},
+        {"a part on an Input", true, [](Patch& p) { at(p, "ch1").wires["source"] = {Wire{"ch2"}}; },
+         "graph.nodes[2].params.source: node 'ch1' (SoundChannel): 'source' does not accept a SoundChannel, "
+         "a part, not a signal"},
+        {"a float setting above its range", false, [](Patch& p) { at(p, "env").settings["timeScale"] = 20.0f; },
+         "graph.nodes[1].params.timeScale: node 'env' (Envelope): 'timeScale' is 20, outside its range 0.01 to 10"},
+        {"a float setting below its range", false, [](Patch& p) { at(p, "env").settings["stage_accuracy"] = -0.5f; },
+         "graph.nodes[1].params.stage_accuracy: node 'env' (Envelope): 'stage_accuracy' is -0.5, outside its range 0 to 1"},
+        {"an int setting above its range", false,
+         [](Patch& p) { Node e = node("ep", "ExplicitPartials"); e.settings["maxPartials"] = 201.0f; p.graph.nodes.push_back(e); },
+         "graph.nodes[3].params.maxPartials: node 'ep' (ExplicitPartials): 'maxPartials' is 201, outside its range 1 to 200"},
+        {"an int setting holding a fraction", false,
+         [](Patch& p) { Node e = node("ep", "ExplicitPartials"); e.settings["maxPartials"] = 2.5f; p.graph.nodes.push_back(e); },
+         "graph.nodes[3].params.maxPartials: node 'ep' (ExplicitPartials): 'maxPartials' is 2.5: an int setting holds "
+         "a whole number"},
+        {"a bool setting holding 2", false,
+         [](Patch& p) { Node e = node("ep", "ExplicitPartials"); e.settings["evolve"] = 2.0f; p.graph.nodes.push_back(e); },
+         "graph.nodes[3].params.evolve: node 'ep' (ExplicitPartials): 'evolve' is 2: a bool setting holds 0 or 1"},
+        {"an enum outside its labels", false, [](Patch& p) { at(p, "env").settings["timeMode"] = 2.0f; },
+         "graph.nodes[1].params.timeMode: node 'env' (Envelope): 'timeMode' is 2, which is not an index into its "
+         "labels (fraction, seconds)"},
+        {"a labelled column outside its labels", false, [](Patch& p) { stages(at(p, "env"), 7.0f); },
+         "graph.nodes[1].params.type: node 'env' (Envelope): 'type' row 1 is 7, which is not an index into its "
+         "labels (Linear, Expo, InverseExpo, Sine, Hold)"},
+        {"a ragged table", false, [](Patch& p) { at(p, "env").arrays["startVal"] = {0.0f, 1.0f}; },
+         "graph.nodes[1].params: node 'env' (Envelope): table 'stages' takes its columns at one length, all present "
+         "or all absent (got startVal 2, endVal absent, power absent, type absent, percent absent, minSec absent, "
+         "maxSec absent, nominal absent)"},
+    };
+}
+// Dynamic pins, cycles, the plain sound and the layout.
+static std::vector<Break> graph_breaks() {
+    return {
+        {"a dynamic pin on a pin", false, [](Patch& p) { at(p, "env").dynamicPins["trigger"] = "freq"; },
+         "graph.nodes[1].dynamicPins.trigger: node 'env' (Envelope): 'trigger' is not a setting on Envelope "
+         "(fixed pins belong in \"params\")"},
+        {"a dynamic pin on a structural setting", false, [](Patch& p) { at(p, "env").dynamicPins["timeMode"] = "freq"; },
+         "graph.nodes[1].dynamicPins.timeMode: node 'env' (Envelope): 'timeMode' is a structural setting on Envelope "
+         "(it sizes or reshapes the node at prepare), so it takes no pin"},
+        {"a dynamic pin naming no node", false, [](Patch& p) { at(p, "env").dynamicPins["timeScale"] = "ghost"; },
+         "graph.nodes[1].dynamicPins.timeScale: node 'env' (Envelope): 'timeScale' reads 'ghost', which names no node"},
+        {"a dynamic pin read from a part", false,
+         [](Patch& p) { p.graph.nodes.push_back(node("fp", "FullPartials")); at(p, "env").dynamicPins["timeScale"] = "fp"; },
+         "graph.nodes[1].dynamicPins.timeScale: node 'env' (Envelope): 'timeScale' is a FullPartials, a part, not a signal"},
+        {"a cycle of two", false, [](Patch& p) { at(p, "env").wires["minValue"] = {Wire{"osc"}}; },
+         "graph: a cycle with no tap in it: env -> osc -> env"},
+        {"a node that reads itself", false, [](Patch& p) { at(p, "osc").wires["phase"] = {Wire{"osc"}}; },
+         "graph: a cycle with no tap in it: osc -> osc"},
+        {"a cycle through a dynamic pin", false, [](Patch& p) { at(p, "env").dynamicPins["timeScale"] = "osc"; },
+         "graph: a cycle with no tap in it: env -> osc -> env"},
+        {"a PerformNode in a plain sound", true, [](Patch& p) { p.graph.nodes.push_back(node("pf", "PerformNode")); },
+         "graph.nodes[5].type: node 'pf' (PerformNode): a plain sound has no note to read"},
+        {"a dynamic pin in a plain sound", true,
+         [](Patch& p) { Node e = node("env", "Envelope"); e.dynamicPins["timeScale"] = "a"; p.graph.nodes.push_back(e); },
+         "graph.nodes[5].dynamicPins.timeScale: node 'env' (Envelope): a plain sound has no note, so nothing drives "
+         "a dynamic pin"},
+        {"a position naming no node", false, [](Patch& p) { p.layout.positions["ghost"] = Vec2{}; },
+         "layout.positions.ghost: 'ghost' names no node"},
+        {"a member naming nothing", false, [](Patch& p) { p.layout.groups[0].members.push_back("ghost"); },
+         "layout.groups[0].members[3]: 'ghost' names no node, group or face"},
+        {"a face field naming no node", false, [](Patch& p) { p.layout.faces[0].fields["velocity"] = "ghost"; },
+         "layout.faces[0].fields.velocity: 'ghost' names no node"},
+    };
+}
+}  // namespace patch_check
+
+// Patch::check() against the eight invariants a patch keeps, each case one
+// minimal break of a valid patch giving exactly its one line, path and all:
+//  ids non-empty and unique, one namespace with group names and face labels:
+//    "an empty id", "two nodes under one id", "a group named as a node",
+//    "a face labelled as a group", "three things under one name, once";
+//  the output empty or a node that is a signal or the mixer part:
+//    "an empty output", "the output naming no node", "the output a part",
+//    "the plain sound holds";
+//  every feed, tap, dynamic pin's source, member, face field and position
+//    naming a node (a member also a group or a face): "a feed naming no
+//    node", "a tap naming no node", "a dynamic pin naming no node", "a
+//    position naming no node", "a member naming nothing", "a face field
+//    naming no node", "a member naming a group";
+//  a pin a number or feeds, one feed unless a list, no tap on a slot: "a
+//    number and a feed on one pin", "an empty feed list", "two feeds on a
+//    single pin", "a number on a slot", "a tap on a slot";
+//  every name declared for its kind, the type registered, a dynamic pin on a
+//    setting that is not structural, a slot's part of an accepted type (and a
+//    signal pin's feed a signal): "an unknown type", "a retired type", "an
+//    unknown type checked no further", the five "... under ... name" cases,
+//    "a dynamic pin on a pin", "a dynamic pin on a structural setting", "a
+//    dynamic pin read from a part", "a signal on a slot", "a wrong part on a
+//    slot", "a part on a Param", "a part on an Input";
+//  a table's columns at one length, a setting inside its declaration: "a
+//    ragged table", "a full stage table", the four range, fraction and bool
+//    cases, "an enum outside its labels", "a labelled column outside its
+//    labels";
+//  no cycle without a tap: "a cycle of two", "a node that reads itself", "a
+//    cycle through a dynamic pin", "a tap closes a loop";
+//  a plain sound with no PerformNode and no dynamic pin: "a PerformNode in a
+//    plain sound", "a dynamic pin in a plain sound".
+static void run_patch_check_tests() {
+    using namespace patch_check;
+    std::printf("Patch::check(): each invariant broken once, each line with its path\n");
+    run_breaks(name_breaks());
+    run_breaks(declaration_breaks());
+    run_breaks(value_breaks());
+    run_breaks(graph_breaks());
+    // Three unrelated breaks, made in the reverse of check()'s order, come
+    // back in check()'s order: the output, the node, the layout.
+    Patch p = instrument();
+    p.layout.positions["ghost"] = Vec2{};
+    at(p, "osc").values["frequncy"] = 1.0f;
+    p.graph.output = "nope";
+    const std::vector<std::string> want = {
+        "graph.output: 'nope' names no node",
+        "graph.nodes[2].params.frequncy: node 'osc' (SineSource): 'frequncy' is not a pin of SineSource",
+        "layout.positions.ghost: 'ghost' names no node"};
+    const auto got = p.check();
+    if (got != want)
+        for (const auto& l : got) std::printf("  three breaks gave: %s\n", l.c_str());
+    CHECK(got == want);
+    // check() reads the record and builds nothing: the patch is as it was.
+    const Patch before = instrument();
+    Patch after = before;
+    (void)after.check();
+    CHECK(after == before);
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -12595,6 +13253,13 @@ int main() {
     run_trigger_value_tests();
     run_multiplex_builder_tests();
     run_mixer_signal_fault_tests();
+    run_patch_record_tests();
+    run_type_declaration_identity_tests();   // the table's first ask: before any other test reads it
+    run_type_declaration_field_tests();
+    run_type_declaration_accept_tests();
+    run_type_declaration_default_tests();
+    run_patch_check_tests();
+    run_type_declaration_late_tests();       // registers its probe: last
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
