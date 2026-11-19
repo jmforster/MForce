@@ -1,7 +1,7 @@
 // The counting allocator. Defining the replaceable allocation functions in
 // any translation unit of a program replaces the library's for that whole
 // program, so this file is linked only into the executables that test the
-// engine (alloc_gate, engine_tests) and never into the engine, the CLI or
+// engine (alloc_gate, twin_gate, engine_tests) and never into the engine, the CLI or
 // the UI. Every form forwards to the C allocator; while armed, each one is
 // counted and the first one's return addresses are kept. Nothing here
 // allocates.

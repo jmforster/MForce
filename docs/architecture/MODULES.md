@@ -13,7 +13,7 @@ Phase 1: describes today's layout. Do not edit by hand.
 | util | Stand-alone analysis helpers (FFT, signal statistics). | `engine/include/mforce/util/` | nothing |
 | cli | mforce_cli, the command-line renderer. | `tools/mforce_cli/` | core, source, patch, render, music, util |
 | ui | mforce_ui, the patch editor. | `tools/mforce_ui/` | core, source, patch, render, music, util, imgui, rtaudio, rtmidi, glfw |
-| tests | engine_tests and test_figures. | `tools/engine_tests/`, `tools/test_figures/`, `tools/alloc_probe/`, `tools/alloc_gate/`, `tools/alloc_gate.py`, `tools/tests/` | core, source, patch, render, music, util |
+| tests | engine_tests and test_figures. | `tools/engine_tests/`, `tools/test_figures/`, `tools/alloc_probe/`, `tools/alloc_gate/`, `tools/alloc_gate.py`, `tools/twin_gate/`, `tools/twin_gate.py`, `tools/tests/` | core, source, patch, render, music, util |
 | durn | durn_converter: notation formats to DURN. | `tools/durn_converter/` | music |
 | misc_tools | ppl_to_json, stamp_test, stk_ref, wav_check. | `tools/ppl_to_json/`, `tools/stamp_test/`, `tools/stk_ref/`, `tools/wav_check.cpp`, `tools/wav_check.c` | core, source, patch, render, music, util |
 
