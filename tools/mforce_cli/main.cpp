@@ -2,6 +2,8 @@
 #include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
 #include "mforce/core/source_registry.h"
+#include "mforce/patch/patch_json.h"
+#include "mforce/patch/type_declarations.h"
 #include "explore.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
@@ -912,61 +914,46 @@ static int run_dun(int argc, char** argv) {
     return 0;
 }
 
-// Emit every registered source type's accepted JSON keys as JSON, so external
-// tools (tools/lint_patches.py) can check patches against the engine's own
-// truth instead of a hand-maintained list that silently drifts.
+// Emit every registered type's accepted JSON keys as JSON, printed from the
+// declarations table with each type's family from the registry, so external
+// tools (tools/lint_patches.py, tools/convert_patch.py) check patches against
+// the engine's own truth instead of a hand-maintained list that drifts.
 static int run_dump_descriptors(int argc, char** argv)
 {
     (void)argc; (void)argv;
-    register_all_sources();
-    auto& reg = SourceRegistry::instance();
-
+    const auto& reg = SourceRegistry::instance();
     nlohmann::json out = nlohmann::json::object();
-    for (const auto& entry : reg.registered_types()) {
-        const std::string& name = entry.name;
-        // Instantiating is the only way to reach the virtual descriptor sets;
-        // a default-constructed instance is thrown away immediately.
-        std::shared_ptr<Component> s;
-        try { s = reg.create(name); }
-        catch (const std::exception&) { continue; }
-        if (!s) continue;
-
+    for (const auto& name : declared_types()) {
+        const TypeDeclarations* d = type_declarations(name);
+        const TypeTag* tag = reg.find(name);
+        if (!d || !tag) continue;
         nlohmann::json e = nlohmann::json::object();
-        e["family"] = family_name(entry.tag.family);
+        e["family"] = family_name(tag->family);
         for (const char* key : {"inputs", "params", "settings", "arrays"})
             e[key] = nlohmann::json::array();
-        for (const auto& d : s->input_descriptors())  e["inputs"].push_back(d.name);
-        for (const auto& d : s->param_descriptors())  e["params"].push_back(d.name);
-        // An enum setting and a column of indices carry their labels: every
-        // label up to the null, in index order.
-        auto labels_of = [](const char* const* labels) {
-            nlohmann::json l = nlohmann::json::array();
-            for (int i = 0; labels[i]; ++i) l.push_back(labels[i]);
-            return l;
-        };
+        for (const auto& in : d->inputs) e["inputs"].push_back(in.name);
+        for (const auto& p : d->params) e["params"].push_back(p.name);
+        // An enum setting and a column of indices carry their labels, in index order.
         nlohmann::json arrayLabels = nlohmann::json::object();
-        for (const auto& d : s->array_descriptors()) {
-            e["arrays"].push_back(d.name);
-            if (d.enum_labels) arrayLabels[d.name] = labels_of(d.enum_labels);
+        for (const auto& a : d->arrays) {
+            e["arrays"].push_back(a.name);
+            if (!a.labels.empty()) arrayLabels[a.name] = a.labels;
         }
         if (!arrayLabels.empty()) e["arrayLabels"] = std::move(arrayLabels);
-        // Configs carry their type and enum-ness: a Float config is a value
-        // that happens to be expensive to change, while a Bool/enum config is
-        // structural and could never take a chain. The two are worth telling
-        // apart when deciding what may be driven per note.
-        for (const auto& d : s->setting_descriptors()) {
+        // A setting carries its type, its default and range, and an enum its labels.
+        for (const auto& s : d->settings) {
             nlohmann::json c = {
-                {"name", d.name},
-                {"type", d.type == SettingType::Bool   ? "bool"
-                       : d.type == SettingType::Int    ? "int"
-                       : d.type == SettingType::String ? "string"
+                {"name", s.name},
+                {"type", s.type == SettingType::Bool   ? "bool"
+                       : s.type == SettingType::Int    ? "int"
+                       : s.type == SettingType::String ? "string"
                        :                                "float"},
-                {"isEnum", d.enum_labels != nullptr},
-                {"default", d.default_value},
-                {"min", d.min_value},
-                {"max", d.max_value},
+                {"isEnum", !s.labels.empty()},
+                {"default", s.defaultValue},
+                {"min", s.min},
+                {"max", s.max},
             };
-            if (d.enum_labels) c["labels"] = labels_of(d.enum_labels);
+            if (!s.labels.empty()) c["labels"] = s.labels;
             e["settings"].push_back(std::move(c));
         }
         out[name] = std::move(e);
@@ -974,6 +961,46 @@ static int run_dump_descriptors(int argc, char** argv)
 
     std::cout << out.dump(1) << "\n";
     return 0;
+}
+
+// The patch files `args` name: a file as given, a folder as every *.json
+// below it, sorted by path.
+static std::vector<std::string> check_paths(int argc, char** argv)
+{
+    std::vector<std::string> paths;
+    for (int a = 2; a < argc; ++a) {
+        const std::filesystem::path arg = argv[a];
+        if (!std::filesystem::is_directory(arg)) { paths.push_back(arg.generic_string()); continue; }
+        std::vector<std::string> below;
+        for (const auto& e : std::filesystem::recursive_directory_iterator(arg))
+            if (e.is_regular_file() && e.path().extension() == ".json") below.push_back(e.path().generic_string());
+        std::sort(below.begin(), below.end());
+        paths.insert(paths.end(), below.begin(), below.end());
+    }
+    return paths;
+}
+
+// --check <path>...: each patch file read through the codec, nothing built
+// or rendered. A refused file is printed with each line of its refusal
+// beneath it; exit 1 when any file is refused.
+static int run_check(int argc, char** argv)
+{
+    const std::vector<std::string> paths = check_paths(argc, argv);
+    int refused = 0;
+    for (const auto& path : paths) {
+        try {
+            (void)load_patch(path);
+        } catch (const std::exception& e) {
+            ++refused;
+            std::string message = e.what();
+            if (message.rfind(path + ": ", 0) == 0) message.erase(0, path.size() + 2);
+            std::cout << "REFUSED " << path << "\n";
+            std::istringstream lines(message);
+            for (std::string line; std::getline(lines, line);) std::cout << "  " << line << "\n";
+        }
+    }
+    std::cout << paths.size() << " files: " << refused << " refused\n";
+    return refused ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1125,6 +1152,8 @@ int main(int argc, char** argv)
     try {
         if (argc >= 2 && std::string(argv[1]) == "--dump-descriptors")
             return run_dump_descriptors(argc, argv);
+        if (argc >= 3 && std::string(argv[1]) == "--check")
+            return run_check(argc, argv);
         if (argc >= 3 && std::string(argv[1]) == "--lint-template")
             return run_lint_template(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--chords")

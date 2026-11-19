@@ -10,6 +10,9 @@
   "file_allowed": {
     "json": [
       "engine/include/mforce/patch/envelope_preset.h",
+      "engine/include/mforce/patch/patch_json.h",
+      "engine/src/patch/patch_json.cpp",
+      "engine/src/patch/node_json.cpp",
       "engine/include/mforce/core/source_registry.h",
       "engine/include/mforce/music/music_json.h",
       "engine/include/mforce/music/templates_json.h",

@@ -13060,6 +13060,710 @@ static void run_patch_check_tests() {
     CHECK(after == before);
 }
 
+// ---------------------------------------------------------------------------
+// The codec: patch_json's one reader and one writer of a patch file.
+#include "mforce/patch/patch_json.h"
+#include <random>
+
+namespace patch_codec {
+using J = nlohmann::json;
+// A patch read from JSON text through the codec; throws as from_json does.
+static Patch load_text(const std::string& text) {
+    Patch p;
+    from_json(J::parse(text), p);
+    return p;
+}
+// The refusal reading `text` gives, whole; empty when it reads.
+static std::string refusal(const std::string& text) {
+    try { (void)load_text(text); } catch (const std::exception& e) { return e.what(); }
+    return {};
+}
+// A node read on its own.
+static Node read_node(const std::string& text) {
+    Node n;
+    from_json(J::parse(text), n);
+    return n;
+}
+// An instrument of two nodes: a sine 'o' (the output) and `node`, graph.nodes[1].
+static std::string with_node(const std::string& node) {
+    return R"J({"instrument":{},"graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"},)J" + node + "]}}";
+}
+// `params` as the bag of a node 'id' of `type`, as with_node's graph.nodes[1].
+static std::string with_params(const char* id, const char* type, const std::string& params) {
+    return with_node(std::string(R"J({"id":")J") + id + R"J(","type":")J" + type + R"J(","params":)J" + params + "}");
+}
+// Every stage column of an Envelope at two rows, with `type` as the type column.
+static std::string stage_columns(const std::string& type) {
+    return R"J("startVal":[0,1],"endVal":[1,0],"power":[0,0],"percent":[0.2,0],"minSec":[0,0],"maxSec":[1,0],"nominal":[0,0],"type":)J" + type;
+}
+static std::string text_of(const std::filesystem::path& p) {
+    std::ifstream f(p, std::ios::binary);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+}
+// Runs one family and prints its check count; a throw it lets out fails the
+// family by name, where an uncaught throw would end the whole run with
+// nothing printed.
+static void guarded(const char* family, void (*run)()) {
+    const int before = g_checks;
+    try { run(); } catch (const std::exception& e) { std::printf("  %s threw: %s\n", family, e.what()); CHECK(false); }
+    std::printf("  %s: %d checks\n", family, g_checks - before);
+}
+// One refusal case: the text read and the whole message it must give.
+struct Refused { const char* name; std::string text; std::string want; };
+static void run_refusals(const std::vector<Refused>& cases) {
+    for (const auto& c : cases) {
+        const std::string got = refusal(c.text);
+        if (got != c.want) std::printf("  %s:\n    got  %s\n    want %s\n", c.name, got.c_str(), c.want.c_str());
+        CHECK(got == c.want);
+    }
+}
+}  // namespace patch_codec
+
+// Every patch of patches/library and patches/baselines, walked as it stands:
+// load_patch reads it, a write and a read give the same record, and the text
+// of a save read and saved again is byte-equal.
+static void run_codec_identity_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: every patch of library and baselines reads, writes and reads back the same\n");
+    const std::string scratch = (std::filesystem::temp_directory_path() / "mforce_codec_identity.json").string();
+    int files = 0, refused = 0, unequal = 0, resaved = 0;
+    for (const char* dir : {"patches/library", "patches/baselines"}) {
+        std::vector<std::filesystem::path> paths;
+        for (const auto& e : std::filesystem::recursive_directory_iterator(dir))
+            if (e.is_regular_file() && e.path().extension() == ".json") paths.push_back(e.path());
+        std::sort(paths.begin(), paths.end());
+        for (const auto& path : paths) {
+            ++files;
+            try {
+                const Patch p = load_patch(path.string());
+                Patch back;
+                from_json(J(p), back);
+                const bool same = back == p;
+                if (!same) { ++unequal; std::printf("  a write and a read differ: %s\n", path.string().c_str()); }
+                CHECK(same);
+                save_patch(scratch, p);
+                const std::string first = text_of(scratch);
+                const Patch again = load_patch(scratch);
+                save_patch(scratch, again);
+                const bool equal = text_of(scratch) == first && again == p;
+                if (!equal) { ++resaved; std::printf("  a second save differs: %s\n", path.string().c_str()); }
+                CHECK(equal);
+            } catch (const std::exception& e) {
+                ++refused;
+                std::printf("  refused: %s\n", e.what());
+                CHECK(false);
+            }
+        }
+    }
+    std::filesystem::remove(scratch);
+    std::printf("  %d files: %d refused, %d unequal after a write and a read, %d whose second save differs\n",
+                files, refused, unequal, resaved);
+    CHECK(files > 0);
+}
+
+namespace patch_codec {
+// A node of `type` read from `params` holds each declared Param in values at
+// `param(p)`, each scalar setting at `setting(s)`, each string setting at
+// `text(s)`, and nothing else.
+template <class P, class S, class T>
+static bool holds(const Node& n, const TypeDeclarations& d, P param, S setting, T text) {
+    if (!n.wires.empty() || !n.arrays.empty() || n.seed || !n.dynamicPins.empty()) return false;
+    size_t scalars = 0, strings = 0;
+    if (n.values.size() != d.params.size()) return false;
+    for (const auto& p : d.params) {
+        auto it = n.values.find(p.name);
+        if (it == n.values.end() || std::bit_cast<uint32_t>(it->second) != std::bit_cast<uint32_t>(param(p))) return false;
+    }
+    for (const auto& s : d.settings) {
+        if (s.type == SettingType::String) {
+            ++strings;
+            auto it = n.strings.find(s.name);
+            if (it == n.strings.end() || it->second != text(s)) return false;
+        } else {
+            ++scalars;
+            auto it = n.settings.find(s.name);
+            if (it == n.settings.end() || std::bit_cast<uint32_t>(it->second) != std::bit_cast<uint32_t>(setting(s))) return false;
+        }
+    }
+    return n.settings.size() == scalars && n.strings.size() == strings;
+}
+// A bag giving every declared Param and setting of `d` a value off its default.
+static J everything(const TypeDeclarations& d) {
+    J params = J::object();
+    for (const auto& p : d.params) params[p.name] = p.max;
+    for (const auto& s : d.settings) {
+        if (s.type == SettingType::String) params[s.name] = "given";
+        else if (s.type == SettingType::Bool) params[s.name] = s.defaultValue == 0.0f;
+        else if (!s.labels.empty()) params[s.name] = s.labels.back();
+        else params[s.name] = s.max;
+    }
+    return params;
+}
+static float given_setting(const TypeDeclarations::Setting& s) {
+    if (s.type == SettingType::Bool) return s.defaultValue == 0.0f ? 1.0f : 0.0f;
+    if (!s.labels.empty()) return float(s.labels.size() - 1);
+    return s.max;
+}
+}  // namespace patch_codec
+
+// The model is complete in pins and settings and not in arrays: for every
+// registered type but the Envelope (whose bag with no stage column is the
+// preset form), a node given nothing holds every Param and setting at its
+// declared default and no array; a node given everything holds what it was
+// given, and writes and reads back the same.
+static void run_codec_complete_model_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: the model complete in pins and settings, not in arrays\n");
+    int types = 0;
+    for (const auto& t : declared_types()) {
+        const TypeDeclarations* d = type_declarations(t);
+        if (!d || t == "Envelope") continue;
+        ++types;
+        try {
+            const Node bare = read_node(J{{"id", "n"}, {"type", t}}.dump());
+            const bool defaults = holds(bare, *d, [](const auto& p) { return p.defaultValue; },
+                                        [](const auto& s) { return s.defaultValue; },
+                                        [](const auto& s) { return s.defaultText; });
+            if (!defaults) std::printf("  %s given nothing does not hold its defaults\n", t.c_str());
+            CHECK(defaults);
+            const Node full = read_node(J{{"id", "n"}, {"type", t}, {"params", everything(*d)}}.dump());
+            const bool given = holds(full, *d, [](const auto& p) { return p.max; },
+                                     [](const auto& s) { return given_setting(s); },
+                                     [](const auto&) { return std::string("given"); });
+            if (!given) std::printf("  %s given everything does not hold what it was given\n", t.c_str());
+            CHECK(given);
+            Node back;
+            from_json(J(full), back);
+            CHECK(back == full);
+        } catch (const std::exception& e) {
+            std::printf("  %s: %s\n", t.c_str(), e.what());
+            CHECK(false);
+        }
+    }
+    std::printf("  %d types read given nothing and given everything\n", types);
+    CHECK(types > 0);
+}
+
+// A float's text reads back bit for bit: hand-picked values on a Param and
+// on a Float setting, then a hundred thousand random finite bit patterns
+// from a fixed seed through an array.
+static void run_codec_float_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: a float written as its shortest text reads back bit for bit\n");
+    const float picked[] = {0.1f, 0.6f, 1e-7f, 16777216.0f, -0.0f, 0.0f, 1.0f / 3.0f,
+                            std::numeric_limits<float>::max(), std::numeric_limits<float>::lowest(),
+                            std::numeric_limits<float>::min(), std::numeric_limits<float>::denorm_min(),
+                            -std::numeric_limits<float>::denorm_min(),
+                            // the two whose shortest text names a double that narrows to the next float
+                            std::bit_cast<float>(uint32_t(0x15ae43fdu)), std::bit_cast<float>(uint32_t(0x95ae43fdu))};
+    for (float v : picked) {
+        Node n{"x", "Biquad"};
+        n.values["frequency"] = v;
+        n.settings["b0"] = v;
+        const Node back = read_node(J(n).dump());
+        const bool same = std::bit_cast<uint32_t>(back.values.at("frequency")) == std::bit_cast<uint32_t>(v) &&
+                          std::bit_cast<uint32_t>(back.settings.at("b0")) == std::bit_cast<uint32_t>(v);
+        if (!same) std::printf("  %.9g does not read back\n", v);
+        CHECK(same);
+    }
+    Node short_text{"x", "SineSource"};
+    short_text.values["phase"] = 0.6f;
+    short_text.values["amplitude"] = 0.1f;
+    const std::string text = J(short_text).dump();
+    CHECK(text.find("\"phase\":0.6") != std::string::npos && text.find("\"amplitude\":0.1") != std::string::npos);
+    std::mt19937 rng(46);
+    int drawn = 0, differing = 0;
+    while (drawn < 100000) {
+        Node n{"s", "SegmentSource"};
+        auto& rows = n.arrays["values"];
+        while (rows.size() < 1000) {
+            const float v = std::bit_cast<float>(uint32_t(rng()));
+            if (std::isfinite(v)) rows.push_back(v);
+        }
+        drawn += int(rows.size());
+        const Node back = read_node(J(n).dump());
+        const auto& got = back.arrays.at("values");
+        for (size_t i = 0; i < rows.size(); ++i)
+            differing += std::bit_cast<uint32_t>(got[i]) != std::bit_cast<uint32_t>(rows[i]);
+    }
+    std::printf("  %d random finite floats written and read: %d differ\n", drawn, differing);
+    CHECK(differing == 0);
+}
+
+// Each kind is written in its one form and read in its forms: an int as an
+// integer, a bool as true or false (read also as 0 or 1), an enum and a
+// labelled column as labels (read also as indices, never as a label in
+// another case), a single pin's feed as one object and a list pin's as a
+// list even when it holds one.
+static void run_codec_kind_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: ints, bools, enums, labelled columns and feeds, by kind\n");
+    const Node f = read_node(R"J({"id":"f","type":"BWLowpassFilter","params":{"sections":3}})J");
+    CHECK(f.settings.at("sections") == 3.0f);
+    CHECK(J(f)["params"]["sections"].is_number_integer() && J(f)["params"]["sections"] == 3);
+    const Node s = read_node(R"J({"id":"s","type":"SVFSource","params":{"mode":"Highpass","normalize":true}})J");
+    CHECK(s.settings.at("mode") == 1.0f && s.settings.at("normalize") == 1.0f);
+    CHECK(J(s)["params"]["mode"] == "Highpass" && J(s)["params"]["normalize"] == true);
+    CHECK(read_node(R"J({"id":"s","type":"SVFSource","params":{"mode":1}})J").settings.at("mode") == 1.0f);
+    CHECK(read_node(R"J({"id":"s","type":"SVFSource","params":{"mode":4.0}})J").settings.at("mode") == 4.0f);
+    for (const char* b : {"0", "1", "false", "true"}) {
+        const Node n = read_node(std::string(R"J({"id":"s","type":"SVFSource","params":{"normalize":)J") + b + "}}");
+        const float want = (std::string(b) == "1" || std::string(b) == "true") ? 1.0f : 0.0f;
+        CHECK(n.settings.at("normalize") == want);
+        CHECK(J(n)["params"]["normalize"] == (want == 1.0f));
+    }
+    CHECK(refusal(with_params("s", "SVFSource", R"J({"mode":"highpass"})J")) ==
+          "graph.nodes[1].params.mode: node 's' (SVFSource): 'mode' holds \"highpass\", which is not one of its "
+          "labels (Lowpass, Highpass, Bandpass, Lowpass1P, Highpass1P) or an index into them");
+    const Node e = read_node("{\"id\":\"e\",\"type\":\"Envelope\",\"params\":{" + stage_columns(R"J(["Linear",3]})J") + "}");
+    CHECK(e.arrays.at("type") == std::vector<float>({0.0f, 3.0f}));
+    CHECK(J(e)["params"]["type"] == J::parse(R"J(["Linear","Sine"])J"));
+    const Node m = read_node(R"J({"id":"m","type":"MultiSource","params":{"source":{"ref":"o"}}})J");
+    CHECK(m.wires.at("source") == std::vector<Wire>({Wire{"o", false}}));
+    CHECK(J(m)["params"]["source"] == J::parse(R"J([{"ref":"o"}])J"));
+    const Node two = read_node(R"J({"id":"m","type":"MultiSource","params":{"source":[{"ref":"a"},{"tap":"b"}]}})J");
+    CHECK(two.wires.at("source") == std::vector<Wire>({Wire{"a", false}, Wire{"b", true}}));
+    CHECK(read_node(R"J({"id":"m","type":"MultiSource","params":{"source":[]}})J").wires.empty());
+    CHECK(read_node(R"J({"id":"m","type":"MultiSource","params":{"source":0.5}})J").values.at("source") == 0.5f);
+    const Node one = read_node(R"J({"id":"x","type":"SineSource","params":{"amplitude":{"tap":"o"}}})J");
+    CHECK(one.wires.at("amplitude") == std::vector<Wire>({Wire{"o", true}}));
+    CHECK(J(one)["params"]["amplitude"] == J::parse(R"J({"tap":"o"})J"));
+    CHECK(one.values.count("amplitude") == 0 && one.values.count("frequency") == 1);
+    const Node mix = read_node(R"J({"id":"mx","type":"StereoMixer","params":{"channels":{"ref":"c"}}})J");
+    CHECK(J(mix)["params"]["channels"] == J::parse(R"J([{"ref":"c"}])J"));
+    const Node w = read_node(R"J({"id":"w","type":"WavetableSource","params":{"evolution":{"ref":"ev"}}})J");
+    CHECK(J(w)["params"]["evolution"] == J::parse(R"J({"ref":"ev"})J"));
+    // A name the type does not declare is written by the map it sits in.
+    Node odd{"x", "SineSource"};
+    odd.settings["level"] = 2.0f;
+    odd.wires["source"] = {Wire{"o"}};
+    odd.strings["name"] = "n";
+    const J oddJson = J(odd);
+    CHECK(oddJson["params"]["level"] == 2.0 && oddJson["params"]["source"] == J::parse(R"J([{"ref":"o"}])J") &&
+          oddJson["params"]["name"] == "n");
+    Node lost{"x", "NoSuchSource"};
+    lost.values["a"] = 1.0f;
+    lost.arrays["b"] = {1.0f};
+    CHECK(J(lost)["params"] == J::parse(R"J({"a":1.0,"b":[1.0]})J"));
+}
+
+namespace patch_codec {
+// The preset cases: each of the six bare and with every knob it reads,
+// the adsr in seconds, an as that says seconds, and the loader test's node.
+static const char* const kPresetCases[] = {
+    R"J({"preset":"ar"})J",
+    R"J({"preset":"ar","attack":0.4,"attackCurve":2,"attackPower":1.2,"releaseCurve":0,"releasePower":3.0,"attackMin":0.1,"attackMax":0.9})J",
+    R"J({"preset":"as"})J",
+    R"J({"preset":"as","attack":0.35,"attackCurve":1,"attackPower":2.5,"reverse":true,"sustainLevel":0.6})J",
+    R"J({"preset":"asr"})J",
+    R"J({"preset":"asr","attack":0.15,"attackCurve":2,"attackPower":1.5,"release":0.3,"releaseCurve":2,"releasePower":0.5,"sustainLevel":0.4})J",
+    R"J({"preset":"ads"})J",
+    R"J({"preset":"ads","attack":0.1,"attackCurve":3,"decay":0.25,"decayCurve":1,"decayPower":2.0,"sustainLevel":0.3})J",
+    R"J({"preset":"adr"})J",
+    R"J({"preset":"adr","attack":0.1,"attackPower":0.7,"decay":0.2,"decayCurve":3,"decayLevel":0.55,"releaseCurve":1,"releasePower":1.5})J",
+    R"J({"preset":"adsr"})J",
+    R"J({"preset":"adsr","attack":0.12,"attackCurve":1,"attackPower":0.8,"decay":0.2,"decayCurve":2,"decayPower":1.1,"sustainLevel":0.5,"release":0.25,"releaseCurve":0,"releasePower":2.0,"attackMin":0.05,"attackMax":0.9,"decayMin":0.01,"decayMax":0.4,"releaseMin":0.0,"releaseMax":0.3})J",
+    R"J({"preset":"adsr","timeMode":"seconds","attack":0.05,"decay":0.1,"sustainLevel":0.6,"release":0.2,"attackCurve":"Expo"})J",
+    R"J({"preset":"as","timeMode":"seconds","attack":0.3})J",
+    R"J({"preset":"as","attack":0.3,"attackCurve":1,"attackPower":2.0,"reverse":true,"sustainLevel":0.6,"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8})J",
+};
+static const char* const kStageColumnNames[] = {"startVal", "endVal", "power", "type", "percent", "minSec", "maxSec", "nominal"};
+// The node read from `params` holds the eight columns envelope_from_preset_json
+// lays out from the same params, and nothing more in arrays.
+static bool preset_columns(const Node& n, const J& params) {
+    const auto env = envelope_from_preset_json(params);
+    if (n.arrays.size() != std::size(kStageColumnNames)) return false;
+    for (const char* c : kStageColumnNames)
+        if (!n.arrays.count(c) || n.arrays.at(c) != env->get_array(c)) return false;
+    return true;
+}
+}  // namespace patch_codec
+
+// The preset form: its eight columns are envelope_from_preset_json's, timeMode
+// and sustainLevel are settings as the file gives them or at their defaults,
+// a node with neither form is an ar, both forms and an unknown preset are
+// refused naming the node.
+static void run_codec_preset_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: the Envelope's preset form read into its eight columns\n");
+    for (const char* c : kPresetCases) {
+        const J params = J::parse(c);
+        const Node n = read_node(J{{"id", "e"}, {"type", "Envelope"}, {"params", params}}.dump());
+        const bool columns = preset_columns(n, params);
+        if (!columns) std::printf("  %s: the columns differ from the preset's\n", c);
+        CHECK(columns);
+        const float timeMode = params.value("timeMode", std::string("fraction")) == "seconds" ? 1.0f : 0.0f;
+        CHECK(n.settings.at("timeMode") == timeMode);
+        CHECK(n.settings.at("sustainLevel") == params.value("sustainLevel", 0.7f));
+        CHECK(n.settings.at("stage_accuracy") == params.value("stage_accuracy", 1.0f));
+        CHECK(n.seed == (params.contains("seed") ? std::optional<uint32_t>(77u) : std::optional<uint32_t>()));
+        Node back;
+        from_json(J(n), back);
+        CHECK(back == n);
+    }
+    const Node bare = read_node(R"J({"id":"e","type":"Envelope"})J");
+    const Node empty = read_node(R"J({"id":"e","type":"Envelope","params":{}})J");
+    CHECK(preset_columns(bare, J::parse(R"J({"preset":"ar"})J")) && empty == bare);
+    const auto ar = Envelope::make_ar(0.2f);
+    for (const char* c : kStageColumnNames) CHECK(bare.arrays.at(c) == ar->get_array(c));
+    CHECK(refusal(with_params("e", "Envelope", "{\"preset\":\"ar\"," + stage_columns("[0,0]") + "}")) ==
+          "graph.nodes[1].params.preset: node 'e' (Envelope): holds both 'preset' and 'startVal'; an Envelope "
+          "takes one form: the stage columns or a preset");
+    CHECK(refusal(with_params("e", "Envelope", R"J({"preset":"adsx"})J")) ==
+          "graph.nodes[1].params: node 'e' (Envelope): Unknown envelope preset: adsx");
+    CHECK(refusal(with_params("e", "Envelope", R"J({"preset":"as","attackCurve":7})J")) ==
+          "graph.nodes[1].params: node 'e' (Envelope): envelope preset: attackCurve is 7; a curve is 0 (Linear), "
+          "1 (Expo), 2 (InverseExpo) or 3 (Sine)");
+    CHECK(refusal(with_params("e", "Envelope", R"J({"preset":"ar","bogus":1})J")) ==
+          "graph.nodes[1].params.bogus: node 'e' (Envelope): unknown key 'bogus'");
+    CHECK(refusal(with_params("e", "Envelope", "{\"attack\":0.1," + stage_columns("[0,0]") + "}")) ==
+          "graph.nodes[1].params.attack: node 'e' (Envelope): unknown key 'attack'");
+}
+
+// The passengers: the score's text is its block's dump(), [] kept apart from
+// no score; a comment at both levels; a seed; seconds absent and present;
+// sampleRate; an empty document an empty Patch.
+static void run_codec_passenger_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: the score, the comments, a seed, seconds and the sample rate\n");
+    const std::string score = R"J([{"note":60,"velocity":0.8,"duration":0.5,"time":0.0,"articulation":"staccato"}])J";
+    const std::string node = R"J({"id":"x","type":"SineSource","params":{"seed":4294967295},"comment":"the tone"})J";
+    const std::string text = R"J({"sampleRate":22050,"seconds":2.5,"comment":"a patch","score":)J" + score +
+                             R"J(,"instrument":{},"graph":{"output":"x","nodes":[)J" + node + "]}}";
+    const Patch p = load_text(text);
+    CHECK(p.score == J::parse(score).dump());
+    CHECK(p.comment == "a patch" && p.graph.nodes.at(0).comment == "the tone");
+    CHECK(p.graph.nodes.at(0).seed == std::optional<uint32_t>(4294967295u));
+    CHECK(p.seconds == std::optional<double>(2.5) && p.sampleRate == 22050);
+    const J written = J(p);
+    CHECK(written["score"] == J::parse(score) && written["comment"] == "a patch" && written["seconds"] == 2.5);
+    CHECK(written["graph"]["nodes"][0]["comment"] == "the tone");
+    CHECK(written["graph"]["nodes"][0]["params"]["seed"].is_number_unsigned() &&
+          written["graph"]["nodes"][0]["params"]["seed"] == 4294967295u);
+    const Patch emptyScore = load_text(R"J({"score":[],"instrument":{},"graph":{"output":"x","nodes":[{"id":"x","type":"SineSource"}]}})J");
+    const Patch noScore = load_text(R"J({"instrument":{},"graph":{"output":"x","nodes":[{"id":"x","type":"SineSource"}]}})J");
+    CHECK(emptyScore.score == "[]" && noScore.score.empty() && !(emptyScore == noScore));
+    CHECK(J(emptyScore)["score"] == J::array() && !J(noScore).contains("score"));
+    CHECK(!noScore.seconds && noScore.sampleRate == 48000 && noScore.comment.empty());
+    CHECK(!J(noScore).contains("seconds") && !J(noScore).contains("comment") && !J(noScore).contains("layout"));
+    CHECK(!J(noScore)["graph"]["nodes"][0].contains("comment") && !J(noScore)["graph"]["nodes"][0]["params"].contains("seed"));
+    CHECK(noScore.instrument == std::optional<InstrumentBlock>(InstrumentBlock{}));
+    CHECK(J(noScore)["instrument"] == J::parse(R"J({"polyphony":4,"volume":1.0,"sustaining":false,"onsets":[],"glideMs":15.0})J"));
+    const Patch block = load_text(R"J({"instrument":{"polyphony":2,"volume":0.5,"sustaining":true,"onsets":["tongue"],"glideMs":20},"graph":{"output":"x","nodes":[{"id":"x","type":"SineSource"}]}})J");
+    CHECK(block.instrument == std::optional<InstrumentBlock>(InstrumentBlock{2, 0.5f, true, {"tongue"}, 20.0f}));
+    CHECK(load_text("{}") == Patch{});
+    CHECK(J(Patch{}) == J::parse(R"J({"sampleRate":48000,"graph":{"output":"","nodes":[]}})J"));
+}
+
+// The layout and the fragment: each read, written and read back the same; a
+// fragment's feed may name a node it does not hold.
+static void run_codec_layout_fragment_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: the layout and the fragment\n");
+    const std::string layout = R"J({"positions":{"x":[1.5,-2.0],"y":[0.0,3.25]},"output":[10.0,20.0],"panning":[-5.0,6.0],)J"
+                               R"J("groups":[{"name":"Voice","members":["x","Note"],"pos":[7.0,8.0]}],)J"
+                               R"J("faces":[{"label":"Note","fields":{"frequency":"x"},"pos":[-1.0,1.0]},{"label":"Bare","fields":{}}]})J";
+    const Patch p = load_text(R"J({"instrument":{},"graph":{"output":"x","nodes":[{"id":"x","type":"SineSource"},{"id":"y","type":"SawSource"}]},"layout":)J" +
+                              layout + "}");
+    CHECK(p.layout.positions.at("x") == (Vec2{1.5f, -2.0f}) && p.layout.outputPos == std::optional<Vec2>(Vec2{10, 20}));
+    CHECK(p.layout.panning == std::optional<Vec2>(Vec2{-5, 6}) && p.layout.groups.size() == 1 && p.layout.faces.size() == 2);
+    CHECK(p.layout.faces[0].pos == std::optional<Vec2>(Vec2{-1, 1}) && !p.layout.faces[1].pos);
+    CHECK(J(p)["layout"] == J::parse(layout));
+    Patch back;
+    from_json(J(p), back);
+    CHECK(back == p);
+    Layout l;
+    from_json(J::parse(layout), l);
+    CHECK(l == p.layout && J(l) == J::parse(layout));
+    CHECK(J(Layout{}) == J::object());
+    const std::string fragment = R"J({"nodes":[{"id":"f","type":"SVFSource","params":{"source":{"ref":"elsewhere"},"cutoffFreq":{"tap":"g"}}},)J"
+                                 R"J({"id":"g","type":"SineSource"}],"positions":{"f":[1.0,2.0]},)J"
+                                 R"J("groups":[{"name":"G","members":["f","g"],"pos":[0.0,0.0]}],"faces":[{"label":"N","fields":{"frequency":"g"}}]})J";
+    Fragment fr;
+    from_json(J::parse(fragment), fr);
+    CHECK(fr.nodes.size() == 2 && fr.nodes[0].wires.at("source") == std::vector<Wire>({Wire{"elsewhere", false}}));
+    CHECK(fr.positions.at("f") == (Vec2{1, 2}) && fr.groups.size() == 1 && fr.faces.size() == 1);
+    Fragment frBack;
+    from_json(J(fr), frBack);
+    CHECK(frBack == fr);
+    CHECK(J(Fragment{}) == J::parse(R"J({"nodes":[]})J"));
+}
+
+namespace patch_codec {
+// An instrument whose top level, besides the graph of one sine, holds `extra`.
+static std::string top(const std::string& extra) {
+    return "{" + extra + R"J(,"instrument":{},"graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"}]}})J";
+}
+// An instrument of one sine whose block is `block`.
+static std::string block(const std::string& b) {
+    return R"J({"instrument":)J" + b + R"J(,"graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"}]}})J";
+}
+// An instrument of one sine whose layout is `layout`.
+static std::string layout(const std::string& l) {
+    return R"J({"instrument":{},"graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"}]},"layout":)J" + l + "}";
+}
+static const std::string kFeedTakes = R"J({"ref": id} or {"tap": id})J";
+// The document's levels: the top, the block, the graph and the layout.
+static std::vector<Refused> document_refusals() {
+    return {
+        {"a top-level frames", top(R"J("frames":96000)J"), "frames: unknown key 'frames'"},
+        {"a stray key at the top", top(R"J("author":"M")J"), "author: unknown key 'author'"},
+        {"sampleRate with a fraction", top(R"J("sampleRate":44100.5)J"), "sampleRate: 'sampleRate' takes a whole number, not 44100.5"},
+        {"seconds as a string", top(R"J("seconds":"2")J"), "seconds: 'seconds' takes a number, not \"2\""},
+        {"a comment that is not a string", top(R"J("comment":5)J"), "comment: 'comment' takes a string, not 5"},
+        {"a graph that is not an object", R"J({"graph":[]})J", "graph: 'graph' takes an object, not []"},
+        {"nodes that are not a list", R"J({"graph":{"nodes":{}}})J", "graph.nodes: 'nodes' takes a list, not {}"},
+        {"an output that is not a string", R"J({"graph":{"output":3}})J", "graph.output: 'output' takes a string, not 3"},
+        {"a stray key in the graph", R"J({"graph":{"extras":1}})J", "graph.extras: unknown key 'extras'"},
+        {"a node that is not an object", with_node("5"), "graph.nodes[1]: 'nodes[1]' takes an object, not 5"},
+        {"an instrument that is not an object", R"J({"instrument":true})J", "instrument: 'instrument' takes an object, not true"},
+        {"instrument.release", block(R"J({"release":0.3})J"), "instrument.release: unknown key 'release'"},
+        {"instrument.paramMap", block(R"J({"paramMap":{}})J"),
+         "instrument.paramMap: instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring"},
+        {"polyphony as a string", block(R"J({"polyphony":"4"})J"), "instrument.polyphony: 'polyphony' takes a whole number, not \"4\""},
+        {"volume as a bool", block(R"J({"volume":true})J"), "instrument.volume: 'volume' takes a number, not true"},
+        {"glideMs as null", block(R"J({"glideMs":null})J"), "instrument.glideMs: 'glideMs' takes a number, not null"},
+        {"sustaining as 1", block(R"J({"sustaining":1})J"), "instrument.sustaining: 'sustaining' takes true or false, not 1"},
+        {"onsets holding a number", block(R"J({"onsets":[1]})J"), "instrument.onsets: 'onsets' takes a list of strings, not [1]"},
+        {"a layout that is not an object", R"J({"layout":[]})J", "layout: 'layout' takes an object, not []"},
+        {"a stray key in the layout", layout(R"J({"zoom":2})J"), "layout.zoom: unknown key 'zoom'"},
+        {"a position of one number", layout(R"J({"positions":{"o":[1]}})J"), "layout.positions.o: 'o' takes [x, y], not [1]"},
+        {"panning as a string", layout(R"J({"panning":"x"})J"), "layout.panning: 'panning' takes [x, y], not \"x\""},
+        {"groups that are not a list", layout(R"J({"groups":{}})J"), "layout.groups: 'groups' takes a list, not {}"},
+        {"a group's stray key", layout(R"J({"groups":[{"name":"G","color":1}]})J"), "layout.groups[0].color: unknown key 'color'"},
+        {"a group's pos of three", layout(R"J({"groups":[{"name":"G","pos":[1,2,3]}]})J"),
+         "layout.groups[0].pos: 'pos' takes [x, y], not [1,2,3]"},
+        {"a group's member that is a number", layout(R"J({"groups":[{"name":"G","members":["o",1]}]})J"),
+         "layout.groups[0].members: 'members' takes a list of strings, not [\"o\",1]"},
+        {"a face's stray key", layout(R"J({"faces":[{"label":"F","colour":1}]})J"), "layout.faces[0].colour: unknown key 'colour'"},
+        {"a face's field that is a number", layout(R"J({"faces":[{"label":"F","fields":{"frequency":3}}]})J"),
+         "layout.faces[0].fields.frequency: 'frequency' takes a string, not 3"},
+    };
+}
+// The nineteen rows of retired_key_refusal's table, each at its own place.
+static std::vector<Refused> retired_refusals() {
+    const std::string tail = " is no longer read: python tools/convert_patch.py <patch> rewrites it as ";
+    return {
+        {"Envelope.stages", with_params("e", "Envelope", R"J({"stages":[]})J"),
+         "graph.nodes[1].params.stages: node 'e' (Envelope): 'stages'" + tail + "the eight stage columns"},
+        {"CurveNode.knots", with_params("c", "CurveNode", R"J({"knots":[]})J"),
+         "graph.nodes[1].params.knots: node 'c' (CurveNode): 'knots'" + tail + "the columns x and y"},
+        {"CurveNode.exprKnots", with_params("c", "CurveNode", R"J({"exprKnots":[]})J"),
+         "graph.nodes[1].params.exprKnots: node 'c' (CurveNode): 'exprKnots'" + tail + "the columns exprX, exprForm, exprA and exprB"},
+        {"PhasedValueSource.stages", with_params("v", "PhasedValueSource", R"J({"stages":[]})J"),
+         "graph.nodes[1].params.stages: node 'v' (PhasedValueSource): 'stages'" + tail + "sources and the columns percent, minSec, maxSec and gain"},
+        {"BWLowpassFilter.cutoff", with_params("f", "BWLowpassFilter", R"J({"cutoff":800})J"),
+         "graph.nodes[1].params.cutoff: node 'f' (BWLowpassFilter): 'cutoff'" + tail + "cutoffFreq"},
+        {"BWHighpassFilter.cutoff", with_params("f", "BWHighpassFilter", R"J({"cutoff":800})J"),
+         "graph.nodes[1].params.cutoff: node 'f' (BWHighpassFilter): 'cutoff'" + tail + "cutoffFreq"},
+        {"SVFSource.cutoff", with_params("f", "SVFSource", R"J({"cutoff":800})J"),
+         "graph.nodes[1].params.cutoff: node 'f' (SVFSource): 'cutoff'" + tail + "cutoffFreq"},
+        {"RepeatingSource.gap", with_params("r", "RepeatingSource", R"J({"gap":0.2})J"),
+         "graph.nodes[1].params.gap: node 'r' (RepeatingSource): 'gap'" + tail + "gapDuration"},
+        {"MultiSource feed weight", with_params("m", "MultiSource", R"J({"source":[{"ref":"o","weight":0.5}]})J"),
+         "graph.nodes[1].params.source[0]: node 'm' (MultiSource): 'source': 'weight' on a feed" + tail + "the array weights"},
+        {"MultiSource feed delay", with_params("m", "MultiSource", R"J({"source":[{"ref":"o","delay":0.5}]})J"),
+         "graph.nodes[1].params.source[0]: node 'm' (MultiSource): 'source': 'delay' on a feed" + tail + "the array delays"},
+        {"FullPartials inline expandRule", with_params("p", "FullPartials", R"J({"expandRule":{"recurse":1}})J"),
+         "graph.nodes[1].params.expandRule: node 'p' (FullPartials): 'expandRule' as an inline object" + tail + "an ExpandRule node wired by ref"},
+        {"SequencePartials inline expandRule", with_params("p", "SequencePartials", R"J({"expandRule":{"recurse":1}})J"),
+         "graph.nodes[1].params.expandRule: node 'p' (SequencePartials): 'expandRule' as an inline object" + tail + "an ExpandRule node wired by ref"},
+        {"ExplicitPartials inline expandRule", with_params("p", "ExplicitPartials", R"J({"expandRule":{"recurse":1}})J"),
+         "graph.nodes[1].params.expandRule: node 'p' (ExplicitPartials): 'expandRule' as an inline object" + tail + "an ExpandRule node wired by ref"},
+        {"SoundChannel inputs", with_node(R"J({"id":"c","type":"SoundChannel","inputs":{}})J"),
+         "graph.nodes[1].inputs: node 'c' (SoundChannel): 'inputs' beside params" + tail + "the feed 'source' in params"},
+        {"StereoMixer inputs", with_node(R"J({"id":"x","type":"StereoMixer","inputs":{}})J"),
+         "graph.nodes[1].inputs: node 'x' (StereoMixer): 'inputs' beside params" + tail + "the feeds 'channels' in params"},
+        {"the top's ui", top(R"J("ui":{})J"), "ui: 'ui' at the top of the file" + tail + "layout"},
+        {"the top's groups", top(R"J("groups":[])J"), "groups: 'groups' at the top of the file" + tail + "layout.groups"},
+        {"the top's _comment", top(R"J("_comment":"c")J"), "_comment: '_comment' at the top of the file" + tail + "comment"},
+        {"the top's _provenance", top(R"J("_provenance":{})J"), "_provenance: '_provenance' at the top of the file" + tail + "comment"},
+    };
+}
+}  // namespace patch_codec
+
+namespace patch_codec {
+// A node's own keys, its type, its dynamic pins and its seed.
+static std::vector<Refused> node_refusals() {
+    const std::string seed = "graph.nodes[1].params.seed: node 'x' (SineSource): 'seed' takes a whole number from 0 to 4294967295, not ";
+    const std::string pin = "graph.nodes[1].dynamicPins.timeScale: node 'e' (Envelope): 'timeScale' in dynamicPins takes {\"ref\": id}, not ";
+    return {
+        {"a stray key on a node", with_node(R"J({"id":"x","type":"SineSource","label":"L"})J"),
+         "graph.nodes[1].label: node 'x' (SineSource): unknown key 'label'"},
+        {"an id that is not a string", with_node(R"J({"id":5,"type":"SineSource"})J"), "graph.nodes[1].id: 'id' takes a string, not 5"},
+        {"a type that is not a string", with_node(R"J({"id":"x","type":[]})J"), "graph.nodes[1].type: 'type' takes a string, not []"},
+        {"a node comment that is not a string", with_node(R"J({"id":"x","type":"SineSource","comment":5})J"),
+         "graph.nodes[1].comment: node 'x' (SineSource): 'comment' takes a string, not 5"},
+        {"params that are not an object", with_node(R"J({"id":"x","type":"SineSource","params":[]})J"),
+         "graph.nodes[1].params: node 'x' (SineSource): 'params' takes an object, not []"},
+        {"an unknown type", with_node(R"J({"id":"x","type":"NoSuchSource"})J"),
+         "graph.nodes[1].type: node 'x' (NoSuchSource): Unknown node type: NoSuchSource"},
+        {"a retired type", with_node(R"J({"id":"x","type":"AREnvelope"})J"),
+         "graph.nodes[1].type: node 'x' (AREnvelope): Unknown node type: AREnvelope; python tools/convert_patch.py <patch> "
+         "rewrites a type this engine no longer has"},
+        {"frequency on a WhiteNoiseSource", with_params("n", "WhiteNoiseSource", R"J({"frequency":440})J"),
+         "graph.nodes[1].params.frequency: node 'n' (WhiteNoiseSource): unknown key 'frequency'"},
+        {"a null dynamic pin", with_node(R"J({"id":"e","type":"Envelope","dynamicPins":{"timeScale":null}})J"), pin + "null"},
+        {"a tap dynamic pin", with_node(R"J({"id":"e","type":"Envelope","dynamicPins":{"timeScale":{"tap":"o"}}})J"),
+         pin + "{\"tap\":\"o\"}"},
+        {"a dynamic pin with an extra key", with_node(R"J({"id":"e","type":"Envelope","dynamicPins":{"timeScale":{"ref":"o","x":1}}})J"),
+         pin + "{\"ref\":\"o\",\"x\":1}"},
+        {"dynamicPins that are not an object", with_node(R"J({"id":"e","type":"Envelope","dynamicPins":3})J"),
+         "graph.nodes[1].dynamicPins: node 'e' (Envelope): 'dynamicPins' takes an object, not 3"},
+        {"a negative seed", with_params("x", "SineSource", R"J({"seed":-5})J"), seed + "-5"},
+        {"a fractional seed", with_params("x", "SineSource", R"J({"seed":7.5})J"), seed + "7.5"},
+        {"a seed past 32 bits", with_params("x", "SineSource", R"J({"seed":4294967296})J"), seed + "4294967296"},
+        {"a seed as a string", with_params("x", "SineSource", R"J({"seed":"7"})J"), seed + "\"7\""},
+    };
+}
+// A pin, a list pin and a slot given what they do not take.
+static std::vector<Refused> pin_refusals() {
+    const std::string sine = "graph.nodes[1].params.frequency: node 'x' (SineSource): 'frequency'";
+    const std::string multi = "graph.nodes[1].params.source";
+    const std::string wave = "graph.nodes[1].params.evolution: node 'w' (WavetableSource): 'evolution'";
+    return {
+        {"a string on a pin", with_params("x", "SineSource", R"J({"frequency":"440"})J"),
+         sine + " is the string \"440\"; a pin takes a number, " + kFeedTakes},
+        {"a list on a pin that is not one", with_params("x", "SineSource", R"J({"frequency":[{"ref":"o"}]})J"),
+         sine + " takes one feed, not a list"},
+        {"a feed with both keys", with_params("x", "SineSource", R"J({"frequency":{"ref":"o","tap":"o"}})J"),
+         sine + ": a feed holds 'ref' or 'tap', not both"},
+        {"a key beside a feed's", with_params("x", "SineSource", R"J({"frequency":{"ref":"o","gain":2}})J"),
+         sine + ": a feed holds 'ref' or 'tap' alone, not 'gain'"},
+        {"a bool on a pin", with_params("x", "SineSource", R"J({"frequency":true})J"), sine + " takes a number, " + kFeedTakes + ", not true"},
+        {"null on a pin", with_params("x", "SineSource", R"J({"frequency":null})J"), sine + " takes a number, " + kFeedTakes + ", not null"},
+        {"an object that is no feed on a pin", with_params("x", "SineSource", R"J({"frequency":{"value":3}})J"),
+         sine + " takes a number, " + kFeedTakes + ", not {\"value\":3}"},
+        {"a ref that is not a string", with_params("x", "SineSource", R"J({"frequency":{"ref":3}})J"),
+         sine + " takes a number, " + kFeedTakes + ", not {\"ref\":3}"},
+        {"a number in a list of feeds", with_params("m", "MultiSource", R"J({"source":[{"ref":"o"},0.25]})J"),
+         multi + "[1]: node 'm' (MultiSource): 'source' holds 0.25, where a list holds " + kFeedTakes},
+        {"a string in a list of feeds", with_params("m", "MultiSource", R"J({"source":["o"]})J"),
+         multi + "[0]: node 'm' (MultiSource): 'source' holds \"o\", where a list holds " + kFeedTakes},
+        {"a string on a list pin", with_params("m", "MultiSource", R"J({"source":"o"})J"),
+         multi + ": node 'm' (MultiSource): 'source' is the string \"o\"; a pin takes a number, " + kFeedTakes},
+        {"a tap on a slot", with_params("w", "WavetableSource", R"J({"evolution":{"tap":"o"}})J"),
+         wave + " is a slot: it takes {\"ref\": id}, not {\"tap\":\"o\"}"},
+        {"a number on a slot", with_params("w", "WavetableSource", R"J({"evolution":3})J"), wave + " is a slot: it takes {\"ref\": id}, not 3"},
+        {"an object that is no feed on a slot", with_params("w", "WavetableSource", R"J({"evolution":{"type":"PluckEvolution"}})J"),
+         wave + " holds an object where a slot takes {\"ref\": id}"},
+        {"a string on a slot", with_params("w", "WavetableSource", R"J({"evolution":"pluck"})J"),
+         wave + " is the string \"pluck\"; a slot takes {\"ref\": id}; the string-typed evolution is gone, python "
+                "tools/convert_patch.py <patch> rewrites it as an evolution node"},
+        {"a list on a single slot", with_params("w", "WavetableSource", R"J({"evolution":[{"ref":"o"}]})J"), wave + " takes one feed, not a list"},
+        {"a tap in a multi slot's list", with_params("mx", "StereoMixer", R"J({"channels":[{"tap":"o"}]})J"),
+         "graph.nodes[1].params.channels[0]: node 'mx' (StereoMixer): 'channels' is a slot: it takes {\"ref\": id}, not {\"tap\":\"o\"}"},
+    };
+}
+}  // namespace patch_codec
+
+namespace patch_codec {
+// Settings and arrays given what their kind does not take; and the
+// refusals check() makes once the read is whole.
+static std::vector<Refused> value_refusals() {
+    const std::string svf = "graph.nodes[1].params.mode: node 's' (SVFSource): 'mode' holds ";
+    const std::string labels = ", which is not one of its labels (Lowpass, Highpass, Bandpass, Lowpass1P, Highpass1P) or an index into them";
+    const std::string column = "graph.nodes[1].params.type: node 'e' (Envelope): 'type' holds ";
+    const std::string stageLabels = ", which is not one of its labels (Linear, Expo, InverseExpo, Sine, Hold) or an index into them";
+    return {
+        {"a string on a float setting", with_params("b", "Biquad", R"J({"b0":"1.5"})J"),
+         "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' takes a number, not \"1.5\""},
+        {"a bool on a float setting", with_params("b", "Biquad", R"J({"b0":true})J"),
+         "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' takes a number, not true"},
+        {"an int given a fraction", with_params("f", "BWLowpassFilter", R"J({"sections":2.5})J"),
+         "graph.nodes[1].params.sections: node 'f' (BWLowpassFilter): 'sections' takes a whole number, not 2.5"},
+        {"a bool given 2", with_params("s", "SVFSource", R"J({"normalize":2})J"),
+         "graph.nodes[1].params.normalize: node 's' (SVFSource): 'normalize' takes true or false, not 2"},
+        {"a bool given a string", with_params("s", "SVFSource", R"J({"normalize":"true"})J"),
+         "graph.nodes[1].params.normalize: node 's' (SVFSource): 'normalize' takes true or false, not \"true\""},
+        {"an enum word that is no label", with_params("s", "SVFSource", R"J({"mode":"Bandstop"})J"), svf + "\"Bandstop\"" + labels},
+        {"an enum label in another case", with_params("s", "SVFSource", R"J({"mode":"highpass"})J"), svf + "\"highpass\"" + labels},
+        {"an enum index outside its labels", with_params("s", "SVFSource", R"J({"mode":5})J"), svf + "5" + labels},
+        {"an enum given a fraction", with_params("s", "SVFSource", R"J({"mode":1.5})J"), svf + "1.5" + labels},
+        {"an enum given a bool", with_params("s", "SVFSource", R"J({"mode":true})J"), svf + "true" + labels},
+        {"a number on a string setting", with_params("g", "NameGate", R"J({"name":3})J"),
+         "graph.nodes[1].params.name: node 'g' (NameGate): 'name' takes a string, not 3"},
+        {"a number on an array", with_params("sg", "SegmentSource", R"J({"values":0.5})J"),
+         "graph.nodes[1].params.values: node 'sg' (SegmentSource): 'values' takes a list of numbers, not 0.5"},
+        {"a string in an array", with_params("sg", "SegmentSource", R"J({"values":[1,"a"]})J"),
+         "graph.nodes[1].params.values: node 'sg' (SegmentSource): 'values' takes a list of numbers, not [1,\"a\"]"},
+        {"a labelled column holding no label", with_params("e", "Envelope", "{" + stage_columns(R"J(["Linear","Bogus"])J") + "}"),
+         column + "\"Bogus\"" + stageLabels},
+        {"a labelled column's label in another case", with_params("e", "Envelope", "{" + stage_columns(R"J(["linear",0])J") + "}"),
+         column + "\"linear\"" + stageLabels},
+        {"a float setting outside its range", with_params("b", "Biquad", R"J({"b0":12})J"),
+         "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' is 12, outside its range -10 to 10"},
+        {"an int setting outside its range", with_params("c", "CellularAutomatonEvolution", R"J({"rule":300})J"),
+         "graph.nodes[1].params.rule: node 'c' (CellularAutomatonEvolution): 'rule' is 300, outside its range 0 to 255"},
+        {"two violations, one per line", with_params("b", "Biquad", R"J({"b0":12,"a2":-3})J"),
+         "graph.nodes[1].params.a2: node 'b' (Biquad): 'a2' is -3, outside its range -1 to 1\n"
+         "graph.nodes[1].params.b0: node 'b' (Biquad): 'b0' is 12, outside its range -10 to 10"},
+        {"a dynamic pin in a plain sound",
+         R"J({"seconds":1,"graph":{"output":"mx","nodes":[{"id":"o","type":"SineSource"},)J"
+         R"J({"id":"b","type":"Biquad","params":{"source":{"ref":"o"}},"dynamicPins":{"b0":{"ref":"o"}}},)J"
+         R"J({"id":"ch","type":"SoundChannel","params":{"source":{"ref":"b"}}},)J"
+         R"J({"id":"mx","type":"StereoMixer","params":{"channels":[{"ref":"ch"}]}}]}})J",
+         "graph.nodes[1].dynamicPins.b0: node 'b' (Biquad): a plain sound has no note, so nothing drives a dynamic pin"},
+        {"a document that is not an object", "5", "a patch takes an object, not 5"},
+    };
+}
+}  // namespace patch_codec
+
+// Every refusal of the reader, each through load_text and compared whole:
+// the document's levels, the nineteen rows of retired_key_refusal at their places
+// (TopKey among them), a node's keys, its pins, its settings and arrays, and
+// what check() refuses once the read is whole.
+static void run_codec_refusal_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: every refusal with its path and its sentence\n");
+    run_refusals(document_refusals());
+    run_refusals(retired_refusals());
+    run_refusals(node_refusals());
+    run_refusals(pin_refusals());
+    run_refusals(value_refusals());
+    std::printf("  %zu document, %zu retired, %zu node, %zu pin and %zu value refusals\n", document_refusals().size(),
+                retired_refusals().size(), node_refusals().size(), pin_refusals().size(), value_refusals().size());
+}
+
+// A read that fails leaves its target as it was: a Patch, a Node, a Graph, a
+// block, a layout and a fragment, each given a record first.
+static void run_codec_untouched_tests() {
+    using namespace patch_codec;
+    std::printf("the codec: a read that fails leaves its target as it was\n");
+    const Patch given = load_text(with_params("x", "SawSource", R"J({"frequency":330})J"));
+    for (const std::string& bad : {with_params("x", "SawSource", R"J({"frequency":"330"})J"),
+                                   with_params("b", "Biquad", R"J({"b0":12})J"), top(R"J("frames":1)J"),
+                                   std::string(R"J({"graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"},5]}})J")}) {
+        Patch target = given;
+        try { from_json(J::parse(bad), target); CHECK(false); } catch (const std::runtime_error&) {}
+        CHECK(target == given);
+    }
+    const Node node = read_node(R"J({"id":"x","type":"SawSource","params":{"frequency":330}})J");
+    Node nodeTarget = node;
+    try { from_json(J::parse(R"J({"id":"y","type":"SawSource","params":{"bogus":1}})J"), nodeTarget); CHECK(false); }
+    catch (const std::runtime_error&) {}
+    CHECK(nodeTarget == node);
+    Graph graph = given.graph, graphTarget = given.graph;
+    try { from_json(J::parse(R"J({"output":"z","nodes":[{"id":"z","type":"NoSuchSource"}]})J"), graphTarget); CHECK(false); }
+    catch (const std::runtime_error&) {}
+    CHECK(graphTarget == graph);
+    const InstrumentBlock blockGiven{2, 0.5f, true, {"tongue"}, 20.0f};
+    InstrumentBlock blockTarget = blockGiven;
+    try { from_json(J::parse(R"J({"polyphony":3,"release":1})J"), blockTarget); CHECK(false); } catch (const std::runtime_error&) {}
+    CHECK(blockTarget == blockGiven);
+    Layout layoutGiven;
+    layoutGiven.positions["x"] = Vec2{1, 2};
+    Layout layoutTarget = layoutGiven;
+    try { from_json(J::parse(R"J({"positions":{"y":[3,4]},"zoom":1})J"), layoutTarget); CHECK(false); } catch (const std::runtime_error&) {}
+    CHECK(layoutTarget == layoutGiven);
+    const Fragment fragmentGiven{{node}, {}, {}, {}};
+    Fragment fragmentTarget = fragmentGiven;
+    try { from_json(J::parse(R"J({"nodes":[],"faces":[3]})J"), fragmentTarget); CHECK(false); } catch (const std::runtime_error&) {}
+    CHECK(fragmentTarget == fragmentGiven);
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -13259,6 +13963,15 @@ int main() {
     run_type_declaration_accept_tests();
     run_type_declaration_default_tests();
     run_patch_check_tests();
+    patch_codec::guarded("run_codec_identity_tests", run_codec_identity_tests);
+    patch_codec::guarded("run_codec_complete_model_tests", run_codec_complete_model_tests);
+    patch_codec::guarded("run_codec_float_tests", run_codec_float_tests);
+    patch_codec::guarded("run_codec_kind_tests", run_codec_kind_tests);
+    patch_codec::guarded("run_codec_preset_tests", run_codec_preset_tests);
+    patch_codec::guarded("run_codec_passenger_tests", run_codec_passenger_tests);
+    patch_codec::guarded("run_codec_layout_fragment_tests", run_codec_layout_fragment_tests);
+    patch_codec::guarded("run_codec_refusal_tests", run_codec_refusal_tests);
+    patch_codec::guarded("run_codec_untouched_tests", run_codec_untouched_tests);
     run_type_declaration_late_tests();       // registers its probe: last
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);

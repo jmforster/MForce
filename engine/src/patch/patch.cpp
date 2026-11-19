@@ -3,6 +3,7 @@
 #include "mforce/patch/table_rule.h"
 #include "mforce/patch/type_declarations.h"
 #include "float_text.h"
+#include "sentence.h"
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -15,19 +16,6 @@
 namespace mforce {
 
 namespace {
-
-std::string in_quotes(std::string_view s) { return "'" + std::string(s) + "'"; }
-
-std::string joined(const std::vector<std::string>& words) {
-  std::string out;
-  for (const auto& w : words) out += (out.empty() ? "" : ", ") + w;
-  return out;
-}
-
-// True when `v` is a whole number from 0 to below `count`.
-bool is_index(float v, size_t count) {
-  return v >= 0.0f && v == std::floor(v) && v < float(count);
-}
 
 std::string node_path(size_t i) { return "graph.nodes[" + std::to_string(i) + "]"; }
 
@@ -199,7 +187,7 @@ void check_settings(Checker& c, const NodeAt& at) {
     }
     if (!s->labels.empty()) {
       if (!is_index(v, s->labels.size()))
-        c.add(at.param_path(name), head + ", which is not an index into its labels (" + joined(s->labels) + ")");
+        c.add(at.param_path(name), head + ", which is not an index into its labels (" + comma_list(s->labels) + ")");
       continue;
     }
     if (!(v >= s->min && v <= s->max))
@@ -218,7 +206,7 @@ void check_arrays(Checker& c, const NodeAt& at) {
       if (!is_index(rows[i], a->labels.size()))
         c.add(at.param_path(name), at.opening + in_quotes(name) + " row " + std::to_string(i) + " is " +
                                    float_text(rows[i]) + ", which is not an index into its labels (" +
-                                   joined(a->labels) + ")");
+                                   comma_list(a->labels) + ")");
   }
   const Component* proto = prototype(at.node.type);
   if (!proto) return;

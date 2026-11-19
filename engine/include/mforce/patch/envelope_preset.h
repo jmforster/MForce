@@ -9,7 +9,7 @@ namespace mforce {
 
 // The preset form of an Envelope on disk: {"preset": "adsr", ...knob keys...}.
 // One table of six layouts over the Envelope's factories, which the patch
-// loader and the editor's graph loader both call so the two cannot drift.
+// loader, the codec and the editor's graph loader call so they cannot drift.
 // A builder reads its layout's keys with the layout's defaults, lays the
 // stages out through the factory, then shapes each curved stage from its
 // "<stage>Curve" and "<stage>Power" keys. A curve is one of the first four of
@@ -140,7 +140,7 @@ inline std::shared_ptr<Envelope> envelope_from_preset_json(const nlohmann::json&
   throw std::runtime_error("Unknown envelope preset: " + preset);
 }
 
-// Every key the preset form reads, for the loaders' key checks.
+// Every key the preset form reads, for the loaders' and the codec's key checks.
 inline const std::vector<std::string>& envelope_preset_keys() {
   static const std::vector<std::string> keys = [] {
     std::vector<std::string> v;

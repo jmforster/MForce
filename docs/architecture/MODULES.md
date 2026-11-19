@@ -19,4 +19,4 @@ Phase 1: describes today's layout. Do not edit by hand.
 
 Third-party families: `json`, `imgui`, `rtaudio`, `rtmidi`, `glfw`.
 
-`json` is allowed only in: `engine/include/mforce/patch/envelope_preset.h`, `engine/include/mforce/core/source_registry.h`, `engine/include/mforce/music/music_json.h`, `engine/include/mforce/music/templates_json.h`, `engine/src/patch_loader.cpp`, `engine/src/embedded_score.cpp`, `tools/`.
+`json` is allowed only in: `engine/include/mforce/patch/envelope_preset.h`, `engine/include/mforce/patch/patch_json.h`, `engine/src/patch/patch_json.cpp`, `engine/src/patch/node_json.cpp`, `engine/include/mforce/core/source_registry.h`, `engine/include/mforce/music/music_json.h`, `engine/include/mforce/music/templates_json.h`, `engine/src/patch_loader.cpp`, `engine/src/embedded_score.cpp`, `tools/`.
