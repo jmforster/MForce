@@ -25,13 +25,9 @@ struct ReactionDiffusionEvolution final : WaveEvolution {
   Setting<float> diffU   {this, "diffU",    0.16f,   0.0f,  1.0f};
   Setting<float> diffV   {this, "diffV",    0.08f,   0.0f,  1.0f};
   Setting<float> dt      {this, "dt",       1.0f,    0.05f, 2.0f};   // integration step
-  Setting<int>   subSteps{this, "subSteps", 1,       1,     8};      // RD iterations per audio sample (>=1)
+  Setting<int>   subSteps{this, "subSteps", 1,       1,     8};      // RD iterations per audio sample (none below 1)
 
   const char* type_name() const override { return "ReactionDiffusionEvolution"; }
-
-  void on_setting_changed(std::string_view name) override {
-    if (name == "subSteps") subSteps.value = std::max(1, subSteps.value);
-  }
 
   void on_prepare(const RenderContext&, int maxLen) override {
     for (auto* v : {&u_, &v_, &uPrev_, &vPrev_}) v->reserve(size_t(maxLen));

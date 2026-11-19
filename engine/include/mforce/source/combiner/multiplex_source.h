@@ -4,27 +4,22 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace mforce {
 
-// MultiplexSource: fans one template subgraph into N independent instances,
-// each built with a perturbed seed, and emits sum(instances) / N per sample.
-// The loader special-cases this node to populate instances_ at build time
-// from an extracted JSON subtree (stored in templateJson_) via an
-// InstanceBuilder closure that encodes seed-perturbation. The builder
-// returns unprepared clones; the multiplex prepares and starts them.
+// MultiplexSource: fans one template into `count` independent instances,
+// each built by the closure it is given, called with the instance's index,
+// and emits their mean per sample. The closure returns an unprepared
+// instance's root; the multiplex prepares and starts it. With no instances
+// it passes its wired `source` through.
 //
-// Live-edit rebuild (UI path): external code updates templateJson_ to the
-// current UI serialization and sets templateDirty_; next prepare() rebuilds.
+// Rebuild: mark_dirty() or a change of `count` makes the next prepare()
+// call the closure again for every instance.
 struct MultiplexSource final : Processor {
-    // Builder returns {root source, the clone's nodes by id}; the map is
-    // kept per instance in instanceNodes_.
-    using NodeMap = std::unordered_map<std::string, std::shared_ptr<Component>>;
-    using InstanceBuilder = std::function<
-        std::pair<std::shared_ptr<ValueSource>, NodeMap>(int instanceIdx)>;
+    // Builds instance `instanceIdx` and returns its root.
+    using InstanceBuilder = std::function<std::shared_ptr<ValueSource>(int instanceIdx)>;
 
     Setting<int> count{this, "count", 10, 1, 50};
 
@@ -48,9 +43,13 @@ struct MultiplexSource final : Processor {
         }
     }
 
-    // Loader hook. The builder closure captures everything needed (subtree
-    // JSON, base seed) to produce a freshly built root source
-    // plus the clone's nodes by id for a given instance index.
+    // The builder the next prepare() calls `count` times.
+    void set_template(InstanceBuilder builder) {
+        builder_ = std::move(builder);
+        templateDirty_ = true;
+    }
+
+    // The builder, with the template's text and its base seed kept beside it.
     void set_template(std::string json, uint32_t baseSeed, InstanceBuilder builder) {
         templateJson_ = std::move(json);
         baseSeed_ = baseSeed;
@@ -94,15 +93,10 @@ struct MultiplexSource final : Processor {
 private:
     void rebuild_() {
         instances_.clear();
-        instanceNodes_.clear();
         if (!builder_) { templateDirty_ = false; return; }
         instances_.reserve(count.value);
-        instanceNodes_.reserve(count.value);
-        for (int i = 0; i < count.value; ++i) {
-            auto pair = builder_(i);
-            instances_.push_back(std::move(pair.first));
-            instanceNodes_.push_back(std::move(pair.second));
-        }
+        for (int i = 0; i < count.value; ++i)
+            instances_.push_back(builder_(i));
         templateDirty_ = false;
     }
 
@@ -111,8 +105,6 @@ private:
     std::string templateJson_;
     InstanceBuilder builder_;
     std::vector<std::shared_ptr<ValueSource>> instances_;
-    // Each clone's nodes by id, parallel to instances_.
-    std::vector<NodeMap> instanceNodes_;
     bool templateDirty_{true};
 };
 

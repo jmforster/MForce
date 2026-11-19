@@ -32,7 +32,7 @@
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/source/envelope/envelope.h"      // needed for Envelope::make_adsr
-#include "mforce/source/envelope/envelope_json.h" // shared preset-form dispatch (both loaders)
+#include "mforce/patch/envelope_preset.h"         // shared preset-form dispatch (both loaders)
 #include "mforce/source/modulator/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
 #include "mforce/source/modulator/perform_node.h"   // the Note field's labels
 #include "mforce/source/filter/shaper_source.h" // shape editor Shaper client probe
@@ -1679,7 +1679,7 @@ static void load_graph_json(nlohmann::json& root, const std::string& path) {
             // region" — swapping in release 0.2 changes the entire decay.
             if (gn.typeName == NT_ENVELOPE && params.contains("preset")) {
                 if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
-                    // Shared preset dispatch (envelope_json.h) — same
+                    // Shared preset dispatch (envelope_preset.h) — same
                     // function the engine loader uses, so the two cannot
                     // drift. (The hand-copied dispatch this replaces
                     // silently kept the default ADSR for unknown presets

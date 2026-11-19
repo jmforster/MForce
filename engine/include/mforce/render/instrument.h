@@ -172,11 +172,10 @@ struct PitchedInstrument final : Instrument {
     // thread where a per-node cast has no business. A part is not here.
     struct Signal { std::string id; ValueSource* node; };
     std::vector<Signal> signals;
-    // Envelopes in this voice with a wired `trigger` input (spec
-    // 2026-09-20-note-onsets-v2 §6), collected at load. Raw pointers:
-    // the voice's graph owns them (same lifetime rationale as
-    // CaptureEntry). fire_triggers reads each trigger via current() at
-    // note Setup — never in the sample loop.
+    // The Envelopes in this voice whose `trigger` is read at each note's
+    // Setup. Raw pointers: the voice's graph owns them (same lifetime
+    // rationale as CaptureEntry). fire_triggers reads each trigger via
+    // current() at note Setup — never in the sample loop.
     std::vector<Envelope*> triggerBindings;
     // EVERY envelope in this voice (spec 2026-09-20-note-onsets-v2 §4/§5),
     // collected at load from the same node table. A held line flips them
@@ -434,14 +433,15 @@ struct PitchedInstrument final : Instrument {
   float glideSec{0.015f};
   bool  warnedNoEnvelopes_{false};
 
-  // Trigger firing at Setup (spec §6): envelopes whose trigger input is
-  // nonzero at this note's Setup restart from their current value. The
-  // bindings are collected at load; empty = no-op (feature at rest).
+  // Trigger firing at Setup: an Envelope of the bindings restarts from its
+  // current value when its `trigger` reads nonzero at this note's Setup,
+  // whether a wired source or the pin's own constant says so. Empty
+  // bindings = no-op (feature at rest).
   // Ordering contract: set_note FIRST (the new onsetId must be
   // visible), push bindings second, fire_triggers LAST.
   void fire_triggers(VoiceGraph& vg) {
     for (auto* env : vg.triggerBindings)
-      if (env->trigger.source && env->trigger.current() != 0.0f)
+      if (env->trigger.current() != 0.0f)
         env->retrigger();
   }
 

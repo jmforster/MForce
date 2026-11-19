@@ -7,12 +7,12 @@
 
 namespace mforce {
 
-// The preset form of an Envelope node: {"preset": "adsr", ...knob keys...}.
-// One table of six layouts over Envelope's factories, shared by the engine
-// patch loader and the UI graph loader so the two cannot drift. A builder
-// reads its layout's keys with the layout's defaults, lays the stages out
-// through the factory, then shapes each curved stage from its "<stage>Curve"
-// and "<stage>Power" keys. A curve is one of the first four of
+// The preset form of an Envelope on disk: {"preset": "adsr", ...knob keys...}.
+// One table of six layouts over the Envelope's factories, which the patch
+// loader and the editor's graph loader both call so the two cannot drift.
+// A builder reads its layout's keys with the layout's defaults, lays the
+// stages out through the factory, then shapes each curved stage from its
+// "<stage>Curve" and "<stage>Power" keys. A curve is one of the first four of
 // Envelope::kStageTypeLabels (Linear, Expo, InverseExpo, Sine), matched
 // ignoring ASCII case, or its index 0 to 3. Throws on an unknown preset, any
 // other curve, and on key combinations that would otherwise be silently dead

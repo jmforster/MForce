@@ -1,15 +1,15 @@
 #pragma once
 // CellularAutomatonEvolution: a WaveEvolution.
 #include "mforce/source/wavetable/wave_evolution.h"
-#include <algorithm>
 #include <vector>
 
 namespace mforce {
 
 // ---------------------------------------------------------------------------
 // CellularAutomatonEvolution — binary 1D Wolfram CA on the wavetable.
-// The wavetable is threshold-quantized to bits each cycle, and a Wolfram
-// rule (0..255) is applied to each cell from its three-cell neighbourhood.
+// The wavetable is threshold-quantized to bits each cycle, and each cell
+// takes bit `pattern` of `rule`, `(rule >> pattern) & 1`, where `pattern` is
+// its three-cell neighbourhood: the low eight bits of `rule` are the table.
 // Bits flip back to ± waveform via `levelHi` / `levelLo`. Famous rules:
 // 30 (chaotic), 90 (Sierpinski), 110 (edge-of-chaos), 184 (traffic).
 // ---------------------------------------------------------------------------
@@ -21,11 +21,6 @@ struct CellularAutomatonEvolution final : WaveEvolution {
   Setting<int>   stepEvery{this, "stepEvery", 8,     1,     256};    // do one CA step every Nth sample (slow tempo)
 
   const char* type_name() const override { return "CellularAutomatonEvolution"; }
-
-  void on_setting_changed(std::string_view name) override {
-    if (name == "rule")           rule.value = std::clamp(rule.value, 0, 255);
-    else if (name == "stepEvery") stepEvery.value = std::max(1, stepEvery.value);
-  }
 
   void on_prepare(const RenderContext&, int maxLen) override {
     state_.reserve(size_t(maxLen));

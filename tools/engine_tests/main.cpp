@@ -4081,35 +4081,18 @@ static void run_evolution_shape_tests() {
             CHECK_NEAR(c->get_setting(d.name), d.default_value, 1e-9f);
 }
 
-// The settings the evolutions clamp when they are set keep clamping, and an
-// evolution reads its own live value.
+// An evolution's settings read back as set, and an evolution reads its own
+// live value.
 static void run_evolution_setting_tests() {
     ReactionDiffusionEvolution rd;
-    rd.set_setting("subSteps", 0.0f);
-    CHECK_NEAR(rd.get_setting("subSteps"), 1.0f, 1e-6f);
     rd.set_setting("subSteps", 3.0f);
     CHECK_NEAR(rd.get_setting("subSteps"), 3.0f, 1e-6f);
 
     SortErosionEvolution sort;
-    sort.set_setting("swapsPerSample", -4.0f);
-    CHECK_NEAR(sort.get_setting("swapsPerSample"), 1.0f, 1e-6f);
     sort.set_setting("descending", 1.0f);
     CHECK_NEAR(sort.get_setting("descending"), 1.0f, 1e-6f);
 
-    HistogramEqualizeEvolution he;
-    he.set_setting("bins", 1000.0f);
-    CHECK_NEAR(he.get_setting("bins"), 256.0f, 1e-6f);
-    he.set_setting("bins", 2.0f);
-    CHECK_NEAR(he.get_setting("bins"), 4.0f, 1e-6f);
-
     CellularAutomatonEvolution ca;
-    ca.set_setting("rule", 999.0f);
-    CHECK_NEAR(ca.get_setting("rule"), 255.0f, 1e-6f);
-    ca.set_setting("rule", -5.0f);
-    CHECK_NEAR(ca.get_setting("rule"), 0.0f, 1e-6f);
-    ca.set_setting("stepEvery", 0.0f);
-    CHECK_NEAR(ca.get_setting("stepEvery"), 1.0f, 1e-6f);
-
     ca.set_setting("stepEvery", 8.0f);                     // the evolution reads the live level
     std::vector<float> table(8, 0.5f);
     ca.shape_excitation(table);
@@ -5594,7 +5577,7 @@ static void run_combine_mod_manual_pin_tests() {
     cloned.set_param("source", unused);
     cloned.set_setting("count", 3.0f);
     cloned.set_template("{}", 0, [](int) {
-        return std::make_pair(std::shared_ptr<ValueSource>(konst(2.0f)), MultiplexSource::NodeMap{});
+        return std::shared_ptr<ValueSource>(konst(2.0f));
     });
     cloned.prepare(ctx); cloned.start(100);
     for (int i = 0; i < 5; ++i) cloned.next();
@@ -5690,7 +5673,7 @@ static void run_combine_mod_setting_hook_tests() {
     int builds = 0;
     mux.set_template("{}", 0, [&builds](int) {
         ++builds;
-        return std::make_pair(std::shared_ptr<ValueSource>(konst(1.0f)), MultiplexSource::NodeMap{});
+        return std::shared_ptr<ValueSource>(konst(1.0f));
     });
     mux.prepare(ctx); mux.start(8);                                   CHECK(builds == 4);
     mux.prepare(ctx); mux.start(8);                                   CHECK(builds == 4);
@@ -6713,7 +6696,7 @@ static void run_combine_mod_pin_split_tests() {
     std::vector<std::shared_ptr<PinCounter>> clones;
     mux.set_template("{}", 0, [&clones](int) {
         clones.push_back(std::make_shared<PinCounter>());
-        return std::make_pair(std::shared_ptr<ValueSource>(clones.back()), MultiplexSource::NodeMap{});
+        return std::shared_ptr<ValueSource>(clones.back());
     });
     mux.prepare(ctx);
     CHECK(clones.size() == 3);
@@ -7144,7 +7127,7 @@ static void run_string_pin_refusal_tests() {
     CHECK(ip.instrument != nullptr);
 }
 
-#include "mforce/source/envelope/envelope_json.h"
+#include "mforce/patch/envelope_preset.h"
 
 // ---------------------------------------------------------------------------
 // The preset form against the preset classes: for each of the six layouts a
@@ -12225,6 +12208,200 @@ static void run_preset_curve_label_tests() {
     CHECK(refusal(-1).find("attackCurve is -1; a curve is 0 (Linear)") != std::string::npos);
 }
 
+// A combiner's gainAdj scales its second operand by 1 + gainAdj, and its
+// declared range takes a signed scale.
+static void run_gain_adj_range_tests() {
+    std::printf("CombinedSource.gainAdj: declared from -100 to 100\n");
+    CombinedSource comb(nullptr, nullptr, CombineOp::Sum);
+    bool found = false;
+    for (const auto& d : comb.setting_descriptors()) {
+        if (std::string_view(d.name) != "gainAdj") continue;
+        found = true;
+        CHECK(d.min_value == -100.0f);
+        CHECK(d.max_value == 100.0f);
+    }
+    CHECK(found);
+}
+
+// The four evolutions take an int setting outside its declared range as
+// given: it reads back so, and the evolution, hosted in a wavetable, renders
+// a thousand finite samples on it with no fault.
+static void run_evolution_unclamped_setting_tests() {
+    std::printf("the four evolutions: an int setting outside its range is used as given\n");
+    struct Case { const char* type; const char* setting; float value; };
+    const Case cases[] = {
+        {"CellularAutomatonEvolution", "rule", 300.0f},
+        {"CellularAutomatonEvolution", "rule", -1.0f},
+        {"CellularAutomatonEvolution", "stepEvery", 0.0f},
+        {"ReactionDiffusionEvolution", "subSteps", 0.0f},
+        {"HistogramEqualizeEvolution", "bins", 3.0f},
+        {"HistogramEqualizeEvolution", "bins", 300.0f},
+        {"SortErosionEvolution", "swapsPerSample", 0.0f},
+    };
+    auto make = [](std::string_view type) -> std::shared_ptr<Component> {
+        if (type == "CellularAutomatonEvolution") return std::make_shared<CellularAutomatonEvolution>();
+        if (type == "ReactionDiffusionEvolution") return std::make_shared<ReactionDiffusionEvolution>();
+        if (type == "HistogramEqualizeEvolution") return std::make_shared<HistogramEqualizeEvolution>();
+        return std::make_shared<SortErosionEvolution>();
+    };
+    for (const auto& c : cases) {
+        auto evo = make(c.type);
+        evo->set_setting(c.setting, c.value);
+        const bool readBack = evo->get_setting(c.setting) == c.value;
+        TestHost h;
+        WavetableSource w;
+        w.set_param("evolution", evo);
+        w.prepare(h.ctx); w.start(4800);
+        bool finite = true;
+        for (int i = 0; i < 1000; ++i) { h.clock.tick(); finite = finite && std::isfinite(w.next()); }
+        const unsigned char faults = w.take_faults();
+        if (!readBack || !finite || faults != 0)
+            std::printf("  %s.%s = %g: read back %g, finite %d, faults %d\n", c.type, c.setting, c.value,
+                        evo->get_setting(c.setting), int(finite), int(faults));
+        CHECK(readBack);
+        CHECK(finite);
+        CHECK(faults == 0);
+    }
+}
+
+// A held line of three notes on an instrument whose amplitude Envelope holds
+// `trigger` as given, each note shorter than the Envelope's first stage so it
+// is mid-flight at every Setup.
+static std::string trigger_line_patch(int trigger) {
+    return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1,"sustaining":true},
+      "graph":{"output":"sine1","nodes":[
+        {"id":"env1","type":"Envelope","params":{"timeMode":"seconds","trigger":)")
+         + std::to_string(trigger) + R"(,
+          "startVal":[1.0,0.1,1.0],"endVal":[0.1,1.0,1.0],"power":[0.0,0.0,0.0],
+          "type":["Linear","Linear","Linear"],"percent":[0.15,0.15,0.0],"minSec":[0.0,0.0,0.0],
+          "maxSec":[0.0,0.0,0.0],"nominal":[0.0,0.0,0.0]}},
+        {"id":"sine1","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"env1"},"phase":0.0}}]}})";
+}
+
+// Loads trigger_line_patch(trigger) and renders the line. A `constant` of 0
+// or more first unwires every voice's env1.trigger and sets the pin's own
+// constant to it. `listed` says whether env1 stayed in every voice's trigger
+// bindings.
+static std::vector<float> render_trigger_line(int trigger, int constant, bool& listed) {
+    auto ip = load_instrument_patch_json(trigger_line_patch(trigger));
+    auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+    listed = pi != nullptr && !pi->voicePool.empty();
+    if (!pi) return {};
+    for (auto& vg : pi->voicePool) {
+        auto it = vg.nodesById.find("env1");
+        auto env = it == vg.nodesById.end() ? nullptr : std::dynamic_pointer_cast<Envelope>(it->second);
+        if (!env) { listed = false; continue; }
+        if (constant >= 0) {
+            env->clear_param("trigger");
+            env->trigger.constant = float(constant);
+        }
+        listed = listed && (env->trigger.source == nullptr) == (constant >= 0)
+              && std::find(vg.triggerBindings.begin(), vg.triggerBindings.end(), env.get()) != vg.triggerBindings.end();
+    }
+    pi->play_note({57.0f, 0.8f, 0.1f, 0.0f, true}, 0.0f);
+    pi->play_note({59.0f, 0.8f, 0.1f, 0.0f, true}, 0.1f);
+    pi->play_note({60.0f, 0.8f, 0.1f, 0.0f, false}, 0.2f);
+    std::vector<float> buf(size_t(0.5f * 48000), 0.0f);
+    ip.instrument->render(buf.data(), int(buf.size()));
+    return buf;
+}
+
+// fire_triggers asks the trigger's value: a pin unwired by hand whose own
+// constant is 1 restarts the Envelope as the wired 1 does, and a constant 0
+// does not.
+static void run_trigger_value_tests() {
+    std::printf("fire_triggers: an Envelope restarts on its trigger's value, wired or not\n");
+    bool listedA = false, listedB = false, listedC = false, listedD = false;
+    const auto a = render_trigger_line(1, -1, listedA);   // as loaded: the trigger a wired constant 1
+    const auto b = render_trigger_line(1, 1, listedB);    // unwired, the pin's constant 1
+    const auto c = render_trigger_line(1, 0, listedC);    // unwired, the pin's constant 0
+    const auto d = render_trigger_line(0, 0, listedD);    // "trigger": 0, unwired the same way
+    CHECK(listedA && listedB && listedC && listedD);
+    CHECK(!a.empty() && a == b);
+    CHECK(c != a);
+    CHECK(c == d);
+}
+
+// A Multiplex given a one-argument builder calls it once per clone, with the
+// clone's index, at every rebuild, and emits the clones' mean; a clone's inner
+// node that only the root's pin holds lives as long as the Multiplex.
+static void run_multiplex_builder_tests() {
+    std::printf("MultiplexSource: a builder that returns the clone's root\n");
+    std::vector<int> calls;
+    std::vector<std::weak_ptr<ValueSource>> inner;
+    auto allAlive = [&inner] {
+        bool alive = !inner.empty();
+        for (const auto& w : inner) alive = alive && !w.expired();
+        return alive;
+    };
+    MultiplexSource mux;
+    mux.set_setting("count", 3.0f);
+    mux.set_template([&calls, &inner](int i) -> std::shared_ptr<ValueSource> {
+        calls.push_back(i);
+        auto leaf = konst(float(i + 1));
+        inner.push_back(leaf);
+        return std::make_shared<CombinedSource>(leaf, konst(0.0f), CombineOp::Sum);
+    });
+    TestHost h;
+    mux.prepare(h.ctx);
+    CHECK(calls == std::vector<int>({0, 1, 2}));
+    CHECK(allAlive());
+    mux.start(64); h.clock.tick();
+    CHECK_NEAR(mux.next(), 2.0f, 1e-6f);                  // (1 + 2 + 3) / 3
+    calls.clear(); inner.clear();
+    mux.mark_dirty();
+    mux.prepare(h.ctx);
+    CHECK(calls == std::vector<int>({0, 1, 2}));
+    CHECK(allAlive());
+    calls.clear(); inner.clear();
+    mux.set_setting("count", 5.0f);
+    mux.prepare(h.ctx);
+    CHECK(calls == std::vector<int>({0, 1, 2, 3, 4}));
+    CHECK(allAlive());
+    mux.start(64); h.clock.tick();
+    CHECK_NEAR(mux.next(), 3.0f, 1e-6f);                  // (1 + 2 + 3 + 4 + 5) / 5
+}
+
+// The mixer's listed signals report under their ids after the channels'
+// reports, each once, as their bits are taken; with none listed the mixer
+// reports what its channels report.
+static void run_mixer_signal_fault_tests() {
+    std::printf("Mixer: the listed signals report under their ids, after the channels\n");
+    struct OnceFaultSource final : MonoSource {
+        bool reported{false};
+        void prepare(const RenderContext&) override {}
+        void render(float* out, int frames) override { std::fill(out, out + frames, 0.0f); }
+        void collect_faults(std::vector<FaultReport>& out) override {
+            if (!reported) out.push_back({"ch", "OnceFault", fault_bit(Fault::TableClamped)});
+            reported = true;
+        }
+    };
+    TestHost h;
+    auto a = std::make_shared<SineSource>();
+    a->set_param("frequency", konst(440.0f));
+    auto b = std::make_shared<SineSource>();
+    b->set_param("frequency", konst(0.0f));               // clamped: a fault
+    a->prepare(h.ctx); b->prepare(h.ctx);
+    a->start(16); b->start(16);
+    for (int i = 0; i < 4; ++i) { h.clock.tick(); a->next(); b->next(); }
+    Mixer m;
+    m.channels.push_back(Channel{std::make_unique<OnceFaultSource>(), nullptr, nullptr});
+    m.signals = {{"a", a}, {"b", b}};
+    std::vector<FaultReport> got;
+    m.collect_faults(got);
+    CHECK(got.size() == 2);
+    CHECK(got.size() == 2 && got[0].nodeId == "ch" && got[1].nodeId == "b");
+    CHECK(got.size() == 2 && std::string(got[1].type) == b->type_name()
+          && got[1].faults == fault_bit(Fault::FrequencyClamped));
+    got.clear();
+    m.collect_faults(got);
+    CHECK(got.empty());                                   // the bits were taken
+    Mixer plain;
+    plain.channels.push_back(Channel{std::make_unique<OnceFaultSource>(), nullptr, nullptr});
+    plain.collect_faults(got);
+    CHECK(got.size() == 1 && got[0].nodeId == "ch" && got[0].faults == fault_bit(Fault::TableClamped));
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -12413,6 +12590,11 @@ int main() {
     run_feed_shape_refusal_tests();
     run_declared_reader_tests();
     run_branch_key_tests();
+    run_gain_adj_range_tests();
+    run_evolution_unclamped_setting_tests();
+    run_trigger_value_tests();
+    run_multiplex_builder_tests();
+    run_mixer_signal_fault_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

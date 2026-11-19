@@ -19,10 +19,6 @@ struct HistogramEqualizeEvolution final : WaveEvolution {
 
   const char* type_name() const override { return "HistogramEqualizeEvolution"; }
 
-  void on_setting_changed(std::string_view name) override {
-    if (name == "bins") bins.value = std::clamp(bins.value, 4, 256);
-  }
-
   void on_prepare(const RenderContext&, int) override {
     cdf_.assign(size_t(std::max(2, bins.value)), 0.0f);
     counts_.assign(size_t(std::max(2, bins.value)), 0);

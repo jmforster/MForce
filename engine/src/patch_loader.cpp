@@ -7,7 +7,7 @@
 #include "mforce/source/output/stereo_mixer.h"
 #include "mforce/render/perform_source.h"
 #include "mforce/source/envelope/envelope.h"
-#include "mforce/source/envelope/envelope_json.h"
+#include "mforce/patch/envelope_preset.h"
 #include "mforce/render/instrument.h"
 #include "mforce/render/embedded_score.h"
 // Types still needed for special-case construction
@@ -212,45 +212,6 @@ struct GraphResult {
                              + (isSignal ? "" : ", a part, not a signal") + takes);
 }
 
-std::string retired_key_refusal(std::string_view type, std::string_view key, RetiredAt at)
-{
-    // Each spelling the engine does not read: the node type (empty: any),
-    // the key, where it sat, and what the converter rewrites it as.
-    struct Retired { std::string_view type, key; RetiredAt at; std::string_view becomes; };
-    static constexpr Retired kRetired[] = {
-        {"Envelope",          "stages",     RetiredAt::Key,        "the eight stage columns"},
-        {"CurveNode",         "knots",      RetiredAt::Key,        "the columns x and y"},
-        {"CurveNode",         "exprKnots",  RetiredAt::Key,        "the columns exprX, exprForm, exprA and exprB"},
-        {"PhasedValueSource", "stages",     RetiredAt::Key,        "sources and the columns percent, minSec, maxSec and gain"},
-        {"BWLowpassFilter",   "cutoff",     RetiredAt::Key,        "cutoffFreq"},
-        {"BWHighpassFilter",  "cutoff",     RetiredAt::Key,        "cutoffFreq"},
-        {"SVFSource",         "cutoff",     RetiredAt::Key,        "cutoffFreq"},
-        {"RepeatingSource",   "gap",        RetiredAt::Key,        "gapDuration"},
-        {"MultiSource",       "weight",     RetiredAt::FeedKey,    "the array weights"},
-        {"MultiSource",       "delay",      RetiredAt::FeedKey,    "the array delays"},
-        {"FullPartials",      "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
-        {"SequencePartials",  "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
-        {"ExplicitPartials",  "expandRule", RetiredAt::InlineSlot, "an ExpandRule node wired by ref"},
-        {"SoundChannel",      "inputs",     RetiredAt::NodeKey,    "the feed 'source' in params"},
-        {"StereoMixer",       "inputs",     RetiredAt::NodeKey,    "the feeds 'channels' in params"},
-        {"",                  "ui",         RetiredAt::TopKey,     "layout"},
-        {"",                  "groups",     RetiredAt::TopKey,     "layout.groups"},
-        {"",                  "_comment",   RetiredAt::TopKey,     "comment"},
-        {"",                  "_provenance", RetiredAt::TopKey,    "comment"},
-    };
-    for (const auto& r : kRetired) {
-        if ((!r.type.empty() && r.type != type) || r.key != key || r.at != at) continue;
-        const char* where = at == RetiredAt::FeedKey    ? " on a feed"
-                          : at == RetiredAt::InlineSlot ? " as an inline object"
-                          : at == RetiredAt::NodeKey    ? " beside params"
-                          : at == RetiredAt::TopKey     ? " at the top of the file"
-                                                        : "";
-        return "'" + std::string(key) + "'" + where
-             + " is no longer read: python tools/convert_patch.py <patch> rewrites it as " + std::string(r.becomes);
-    }
-    return {};
-}
-
 // Every key of a node's params is one the engine reads: a descriptor of
 // the node, or one of the keys the hand-written branches and configurators
 // consume (the allowlist below, grown until the whole gate corpus loads
@@ -311,39 +272,6 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
             throw std::runtime_error("node '" + id + "' (" + src.type_name()
                                      + "): unknown key '" + it.key() + "'");
     }
-}
-
-std::string ragged_table_refusal(const Component& node,
-                                 const std::function<int(const char* column)>& length)
-{
-    const auto arrays = node.array_descriptors();
-    for (size_t g = 0; g < arrays.size(); ++g) {
-        if (!arrays[g].groupName) continue;
-        const std::string_view group = arrays[g].groupName;
-        bool first = true;                      // the group is checked at its first column
-        for (size_t k = 0; k < g && first; ++k)
-            first = !(arrays[k].groupName && group == arrays[k].groupName);
-        if (!first) continue;
-        std::string got;
-        size_t columns = 0, present = 0;
-        int firstLength = 0;
-        bool oneLength = true;
-        for (const auto& d : arrays) {
-            if (!d.groupName || group != d.groupName) continue;
-            ++columns;
-            const int n = length(d.name);
-            if (n >= 0) {
-                if (present++ == 0) firstLength = n;
-                else oneLength = oneLength && n == firstLength;
-            }
-            got += std::string(got.empty() ? "" : ", ") + d.name + " "
-                 + (n >= 0 ? std::to_string(n) : std::string("absent"));
-        }
-        if (present != 0 && (present != columns || !oneLength))
-            return "table '" + std::string(group) + "' takes its columns at one length, "
-                   "all present or all absent (got " + got + ")";
-    }
-    return {};
 }
 
 // The table rule over a node's params: a key present but not an array counts
@@ -592,10 +520,8 @@ static void resolve_name_gate(NameGate& gate, const std::string& id,
 static json extract_subgraph_json(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::string& rootId);
-// Returns {root source, graphNodes by id}: the map holds the built clone's
-// nodes by id, and MultiplexSource keeps it per instance.
-static std::pair<std::shared_ptr<ValueSource>,
-                 std::unordered_map<std::string, std::shared_ptr<Component>>>
+// Returns the built clone's root source.
+static std::shared_ptr<ValueSource>
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
@@ -678,7 +604,7 @@ static GraphResult build_graph(
                 // and its table rule refuses a node that lacks one.
                 env = std::make_shared<Envelope>();
             } else {
-                // Shared preset dispatch (envelope_json.h) — the UI graph
+                // Shared preset dispatch (envelope_preset.h) — the UI graph
                 // loader calls the same function, so the two cannot drift.
                 env = envelope_from_preset_json(p);
             }
@@ -854,11 +780,9 @@ static json extract_subgraph_json(
 
 // Build a fresh root source from a subtree JSON string, XOR'ing every
 // node's seed param by seedPerturbation so N instances diverge
-// deterministically from a shared base seed. Returns {root, graphNodes}:
-// the map holds the clone's nodes by id, and MultiplexSource keeps it per
-// instance.
-static std::pair<std::shared_ptr<ValueSource>,
-                 std::unordered_map<std::string, std::shared_ptr<Component>>>
+// deterministically from a shared base seed. Returns the root: every node
+// of the clone is held through the root's pins and the taps' handles.
+static std::shared_ptr<ValueSource>
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
@@ -890,7 +814,7 @@ build_subgraph_with_seed_perturbation(
     auto it = g.nodes.find(outputId);
     if (it == g.nodes.end())
         throw std::runtime_error("build_subgraph: output '" + outputId + "' not found");
-    return {as_signal(it->second, outputId), std::move(g.nodes)};
+    return as_signal(it->second, outputId);
 }
 
 // ---------------------------------------------------------------------------

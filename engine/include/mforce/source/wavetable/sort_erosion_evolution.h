@@ -18,10 +18,6 @@ struct SortErosionEvolution final : WaveEvolution {
 
   const char* type_name() const override { return "SortErosionEvolution"; }
 
-  void on_setting_changed(std::string_view name) override {
-    if (name == "swapsPerSample") swapsPerSample.value = std::max(1, swapsPerSample.value);
-  }
-
   void adjust(float /*frequency*/) override {
     pos_ = 0;
   }

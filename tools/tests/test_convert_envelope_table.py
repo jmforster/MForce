@@ -15,14 +15,14 @@ from convert_rules import envelope_table  # noqa: E402
 
 COLUMNS = ["startVal", "endVal", "power", "type", "percent", "minSec", "maxSec", "nominal"]
 
-ENVELOPE_JSON_H = os.path.join(os.path.dirname(__file__), "..", "..", "engine", "include", "mforce",
-                               "source", "envelope", "envelope_json.h")
+ENVELOPE_PRESET_H = os.path.join(os.path.dirname(__file__), "..", "..", "engine", "include", "mforce",
+                                 "patch", "envelope_preset.h")
 
 
 def header_preset_keys():
     """The names in envelope_preset_keys()' brace list, read off
-    envelope_json.h, in its order."""
-    with open(ENVELOPE_JSON_H, encoding="utf-8") as f:
+    envelope_preset.h, in its order."""
+    with open(ENVELOPE_PRESET_H, encoding="utf-8") as f:
         text = f.read()
     body = text[text.index("envelope_preset_keys()"):]
     braces = re.search(r"for \(const char\* k : \{(.*?)\}\)", body, re.S)
@@ -287,7 +287,7 @@ class SustainLevelTests(unittest.TestCase):
 class PresetTests(unittest.TestCase):
     PRESET_KEYS = header_preset_keys()
 
-    # What each builder in envelope_json.h reads, besides "preset".
+    # What each builder in envelope_preset.h reads, besides "preset".
     READS = {
         "ar": {"attack", "attackMin", "attackMax", "attackCurve", "attackPower",
                "releaseCurve", "releasePower"},

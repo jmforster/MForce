@@ -55,9 +55,8 @@ CLI = os.path.join(ROOT, "build", "tools", "mforce_cli", "Release", "mforce_cli.
 # invent one.
 SCRAPE_SOURCES = ("engine/src/patch_loader.cpp",
                   "engine/src/source/source_registrations.cpp",
-                  # Shared preset-form Envelope dispatch — the adsr/ar keys
-                  # moved here from patch_loader.cpp 2026-08-13.
-                  "engine/include/mforce/source/envelope/envelope_json.h")
+                  # The Envelope's preset table: the keys its six builders read.
+                  "engine/include/mforce/patch/envelope_preset.h")
 
 # `p.value("k", ...)`, `p.contains("k")`, `p.at("k")`, `p["k"]`, and the
 # `for (const char* k : {"a","b"})` loops patch_loader uses.

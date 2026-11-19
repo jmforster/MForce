@@ -21,7 +21,8 @@ struct CombinedSource final : ValueSource {
   Input source1{this, "source1"};
   Input source2{this, "source2"};
   Setting<int>   operation{this, "operation", 0, 0, 3, kOpLabels};
-  Setting<float> gainAdj  {this, "gainAdj", 0.0f, -1.0f, 10.0f};
+  // Scales the second operand by 1 + gainAdj, so -2 subtracts it.
+  Setting<float> gainAdj  {this, "gainAdj", 0.0f, -100.0f, 100.0f};
 
   CombinedSource(std::shared_ptr<ValueSource> s1, std::shared_ptr<ValueSource> s2,
                  CombineOp op, float ga = 0.0f) {

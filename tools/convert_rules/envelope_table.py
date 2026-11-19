@@ -21,7 +21,7 @@ shape the key is left as it is.
 
 On a preset-form Envelope ("preset" one of the six forms, no "stages"), a key
 of the preset form that the node's form does not read is dropped with a note:
-PRESET_READS is read off envelope_json.h builder by builder. sustainLevel is
+PRESET_READS is read off envelope_preset.h builder by builder. sustainLevel is
 a setting on every Envelope and is never dropped; timeMode is dead on every
 form but adsr. A preset name outside the six is the loader's to refuse, and
 the node is left as it is. An Envelope with neither form (no stages, no
@@ -58,7 +58,7 @@ PRESET_KEYS = ("preset", "attack", "attackCurve", "attackPower", "attackMin", "a
 # The preset keys a stage list never read: all but the two it reads itself.
 STAGE_DEAD_KEYS = tuple(k for k in PRESET_KEYS if k not in ("preset", "sustainLevel", "timeMode"))
 
-# What each builder in envelope_json.h reads besides "preset": its factory's
+# What each builder in envelope_preset.h reads besides "preset": its factory's
 # p.value(...) keys, and "<stage>Curve" and "<stage>Power" for each shape(...)
 # call.
 PRESET_READS = {
