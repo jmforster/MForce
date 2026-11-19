@@ -19,6 +19,48 @@ given.
 
 ## Awaiting
 
+**R20 — checkpoint 4.5: the terminal types and the document's spellings**
+(2026-11-18, commits `061a606`..`60ae3c1`, fix wave `f9a7e43`; report
+`docs/autonomy/refactor/reports/2026-11-18-checkpoint-4.5.md`). Nothing for
+your ears: 0 of the 131 moved. Nothing to decide. The four rulings you were
+shown before your "Go" were built as written.
+- 784 of your patch files were rewritten (18 library, 39 baselines, 689 in
+  audition, 38 in pending). The originals are kept: pending's at
+  `renders/scratch/ab45/pending_before/` and, this time, audition's 689 at
+  `renders/scratch/ab45/audition_before/`. Only spellings changed: a
+  channel's and a mixer's `inputs` are feeds in `params`; `ui` and `groups`
+  are one `layout` block; `_comment` is `comment`; an enum written as a
+  number is its word (`"operation": 3` is `"Sum"`). The report's section 1
+  shows each before and after.
+- In `patches/scratch` and `old`, 7 and 60 plain sounds that rendered
+  yesterday are refused today until `python tools/convert_patch.py <file
+  or folder>` rewrites them; the refusal names that command. None in
+  sweep.
+- Until 4.7, an unconverted file whose only old spellings are `ui`,
+  `groups`, `_comment` or `_provenance` renders from the command line and
+  will not open in the editor (about 200 sweep files, 3 in scratch, 4 in
+  old). The editor refuses it before touching the graph you have open; it
+  would otherwise have opened with no positions and saved with none. The
+  same command converts it.
+- Look, when you next open the editor (none of it was clicked in a running
+  editor this session): a Mixer has one `channels` pin that takes any
+  number of Channels, and the `+` button on its title bar is gone; its
+  outputs read `out` and `tap` where they read `outL` and `outR`; a
+  Channel's unlinked `source` is a gray name with no number; File > Save on
+  a plain sound keeps the file's `seconds` (it wrote 5 whatever the file
+  said); a baseline's comment survives a Save (the editor dropped it
+  before). If any of that is otherwise, say so.
+- One thing in CLEANUP you may want an opinion on some day (row 94): the
+  mixer advances a wired gain once per channel, so with two channels a
+  gain LFO runs twice as fast. It is the engine's behaviour from before
+  the refactor and nothing in library or baselines has the shape; mending
+  it would move a render, so it waits for Part 8.
+- The review found one wrong refusal and two ways the editor could lose
+  data, all three in shapes none of your files has: two channels sharing a
+  Multiplex's template were refused; a Note field written by index or in
+  another case was dropped at a Save; a plain sound with no Mixer was saved
+  with no output. Fixed, with tests; the report's section 8 has them.
+
 **R19 — checkpoint 4.4: every type a declaration** (2026-11-17, commits
 `a66d60f`..`590a819`, fix wave `96539b8`, a second wave of comments and
 tests `6b0e17f`; report

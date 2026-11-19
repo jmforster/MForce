@@ -120,9 +120,10 @@ colour and the create menu follow from it (target architecture, section 3.2).
 | Physical | Processor | KS String, Delay Line, Allpass Resonator, Mesh 2D, Pierce Filter, Bow Table |
 | Filters | Processor | BW Lowpass, BW Highpass, BW Bandpass, SVF, Biquad, Delay, Reverb, Limiter, Hammer Bank, Distortion, Shaper |
 | Envelopes | Generator | Envelope (one type; AR, AS, ASR, ADS, ADR, ADSR become its presets), Phased, Segment, Vibrato |
-| Modulators | mixed | Var (Generator), Range (Generator, until retired), Curve (Processor), Name Gate (Generator), Repeating (Processor) |
+| Modulators | mixed | Var (Generator), Range (Generator, until retired), Curve (Processor), Name Gate (Generator), Repeating (Processor), Note Field (Generator; on no shelf: the editor's Note makes one per field wired) |
 | Combiners | Processor | Combined, Crossfade, Multi, Multiplex |
 | Utility | mixed | Constant, Static Var, Static Range, Wormhole (a pass-through for the editor) |
+| Output | parts (`Component`) | Channel, Mixer: what ends a plain sound. Declarations the plain-sound build reads; neither computes a sample. On no shelf, so in no generated menu (added at checkpoint 4.5, with Note Field, a Modulator on no shelf) |
 
 Notes on the placements that moved:
 

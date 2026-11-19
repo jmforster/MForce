@@ -1,49 +1,87 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-11-18, morning (refactor session XIX, Fable 5.2 xhigh; the
-plan written at xhigh as 4.1's to 4.4's were).
-NEXT SESSION STARTS HERE: CHECKPOINT 4.5'S PLAN IS WRITTEN —
-`docs/superpowers/plans/2026-11-18-part4-checkpoint-4.5.md` ("the terminal
-types and the document's spellings"), in 4.4's shape, from a survey of the
-loader whole, the pin headers, the registry, the editor's thirty-four lines
-that name a terminal type with its load, savers and clipboards, the
-converter, the roundtrip gate and a census of all 3,146 patch files (its
-Architecture paragraph, ten numbered facts; the census scripts and their
-output are in `renders/scratch/ab45/planning/`). IT AWAITS MATT'S GO-AHEAD;
-nothing of 4.5 is built and the plan is uncommitted with this file (Task 0
-commits both). Seven tasks: 0 the base, the arms (4.4's close arms,
-unrendered: the build's command-line binary is byte-equal to
-`cli_post44.exe`), the census, a synthetic set; 1 the engine (`SoundChannel`
-and `StereoMixer` as registered parts in `Family::Output`, `PerformNode`
-registered, `Shelf::None`, the plain-sound path reading the parts' pins, a
-node reached from two pull loops refused, the preset curves and the
-descriptor dump taking labels); 2 the editor (Channel and Mixer from the
-registry, `layout` and `comment`, `--roundtrip` by graph mode so the 27
-in-scope plain sounds are render-compared); 3 the converter's five rules
-(`terminal_inputs`, `enum_labels`, `dead_keys`, `comment`, `layout`); 4 the
-tree converted (784 files: library 18, baselines 39 — 57 tracked — audition
-689, pending 38) under Task 1's and Task 2's binaries; 5 the old forms
-refused and their readers deleted; 6 the close. WHAT THE PLAN ASKS MATT TO
-NOTICE: Ledger 4 (`Shelf::None`, a third shelf: registered, in no generated
-menu); Ledger 10 (a Note face carries its own position, `faces[i].pos` — a
-field Part 4's record does not list); Ledger 14 (the enum rule also rewrites
-a label in another case, 109 files, and the preset form's curve keys, CLEANUP
-25); Ledger 16 (what he will see in the editor: the Mixer's one `channels`
-pin in place of `ch N` and the `+` button, `out` and `tap` in place of `outL`
-and `outR`, a node-graph save keeping `seconds`). CENSUS FACTS THE EXECUTION
-CARRIES: every plain sound in the tree has one mixer and one channel, every
-gain, volume and pan in the four folders is a number, so the multi-channel
-path and the sharing refusal are heard by tests and synthetics alone; 8.1's
-row lacks `Biquad.mode` (134 in-scope nodes by index, not 126), the labels in
-another case, the preset curves and the two dead keys (`instrument.release`
-in 36 audition files, a null `dynamicPins` inside `params` in 14); fifteen
-files hold a `__param_frequency` position that names no node;
-`patches/library/winds/clarinet1.json` is `Clarinet1.json` in git's index.
-Usage as read Wed 11-18 at 08:30 HST: weekly Fable 29 percent (26 at the
-session's start), all-models 22, both resetting Saturday 2026-11-21 at 02:00
-HST; 4.4 cost thirteen Fable points. This session stands at about 480k
-tokens. GIT: main level with origin; uncommitted — the plan (new), this file;
-GOALS.md Matt's own, never staged.
+Updated: 2026-11-18, afternoon (refactor session XIX, Fable 5.2 xhigh
+coordinating; Opus 5.5 executors, reviewer and re-reader).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.5 LANDED on main — `e96e245` (the
+plan; the base), `061a606` (the converter's five rules), `09aa437` (the
+three registered types, `Family::Output`, `Shelf::None`, the plain-sound
+path on the parts' pins, the sharing refusal), `cfb46e7` (the editor: Channel
+and Mixer from the registry, `layout` and `comment`), `e953579` (the tree
+converted: 57 tracked files, 689 audition, 38 pending), `60ae3c1` (the old
+spellings refused; the old readers deleted), `f9a7e43` (the review's fix
+wave), then the docs commit. Report R20
+(`docs/autonomy/refactor/reports/2026-11-18-checkpoint-4.5.md`) is in REVIEW:
+nothing for Matt's ears, nothing to decide, a list to look at in the editor.
+0 of the 131 moved; the nine, 4.4's 52 synthetics, 89 of this checkpoint's 91
+(the other two refused on purpose) and the 21 comp templates the same; timing
+flat (0.997, 1.001). Mutation run: 52 of 57 caught, 2 findings (one a new
+smoke case, one booked). Review R20: 0 Critical, 3 Major, all fixed (the
+sharing refusal refused a Multiplex's template; the editor lost a Note field
+written by index or in another case; a plain sound with a bare output was
+saved with none); the re-read found wording alone, so one fix wave. THE
+PLAN'S LEDGER IS THE RECORD
+(`docs/superpowers/plans/2026-11-18-part4-checkpoint-4.5.md`, rulings 1-37
+and every task's block). `engine_tests` 9,889 checks, tool tests 346, smoke
+29 side cases, registrations 78, families 11, `kBranchKeys` 59, one
+configurator left (`FormantSequence`), four loader branches left (the
+Envelope's preset form, `PerformNode`, `NameGate`'s name resolution,
+`MultiplexSource`).
+NEXT: CHECKPOINT 4.6'S PLAN (Part 4 §8.1 row 4.6, the module beside the
+loader: `engine/include/mforce/patch/` with the records, `Fragment`,
+`patch_json`, the declarations table with slot acceptance, `build_graph`,
+`Patch::check()`; `build_instrument(const Patch&)` and
+`build_sound(const Patch&)`; `mforce_cli --check`; the twin gate of 8.3; its
+first task the count of settings outside their declared range and the four
+clamp hooks, CLEANUP 19). The next session surveys and writes it for Matt's
+go-ahead; nothing of 4.6 is planned or built. It builds the new module's
+interfaces (the records, the codec, the builder): offer max before the
+design work.
+WHAT 4.6'S PLAN INHERITS:
+- Arms, no render needed: `renders/scratch/ab45/old/hashes.txt` with
+  `library_baselines_131.txt` (no render moved, so the old arm is still the
+  131's truth; one path is `Clarinet1.json` in git's index, CLEANUP 100),
+  `scoreless_new/` (the nine in today's form; old hashes in
+  `scoreless/old/hashes.txt`, compared by file name), `synth_new/` (91
+  synthetics in today's form, old hashes in `synth/old/hashes.txt`; d1 and d2
+  must be refused), `synth44_new/` (52), comp stage `post45`,
+  `renders/scratch/ab_tree/cli_post45.exe` (`69eaf251...6b438a`, the build of
+  `f9a7e43`) and `ui_post45.exe`.
+- Scripts worth copying to `ab46/`: `renders/scratch/ab45/engine_gates.py`
+  and `editor_gates.py` (every gate by its own command, ending in the
+  binary's sha256), `coord_commit.py`, `briefs/rules.md`,
+  `final/time_ab.py`. MEND FIRST: the gate script runs every gate whatever
+  the build said, so a failed build leaves PASS lines from a stale binary
+  (Task 1's first run did); make it stop at the build.
+- Every file of the four folders already holds only keys the codec's record
+  has a place for, at the top, on a node and in the instrument block; what
+  remains outside a type's declarations is the Envelope's preset form. So
+  `--check` over the four folders should start green, and anything red is a
+  finding about the codec.
+- Facts 4.6 meets (Part 4 §8.1's 4.5 paragraph; CLEANUP 87, 89, 90, 94, 96,
+  98, 99, 104): the loader's five stderr warnings become
+  `BuiltGraph::warnings`; a plain sound's odd shapes (a tap or a number as a
+  channel's source, a tap into a slot) are `Patch::check()`'s to judge; the
+  sharing refusal assumes every ref under `params` is pulled, settled for the
+  Multiplex alone; a tap inside a Multiplex template to a node outside it
+  fails to load; the mixer advances a wired gain once per channel, so the
+  twin must build channels in the file's order with the same clock.
+- THE LESSONS OF 4.5: a new refusal needs the question "what does it refuse
+  that the base played", asked with a base binary and files written for it
+  ("no file in the tree meets it" was true and the refusal was still wrong);
+  a round trip that reproduces a file's bytes does not prove the editor
+  modelled the node (what it does not model it carries untouched); a test of
+  order needs something that makes order matter; when a fix needs the
+  loader's rule in the editor, export the loader's function (ruling 37);
+  MSVC does not warn on a `switch` missing an enumerator (C4062 off).
+- The four verification rules held: one fix wave, no coordinator gate run
+  beyond the null gate at each commit; the coordinator's one own edit after
+  the wave was a docstring (the tool tests rerun).
+Usage as read Wed 11-18 at 14:30 HST: weekly Fable 41 percent (26 at the
+session's start, 29 when the plan was approved: 4.5 cost twelve Fable
+points to execute), all-models 32, both resetting Saturday 2026-11-21 at
+02:00 HST. This session stands at about 360k tokens after one compaction.
+GIT: main ahead of origin by the checkpoint's commits (the plan's `e96e245`
+onward); GOALS.md Matt's own, never staged.
 
 ---
 

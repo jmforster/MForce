@@ -26,6 +26,21 @@
    ]
   ],
   [
+   46,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     2785,
+     2830
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     3028,
+     3072
+    ]
+   ]
+  ],
+  [
    45,
    [
     [
@@ -62,21 +77,6 @@
      "tools/stk_ref/clarinet_ref.cpp",
      7,
      51
-    ]
-   ]
-  ],
-  [
-   44,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     2728,
-     2771
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     3000,
-     3042
     ]
    ]
   ],
@@ -196,21 +196,6 @@
    ]
   ],
   [
-   23,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     158,
-     180
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     716,
-     738
-    ]
-   ]
-  ],
-  [
    22,
    [
     [
@@ -267,6 +252,21 @@
      "engine/include/mforce/source/filter/hammer_bank.h",
      8,
      31
+    ]
+   ]
+  ],
+  [
+   20,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     161,
+     180
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     719,
+     738
     ]
    ]
   ],
@@ -415,13 +415,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11151,
-     11168
+     11165,
+     11182
     ],
     [
      "tools/mforce_ui/main.cpp",
-     11287,
-     11304
+     11301,
+     11318
     ]
    ]
   ],
@@ -500,13 +500,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4815,
-     4830
+     4820,
+     4835
     ],
     [
      "tools/engine_tests/main.cpp",
-     5109,
-     5124
+     5114,
+     5129
     ]
    ]
   ],
@@ -565,13 +565,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     360,
-     374
+     366,
+     380
     ],
     [
      "tools/mforce_ui/main.cpp",
-     1339,
-     1352
+     1333,
+     1346
     ]
    ]
   ],
@@ -595,13 +595,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     10969,
-     10983
+     10983,
+     10997
     ],
     [
      "tools/mforce_ui/main.cpp",
-     11169,
-     11183
+     11183,
+     11197
     ]
    ]
   ],
@@ -659,6 +659,21 @@
    14,
    [
     [
+     "engine/src/patch_loader.cpp",
+     526,
+     539
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     1360,
+     1372
+    ]
+   ]
+  ],
+  [
+   14,
+   [
+    [
      "tools/mforce_cli/main.cpp",
      107,
      120
@@ -675,13 +690,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     10970,
-     10983
+     10984,
+     10997
     ],
     [
      "tools/mforce_ui/main.cpp",
-     11170,
-     11183
+     11184,
+     11197
     ]
    ]
   ],
@@ -765,13 +780,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     8470,
-     8482
+     8489,
+     8501
     ],
     [
      "tools/mforce_ui/main.cpp",
-     8500,
-     8511
+     8519,
+     8530
     ]
    ]
   ],
@@ -860,13 +875,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11638,
-     11649
+     11652,
+     11663
     ],
     [
      "tools/mforce_ui/main.cpp",
-     11700,
-     11710
+     11714,
+     11724
     ]
    ]
   ],
@@ -1055,18 +1070,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4817,
-     4827
+     4822,
+     4832
     ],
     [
      "tools/engine_tests/main.cpp",
-     5111,
-     5121
+     5116,
+     5126
     ],
     [
      "tools/engine_tests/main.cpp",
-     5638,
-     5648
+     5643,
+     5653
     ]
    ]
   ],
@@ -1075,13 +1090,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2649,
-     2659
+     2706,
+     2716
     ],
     [
      "tools/mforce_ui/main.cpp",
-     2968,
-     2977
+     2996,
+     3005
     ]
    ]
   ],
@@ -1090,28 +1105,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2857,
-     2867
+     8504,
+     8514
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3051,
-     3061
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     8485,
-     8495
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     8518,
-     8527
+     8537,
+     8546
     ]
    ]
   ]
@@ -1511,7 +1511,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 120,
+   "lines": 124,
    "longest_function": [
     0,
     ""
@@ -2576,7 +2576,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 67,
+   "lines": 72,
    "longest_function": [
     0,
     ""
@@ -2999,7 +2999,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 146,
+   "lines": 157,
    "longest_function": [
     26,
     "mforce::envelope_form::adsr"
@@ -3248,6 +3248,21 @@
    "mutable_vars": 0,
    "types": [
     "NameGate"
+   ]
+  },
+  "engine/include/mforce/source/modulator/perform_node.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 21,
+   "longest_function": [
+    1,
+    "mforce::PerformNode::type_name"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "PerformNode"
    ]
   },
   "engine/include/mforce/source/modulator/range_source.h": {
@@ -3576,6 +3591,36 @@
    "mutable_vars": 0,
    "types": [
     "TriangleSource"
+   ]
+  },
+  "engine/include/mforce/source/output/sound_channel.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 21,
+   "longest_function": [
+    1,
+    "mforce::SoundChannel::type_name"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "SoundChannel"
+   ]
+  },
+  "engine/include/mforce/source/output/stereo_mixer.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 21,
+   "longest_function": [
+    1,
+    "mforce::StereoMixer::type_name"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "StereoMixer"
    ]
   },
   "engine/include/mforce/source/physical/allpass_resonator.h": {
@@ -4050,9 +4095,9 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 4,
-   "lines": 1296,
+   "lines": 1383,
    "longest_function": [
-    207,
+    208,
     "mforce::build_graph"
    ],
    "module": "render",
@@ -4061,8 +4106,10 @@
     "ValueSourceMono",
     "TapBind",
     "TapBindScope",
+    "FeedKind",
     "GraphResult",
     "PerformContext",
+    "PullLoop",
     "IndexedGraph"
    ]
   },
@@ -4096,9 +4143,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 470,
+   "lines": 490,
    "longest_function": [
-    382,
+    399,
     "mforce::register_all_sources"
    ],
    "module": "source",
@@ -4135,7 +4182,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 141,
+   "lines": 142,
    "longest_function": [
     22,
     "mforce::derived_label"
@@ -4318,8 +4365,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 31,
-   "lines": 11812,
+   "dynamic_cast": 33,
+   "lines": 12419,
    "longest_function": [
     324,
     "run_envelope_table_tests"
@@ -4370,7 +4417,9 @@
     "Feed",
     "MultiCase",
     "Row",
-    "PhasedCase"
+    "PhasedCase",
+    "Chan",
+    "Case"
    ]
   },
   "tools/mforce_cli/explore.cpp": {
@@ -4406,7 +4455,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1140,
+   "lines": 1153,
    "longest_function": [
     174,
     "run_compose"
@@ -4431,16 +4480,16 @@
    "types": []
   },
   "tools/mforce_ui/main.cpp": {
-   "changelog_comments": 106,
+   "changelog_comments": 104,
    "const_cast": 0,
    "dynamic_cast": 13,
-   "lines": 13489,
+   "lines": 13506,
    "longest_function": [
-    1704,
+    1707,
     "main"
    ],
    "module": "ui",
-   "mutable_vars": 86,
+   "mutable_vars": 88,
    "types": [
     "GraphMode",
     "UiPinKind",
@@ -4471,7 +4520,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 44,
+   "lines": 45,
    "longest_function": [
     1,
     "theme"
@@ -4735,16 +4784,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 215,
+  "changelog_comments": 213,
   "const_cast": 10,
-  "duplicate_blocks": 155,
-  "dynamic_cast": 61,
-  "file_level_mutable_vars": 118,
-  "files": 223,
+  "duplicate_blocks": 156,
+  "dynamic_cast": 63,
+  "file_level_mutable_vars": 120,
+  "files": 226,
   "files_over_limit": 18,
   "functions_over_limit": 96,
   "include_violations": 12,
-  "lines": 63944,
+  "lines": 64773,
   "unmapped_files": 0
  }
 }

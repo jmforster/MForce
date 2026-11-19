@@ -599,7 +599,8 @@ struct InstrumentBlock {
 
 struct Vec2 { float x{0}, y{0}; };
 struct Group    { std::string name; std::vector<std::string> members; Vec2 pos; };
-struct NoteFace { std::string label; std::map<std::string, std::string> fields; };   // field -> the file node it reads
+struct NoteFace { std::string label; std::map<std::string, std::string> fields;      // field -> the file node it reads
+                  std::optional<Vec2> pos; };                                       // the face's own position (amended at 4.5: a face is not a node, so `positions` does not hold it)
 struct Layout {
   std::map<std::string, Vec2> positions;                 // by node id
   std::optional<Vec2> outputPos;                         // the editor's Output node ("__output" today)
@@ -892,7 +893,8 @@ The file keeps the shape it has, with the shadows removed:
   "layout": { "positions": {"Breath_curve": [-1108.2, -265.7], …},
               "output": [1716.0, 352.0], "panning": [1716.0, 352.0],
               "groups": [{"name": "Breath", "members": […], "pos": [x, y]}],
-              "faces": [{"label": "Note1", "fields": {"frequency": "__perf_frequency"}}] }
+              "faces": [{"label": "Note1", "fields": {"frequency": "__perf_frequency"},
+                         "pos": [-1400.0, 120.0]}] }
 }
 ```
 
@@ -912,7 +914,9 @@ The file keeps the shape it has, with the shadows removed:
 - **One `layout` block** replaces `ui` and the top-level `groups`:
   `positions`, `output` (the editor's Output node position, `__output`
   today), `panning`, `groups`, `faces` (`noteFaces` today). Editor data
-  under one name, written only when present.
+  under one name, written only when present. A face carries its own
+  `pos`, as a group does (as landed at 4.5: the old form kept it in
+  `positions` under the face's label, a key that names no node).
 - **`_comment` and `_provenance` become `comment`**, at the patch or the
   node (3.7).
 
@@ -1203,7 +1207,16 @@ builder, one per concept no declaration expresses:
   that returns 0 and is never reached. Family Modulators, label "Note
   Field" — a menu placement, decided here under the 11-02 rule and
   logged in CLEANUP at the checkpoint; the editor's Note face keeps
-  creating them per field (Part 7 may replace the device).
+  creating them per field (Part 7 may replace the device). **As landed
+  at 4.5:** the family and the label are as written, and the type sits
+  on a third shelf, `Shelf::None` — registered, and offered by no
+  generated menu — with `SoundChannel` and `StereoMixer`. Each of the
+  three is made by an item of the editor's own, which carries a rule no
+  registration states (a Note in an instrument only; a Channel and a
+  Mixer in a plain sound only, one Mixer to a graph), and none may be
+  offered by Replace-with. The six field words live once, on the type
+  (`PerformNode::kFieldLabels`), tied to `PerformOut::Field`'s order by
+  a compile-time check in the loader.
 - **`NameGate` — a vocabulary.** `strings["name"]` resolves to the
   onset id against the block's `onsets`, 1-based; a name outside the
   vocabulary is a warning, as today's stderr line. Inside a Multiplex
@@ -1804,7 +1817,8 @@ After any operation, `check()` is empty when it was empty before:
 2. `output` empty or naming a node; when naming one, a signal type or the
    mixer part;
 3. every feed, tap, dynamic-pin source, group member, face field and
-   layout key names a node (or a group, for a member);
+   layout key names a node (or a group or a face, for a member: 133 files
+   of the four folders group a Note face; corrected at 4.5);
 4. a pin holds a constant or feeds, never both; a multi input is the only
    pin with several feeds; a tap feeds a Param or an Input only;
 5. every pin, setting, string, array and dynamic pin names a declaration
@@ -2291,6 +2305,62 @@ transitional binary before the tree is touched (Task 5 stopped on
 binary's hash names a build and not a source state; scratch and old hold
 10 and 67 files with a form this checkpoint retired, sweep none.
 
+**4.5 landed 2026-11-18** (`061a606`..`60ae3c1`, the review's fix wave
+`f9a7e43`; plan
+`docs/superpowers/plans/2026-11-18-part4-checkpoint-4.5.md`; report R20,
+`docs/autonomy/refactor/reports/2026-11-18-checkpoint-4.5.md`). As the row
+says, with these facts the execution added. **Two additions the row does
+not name**: a third shelf, `Shelf::None` — registered, and in no generated
+menu — which the three types sit on (5.4); and a Note face's own position,
+`faces[i].pos` (3.1, 4.3). On disk **784 files, 57 of them tracked**
+(library 18, baselines 39, audition 689, pending 38), by five converter
+rules: `inputs` folded into `params` (381 files), `ui` and `groups`
+gathered as `layout` (284), `_comment` and `_provenance` as `comment`
+(17), an enum as its declared label (333), two keys nothing reads dropped
+(50). The row's counts were short by what its census had not looked for:
+`Biquad.mode` by index (134 in-scope nodes, not 126), a label in another
+case (`multiply`, `sum`, `lowpass`: 109 files), a preset Envelope's three
+curve keys (CLEANUP 25), `instrument.release` and a null `dynamicPins`
+inside `params` (CLEANUP 74), and fifteen positions that named no node,
+which were dropped. 0 of the 131 moved, measured with the engine changed
+and the files not, with the files converted under binaries that were not
+rebuilt, with the old readers deleted, and after the fix wave; the nine
+score-less files, 4.4's 52 synthetics and 89 of this checkpoint's 91 are
+identical too, the other two being shapes the new refusal exists to
+refuse. The two parts are declarations and nothing else, with no
+`validate()`: an instrument may hold a mixer nobody reads and an empty
+mixer renders silence, so it is the build that refuses a listed channel
+with no source (5.8). **The sharing refusal's walk** takes its roots from
+the built parts and its edges from the file's `{"ref"}` values; it does
+not follow a tap, and it does not follow the ref under a
+`MultiplexSource`'s `source`, whose template the Multiplex copies and
+nobody else pulls (the review found the walk refusing two shapes the base
+played; mended in the fix wave). **The old spellings are refused from the
+one table by where they sat**, in two places more: a key of a node beside
+`params` (`inputs`) and a key of the document (`ui`, `groups`, `_comment`,
+`_provenance`). The engine asks every place but the last and the editor
+all of them, so until 4.7 a file whose only old spellings are top-level
+renders from the command line and is refused by the editor (8.4). The
+roundtrip gate render-compares the 27 in-scope plain sounds from here:
+`--roundtrip` saves by the graph's mode, and a node-graph save keeps the
+file's `seconds`. The editor carries `comment` at both levels through a
+load and a save and shows it nowhere. Facts for later checkpoints: every
+file of the four folders holds — at the top, on a node and in the
+instrument block — only keys the codec's record has a place for (a scan
+written apart from the converter finds nothing else), which is the state
+4.6's `--check` expects to find; the live `Mixer` advances a wired gain
+once per channel, and that is the only way channel order reaches a render
+(CLEANUP 94; mending it moves a render); the loader's `perform_field` and
+the editor's `perform_field_index` are one function written twice until
+4.7 (CLEANUP 87); the loader's key allowlist is 59 entries; a tap inside a
+Multiplex template to a node outside it fails to load, and the sharing
+refusal assumes every ref under `params` is pulled, which was settled for
+the Multiplex alone (CLEANUP 104; both meet 5.5's template); MSVC does not
+flag a `switch` over `Family` that lacks a case, so tests are what list
+the places a new family must be answered (CLEANUP 95); sweep, scratch and
+old hold 107, 13 and 548 files with `inputs`, of which 0, 7 and 60 loaded
+before (8.4).
+
 ### 8.2 Why this order (proposed)
 
 - **4.1 first** because it holds the part's one listening change, and a
@@ -2380,6 +2450,17 @@ Sweep (1,370 files), scratch (71) and old (821) are not converted
 
 `python tools/convert_patch.py <file or folder>` is the way back in, and
 every refusal names it.
+
+**As measured at 4.5's close.** The 4.5 row counts the files that hold
+`inputs`. Most of them already failed for an older reason — sweep's 107
+all hold a type that is not registered, and 488 of old's hold a deleted
+type or a form an earlier row retired — so the files the command-line tool
+rendered before 4.5 and refuses after it are 0, 7 and 60. From 4.5 the
+*editor* also refuses a top-level `ui`, `groups`, `_comment` or
+`_provenance`, before it clears anything: 1,120, 57 and 46 files hold one
+of those and no `inputs`. The command-line tool goes on ignoring those
+four keys until the 4.7 row, so in that window such a file renders from
+the command line and does not open in the editor until converted.
 
 ### 8.5 What Part 4 hands on (proposed)
 

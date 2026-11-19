@@ -27,8 +27,8 @@ is marked an enum and given no labels was dumped by an mforce_cli that
 prints no labels, and such a tool prints no "arrayLabels" and no PerformNode
 either: when the rule takes the table, that stops the file with a
 RuntimeError, which the driver reports as the file's refusal, whatever the
-document holds, so a stale table leaves no setting, column element or
-PerformNode field silently unwritten.
+document holds. The stop reads the settings alone: a table whose settings
+carry labels is taken as it is.
 """
 from collections import Counter
 
