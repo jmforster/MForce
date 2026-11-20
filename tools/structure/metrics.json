@@ -111,17 +111,17 @@
    ]
   ],
   [
-   40,
+   39,
    [
     [
      "engine/include/mforce/source/filter/bw_highpass_filter.h",
      10,
-     49
+     48
     ],
     [
      "engine/include/mforce/source/filter/bw_lowpass_filter.h",
      10,
-     54
+     53
     ]
    ]
   ],
@@ -256,32 +256,17 @@
    ]
   ],
   [
-   20,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     161,
-     180
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     719,
-     738
-    ]
-   ]
-  ],
-  [
    19,
    [
     [
      "engine/include/mforce/render/instrument.h",
-     655,
-     673
+     654,
+     672
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     710,
-     722
+     709,
+     721
     ]
    ]
   ],
@@ -500,13 +485,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4820,
-     4835
+     4985,
+     5000
     ],
     [
      "tools/engine_tests/main.cpp",
-     5114,
-     5129
+     5279,
+     5294
     ]
    ]
   ],
@@ -565,8 +550,8 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     366,
-     380
+     294,
+     308
     ],
     [
      "tools/mforce_ui/main.cpp",
@@ -580,13 +565,13 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     633,
-     647
+     637,
+     651
     ],
     [
      "tools/mforce_cli/main.cpp",
-     735,
-     749
+     739,
+     753
     ]
    ]
   ],
@@ -660,8 +645,8 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     526,
-     539
+     454,
+     467
     ],
     [
      "tools/mforce_ui/main.cpp",
@@ -675,13 +660,13 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     107,
-     120
+     111,
+     124
     ],
     [
      "tools/mforce_cli/main.cpp",
-     724,
-     736
+     728,
+     740
     ]
    ]
   ],
@@ -752,26 +737,6 @@
      "engine/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
      3,
      23
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "tools/mforce_cli/main.cpp",
-     343,
-     355
-    ],
-    [
-     "tools/mforce_cli/main.cpp",
-     635,
-     647
-    ],
-    [
-     "tools/mforce_cli/main.cpp",
-     737,
-     749
     ]
    ]
   ],
@@ -1070,18 +1035,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4822,
-     4832
+     4987,
+     4997
     ],
     [
      "tools/engine_tests/main.cpp",
-     5116,
-     5126
+     5281,
+     5291
     ],
     [
      "tools/engine_tests/main.cpp",
-     5643,
-     5653
+     5808,
+     5818
     ]
    ]
   ],
@@ -1112,6 +1077,41 @@
      "tools/mforce_ui/main.cpp",
      8537,
      8546
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     100,
+     110
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     806,
+     816
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     933,
+     943
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "engine/include/mforce/music/figure_transforms.h",
+     252,
+     261
+    ],
+    [
+     "engine/include/mforce/music/figure_transforms.h",
+     279,
+     288
     ]
    ]
   ]
@@ -2510,6 +2510,255 @@
     "WrapperPhraseStrategy"
    ]
   },
+  "engine/include/mforce/patch/build_graph.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 19,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/patch/built_graph.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 22,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "BuiltGraph"
+   ]
+  },
+  "engine/include/mforce/patch/envelope_preset.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 157,
+   "longest_function": [
+    26,
+    "mforce::envelope_form::adsr"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "EnvelopePreset"
+   ]
+  },
+  "engine/include/mforce/patch/fragment.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 20,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Fragment"
+   ]
+  },
+  "engine/include/mforce/patch/graph.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 16,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Graph"
+   ]
+  },
+  "engine/include/mforce/patch/instrument_block.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 18,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "InstrumentBlock"
+   ]
+  },
+  "engine/include/mforce/patch/layout.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 43,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Vec2",
+    "Group",
+    "NoteFace",
+    "Layout"
+   ]
+  },
+  "engine/include/mforce/patch/node.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 36,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Wire",
+    "Node"
+   ]
+  },
+  "engine/include/mforce/patch/note_signals.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 29,
+   "longest_function": [
+    11,
+    "mforce::NoteSignals::field"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "NoteSignals"
+   ]
+  },
+  "engine/include/mforce/patch/patch.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 28,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Patch"
+   ]
+  },
+  "engine/include/mforce/patch/patch_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 25,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/patch/retired_spellings.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 30,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "RetiredAt"
+   ]
+  },
+  "engine/include/mforce/patch/table_rule.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 19,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/patch/type_declarations.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 50,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "TypeDeclarations"
+   ]
+  },
+  "engine/include/mforce/render/build_instrument.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 16,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/render/build_sound.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 11,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/render/built_sound.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 17,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "BuiltSound"
+   ]
+  },
   "engine/include/mforce/render/embedded_score.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -2524,10 +2773,10 @@
    "types": []
   },
   "engine/include/mforce/render/instrument.h": {
-   "changelog_comments": 19,
+   "changelog_comments": 17,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 797,
+   "lines": 796,
    "longest_function": [
     131,
     "mforce::PitchedInstrument::play_note"
@@ -2558,7 +2807,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 75,
+   "lines": 83,
    "longest_function": [
     11,
     "mforce::fault_report_text"
@@ -2576,7 +2825,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 72,
+   "lines": 32,
    "longest_function": [
     0,
     ""
@@ -2584,8 +2833,6 @@
    "module": "render",
    "mutable_vars": 0,
    "types": [
-    "RetiredAt",
-    "BuiltSound",
     "InstrumentPatch"
    ]
   },
@@ -2923,7 +3170,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 72,
+   "lines": 73,
    "longest_function": [
     17,
     "mforce::CombinedSource::compute"
@@ -2969,10 +3216,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 119,
+   "lines": 110,
    "longest_function": [
-    13,
-    "mforce::MultiplexSource::rebuild_"
+    10,
+    "mforce::MultiplexSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2993,21 +3240,6 @@
    "mutable_vars": 0,
    "types": [
     "Envelope"
-   ]
-  },
-  "engine/include/mforce/source/envelope/envelope_json.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 157,
-   "longest_function": [
-    26,
-    "mforce::envelope_form::adsr"
-   ],
-   "module": "source",
-   "mutable_vars": 0,
-   "types": [
-    "EnvelopePreset"
    ]
   },
   "engine/include/mforce/source/envelope/phased_value_source.h": {
@@ -3837,7 +4069,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 79,
+   "lines": 74,
    "longest_function": [
     27,
     "mforce::CellularAutomatonEvolution::evolve"
@@ -3867,7 +4099,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 71,
+   "lines": 67,
    "longest_function": [
     12,
     "mforce::HistogramEqualizeEvolution::evolve"
@@ -3912,7 +4144,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 95,
+   "lines": 91,
    "longest_function": [
     32,
     "mforce::ReactionDiffusionEvolution::evolve"
@@ -3942,7 +4174,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 47,
+   "lines": 43,
    "longest_function": [
     13,
     "mforce::SortErosionEvolution::evolve"
@@ -4026,6 +4258,35 @@
     "SignalStats"
    ]
   },
+  "engine/src/build_instrument.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 83,
+   "longest_function": [
+    21,
+    "mforce::build_instrument"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/build_sound.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 180,
+   "longest_function": [
+    32,
+    "mforce::assemble_mixer"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "MonoSignal",
+    "PullLoop"
+   ]
+  },
   "engine/src/chord.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -4091,11 +4352,114 @@
    "mutable_vars": 5,
    "types": []
   },
+  "engine/src/patch/build_graph.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 4,
+   "lines": 426,
+   "longest_function": [
+    28,
+    "mforce::template_of"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "TapBind",
+    "Build"
+   ]
+  },
+  "engine/src/patch/node_json.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 366,
+   "longest_function": [
+    26,
+    "mforce::read_node"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Reading"
+   ]
+  },
+  "engine/src/patch/patch.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 321,
+   "longest_function": [
+    25,
+    "mforce::check_pin_shapes"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Pin",
+    "Checker",
+    "NodeAt"
+   ]
+  },
+  "engine/src/patch/patch_json.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 355,
+   "longest_function": [
+    20,
+    "mforce::save_patch"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/patch/retired_spellings.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 46,
+   "longest_function": [
+    38,
+    "mforce::retired_key_refusal"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/patch/table_rule.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 42,
+   "longest_function": [
+    32,
+    "mforce::ragged_table_refusal"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/patch/type_declarations.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 128,
+   "longest_function": [
+    18,
+    "mforce::read_declarations"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Entry",
+    "Table"
+   ]
+  },
   "engine/src/patch_loader.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 4,
-   "lines": 1383,
+   "lines": 1307,
    "longest_function": [
     208,
     "mforce::build_graph"
@@ -4365,8 +4729,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 33,
-   "lines": 12419,
+   "dynamic_cast": 37,
+   "lines": 14996,
    "longest_function": [
     324,
     "run_envelope_table_tests"
@@ -4380,6 +4744,7 @@
     "ResonanceRef",
     "BwRef",
     "Playback",
+    "Known",
     "ScratchPatch",
     "PinProbe",
     "Doubler",
@@ -4419,7 +4784,16 @@
     "Row",
     "PhasedCase",
     "Chan",
-    "Case"
+    "Case",
+    "Shared",
+    "PatchCase",
+    "FragmentCase",
+    "LateProbe",
+    "Break",
+    "Refused",
+    "Named",
+    "TwinText",
+    "TwinResult"
    ]
   },
   "tools/mforce_cli/explore.cpp": {
@@ -4455,7 +4829,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1153,
+   "lines": 1193,
    "longest_function": [
     174,
     "run_compose"
@@ -4695,6 +5069,28 @@
     "ElaboratedResult"
    ]
   },
+  "tools/twin_gate/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 600,
+   "longest_function": [
+    39,
+    "judge_file"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Mode",
+    "Options",
+    "Event",
+    "Arm",
+    "Offline",
+    "Live",
+    "Verdict",
+    "Row"
+   ]
+  },
   "tools/wav_check.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -4784,16 +5180,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 213,
+  "changelog_comments": 211,
   "const_cast": 10,
-  "duplicate_blocks": 156,
-  "dynamic_cast": 63,
+  "duplicate_blocks": 162,
+  "dynamic_cast": 73,
   "file_level_mutable_vars": 120,
-  "files": 226,
+  "files": 252,
   "files_over_limit": 18,
   "functions_over_limit": 96,
   "include_violations": 12,
-  "lines": 64773,
+  "lines": 70202,
   "unmapped_files": 0
  }
 }

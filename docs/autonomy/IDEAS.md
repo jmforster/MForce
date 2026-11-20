@@ -227,6 +227,15 @@ the freeze.
   - Byte-identity for RangeSource conversion: same expression
     `min + v*(max-min)`; null gate decides.
 
+- **A feedback loop inside a Multiplex template** — 2026-11-19 (refactor
+  4.6, ruling 6): a template node that only a tap reads, the tail of a
+  tap-closed loop, is refused by name, because a clone has no voice to
+  advance the tail; the loader fails on the same file (`Unresolved tap
+  target`). Making it play is a per-clone advance list inside the
+  Multiplex, each clone a small voice of its own. What it would give: N
+  detuned copies of one waveguide loop from a single template. After the
+  freeze.
+
 ## comp
 
 - **Which tier owns voicing — score vs lead sheet** — 2026-09-21 (Matt,

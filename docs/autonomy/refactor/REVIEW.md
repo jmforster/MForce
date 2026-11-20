@@ -19,6 +19,66 @@ given.
 
 ## Awaiting
 
+**R21 — checkpoint 4.6: the module, beside the loader** (2026-11-19, commits
+`c74ba17`..`37f7ba8`, fix wave `a994e18`; report
+`docs/autonomy/refactor/reports/2026-11-19-checkpoint-4.6.md`). Nothing for
+your ears: 0 of the 131 moved. No file of yours was written. One question,
+at the end.
+- What exists now: a second reader of patch files beside the loader, in
+  `engine/include/mforce/patch/`. It reads a patch into plain data, checks
+  it, and builds nodes from it, as three separate steps. Nothing you run
+  uses it until 4.7. The proof that it agrees with the loader is a new gate
+  that renders every file through both readers in one process and compares
+  the floats: 131 of 131 the same, and the same again from the new writer's
+  save of each file.
+- A new command: `mforce_cli --check <file or folder>` reads and builds each
+  file with the new reader and prints what it refuses, playing nothing.
+  Over all 883 files of your four folders it takes under twenty seconds and
+  refuses four, all in `pending` and all files that do not load today
+  either (`gs_chaotic`, `gs_spots`, `gs_waves`: there is no
+  `GrayScottSource` type; `slow_attack_horn`: `formants` on a
+  `FormantSequence`). Nothing was done to them.
+- What will stop loading at 4.7, when the editor and the command line move
+  to the new reader: nothing in your four folders. The report's section 1
+  lists every shape the loader plays today and the new reader refuses, with
+  the sentence you would see. They are hand-written oddities: a setting
+  outside its declared range, `true` where a number goes, an enum word in
+  the wrong case, two nodes with one name.
+- Look, when you next open the editor (not clicked in a running editor this
+  session): a Combiner's `gainAdj` row takes −100 to 100 where it took −1 to
+  10, and its plus and minus buttons step by 2 where they stepped by 0.11.
+  It was widened because six of your trombone files hold values down to
+  −18.088, which the new reader would otherwise refuse as out of range.
+- Built as the plan's ruling 20 said, and cheap to change at 4.7, which
+  touches every call site anyway: a build's warnings come back as data.
+  `build_sound` returns them inside its result; `build_instrument` returns
+  the instrument and fills a list the caller passes. Say so if you want one
+  shape for both.
+- The review found no render at risk and three things wrong in the record,
+  all mended in one fix wave: my list of what stops loading was short by
+  eleven shapes; a proof I had named could not have failed; "the one case"
+  of a setting a node overwrites was three. It also found, by reading, a
+  bug older than the refactor: an `ExplicitPartials` reads past the end of
+  a list while a file with many rows loads. Both readers do it and no
+  render shows it. It is 4.7's first task.
+- 115 faults were put into the new code, one at a time. Of the 108 in the
+  module, 99 were caught by a test, and the other nine now are. Of seven
+  put into the new gate itself, five passed unnoticed; the gate now counts
+  what each of its comparisons did and fails when one did nothing.
+- **The question.** Three settings are numbers a node works out from its
+  rows: an Envelope's `sustainLevel`, an `ExplicitPartials`' `maxPartials`,
+  a `LayeredRedNoiseSource`'s `count`. The new record still stores the
+  file's number for each, beside rows that overrule it, and a save writes
+  it. No render hears it. Should a declaration be able to say "this setting
+  is derived", so the record leaves it out? My read: not now. Only
+  `sustainLevel` is purely derived; the other two size the default rows
+  when a file gives none, so some of the time they are real settings. What
+  makes every reader agree is one rule, "settings before arrays", which the
+  builder follows and 4.7's editor layer will, with a test that fails when
+  it does not. The stored number is harmless, and CLEANUP 110 keeps the
+  question for after Part 8. A verdict the other way adds a field to the
+  declarations (Part 2's interface) before 4.7.
+
 **R20 — checkpoint 4.5: the terminal types and the document's spellings**
 (2026-11-18, commits `061a606`..`60ae3c1`, fix wave `f9a7e43`; report
 `docs/autonomy/refactor/reports/2026-11-18-checkpoint-4.5.md`). Nothing for

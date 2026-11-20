@@ -546,6 +546,13 @@ their `.cpp` under `engine/src/patch/`. `render/build_instrument.h`
 beside `instrument.h`. `patch_loader.h` and `patch_loader.cpp` are
 deleted when the last host moves (section 8).
 
+(As built at 4.6: fourteen headers — those above with `fragment.h` and
+`type_declarations.h`, and three that hold what the loader and the module
+both ask, `envelope_preset.h`, `retired_spellings.h` and `table_rule.h` —
+and four small internal headers beside the sources, `codec_path.h`,
+`float_text.h`, `graph_cycles.h` and `sentence.h`. `render` gained
+`built_sound.h` and `build_sound.h` beside `build_instrument.h`.)
+
 ### 2.5 Decided in session, 2026-11-08
 
 - **The direction** (2.1): `patch` builds graphs; `render` builds
@@ -708,6 +715,13 @@ rows. The Envelope's stages and the Curve's knots take the same shape.
   file changes. No render can depend on build order: the loader already
   collects a voice's envelopes by walking an unordered map, every seed is
   the node's own, and faults and capture go by id.
+  (Amended at 4.6: the builder takes, at each step, the first node in file
+  order whose feeds are built, so a file whose feeds come first is built in
+  file order as before. Whether order can be heard was measured and not
+  argued: the twin gate renders all 131 in-scope files the same with their
+  nodes reversed. One shape hears it, two dynamic pins fed by one stateful
+  chain, which is why dynamic pins, tails and the Envelope lists keep
+  `Graph::nodes` order.)
 - **The output** is a node id; the builder requires it to name a signal
   or, in the plain-sound form, the mixer part (5.8) — any other part is
   refused, as today (amended under 5.12 Q4, 2026-11-08).
@@ -980,6 +994,15 @@ feed's source is a signal where a pin wants one, or a part of the right
 kind where a slot wants one. That is the type's by-name door at build
 (Part 2 §6) and stays the builder's (section 5).
 
+(Amended at 4.6: the declarations table records for each slot which
+registered types its door accepts, found by offering one of each to a
+scratch instance, and for each pin whether it takes a signal. So
+`Patch::check()` does refuse a part of the wrong kind in a slot, a tap
+into a slot and a part fed to a signal pin. The door stays the authority
+at build, a record made in memory never having passed the codec. The list
+of what the codec and `check()` refuse that the loader plays, each shape
+measured under the base binary, is report R21's section 1.)
+
 ### 4.7 The writer's discipline (proposed)
 
 - **The model is complete, so the file is self-contained.** At read, the
@@ -1149,6 +1172,13 @@ Five steps, each a function; today's `build_graph` is one function of
    output, which must be a signal or the mixer part (5.8); the signal
    list.
 
+(As built at 4.6: step 1 takes the first ready node in file order. Two
+nodes under one id are refused before anything is built. A cycle that
+closes through a dynamic pin is refused with the others, as step 1 says;
+the loader plays such a file, so it is on report R21's list. Step 2's
+doors run in the loader's order — inputs, params, settings, arrays — and
+the table rule is applied after a node's fill.)
+
 ### 5.3 Constants: a Param's own, an Input's wired (proposed; 5.12 Q1)
 
 Today every number in a file becomes a `ConstantSource` wired into the
@@ -1238,11 +1268,21 @@ builder, one per concept no declaration expresses:
   through `build_graph` with every node's seed XOR-ed by `base ^ (i ·
   0x9E3779B9)` and that value injected where a node has none, `base` the
   root node's seed or 0 — today's rule to the bit. `set_template` takes
-  the closure alone; `templateJson_` and `baseSeed_` go.
+  the closure alone; `templateJson_` and `baseSeed_` go. (At 4.6 the
+  closure's overload stands beside the loader's three-argument one, which
+  goes with the loader; `instanceNodes_` is gone, a clone being owned
+  through its root.)
 - **A dynamic pin inside a template is refused by name.** Today
   `bind_wiring` runs over the top-level graph only, so a dynamic pin on
   a template node is silently ignored. Honouring it would mean per-clone
   push bindings, the machinery the next bullet deletes. 0 in scope.
+  (Amended at 4.6: a tail that only a tap reads inside a template is
+  refused by name too. A clone has no voice to advance it, and giving it
+  one is new behaviour — IDEAS. A tap inside a template to a node outside it
+  is refused by the same rule: the template's walk follows taps, finds
+  the node read by nothing inside but the tap, and nothing advances it.
+  The loader refuses that file too (`Unresolved tap target`), so nothing
+  that played stops (CLEANUP 104).)
 - **The clone fan-out goes with the paramMap.** `clone_param_slot`,
   `set_clone_param`, `CloneParam`, `PushBinding::cs`, `cloneSlot` and
   `targetNodeId`, and `VoiceGraph::topMultiplex` exist for one case of
@@ -1392,7 +1432,9 @@ section 8.
 
 ```cpp
 // render/build_instrument.h
-std::unique_ptr<PitchedInstrument> build_instrument(const Patch& patch, int minPolyphony = 0);
+std::unique_ptr<PitchedInstrument> build_instrument(const Patch& patch, int minPolyphony = 0,
+                                                    std::vector<std::string>* warnings = nullptr);
+                                                    // amended at 4.6: what the build had to say, once
 // render/embedded_score.h — until Part 5's play function; today's perform_score_json
 double play_embedded_score(PitchedInstrument& inst, const std::string& scoreText);   // the score's end, seconds
 ```
@@ -1405,8 +1447,9 @@ double play_embedded_score(PitchedInstrument& inst, const std::string& scoreText
   `PerformOut`s, handed to `build_graph` as `NoteSignals`; the output,
   which must be a signal ("the output is a part" fails the build); the
   `signals`, `advance` and `nodes` taken into the voice; the envelope
-  lists derived from `nodes` as today (`allEnvelopes`, the trigger
-  bindings); each `DynamicPin` made a `PushBinding` with `isSetting`,
+  lists derived from `nodes` (`allEnvelopes`, the trigger bindings;
+  amended at 4.6: in `Graph::nodes` order, a trigger bound when it is
+  wired or its constant is not zero); each `DynamicPin` made a `PushBinding` with `isSetting`,
   the chain its source. Then `prepare` at `patch.sampleRate`. A host
   that wants another rate sets the field on its copy of the `Patch`
   first — data, not an argument.
@@ -2361,6 +2404,84 @@ the places a new family must be answered (CLEANUP 95); sweep, scratch and
 old hold 107, 13 and 548 files with `inputs`, of which 0, 7 and 60 loaded
 before (8.4).
 
+**4.6 landed 2026-11-19** (`c74ba17`..`37f7ba8`, the review's fix wave
+`a994e18`; plan
+`docs/superpowers/plans/2026-11-18-part4-checkpoint-4.6.md`; report R21,
+`docs/autonomy/refactor/reports/2026-11-19-checkpoint-4.6.md`). As the row
+says, with these facts the execution added. **The module** is fourteen
+headers under `engine/include/mforce/patch/` and seven sources with four
+internal headers under `engine/src/patch/` (2,334 lines), and in `render`
+`built_sound.h`, `build_sound.h` and `build_instrument.h` with their two
+sources; the module map gained `patch` here and not at 4.7, the meter
+failing on a file no module owns. **No host reads through it**: the
+command-line tool, the editor, the allocation gate and the tests' loads are
+the loader's until 4.7. No file on disk changed and no render moved
+(under the command-line tool 131 of the 131 identical, the nine, 4.4's 52, 89 of 4.5's 91 with two refused on purpose, this checkpoint's 103 loader-readable synthetics and the 21 composition templates the same; timing 0.990 and 1.005 of the base). **The proof is the twin gate** (`tools/twin_gate/`, 8.3): both
+readers in one process, the offline render compared as bits with its rate,
+length and fault report, and for an instrument the live path's every
+sample, each note's gain and the allocation count. Over the 131: the loader
+against itself, 131 same (the control); against the module, 131 same;
+against the module's own save of each file read by either reader, 131 same;
+against the record with every value at its declared default removed (5,958
+keys), 131 same; against the module building the nodes in reverse file
+order, 131 same. Beside it, for the twenty registered types no in-scope
+file holds, `engine_tests` writes three patches per type from the
+declarations table and plays each through both readers, and every inline
+patch of the tests is built under both by one helper, whose table of known
+differences has eighteen rows, each an enum word that is not exactly a
+label. **What the row does not name.** `CombinedSource.gainAdj` takes −100
+to 100: the "declaration widens, never the file" clause was used once, for
+thirty settings in six trombone files. An Envelope restarts when its
+trigger's value is not zero, where the test was "is something wired"; under
+the loader the two agree on every file. The codec makes the model complete
+in Params and settings and not in arrays, reads the Envelope's preset form
+and writes columns, and writes a float as the shortest text that reads back
+(two floats of 4.28 billion take seventeen digits, the file being read
+through a double). The builder takes, at each step, the first node in file
+order whose feeds are built; keeps dynamic pins, tails and the Envelope
+lists in file order; refuses two nodes under one id before it builds; asks
+each built object what it is (five `dynamic_cast`s until the loader goes);
+and refuses a tail only a tap reads inside a Multiplex template, as it
+refuses a dynamic pin there. A build's warnings come back as data
+(`BuiltGraph::warnings`, `BuiltSound::warnings`, a third parameter of
+`build_instrument`), once per build. `mforce_cli --check` reads and builds
+a file and plays nothing; `--dump-descriptors` is printed from the
+declarations table, byte-equal to the loader-era dump. **What the module
+refuses that the loader plays** is report R21's section 1, each shape
+measured on a file written for it under the base binary; none is in a file
+of the four folders (`--check`: 883 files, four refused, all in pending and
+all refused by the loader today). Three shapes go the other way: nodes in
+any order load; an Envelope with no `params` loads; a `NameGate` inside a
+Multiplex template fires. Measured at the close for CLEANUP 98 and 104: a tap or a number as a
+channel's source, and a tap from one channel into another's chain or onto
+its volume, load under both readers and render alike, and `check()`
+refuses none; a Multiplex template that taps a node outside it is refused
+by both. Loader against module over the 131, alternating which goes first,
+the module takes 0.960 and 0.973 of the loader's time. The mutation run put 115 faults into the
+new code: 99 of the 108 in the module were caught by a test and the other
+nine became tests or a deletion; five of seven in the gate itself passed
+as `SAME`, so its summary now counts what each arm did and a run whose arm
+did nothing fails. Review R21: no critical finding, three major (the list
+of refusals short by eleven shapes; the generated twin named as a proof it
+could not yet be; "the one case" of a derived setting being three), one fix
+wave. Facts for later checkpoints: three settings are overwritten by their
+node from its rows (an Envelope's `sustainLevel`, an `ExplicitPartials`'
+`maxPartials`, a `LayeredRedNoiseSource`'s `count`) and the record keeps the
+file's number beside them, so 4.7's editor layer sets settings before
+arrays (CLEANUP 110); `ExplicitPartials::on_array_changed` reads past the
+end of a column while a file with many rows loads, in both readers, and
+mending it is an edit to code the loader runs, so it opens 4.7 (CLEANUP
+107); nineteen of the mutation run's faults were caught only by the tests'
+two-reader helper and are run again before the loader is deleted (CLEANUP
+113); `Envelope::replace_stages` takes the trigger's constant from the
+fresh layout, which the editor's preset swap will meet (CLEANUP 111); the
+editor writes `null` for a promoted, unwired dynamic pin, which the codec
+refuses, and the converter has no rule for it or for a top-level `frames`;
+`MultiplexSource` has two `set_template` overloads until the loader's goes;
+the Shaper's `morph` advisory can be printed now that a Param holds its own
+constant (CLEANUP 84); `engine_tests` has no filter and takes 85 s; a
+non-finite number in a record is 4.8's (CLEANUP 112).
+
 ### 8.2 Why this order (proposed)
 
 - **4.1 first** because it holds the part's one listening change, and a
@@ -2573,7 +2694,7 @@ holds the history. The lines counted below are measured on `b30a237`.
 | 4.3 | the loader's Curve branch and the stage half of its Envelope branch; the Envelope's test of whether a range pin is wired; the second read of the two accuracies | CLEANUP 29; the tolerance for a stale `holdPct` key; in the editor `envelope_stages_to_json` and `envelope_stages_from_json` (five uses), `GraphNode::curveKnots`, `curveInterp`, `curveExprMode`, `curveExprKnots` (74 references) and the two special editors' private state; the six `algev_test_*` baselines' `release` and `releaseMax` keys that no form ever read, dropped by the converter (CLEANUP 24) | the null gate; a twin for the stage layout and for the knot lookup |
 | 4.4 | six loader branches (`VarSource`, `RangeSource`, `SegmentSource`, `Vibrato`, the Butterworth trio, `HybridKSSource`); the Shaper block and the `expandRule` block of `wire_params_generic`; ten configurators | constructor arguments on five types; `Partials::set_expand_rule`; `PhasedValueSource::add_stage` and its `Stage`; the weight and delay fields of `MultiSource::Entry`; the three `cutoff` aliases; in the editor two of `create_dsp`'s five special cases and the NameGate text field's own code | the null gate; a twin per moved expression |
 | 4.5 | the loader's hand-written reading of the channel and the mixer (`inputs.source`, `inputs.channels`, the plain-string ids in `collect_advance_ids`); the spellings `inputs`, `ui`, `groups`, `_comment`, `_provenance` | in the editor the hand-built pins of its channel and mixer types and `add_channel_input`'s `ch N` pins (the registered mixer's multi slot serves); CLEANUP 25, one enum dialect on disk | the null gate over the 27 plain sounds; the roundtrip gate |
-| 4.6 | the four clamp hooks of CLEANUP 19 | — (`envelope_json.h` leaves the nodes module here too, but it moves into the codec; it is not deleted) | `mforce_cli --check` over the scope, after the out-of-range count |
+| 4.6 | the four clamp hooks of CLEANUP 19; as landed, also `MultiplexSource::instanceNodes_` (CLEANUP 55) and a guard in `build_instrument` that could not fire | — (`envelope_json.h` leaves the nodes module here too, but it moves into the codec; it is not deleted: as landed it is `patch/envelope_preset.h`) | `mforce_cli --check` over the scope, after the out-of-range count; as landed, the whole render gate set after the one task that edits code the loader runs, then the binary's hash at each commit, and the twin gate |
 | 4.7 | `patch_loader.cpp` (1,702 lines) and `patch_loader.h`: both entry points, `InstrumentPatch`, `GraphResult`, `PerformContext`, `wire_params_generic`, `reject_unknown_keys` with `kBranchKeys` (120 keys), `refuse_string_pin`, the four branches left, the `thread_local` tap collector, `collect_advance_ids`, `extract_subgraph_json`, `build_subgraph_with_seed_perturbation`, `bind_wiring` (103 lines), `adopt_nodes`, `make_perform_context` | `JsonConfigurator`, `ResolveParamFn`, `get_configurator`, the two formant configurators and the JSON include in `source_registry.h`; `MultiplexSource::templateJson_`, `baseSeed_` and the three-argument `set_template`; the reading of a top-level `frames` (no file in the tree carries one); `lint_patches.py` (285 lines) with its source scrape and `MANUAL_KEYS`; the meter's `kBranchKeys` test; the nineteen `dynamic_cast<PitchedInstrument*>` in the tests (CLEANUP 28 — `build_instrument` returns the type); the dead id exclusion in the two roundtrip scripts (CLEANUP 43); `bisect_roundtrip_diff.py` if the six diffs close | 4.6's twin gate; then the full gate set on the flipped tree |
 | 4.7 | the editor's loader parsing (`load_graph_from_path`, 730 lines), `serialize_patch_graph` (433), `save_node_graph` (164), `get_playback_patch_path` and its temp file | `jsonExtras` (15 references) and the "edit wins" rule; `s_loadedInstrumentExtras`; the `Parameter` node (23 sites and its theme colour); the four serialize-and-`dump()` engine loads (the two path loads re-point); ten `register_all_sources()` calls | `mforce_ui --roundtrip` byte for byte over the scope; `--gencheck` parity |
 | 4.8 | the editor's internal clipboard (`clip_node_state`, `clip_instantiate`, copy, paste, cut — 232 lines — and `s_clipboard`); the text clipboard's two temp files; the explorer's `set_patch_param` JSON walker and its temp load files; `--gatecheck` as a mode | the third node schema; one of the two clipboards, as the target listed | the fragment tests; the explorer's variants byte-identical |

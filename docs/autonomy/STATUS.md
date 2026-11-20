@@ -1,5 +1,123 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-19 (refactor session XXI, Fable 5.2 xhigh coordinating;
+Opus 5.5 executors, mutation runner and reviewer).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.6 LANDED on main — `40d036d` (the
+plan; the base), `c74ba17` (the ground: every edit to code the loader runs),
+`249d7b5` (the records, the declarations table, `Patch::check()`), `cb33594`
+(the codec, `mforce_cli --check`), `3c4b362` (`build_graph`,
+`build_instrument`, `build_sound`; the tests' two-reader helper; the
+generated reader twin), `37f7ba8` (the twin gate), `a994e18` (the review's
+and the mutation run's fix wave), then the docs commit. Report R21
+(`docs/autonomy/refactor/reports/2026-11-19-checkpoint-4.6.md`) is in REVIEW:
+nothing for Matt's ears, one question (should a declaration be able to mark
+a setting as derived; my read: not now). NO HOST READS THROUGH THE MODULE
+YET: the command-line tool, the editor, the allocation gate and the tests
+are the loader's until 4.7. No file on disk changed. 0 of the 131 moved under the
+command-line tool; the nine, 4.4's 52, 89 of 4.5's 91 (two refused on
+purpose), this checkpoint's 103 loader-readable synthetics and the 21 comp
+templates the same; timing flat (0.990, 1.005); the module against the
+loader 0.960 and 0.973 of its time.
+The twin gate (`python tools/twin_gate.py`): 131 of 131 `SAME` offline and
+live, from the module's own save, with every default removed (5,958 keys)
+and with the nodes reversed; this checkpoint's 108 synthetics each on its
+row. Mutation run: 115 faults, 99 of the 108 in the module caught, the nine
+others made tests or a deletion; five of seven in the gate itself passed,
+so the gate counts what its arms did and fails when one did nothing. Review
+R21: 0 Critical, 3 Major (the list of what the module refuses short by
+eleven shapes; a proof that could not fail; three derived settings where one
+was named), all mended in one fix wave. THE PLAN'S LEDGER IS THE RECORD
+(`docs/superpowers/plans/2026-11-18-part4-checkpoint-4.6.md`, rulings 1-68
+and every task's block). `engine_tests` 12,184 checks (85 s; no filter),
+tool tests 353, registrations 78, `dynamic_cast` 73 (63 at the base: six in
+the module, four in the tests; the loader's four go with it), duplicate
+blocks 162 (156).
+NEXT: CHECKPOINT 4.7'S PLAN (Part 4 §8.1 row 4.7, the flip: the editor's
+translation layer of 7.3, proven first by `mforce_ui --roundtrip` returning
+every in-scope file byte for byte; then one commit re-points the
+command-line tool, `alloc_gate`, `test_figures`, the tests' helper and the
+editor, and deletes `patch_loader.{h,cpp}` with what §9.1 lists). The next
+session surveys and writes it for Matt's go-ahead; nothing of 4.7 is planned
+or built. It designs the editor's translation layer: offer max before the
+design work.
+WHAT 4.7'S PLAN INHERITS:
+- TASK 1 IS AN ENGINE EDIT. `ExplicitPartials::on_array_changed` reads the
+  other columns to the first one's length as each column arrives (CLEANUP
+  107; read by the reviewer, never run; both readers do it). It is code the
+  loader runs, so it goes first, with the whole render gate set after it,
+  as 4.6's Task 1 went.
+- BEFORE THE LOADER IS DELETED: (a) rerun the nineteen mutation faults that
+  only the tests' two-reader helper caught (6, 8, 10, 11, 49, 56, 57, 58,
+  67, 69, 77, 82, 91, 92, 93, 94, 95, 96, 109; each fault's text in
+  `renders/scratch/ab46/t6a/mutations.py`, the verdicts in `summary.tsv`)
+  against the tests as they will stand without the second reader; (b) rerun
+  the twin gate, every arm, on the tree about to flip. Then the gate, its
+  wrapper and the helper's second reader go.
+- The tests' table of eighteen known reader differences
+  (`reader_twin::known()` in `tools/engine_tests/main.cpp`): each is an
+  inline patch with an enum word that is not exactly a label. At the flip
+  each becomes a patch to rewrite or a refusal to assert.
+- Rules for the editor's layer, each found by a ruling or the review: set
+  settings before arrays (three settings are overwritten by their node from
+  its rows — an Envelope's `sustainLevel`, an `ExplicitPartials`'
+  `maxPartials`, a `LayeredRedNoiseSource`'s `count` — and the record keeps
+  the file's number beside them; CLEANUP 110, and REVIEW R21's question);
+  never write `null` for a promoted, unwired dynamic pin (the codec refuses
+  it); `Envelope::replace_stages` takes the trigger's constant from the
+  fresh layout, so a preset swap would drop a nonzero one (CLEANUP 111);
+  the Shaper's `morph` advisory can be printed now that a Param holds its
+  own constant (CLEANUP 84); `register_all_sources()` once, in place of the
+  ten sites that call it by hand; `MultiplexSource` has two `set_template`
+  overloads until the loader's goes.
+- Converter rules the refusals should be able to name: a `null` dynamic
+  pin; a top-level `frames`.
+- What the module refuses that the loader plays: report R21 section 1, each
+  shape with a fixture under `renders/scratch/ab46/synth/` (`what.txt`
+  holds a row for each: the base's verdict, the twin's, the sentence). None
+  is in a file of the four folders: `mforce_cli --check` over the 883 says
+  four refused, all in pending, all refused today. `--check` builds and
+  does not play a score (CLEANUP 120).
+- Arms and binaries: `renders/scratch/ab_tree/cli_post46.exe`
+  (`fe86ad64...94ce0577`, the build of `a994e18`) and `ui_post46.exe`
+  (`0c5b71d1...cd1e5512`); `cli_pre46.exe` is the last binary before
+  the module; comp stage `post46`; `renders/scratch/ab46/old/hashes.txt`
+  with `library_baselines_131.txt` is still the 131's truth, no render
+  having moved, and `synth/`, `synth44/`, `synth45/` and `scoreless/` each
+  hold their own `old/hashes.txt`.
+- Scripts worth copying to `ab47/`: `renders/scratch/ab46/engine_gates.py`
+  (the render gate set, stops at a failed build), `module_gates.py`,
+  `coord_commit.py`, `briefs/rules.md`, `t6a/mutations.py` with its runner,
+  and `final/` (the close's measurements and their scripts).
+- THE LESSONS OF 4.6: a proof counts once something has been seen to make
+  it fail, and that goes for a gate as for a test (five faults put into the
+  twin gate passed as `SAME`; the generated twin was named as proof of a
+  thing its patches never exercised); a list of what one reader refuses and
+  the other plays has to be attacked from the lenient reader's side, with
+  files, by someone who did not write the strict one (the review's eleven
+  shapes); "the one case" and "nothing else names it" are search results
+  and are written from a search made that hour; an executor will hold a
+  meter number by a means that defeats it (`static_cast` where the object
+  should be asked), so a brief says which number may rise and why; a
+  fixture's expectation of the NEW reader cannot be checked under the base,
+  so it is checked by the first run of the gate and not trusted before; a
+  brief that names a function and a property the function lacks gets the
+  function (`build_sound` "renders nothing"): read the function before
+  naming it; `engine_tests` has no filter, so a mutation run is one
+  background script and hours long, a machine sleep voids its timings, and
+  an agent that dies on the network resumes through `SendMessage` with what
+  is left listed.
+- The four verification rules held: one review, one fix wave, the
+  coordinator's gates rerun once, on its own edit to `--check` after the
+  wave.
+Usage as read Thu 11-19 at 15:05 HST: weekly Fable 71 percent (51 when this
+session began: 4.6 cost twenty Fable points to execute, the mutation run,
+the review and the close included), all-models 56 (38), both resetting
+Saturday 2026-11-21 at 02:00 HST. This session's context stands at about 380k tokens.
+GIT: main is 15 commits ahead of origin (`815c1c7`) and NOT pushed (the task says
+ask at close-out); GOALS.md Matt's own, never staged.
+
+---
+
 Updated: 2026-11-18, evening (refactor session XX, Fable 5.2: xhigh for the
 survey, max for the plan — Matt flipped it in the menu, "Changed to max, go
 ahead").
