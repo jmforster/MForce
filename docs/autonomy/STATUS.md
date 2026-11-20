@@ -1,5 +1,14 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+4.7'S RUN, WHERE IT STANDS (session XXIII, 2026-11-20 13:15 HST): TASK 0 IS
+DONE AND COMMITTED — base `34222c8`; the arms, gate scripts, `t0/` and the
+48 fixtures of `synth_ui/` under `renders/scratch/ab47/`; its results are the
+Ledger's execution note in the plan, and no number differed from the plan.
+THE RUN IS STOPPED BEFORE TASK 1, waiting for Matt's go-ahead and his word on
+Ledger ruling 2 (`SettingOrigin::Derived` on three settings). Nothing of
+Task 1 exists, not its brief. The block below is session XXII's and predates
+the base commit.
+
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
 and the plan — Matt: "Yes, at xhigh").
 NEXT SESSION STARTS HERE: CHECKPOINT 4.7'S PLAN IS WRITTEN —
