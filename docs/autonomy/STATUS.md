@@ -1,5 +1,84 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
+and the plan — Matt: "Yes, at xhigh").
+NEXT SESSION STARTS HERE: CHECKPOINT 4.7'S PLAN IS WRITTEN —
+`docs/superpowers/plans/2026-11-20-part4-checkpoint-4.7.md` ("the flip"), in
+4.6's shape, with the editor's layer given as interfaces and one translation
+table. IT AWAITS MATT'S GO-AHEAD; nothing of 4.7 is built, no code changed,
+and the plan is uncommitted with this file (Task 0 commits both). Eight
+tasks: 0 the base, the arms (4.6's close arms, unrendered; the editor's three
+sound arms rendered once with `ui_pre47.exe`), the layer's fixtures; 1 THE
+GROUND (the `ExplicitPartials` over-read; a declared mark, `SettingOrigin::
+Derived`, on three settings), the whole gate set; 2 the codec stores the
+node's answer for a derived setting, proven by the twin gate; 3 THE EDITOR'S
+LAYER (`editor_from_patch`, `patch_from_editor`, `playable_patch`; the
+loader's parsing, both savers and `jsonExtras` deleted; `--roundtrip`
+compares in process and exits 0 or 2; `rt_smoke.py` and the roundtrip gate
+reshaped); 4 the editor's six builds through the module, `InstrumentPatch`
+and the `Parameter` node out of it; 5 the command-line tool, the explorer,
+`alloc_gate`, `test_figures` and the tests on the module, the twin gate's
+last run, the nineteen faults rerun; 6 the loader, the configurator, the
+lint and the twin gate deleted; 7 the close. WHAT THE PLAN ASKS MATT TO
+NOTICE (its italic rulings): Ledger 1 ("byte for byte" is against the
+codec's own save of each file, and the first Save of a library patch rewrites
+it whole), 2 (REVIEW R21's question answered yes: a derived mark, one bool on
+`SettingDescriptor`), 3 (what only a view knows is written by a running
+editor, not headless), 4 (a file keeps its sample rate through a Save), 5
+(no `seconds` added; the block written whole), 6 (File > Open refuses what
+the codec refuses; the three `gs_*` pending files no longer open inert), 7
+(a promoted, unwired setting is not saved as promoted), 8 (sweep, scratch
+and old stop rendering from the command line until converted; an explorer
+variant out of range is refused), 9 (a Save always writes and says what a
+reload will refuse). Matt's "Yes, at xhigh" was to WRITING the plan on
+rulings 1 to 3 as I put them to him; none is approved until the go-ahead.
+Execution in a FRESH SESSION on Fable 5.2 at xhigh (this one stands at
+about 690k tokens). MATT'S RULE FOR THIS RUN, 2026-11-20 ("Can you do 1 task
+at a time and wait for my go-ahead for each?", then "Start Task 0"): ONE
+TASK AT A TIME — run it, verify, commit, STOP and report (the task, its
+gates, the usage as the tool reads it with the extra-usage field given as a
+reading and never as a charge, the next task with the rulings it acts on and
+its guessed cost), and start nothing more until he says so. "Start Task 0"
+approves Task 0 alone; each italic ruling is put to him at the stop before
+the task that acts on it. The plan's Execution notes carry this in full.
+Session XXII started the Task 0 session itself; Tasks 1 to 7 wait.
+WHAT THE SURVEY FOUND, beyond the plan's Architecture paragraph:
+- TODAY'S EDITOR HANDS BACK 2 OF THE 131 RECORDS UNCHANGED. Measured, not
+  read: `renders/scratch/ab47/planning/editor_today.py` puts each file's
+  codec-saved form (`renders/scratch/ab46/final/resaved/`) through
+  `mforce_ui --roundtrip` and diffs the JSON with floats as float32. Nine
+  kinds of difference and no other (the plan's Architecture 2). The census
+  beside it is `census47.py` with `census47.txt`; the descriptor dump it
+  reads is `descriptors.json` there.
+- Both built binaries are byte-equal to 4.6's close arms
+  (`cli_post46.exe`, `ui_post46.exe`), so no old arm needs a render but the
+  editor's own.
+- `get_playback_patch_path` has no caller today. `register_all_sources()` is
+  called at thirteen places in the editor (STATUS said ten) and fifteen in
+  the tests; `NT_PARAMETER` at twenty-three; the command-line tool's
+  `main.cpp` calls the loader at ten sites.
+- The editor wires a `ConstantSource` into every pin, Params too, so
+  CLEANUP 111 (`replace_stages` and a trigger's constant) does not bite
+  until Part 7; the plan books it there, and books the Shaper's `morph`
+  advisory (CLEANUP 84) to 4.8's sweep so that no node is edited after
+  Task 1.
+- Only `adsr` lays out the four-slot shape; `as`, `asr`, `ads`, `adr` and
+  `ar` answer `sustainLevel` 0. The four folders hold no
+  `LayeredRedNoiseSource`, no `ExplicitPartials` outside 5 to 96 rows and no
+  Envelope whose sustain slots are outside 0 to 1, so the plan's range
+  exemption for a derived setting (Ledger 17) meets no file.
+- Outside the scope, for the report: 32 positions under a PerformNode's id
+  in audition (the layer drops them at a save), 4 audition files whose faces
+  do not name all their PerformNodes, 22 partly placed.
+Usage as read Fri 11-20 at 12:07 HST: weekly Fable 81 percent (72 at the
+session's start: the survey four points, the plan five), all-models 61, both
+resetting Saturday 2026-11-21 at 02:00 HST. The plan guesses twenty to
+twenty-four Fable points for the execution. GIT: main level with origin at
+`c49834d`; uncommitted — the plan (new), this file; GOALS.md Matt's own,
+never staged.
+
+---
+
 Updated: 2026-11-19 (refactor session XXI, Fable 5.2 xhigh coordinating;
 Opus 5.5 executors, mutation runner and reviewer).
 NEXT SESSION STARTS HERE: CHECKPOINT 4.6 LANDED on main — `40d036d` (the
