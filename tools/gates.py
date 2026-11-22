@@ -1,12 +1,12 @@
 """One command that runs every behaviour gate and the structure meter.
 
   python tools/gates.py            run everything (15-30 minutes)
-  python tools/gates.py --fast     the CTest set, the UI stamp and the fast
-                                   roundtrip smoke only
+  python tools/gates.py --fast     the CTest set and the allocation gate only
 
-The CTest set (engine_tests, test_figures, the meter and its unit tests)
-is run through ctest, so CMakeLists.txt stays the one list of tests. The
-slow gates are the repo's own scripts. A gate passes when its exit code
+The CTest set (engine_tests, test_figures, the meter and its unit tests,
+the tool tests) is run through ctest, so CMakeLists.txt stays the one list
+of tests. The allocation gate and the slow gate, the null gate, are the
+repo's own scripts. A gate passes when its exit code
 is 0; the summary lists PASS or FAIL per gate and the exit code is 1 if
 any failed. Build first; this does not build.
 """
@@ -19,18 +19,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 CTEST = shutil.which("ctest") or "ctest"
-UI = ROOT / "build/tools/mforce_ui/Release/mforce_ui.exe"
 
 FAST = [
     ("ctest (engine_tests, test_figures, structure meter)", [CTEST, "--test-dir", str(ROOT / "build"), "-C", "Release"]),
-    ("mforce_ui --stamp (engine build is current)", [str(UI), "--stamp"]),
-    ("roundtrip smoke (one patch per shape)", [PY, "tools/rt_smoke.py"]),
     ("allocation gate (no allocation between note-on and the last sample)",
      [PY, "tools/alloc_gate.py", "--jobs", "3", "patches/library", "patches/baselines"]),
 ]
 SLOW = [
     ("null gate (patches)", [PY, "tools/null_gate_perform_source.py", "--jobs", "3"]),
-    ("roundtrip (UI save/load, whole corpus)", [PY, "tools/test_stable_roundtrip.py", "patches/baselines", "patches/library", "--jobs", "3"]),
 ]
 # Not run here: tools/comp_template_null_gate.py needs a render/compare pair
 # of stages rather than one command; it joins this list when its driver is

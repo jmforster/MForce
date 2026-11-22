@@ -1,6 +1,5 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include <nlohmann/json.hpp>
 #include <functional>
 #include <optional>
 #include <string>
@@ -10,23 +9,11 @@
 
 namespace mforce {
 
-// Resolve a JSON param value to a ValueSource (number → ConstantSource, ref → lookup).
-// Provided by the caller (patch_loader) so the registry stays decoupled from loading logic.
-using ResolveParamFn = std::function<std::shared_ptr<ValueSource>(
-    const nlohmann::json& val)>;
-
 // Factory: creates a default-initialized node — a signal or a part. The
 // caller wires its pins through set_param(); a signal learns the rate from
 // the host's prepare(ctx), a part from its owner's.
 using SourceFactory = std::function<std::shared_ptr<Component>(
     std::optional<uint32_t> seed)>;
-
-// Optional hook for types that need JSON-level config beyond connectable params
-// (e.g. Envelope presets, SegmentSource values[], filter section counts).
-using JsonConfigurator = std::function<void(
-    Component& src,
-    const nlohmann::json& params,
-    const ResolveParamFn& resolve)>;
 
 // The one classification of a node type, declared where the type is
 // registered: its family (the families table in docs/architecture/part3-nodes.md),
@@ -82,13 +69,10 @@ public:
 
   void register_type(const std::string& type_name,
                      TypeTag tag,
-                     SourceFactory factory,
-                     JsonConfigurator configurator = nullptr);
+                     SourceFactory factory);
 
   std::shared_ptr<Component> create(const std::string& type_name,
                                     std::optional<uint32_t> seed = {}) const;
-
-  const JsonConfigurator* get_configurator(const std::string& type_name) const;
 
   // Every registered type, in registration order (which is the menus' order).
   std::vector<TypeEntry> registered_types() const;
@@ -110,7 +94,6 @@ private:
     TypeTag tag;                     // tag.label points into `label` below, or is null
     std::string label;               // the registration's label, copied; empty when none was given
     SourceFactory factory;
-    JsonConfigurator configurator;   // may be null
   };
   const Entry& entry(const std::string& type_name) const;   // throws on an unknown name
 

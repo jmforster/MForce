@@ -6,8 +6,8 @@
 namespace mforce {
 
 // In-place Cooley-Tukey FFT. Size of x must be a power of two.
-// Extracted from tools/mforce_ui/main.cpp so other tools (explore mode,
-// future analyzers) can share one implementation.
+// One implementation for every tool that needs a spectrum (explore mode,
+// analyzers).
 inline void fft_inplace(std::vector<std::complex<float>>& x) {
     int n = (int)x.size();
     // Bit-reversal permutation

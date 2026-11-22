@@ -918,7 +918,7 @@ static int run_dun(int argc, char** argv) {
 
 // Emit every registered type's accepted JSON keys as JSON, printed from the
 // declarations table with each type's family from the registry, so external
-// tools (tools/lint_patches.py, tools/convert_patch.py) check patches against
+// tools (tools/convert_patch.py) check patches against
 // the engine's own truth instead of a hand-maintained list that drifts.
 static int run_dump_descriptors(int argc, char** argv)
 {
@@ -1017,7 +1017,7 @@ static int run_check(int argc, char** argv)
 // ---------------------------------------------------------------------------
 // --lint-template: what does the template loader silently DROP?
 //
-// The comp analogue of tools/lint_patches.py. A piece template is parsed into
+// A piece template is parsed into
 // a PieceTemplate and written straight back out; anything the author wrote
 // that does not survive the round trip was ignored without a word. That class
 // of bug is invisible by construction — the piece still renders, just not the

@@ -26,7 +26,7 @@
 //   spec overrides the patch's top-level "seconds".
 // - Instrument-style ("instrument" section present, output is a ValueSource):
 //   rendered via instrument_from_file + PitchedInstrument::prepare_voice +
-//   per-sample pull. Saved variants are immediately loadable in mforce_ui.
+//   per-sample pull. Saved variants load as instruments.
 //   Spec fields: "noteNumber" (default 60), "duration" (seconds, default 3.0).
 
 #include "explore.h"
@@ -256,7 +256,7 @@ int run_explore(int argc, char** argv) {
     for (const auto& jaxis : spec.at("axes")) axes.push_back(parse_axis(jaxis));
     if (axes.empty()) { std::cerr << "spec has no axes\n"; return 1; }
 
-    // Detect basePatch style for render dispatch + UI playability warning.
+    // Detect basePatch style for render dispatch + the instrument note.
     bool basePatchIsInstrument = false;
     {
         std::ifstream bf(basePatchPath);
@@ -266,7 +266,7 @@ int run_explore(int argc, char** argv) {
             std::cerr <<
                 "NOTE: basePatch has no 'instrument' section. Saved variants "
                 "will render to wav,\n"
-                "  but won't be openable as instruments in mforce_ui. To make "
+                "  but won't load as instruments. To make "
                 "them playable,\n"
                 "  use an instrument-style basePatch (output is a ValueSource, "
                 "has 'instrument' section).\n";
@@ -354,7 +354,7 @@ int run_explore(int argc, char** argv) {
                     auto sv = pitched->prepare_voice(instrNoteNumber, 1.0f, instrDuration);
                     frames = sv.durSamples;
                     std::vector<float> mono(size_t(frames), 0.0f);
-                    // soft_clip after gain matches mforce_ui's live audio path —
+                    // soft_clip after gain matches the live audio path —
                     // dual-stack / N-stack instruments that sum past ±1.0 get
                     // gracefully shaped instead of hard-clipped at the wav writer.
                     for (int i = 0; i < frames; ++i) {

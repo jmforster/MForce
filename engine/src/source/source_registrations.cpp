@@ -289,14 +289,7 @@ void register_all_sources() {
         [](auto) { return std::make_shared<FormantBands>(); });
 
     reg.register_type("FormantSequence", {.family = Family::Additive},
-        [](auto) { return std::make_shared<FormantSequence>(); },
-        // The spectra arrive through the `spectra` slot; the old loader also
-        // read them under "formants", and a patch still saying so must not
-        // load without its spectra in silence.
-        [](Component&, const nlohmann::json& p, const ResolveParamFn&) {
-            if (p.contains("formants"))
-                throw std::runtime_error("FormantSequence takes its spectra under 'spectra', not 'formants'");
-        });
+        [](auto) { return std::make_shared<FormantSequence>(); });
 
     // -----------------------------------------------------------------------
     // Physical

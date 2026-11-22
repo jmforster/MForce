@@ -23,7 +23,7 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(engine/third_party/glfw)
 
-# RtAudio — callback-based audio I/O for live keyboard play in mforce_ui.
+# RtAudio — callback-based audio I/O for live keyboard play in an editor.
 # Static lib, WASAPI on Windows (default), no tests, no python bindings.
 # RTAUDIO_STATIC_MSVCRT OFF so it uses /MD like our other libs (avoids
 # MT/MD mismatch linker warnings).
@@ -34,7 +34,7 @@ set(RTAUDIO_BUILD_PYTHON      OFF CACHE BOOL "" FORCE)
 set(RTAUDIO_STATIC_MSVCRT     OFF CACHE BOOL "" FORCE)
 add_subdirectory(engine/third_party/rtaudio)
 
-# RtMidi — MIDI keyboard input for mforce_ui. Static lib, WinMM on Windows
+# RtMidi — MIDI keyboard input for an editor. Static lib, WinMM on Windows
 # (default), no tests.
 set(RTMIDI_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
 set(RTMIDI_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
@@ -42,15 +42,12 @@ add_subdirectory(engine/third_party/rtmidi)
 
 add_subdirectory(engine)
 add_subdirectory(tools/mforce_cli)
-add_subdirectory(tools/mforce_ui)
 add_subdirectory(tools/durn_converter)
 add_subdirectory(tools/test_figures)
 add_subdirectory(tools/ppl_to_json)
-add_subdirectory(tools/stamp_test)
 add_subdirectory(tools/engine_tests)
 add_subdirectory(tools/alloc_probe)
 add_subdirectory(tools/alloc_gate)
-add_subdirectory(tools/twin_gate)
 
 # Tests. Every test runs from the repo root: the test programs load patches
 # and scores by repo-relative path.

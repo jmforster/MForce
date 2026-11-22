@@ -2,7 +2,7 @@
 """A/B render-time comparison between two mforce_cli builds.
 
 Alternates the two binaries round by round so machine drift (this box shares
-cores with mforce_ui) hits both equally, and reports MIN over rounds — the
+cores with other work) hits both equally, and reports MIN over rounds — the
 least-contended sample is the truest compute cost.
 
 Usage:
@@ -42,7 +42,7 @@ def once(exe, patch):
     """Return (wall_ms, render_ms).
 
     Wall clock is the honest number: instrument+score patches PRE-RENDER their
-    voices inside load_patch_file, so for those the `render=` line only times
+    voices while the patch builds, so for those the `render=` line only times
     the mixing pass and understates the synthesis cost by ~100x. Wall also
     works against builds predating the load= timer.
     """

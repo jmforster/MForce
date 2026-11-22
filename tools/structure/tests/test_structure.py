@@ -126,28 +126,6 @@ class RulesAndReportTests(unittest.TestCase):
 class KnownAnswerTests(unittest.TestCase):
     """Spec 2026-10-04 §3.12: the meter must report what the audit measured."""
 
-    def test_loader_allowlist_covers_the_lint_scrape(self):
-        # The loader rejects a node key it does not know; what it knows is the
-        # union of its own list and every key tools/lint_patches.py scrapes
-        # from the hand-written loader code. The two drift apart silently
-        # unless something says so: this does.
-        import re, sys
-        sys.path.insert(0, str(ROOT / "tools"))
-        import lint_patches
-        src = (ROOT / "engine/src/patch_loader.cpp").read_text(encoding="utf-8")
-        a = src.index("kBranchKeys = {"); b = src.index("};", a)
-        allow = set(re.findall(r'"([^"]+)"', src[a:b]))
-        missing = sorted(set(lint_patches.scrape_special_keys()) - allow)
-        self.assertEqual(missing, [], "keys the loader reads but its allowlist lacks")
-
-    def test_ui_main_function_lengths(self):
-        # The live file is the fixture, so these move with every edit inside
-        # the two functions (the headless harness, which ticks its clock once
-        # per sample, lives inside main()).
-        lengths = {name: n for name, _, n in measure.function_lengths(str(ROOT / "tools/mforce_ui/main.cpp"))}
-        self.assertEqual(lengths["main"], 1707)
-        self.assertEqual(lengths["draw_properties_panel"], 949)
-
     def test_instrument_ring_out_duplicate_is_found(self):
         # The audit's known duplicate: the ring-out loop of the fresh voice and
         # of the held line. Anchored on their one-sample render_chunk calls,

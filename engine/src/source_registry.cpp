@@ -52,15 +52,13 @@ std::string derived_label(std::string_view type_name) {
 
 void SourceRegistry::register_type(const std::string& type_name,
                                    TypeTag tag,
-                                   SourceFactory factory,
-                                   JsonConfigurator configurator) {
+                                   SourceFactory factory) {
   if (!entries_.count(type_name)) order_.push_back(type_name);
   Entry& e = entries_[type_name];
   e.label = tag.label ? tag.label : "";
   tag.label = e.label.empty() ? nullptr : e.label.c_str();   // the registry's own copy outlives any caller's
   e.tag = tag;
   e.factory = std::move(factory);
-  e.configurator = std::move(configurator);
 }
 
 const SourceRegistry::Entry& SourceRegistry::entry(const std::string& type_name) const {
@@ -73,13 +71,6 @@ const SourceRegistry::Entry& SourceRegistry::entry(const std::string& type_name)
 std::shared_ptr<Component> SourceRegistry::create(const std::string& type_name,
                                                   std::optional<uint32_t> seed) const {
   return entry(type_name).factory(seed);
-}
-
-const JsonConfigurator* SourceRegistry::get_configurator(const std::string& type_name) const {
-  auto it = entries_.find(type_name);
-  if (it == entries_.end()) return nullptr;
-  if (!it->second.configurator) return nullptr;
-  return &it->second.configurator;
 }
 
 std::vector<TypeEntry> SourceRegistry::registered_types() const {

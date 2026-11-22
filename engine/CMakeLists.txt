@@ -8,7 +8,6 @@ add_library(mforce_engine
   src/mixer.cpp
   src/wav_writer.cpp
   src/wav_reader.cpp
-  src/patch_loader.cpp
   src/build_instrument.cpp
   src/build_sound.cpp
   src/patch/build_graph.cpp

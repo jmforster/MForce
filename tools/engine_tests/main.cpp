@@ -2011,8 +2011,7 @@ static void run_note_reseed_tests() {
 #include "mforce/render/embedded_score.h"
 #include <filesystem>
 
-// A patch file in the scratch folder for the standalone loader, which reads
-// files only: written when made (the folder too, since a fresh clone has
+// A patch file in the scratch folder for the tests that read a file: written when made (the folder too, since a fresh clone has
 // none), removed when it goes out of scope.
 struct ScratchPatch {
     std::string path;
@@ -2028,8 +2027,8 @@ struct ScratchPatch {
     ScratchPatch& operator=(const ScratchPatch&) = delete;
 };
 
-// The voice count of the one instrument channel the standalone loader builds
-// from a patch file; -1, with the reason printed, when the load throws or the
+// The voice count of the one instrument channel build_sound builds from a
+// patch file; -1, with the reason printed, when the load throws or the
 // mixer is not that shape.
 static int file_voice_count(const char* path, const std::string& text) {
     ScratchPatch file(path, text);
@@ -2045,7 +2044,7 @@ static int file_voice_count(const char* path, const std::string& text) {
 }
 
 // The voice pool's size: the file's "polyphony" (4 when the block has none),
-// floored by the caller's minimum; the standalone loader's floor is 0. The
+// floored by the caller's minimum; build_sound's floor is 0. The
 // rate is the file's "sampleRate", 48000 when it has none.
 static void run_voice_pool_tests() {
     std::printf("the voice pool: the file's polyphony, the default, the floor; the default rate\n");
@@ -2085,7 +2084,7 @@ static void run_voice_gain_tests() {
     CHECK(ip.instrument->prepare_voice_at(0, 60.0f, 0.8f, 0.1f).gain == 0.8f);
 }
 
-// The frame count the standalone loader gives a patch file; -1, with the
+// The frame count build_sound gives a patch file; -1, with the
 // reason printed, when the load throws.
 static int frames_of(const char* path, const char* text) {
     ScratchPatch file(path, text);
@@ -2096,7 +2095,7 @@ static int frames_of(const char* path, const char* text) {
 }
 
 // The score a patch file carries under "score": performed at load and its end
-// returned in seconds; the loader turns the end into the frame count.
+// returned in seconds; build_sound turns the end into the frame count.
 static void run_embedded_score_tests() {
     std::printf("the embedded score: its end, hold, the phrased refusal, the frames\n");
     const char* plain = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -2138,7 +2137,7 @@ static void run_embedded_score_tests() {
         catch (const std::exception& e) { named = std::string(e.what()).find("phrased") != std::string::npos; }
         CHECK(named);
     }
-    // The loader's frame arithmetic: the render covers at least the score, a
+    // build_sound's frame arithmetic: the render covers at least the score, a
     // larger "seconds" extends it.
     CHECK(frames_of("renders/scratch/_embedded_score_noseconds.json",
         R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -2154,7 +2153,7 @@ static void run_embedded_score_tests() {
           "score":[{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}]})") == 84000);
 }
 
-// The score's end is double arithmetic on the JSON values, and the loader
+// The score's end is double arithmetic on the JSON values, and build_sound
 // rounds it to frames; a file with neither a score nor "seconds" renders five
 // seconds.
 static void run_embedded_score_end_tests() {
@@ -2237,7 +2236,7 @@ static void run_embedded_score_delivery_tests() {
     }
 }
 
-// The loader hands the score over as text. Every score block in
+// The codec hands the score over as text. Every score block in
 // patches/library and patches/baselines reads back from its text to the same
 // JSON, the same text, the same float and double of each number and the same
 // number type.
@@ -5667,7 +5666,7 @@ static void run_combine_mod_manual_pin_tests() {
     auto unused = std::make_shared<LengthProbe>();
     cloned.set_param("source", unused);
     cloned.set_setting("count", 3.0f);
-    cloned.set_template("{}", 0, [](int) {
+    cloned.set_template([](int) {
         return std::shared_ptr<ValueSource>(konst(2.0f));
     });
     cloned.prepare(ctx); cloned.start(100);
@@ -5762,7 +5761,7 @@ static void run_combine_mod_setting_hook_tests() {
     mux.set_setting("count", 0.0f);   CHECK_NEAR(mux.get_setting("count"), 1.0f, 1e-6f);
     mux.set_setting("count", 4.0f);   CHECK_NEAR(mux.get_setting("count"), 4.0f, 1e-6f);
     int builds = 0;
-    mux.set_template("{}", 0, [&builds](int) {
+    mux.set_template([&builds](int) {
         ++builds;
         return std::shared_ptr<ValueSource>(konst(1.0f));
     });
@@ -6214,7 +6213,7 @@ static void run_noise_split_tests() {
 // array in prepare and again when numPartials changes afterwards.
 // ---------------------------------------------------------------------------
 static void run_wavetable_split_tests() {
-    // The loader's shape: seed noise in inputSource, an evolution in the
+    // A patch's shape: seed noise in inputSource, an evolution in the
     // evolution slot; then the interpolating read; then evolutions with Manual pins.
     for (bool interp : {false, true}) {
         CHECK(split_equivalent([interp] {
@@ -6785,7 +6784,7 @@ static void run_combine_mod_pin_split_tests() {
     MultiplexSource mux;
     mux.set_setting("count", 3.0f);
     std::vector<std::shared_ptr<PinCounter>> clones;
-    mux.set_template("{}", 0, [&clones](int) {
+    mux.set_template([&clones](int) {
         clones.push_back(std::make_shared<PinCounter>());
         return std::shared_ptr<ValueSource>(clones.back());
     });
@@ -6988,8 +6987,8 @@ static void run_vibrato_late_setting_tests() {
     CHECK(same_bits(render_samples(*edited, 4096), render_samples(*fresh, 4096)));   // the next note is the new chain
 }
 
-// The hosts: a loaded instrument is prepared by the
-// loader and only started per note; render takes no context.
+// The hosts: a loaded instrument is prepared by its
+// build and only started per note; render takes no context.
 static void run_host_split_tests() {
     const int n = 48000;
     auto render_twice = [&](const char* path) {
@@ -7164,7 +7163,7 @@ static void run_fault_tests() {
 }
 
 // A rejected wire says so. set_param answers false for a pin
-// the node does not have or a part of the wrong kind; the loader turns that,
+// the node does not have or a part of the wrong kind; the build turns that,
 // and an unknown key, into a load failure naming node, pin and reason.
 static void run_wire_rejection_tests() {
     auto osc = std::make_shared<SineSource>();
@@ -7340,7 +7339,7 @@ static void run_envelope_form_tests() {
           && std::string(kEnvelopePresets[5].name) == "adsr");
 }
 
-// Through the loader: a form node and the stage table it lays out, given as
+// Through a load: a form node and the stage table it lays out, given as
 // columns, render the same bytes; a seed and the accuracy knobs reach the
 // form node as they reach the table node.
 static std::vector<float> render_loaded_note(const char* json, int n) {
@@ -7396,7 +7395,7 @@ static float stage_field(const Envelope::Stage& s, int c) {
 }
 
 static void run_envelope_table_tests() {
-    std::printf("the Envelope's stage table: the twin, the doors, the order, timeMode, the mapping, the loader\n");
+    std::printf("the Envelope's stage table: the twin, the doors, the order, timeMode, the mapping, the load\n");
     using Stage = Envelope::Stage;
     using J = nlohmann::json;
     const RampType L = RampType::Linear, E = RampType::Expo, I = RampType::InverseExpo,
@@ -7785,7 +7784,7 @@ static constexpr uint32_t kCurveBaseMap[][std::size(kCurveGrid)] = {
 };
 
 static void run_curve_table_tests() {
-    std::printf("the Curve's tables: the twin for the knot lookup, the columns, interp and mode, the loader\n");
+    std::printf("the Curve's tables: the twin for the knot lookup, the columns, interp and mode, the load\n");
     using KF = CurveNode::KnotForm;
     static const char* const kColumns[] = {"x", "y", "exprX", "exprForm", "exprA", "exprB"};
     auto expr_cell = [](const CurveNode::ExprKnot& e, int c) {
@@ -8349,7 +8348,7 @@ static void run_structural_setting_tests() {
     }
 }
 
-// The loader refuses a per-note push into a structural setting — the wiring
+// A load refuses a per-note push into a structural setting — the wiring
 // format's dynamic pin — naming the node, the setting and the reason; a value
 // setting still takes one.
 // A load that fails for the reason the needle names; another reason is
@@ -8363,7 +8362,7 @@ static bool load_fails_naming(const char* patch, const char* needle) {
 }
 
 static void run_structural_push_refusal_tests() {
-    std::printf("structural settings: the loader refuses the wire\n");
+    std::printf("structural settings: the load refuses the wire\n");
     auto loads = [](const char* patch) {
         try { (void)load_inst(patch); return true; }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
@@ -9350,7 +9349,7 @@ static void run_enum_column_tests() {
     CHECK(std::string(enum_label(kKinds, 0)) == "Linear" && std::string(enum_label(kKinds, 1)) == "Expo"
           && std::string(enum_label(kKinds, 2)) == "Hold");
     CHECK(enum_label(kKinds, -1) == nullptr && enum_label(kKinds, 3) == nullptr && enum_label(nullptr, 0) == nullptr);
-    // the column read through the loader: labels, indices and a mix load to the same indices
+    // the column read through a load: labels, indices and a mix load to the same indices
     {
         const auto byLabel = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {"Linear", "Expo", "Hold"}}});
         const auto byIndex = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {0, 1, 2}}});
@@ -9424,8 +9423,8 @@ static void run_enum_column_tests() {
 
 // The three kinds on test-local nodes: a string setting, a list of signal
 // inputs, and a node's own check of itself. The registry builds each under a
-// name no patch uses; the loader cases reach them through the instrument
-// loader and the patch-file loader.
+// name no patch uses; the load cases reach them through an instrument's
+// build and a patch file's.
 namespace three_kinds {
 struct StringProbe final : Generator {
     Setting<float> gain{this, "gain", 1.0f, 0.0f, 2.0f};
@@ -9503,7 +9502,7 @@ static std::string plain(const std::string& instrumentDoc) {
     doc["seconds"] = 0.05;
     return doc.dump();
 }
-// Loads `text` through the patch-file loader (file) or the instrument loader.
+// Loads `text` as a patch file built as a sound (file) or as an instrument.
 static void load(const std::string& text, bool file) {
     if (!file) { (void)load_inst(text); return; }
     ScratchPatch patch("renders/scratch/engine_tests_three_kinds.json", text);
@@ -9564,7 +9563,7 @@ static void run_string_setting_tests() {
 
 static void run_string_setting_loader_tests() {
     using namespace three_kinds;
-    std::printf("the string setting through the loader: a string read, a number and a pin refused\n");
+    std::printf("the string setting through a load: a string read, a number and a pin refused\n");
     register_probes();
     {
         LoadedInstrument ip;
@@ -9631,7 +9630,7 @@ static void run_input_list_tests() {
 
 static void run_input_list_loader_tests() {
     using namespace three_kinds;
-    std::printf("the list of signal inputs through the loader: refs and taps in file order\n");
+    std::printf("the list of signal inputs through a load: refs and taps in file order\n");
     register_probes();
     auto feeds_of = [](const std::string& doc, LoadedInstrument& ip) -> ListProbe* {
         try { ip = load_inst(doc); }
@@ -10006,7 +10005,7 @@ struct ReseedProbe final : Generator {
     const char* type_name() const override { return "ReseedProbe"; }
 };
 
-// Whether the standalone loader refuses a patch file with a message holding
+// Whether build_sound refuses a patch file with a message holding
 // `needle`; a refusal for another reason is printed.
 static bool file_fails_naming(const char* path, const char* text, const char* needle) {
     ScratchPatch file(path, text);
@@ -10020,7 +10019,7 @@ static bool file_fails_naming(const char* path, const char* text, const char* ne
     return named;
 }
 
-// The review's gaps, the loader's: a refused slot wire says what the slot
+// The review's gaps in a load: a refused slot wire says what the slot
 // takes; the deleted branch's alias key is refused by name; a part in every
 // signal position fails the load with its path's message.
 static void run_review_gap_tests() {
@@ -10069,7 +10068,7 @@ static void run_review_gap_tests() {
         "node 'ch1' (SoundChannel): 'source' reads 'nowhere', which names no node"));
 }
 
-// A patch the standalone loader reads from the scratch folder, rendered for
+// A patch file in the scratch folder built as a sound, rendered for
 // its own frame count into `buf`. False, with the reason printed, when the
 // load or the render throws.
 static bool render_scratch_patch(const char* path, const std::string& text, std::vector<float>& buf) {
@@ -10109,7 +10108,7 @@ static void run_channel_source_tests() {
          R"({"id":"rng","type":"RangeSource","params":{"min":0.0,"max":1.0,"var":0.5}})", "rng"},
         {"renders/scratch/_channel_vibrato.json",
          R"({"id":"vib","type":"Vibrato","params":{"frequency":220.0}})", "vib"},
-        // No vocabulary in a mixer-mode patch: the loader warns and the gate never fires.
+        // No vocabulary in a mixer-mode patch: the gate never fires.
         {"renders/scratch/_channel_name_gate.json",
          R"({"id":"gate","type":"NameGate","params":{"name":"pluck"}})", "gate"},
     };
@@ -10476,7 +10475,7 @@ static void run_registry_shelf_none_tests() {
     CHECK(kFamilyOrder[kFamilyCount - 1] == Family::Output);
 }
 
-// The twins of the nodes that declare what the loader read. Each case is
+// The twins of the nodes that declare the keys a patch gives them. Each case is
 // driven the same way under the old constructors and under the declared
 // pins; the 64-bit FNV-1a of its samples' float bits under the old
 // constructors is held here as a literal.
@@ -10862,7 +10861,7 @@ static void run_shaper_validate_tests() {
     CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}}).empty());
     // A list in which no segment is overridden is held empty, and the check
     // reads the decoded lists, which keep their length: an all-default list
-    // is compared as the base loader compared the file's.
+    // is compared as the file's.
     CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f, 0.0f, 0.0f}}}) == "segs2 length must match segs");
     CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}}}) == "segs2 length must match segs");
     CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 2.0f, 1.0f}}}) == "segs2 segment types must match segs");
@@ -10870,11 +10869,10 @@ static void run_shaper_validate_tests() {
     CHECK(check({{"segs", {0.0f, 0.0f, 2.0f, 1.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f}}}) == "segs2 segment types must match segs");
     CHECK(check({{"segs", {0.0f, 0.0f, 0.0f, 0.0f}}, {"segs2", {0.0f, 0.0f, 0.0f, 0.0f}}}).empty());
     // values2 beside no values: four floats match the default curve the node
-    // holds and load (the base loader compared the file's absent array and
-    // refused); any other length is refused.
+    // holds and load; any other length is refused.
     CHECK(check({{"values2", two}}).empty());
     CHECK(check({{"values2", three}}) == "values2 length must match values");
-    // Through the loader: the node, its type and the words.
+    // Through a load: the node, its type and the words.
     nlohmann::json bad = {{"values", two}, {"values2", three}};
     CHECK(three_kinds::refused_naming(enum_column::one_node("Shaper", bad), false,
                                       {"node 'n' (Shaper): values2 length must match values"}));
@@ -11126,7 +11124,7 @@ static void add_stages(PhasedValueSource& p, const std::vector<Row>& rows) {
     for (const auto& r : rows) CHECK(p.add_param("sources", signal(r.kind, r.value)));
 }
 // The rule of `rule_values(recurse)` as a node, its pins wired to constants
-// as the loader wires them.
+// as a load wires them.
 static std::shared_ptr<ExpandRuleNode> rule_node(int recurse) {
     const ExpandRule r = rule_values(recurse);
     auto n = std::make_shared<ExpandRuleNode>();
@@ -11541,8 +11539,8 @@ static void run_expand_rule_loader_tests() {
 }
 
 namespace retired_forms {
-// The message the load of `text` fails with, through the instrument loader or,
-// as a plain sound, the patch-file loader; empty when it loads.
+// The message the load of `text` fails with, as an instrument or, as a plain
+// sound, a patch file built as a sound; empty when it loads.
 static std::string refusal(const std::string& text, bool file) {
     try { three_kinds::load(file ? three_kinds::plain(text) : text, file); }
     catch (const std::exception& e) { return e.what(); }
@@ -11626,7 +11624,7 @@ static void run_retired_form_table_tests() {
 
 static void run_retired_form_load_tests() {
     using namespace retired_forms;
-    std::printf("retired forms: each fails through both loaders with its sentence; its new form loads\n");
+    std::printf("retired forms: each fails through both entry points with its sentence; its new form loads\n");
     struct Form { std::string oldNodes, newNodes, want; };
     std::vector<Form> forms = {
         {node("PhasedValueSource", R"({"stages":[{"source":{"ref":"a"},"percent":0.5},{"source":{"ref":"b"}}]})"),
@@ -11749,7 +11747,7 @@ static void run_declared_reader_tests() {
 
 static void run_branch_key_tests() {
     using namespace retired_forms;
-    std::printf("the loader's key allowlist holds no key a deleted reader alone read\n");
+    std::printf("the declarations hold no key a deleted reader alone read\n");
     // Each key that left the list, on a type that declares none of them.
     for (const char* key : {"weight", "delay", "sections", "targetPartials", "oneShot", "normalized",
                             "absolute", "baseValue", "bias", "varPct", "name"})
@@ -11765,7 +11763,7 @@ static void run_branch_key_tests() {
 
 // The plain sounds the build of the two output parts is compared on, each
 // part's feeds in its `params` as {"ref": id}. Their stereo output's 64-bit
-// FNV-1a under the base's loader is held as a literal.
+// FNV-1a is held as a literal.
 namespace plain_parts {
 // One channel: its id, the id of the node its source holds, and the params
 // beside the source (null: none).
@@ -11884,7 +11882,7 @@ static std::string file_refusal(const char* path, const std::string& text) {
     }
     return {};
 }
-// The mixer the standalone loader builds from a patch file; null, with the
+// The mixer build_sound builds from a patch file; null, with the
 // refusal printed, when the load throws.
 static std::unique_ptr<Mixer> built_mixer(const std::string& text) {
     ScratchPatch file("renders/scratch/_plain_built.json", text);
@@ -11908,7 +11906,7 @@ static std::string reversed_channels(const std::string& text) {
 static void run_plain_part_twin_tests() {
     using namespace plain_parts;
     std::printf("the plain-sound build: each sound against the base's render\n");
-    // Each sound's hash under the base's loader.
+    // Each sound's hash, held.
     const uint64_t kBase[] = {
         0xbd803f232d11c7d6ull,   // one channel, all four numbers
         0x428f79ca36025021ull,   // no numbers on either part
@@ -12158,7 +12156,7 @@ static void run_retired_spelling_table_tests() {
 // type; the same parts with their feeds in params load.
 static void run_retired_spelling_load_tests() {
     using plain_parts::file_refusal;
-    std::printf("retired spellings: a channel's and a mixer's 'inputs' refused by both loaders\n");
+    std::printf("retired spellings: a channel's and a mixer's 'inputs' refused in a file and an instrument\n");
     const std::string conv = "is no longer read: python tools/convert_patch.py <patch> rewrites it as ";
     const std::string osc = R"({"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":0.5}})";
     const std::string chNew = R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"volume":0.5}})";
@@ -13502,7 +13500,7 @@ static void run_codec_kind_tests() {
 
 namespace patch_codec {
 // The preset cases: each of the six bare and with every knob it reads,
-// the adsr in seconds, an as that says seconds, and the loader test's node.
+// the adsr in seconds, an as that says seconds, and the load test's node.
 static const char* const kPresetCases[] = {
     R"J({"preset":"ar"})J",
     R"J({"preset":"ar","attack":0.4,"attackCurve":2,"attackPower":1.2,"releaseCurve":0,"releasePower":3.0,"attackMin":0.1,"attackMax":0.9})J",
@@ -13934,7 +13932,7 @@ static void run_codec_untouched_tests() {
 
 // ---------------------------------------------------------------------------
 // The builder: build_graph over a Patch's graph, build_instrument and
-// build_sound, each against what the loader builds from the same text.
+// build_sound, each against the renders and refusals its tests hold.
 #include "mforce/patch/build_graph.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"

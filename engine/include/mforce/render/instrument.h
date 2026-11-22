@@ -230,7 +230,7 @@ struct PitchedInstrument final : Instrument {
   // Live-voice slot accounting (legacy SourcePool semantics restored
   // 2026-08-18): acquire hands out an idle slot rotating from nextVoice,
   // release returns it to the pool when the voice stops sounding. Live
-  // callers (mforce_ui) own the sounding/steal policy and serialize these
+  // callers (a live host) own the sounding/steal policy and serialize these
   // under their audio mutex — not internally synchronized. The scheduled
   // path (play_note / prepare_voice) doesn't participate: overlap there is
   // fixed by score timing, blind round-robin suffices.
@@ -281,7 +281,7 @@ struct PitchedInstrument final : Instrument {
   // Streaming-mode handoff: same set-frequency + prepare logic as play_note,
   // but returns the prepared voice source instead of rendering immediately.
   // Caller is responsible for calling next() durSamples times (e.g. from the
-  // audio thread). Used by mforce_ui's live keyboard path.
+  // audio thread). Used by a live host's keyboard path.
   struct StreamingVoice {
     std::shared_ptr<ValueSource> source;
     int   durSamples{0};
@@ -316,7 +316,7 @@ struct PitchedInstrument final : Instrument {
   }
 
   // Slot-explicit variant: callers that know which pool slots are still
-  // sounding (mforce_ui's live keyboard) pick a genuinely free slot instead
+  // sounding (a live host's keyboard) pick a genuinely free slot instead
   // of trusting the blind round-robin — which happily wraps onto a held
   // note's slot while idle slots sit in between (2026-08-18: a held note +
   // poolSize staccato notes cut the held note). Does not advance nextVoice;
@@ -525,7 +525,7 @@ struct PitchedInstrument final : Instrument {
 
   // Live legato continuation (backlog 53): the same delivery applied to
   // a pool voice the audio callback is pulling. The CALLER owns the
-  // threading (mforce_ui holds its audio mutex), knows which slot is the
+  // threading (a live host holds its audio mutex), knows which slot is the
   // sounding line, and keeps its own envelopes gated — this only
   // delivers the new note into the living graph.
   void continue_voice_live(int slot, float noteNumber, float velocity,

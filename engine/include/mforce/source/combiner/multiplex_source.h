@@ -48,14 +48,6 @@ struct MultiplexSource final : Processor {
         templateDirty_ = true;
     }
 
-    // The builder, with the template's text and its base seed kept beside it.
-    void set_template(std::string json, uint32_t baseSeed, InstanceBuilder builder) {
-        templateJson_ = std::move(json);
-        baseSeed_ = baseSeed;
-        builder_ = std::move(builder);
-        templateDirty_ = true;
-    }
-
     // External dirty signal (UI sets this after editing template nodes).
     void mark_dirty() { templateDirty_ = true; }
 
@@ -100,8 +92,6 @@ private:
     }
 
     int appliedCount_{10};
-    uint32_t baseSeed_{0};
-    std::string templateJson_;
     InstanceBuilder builder_;
     std::vector<std::shared_ptr<ValueSource>> instances_;
     bool templateDirty_{true};
