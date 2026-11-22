@@ -4,7 +4,7 @@
 #include "mforce/music/figures.h"
 #include "mforce/music/pitch_walker.h"
 #include "mforce/music/dynamic_state.h"
-#include "mforce/render/instrument.h"
+#include "mforce/music/time_map.h"
 #include "mforce/music/pitch_gestures.h"
 #include "mforce/contract/performance.h"
 #include "mforce/core/randomizer.h"
@@ -164,44 +164,45 @@ struct NotePerformer {
 
   // Slide-run accumulator. Typically holds 0 or 1 note; grows only while a
   // run of Slide-articulated notes is being bundled.
-  struct QueuedNote { Note note; float startBeats; };
+  // A queued note keeps its start in seconds and the tempo at its start.
+  struct QueuedNote { Note note; float startSeconds; float bpm; };
   std::vector<QueuedNote> noteBuf;
 
-  void perform_note(const Note& note, float startBeats, float bpm,
+  void perform_note(const Note& note, float startSeconds, float bpm,
                     Performance& out) {
     const bool isSlide = std::holds_alternative<articulations::Slide>(note.articulation);
 
     if (isSlide) {
       if (noteBuf.empty())
         throw std::runtime_error("Slide on first note — nothing to slide from");
-      noteBuf.push_back({note, startBeats});
+      noteBuf.push_back({note, startSeconds, bpm});
       return;
     }
 
     // Non-slide arriving: prior buffer (if any) is a complete unit.
-    if (!noteBuf.empty()) play_buffered(bpm, out);
-    noteBuf.push_back({note, startBeats});  // new anchor of a possible future run
+    if (!noteBuf.empty()) play_buffered(out);
+    noteBuf.push_back({note, startSeconds, bpm});  // new anchor of a possible future run
   }
 
   // Drains the buffer into `out`: called after a part's last note.
-  void conclude(float bpm, Performance& out) {
-    if (!noteBuf.empty()) play_buffered(bpm, out);
+  void conclude(Performance& out) {
+    if (!noteBuf.empty()) play_buffered(out);
   }
 
 private:
   // Emit whatever is currently in noteBuf, then clear.
-  void play_buffered(float bpm, Performance& out) {
+  void play_buffered(Performance& out) {
+    const QueuedNote& first = noteBuf.front();
     if (noteBuf.size() == 1)
-      play_single(noteBuf.front().note, noteBuf.front().startBeats, bpm, out);
+      play_single(first.note, first.startSeconds, first.bpm, out);
     else
-      play_run(noteBuf, bpm, out);
+      play_run(noteBuf, out);
     noteBuf.clear();
   }
 
   // One note, no slide bundling. Existing articulation/ornament/bend realization.
-  void play_single(const Note& note, float startBeats, float bpm,
+  void play_single(const Note& note, float startSeconds, float bpm,
                    Performance& out) {
-    float startSeconds = startBeats * 60.0f / bpm;
     float durSeconds = note.durationBeats * 60.0f / bpm;
 
     auto play_plain = [&]() {
@@ -244,8 +245,8 @@ private:
 
   // Bundle: anchor + 1+ slide notes realized as a single legato note
   // with a multi-segment PitchCurve spanning the whole run.
-  void play_run(const std::vector<QueuedNote>& buf, float bpm,
-                Performance& out) {
+  // The run's length takes the anchor's tempo.
+  void play_run(const std::vector<QueuedNote>& buf, Performance& out) {
     // Build SlideRunNote inputs; first is the anchor (no slide).
     std::vector<SlideRunNote> run;
     run.reserve(buf.size());
@@ -267,8 +268,8 @@ private:
     for (const auto& n : run) totalBeats += n.durationBeats;
 
     const auto& anchor = buf.front();
-    float startSeconds = anchor.startBeats * 60.0f / bpm;
-    float totalSeconds = totalBeats * 60.0f / bpm;
+    float startSeconds = anchor.startSeconds;
+    float totalSeconds = totalBeats * 60.0f / anchor.bpm;
     float velocity = anchor.note.velocity;  // run uses anchor's velocity
 
     append_note(out, startSeconds, totalSeconds, anchor.note.noteNumber, velocity,
@@ -284,8 +285,7 @@ struct DrumPerformer {
   Randomizer rng{0xD12A'0000u};
 
   void perform_hit(int drumNumber, float velocity, float durationBeats,
-                   float startBeats, float bpm, Performance& out) {
-    float startSeconds = startBeats * 60.0f / bpm;
+                   float startSeconds, float bpm, Performance& out) {
     float durSeconds = durationBeats * 60.0f / bpm;
     startSeconds += humanize * 0.001f * rng.valuePN();
     out.hits.push_back({.start = startSeconds, .duration = durSeconds,
@@ -307,9 +307,8 @@ struct ChordPerformer {
   std::unordered_map<std::string, ChordRealization> figures;
   ChordRealization* defaultFigure{nullptr};
 
-  void perform_chord(const Chord& chord, float velocity, float startBeats, float bpm,
+  void perform_chord(const Chord& chord, float velocity, float startSeconds, float bpm,
                      Performance& out) {
-    float startSeconds = startBeats * 60.0f / bpm;
     float chordDurSeconds = chord.dur * 60.0f / bpm;
 
     ChordRealization* fig = select_figure(chord);
@@ -521,79 +520,36 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// Conductor — reads the score and directs the performers. Holds the
-// instrument registry. perform(Piece) is the main entry point.
+// Conductor — reads the score and directs the performers.
 // ---------------------------------------------------------------------------
 struct Conductor {
   ChordPerformer chordPerformer;
   NotePerformer notePerformer;
   DrumPerformer drumPerformer;
 
-  // Instrument registry: instrumentType string → Instrument*
-  std::unordered_map<std::string, Instrument*> instruments;
-
-  // --- Main entry point: perform a whole Piece ---
-
-  void perform(const Piece& piece) {
-    float beatOffset = 0.0f;
-
-    for (const auto& section : piece.sections) {
-      float bpm = section.tempo;
-      const Scale& scale = section.scale;
-
-      // Effective playback length after truncation.
-      float effectiveBeats = section.beats - section.truncateTailBeats;
-      if (effectiveBeats < 0.0f) effectiveBeats = 0.0f;
-
-      for (const auto& part : piece.parts) {
-        Instrument* inst = lookup_instrument(part.instrumentType);
-        if (!inst) continue;
-
-        // Composer fully populates Part.elementSequence; that's all we read.
-        if (!part.elementSequence.empty()) {
-          inst->play(perform_events(part, bpm, beatOffset));
-        }
-      }
-
-      beatOffset += effectiveBeats;
-    }
-  }
-
-  // --- Convenience: perform a single Part with explicit instrument + bpm ---
-
-  void perform(const Part& part, float bpm, Instrument& instrument) {
-    instrument.play(perform_events(part, bpm, 0.0f));
-  }
-
-private:
-  Instrument* lookup_instrument(const std::string& type) {
-    auto it = instruments.find(type);
-    return (it != instruments.end()) ? it->second : nullptr;
-  }
-
-  // --- Event-list performance ---
-
   // Every event of the part, in sequence order: notes and chords into
-  // `notes`, hits into `hits`; the slide-run buffer drained at the end.
-  Performance perform_events(const Part& part, float bpm, float beatOffset) {
+  // `notes`, hits into `hits`; the slide-run buffer drained at the end. Each
+  // event's start in seconds and its tempo come from the map at its beat.
+  Performance perform(const Part& part, const TimeMap& time) {
     Performance out;
     for (const auto& event : part.elementSequence) {
-      float absBeats = beatOffset + event.startBeats;
+      const float start = time.seconds_at(event.startBeats);
+      const float bpm = time.bpm_at(event.startBeats);
 
       if (event.is_note()) {
-        notePerformer.perform_note(event.note(), absBeats, bpm, out);
+        notePerformer.perform_note(event.note(), start, bpm, out);
       }
       else if (event.is_chord()) {
-        chordPerformer.perform_chord(event.chord(), 1.0f, absBeats, bpm, out);
+        chordPerformer.perform_chord(event.chord(), 1.0f, start, bpm, out);
       }
       else if (event.is_hit()) {
         const auto& h = event.hit();
         drumPerformer.perform_hit(h.drumNumber, h.velocity, h.durationBeats,
-                                  absBeats, bpm, out);
+                                  start, bpm, out);
       }
     }
 
-    notePerformer.conclude(bpm, out);
+    notePerformer.conclude(out);
     return out;
   }
 };

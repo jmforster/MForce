@@ -288,4 +288,13 @@ struct Piece {
   void add_part(Part p) { parts.push_back(std::move(p)); }
 };
 
+// The beat at which section `index` starts: the earlier sections' beats,
+// summed in order. The composer stamps events from it and TimeMap maps from
+// it, so the two cannot disagree.
+inline float section_start_beat(const std::vector<Section>& sections, std::size_t index) {
+  float beat = 0.0f;
+  for (std::size_t k = 0; k < index && k < sections.size(); ++k) beat += sections[k].beats;
+  return beat;
+}
+
 } // namespace mforce

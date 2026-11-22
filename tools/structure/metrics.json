@@ -185,18 +185,18 @@
    [
     [
      "tools/test_figures/main.cpp",
-     73,
-     94
+     74,
+     95
     ],
     [
      "tools/test_figures/main.cpp",
-     783,
-     804
+     784,
+     805
     ],
     [
      "tools/test_figures/main.cpp",
-     910,
-     931
+     911,
+     932
     ]
    ]
   ],
@@ -205,13 +205,13 @@
    [
     [
      "tools/test_figures/main.cpp",
-     783,
-     804
+     784,
+     805
     ],
     [
      "tools/test_figures/main.cpp",
-     910,
-     931
+     911,
+     932
     ]
    ]
   ],
@@ -365,18 +365,18 @@
    [
     [
      "tools/test_figures/main.cpp",
-     82,
-     100
+     83,
+     101
     ],
     [
      "tools/test_figures/main.cpp",
-     163,
-     181
+     164,
+     182
     ],
     [
      "tools/test_figures/main.cpp",
-     721,
-     739
+     722,
+     740
     ]
    ]
   ],
@@ -425,13 +425,13 @@
    [
     [
      "engine/include/mforce/music/composer.h",
-     1223,
-     1238
+     1220,
+     1235
     ],
     [
      "engine/include/mforce/music/composer.h",
-     1732,
-     1745
+     1729,
+     1742
     ]
    ]
   ],
@@ -455,13 +455,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5007,
-     5022
+     5175,
+     5190
     ],
     [
      "tools/engine_tests/main.cpp",
-     5301,
-     5316
+     5469,
+     5484
     ]
    ]
   ],
@@ -519,14 +519,14 @@
    15,
    [
     [
-     "tools/mforce_cli/main.cpp",
-     637,
-     651
+     "tools/test_figures/main.cpp",
+     808,
+     822
     ],
     [
-     "tools/mforce_cli/main.cpp",
-     739,
-     753
+     "tools/test_figures/main.cpp",
+     935,
+     949
     ]
    ]
   ],
@@ -535,28 +535,13 @@
    [
     [
      "tools/test_figures/main.cpp",
-     807,
-     821
+     808,
+     822
     ],
     [
      "tools/test_figures/main.cpp",
-     934,
-     948
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     807,
-     821
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     934,
-     948
+     935,
+     949
     ]
    ]
   ],
@@ -581,17 +566,17 @@
    ]
   ],
   [
-   14,
+   13,
    [
     [
-     "tools/mforce_cli/main.cpp",
-     111,
-     124
+     "engine/include/mforce/music/composer.h",
+     1124,
+     1136
     ],
     [
-     "tools/mforce_cli/main.cpp",
-     728,
-     740
+     "engine/include/mforce/music/composer.h",
+     1162,
+     1172
     ]
    ]
   ],
@@ -600,28 +585,13 @@
    [
     [
      "engine/include/mforce/music/composer.h",
-     1127,
-     1139
+     1148,
+     1160
     ],
     [
      "engine/include/mforce/music/composer.h",
-     1165,
-     1175
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "engine/include/mforce/music/composer.h",
-     1151,
-     1163
-    ],
-    [
-     "engine/include/mforce/music/composer.h",
-     1175,
-     1195
+     1172,
+     1192
     ]
    ]
   ],
@@ -655,23 +625,23 @@
    [
     [
      "tools/test_figures/main.cpp",
-     82,
-     94
+     83,
+     95
     ],
     [
      "tools/test_figures/main.cpp",
-     163,
-     175
+     164,
+     176
     ],
     [
      "tools/test_figures/main.cpp",
-     721,
-     733
+     722,
+     734
     ],
     [
      "tools/test_figures/main.cpp",
-     792,
-     804
+     793,
+     805
     ]
    ]
   ],
@@ -760,13 +730,13 @@
    [
     [
      "engine/include/mforce/music/composer.h",
-     1891,
-     1901
+     1888,
+     1898
     ],
     [
      "engine/include/mforce/music/composer.h",
-     2057,
-     2067
+     2054,
+     2064
     ]
    ]
   ],
@@ -915,18 +885,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5009,
-     5019
+     5177,
+     5187
     ],
     [
      "tools/engine_tests/main.cpp",
-     5303,
-     5313
+     5471,
+     5481
     ],
     [
      "tools/engine_tests/main.cpp",
-     5830,
-     5840
+     5998,
+     6008
     ]
    ]
   ],
@@ -935,18 +905,18 @@
    [
     [
      "tools/test_figures/main.cpp",
-     101,
-     111
+     102,
+     112
     ],
     [
      "tools/test_figures/main.cpp",
-     807,
-     817
+     808,
+     818
     ],
     [
      "tools/test_figures/main.cpp",
-     934,
-     944
+     935,
+     945
     ]
    ]
   ],
@@ -984,34 +954,24 @@
    10,
    [
     [
-     "tools/mforce_cli/main.cpp",
-     114,
-     123
+     "tools/test_figures/main.cpp",
+     79,
+     88
     ],
     [
-     "tools/mforce_cli/main.cpp",
-     197,
-     205
+     "tools/test_figures/main.cpp",
+     789,
+     798
     ],
     [
-     "tools/mforce_cli/main.cpp",
-     731,
-     739
-    ]
-   ]
-  ],
-  [
-   10,
-   [
-    [
-     "tools/mforce_cli/main.cpp",
-     211,
-     220
+     "tools/test_figures/main.cpp",
+     916,
+     925
     ],
     [
-     "tools/mforce_cli/main.cpp",
-     353,
-     362
+     "tools/test_figures/main.cpp",
+     1132,
+     1141
     ]
    ]
   ],
@@ -1020,43 +980,18 @@
    [
     [
      "tools/test_figures/main.cpp",
-     78,
-     87
+     101,
+     110
     ],
     [
      "tools/test_figures/main.cpp",
-     788,
-     797
+     182,
+     191
     ],
     [
      "tools/test_figures/main.cpp",
-     915,
-     924
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     1131,
-     1140
-    ]
-   ]
-  ],
-  [
-   10,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     100,
-     109
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     181,
-     190
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     739,
-     748
+     740,
+     749
     ]
    ]
   ],
@@ -1085,18 +1020,18 @@
    [
     [
      "engine/include/mforce/music/composer.h",
-     1116,
-     1124
+     1113,
+     1121
     ],
     [
      "engine/include/mforce/music/composer.h",
-     1154,
-     1163
+     1151,
+     1160
     ],
     [
      "engine/include/mforce/music/composer.h",
-     1178,
-     1195
+     1175,
+     1192
     ]
    ]
   ],
@@ -1140,8 +1075,98 @@
     ],
     [
      "tools/engine_tests/main.cpp",
-     3607,
-     3615
+     3775,
+     3783
+    ]
+   ]
+  ],
+  [
+   9,
+   [
+    [
+     "tools/engine_tests/main.cpp",
+     5139,
+     5147
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     5856,
+     5864
+    ]
+   ]
+  ],
+  [
+   9,
+   [
+    [
+     "tools/stk_ref/bandedwg_ref.cpp",
+     44,
+     52
+    ],
+    [
+     "tools/stk_ref/blowhole_ref.cpp",
+     44,
+     52
+    ],
+    [
+     "tools/stk_ref/bowed_ref.cpp",
+     49,
+     57
+    ],
+    [
+     "tools/stk_ref/brass_ref.cpp",
+     40,
+     48
+    ]
+   ]
+  ],
+  [
+   9,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     75,
+     83
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     714,
+     722
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     785,
+     793
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     912,
+     920
+    ]
+   ]
+  ],
+  [
+   9,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     102,
+     110
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     183,
+     191
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     741,
+     749
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     808,
+     816
     ]
    ]
   ]
@@ -1639,7 +1664,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 431,
+   "lines": 409,
    "longest_function": [
     29,
     "mforce::Scale::get_passing_tone"
@@ -1660,8 +1685,6 @@
     "Interval",
     "Meter",
     "SimpleNote",
-    "Tone",
-    "DrumHit",
     "Beat",
     "ChordDef",
     "Chord",
@@ -1738,7 +1761,7 @@
    "changelog_comments": 4,
    "const_cast": 7,
    "dynamic_cast": 2,
-   "lines": 2081,
+   "lines": 2078,
    "longest_function": [
     320,
     "mforce::DefaultPassageStrategy::compose_passage"
@@ -1753,7 +1776,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 601,
+   "lines": 557,
    "longest_function": [
     56,
     "mforce::ChordPerformer::get_pitch_indices"
@@ -1845,6 +1868,21 @@
    "mutable_vars": 0,
    "types": [
     "ElaboratedPhraseStrategy"
+   ]
+  },
+  "engine/include/mforce/music/embedded_score.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 25,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "music",
+   "mutable_vars": 0,
+   "types": [
+    "EmbeddedScore"
    ]
   },
   "engine/include/mforce/music/figure_constraints.h": {
@@ -2402,7 +2440,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 291,
+   "lines": 300,
    "longest_function": [
     9,
     "mforce::Phrase::operator ="
@@ -2493,6 +2531,21 @@
    "module": "music",
    "mutable_vars": 0,
    "types": []
+  },
+  "engine/include/mforce/music/time_map.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 45,
+   "longest_function": [
+    8,
+    "mforce::TimeMap::TimeMap"
+   ],
+   "module": "music",
+   "mutable_vars": 0,
+   "types": [
+    "TimeMap"
+   ]
   },
   "engine/include/mforce/music/two_figure_phrase_strategy.h": {
    "changelog_comments": 0,
@@ -2780,6 +2833,22 @@
     "TypeDeclarations"
    ]
   },
+  "engine/include/mforce/play/play.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 47,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "play",
+   "mutable_vars": 0,
+   "types": [
+    "Ensemble",
+    "PlayResult"
+   ]
+  },
   "engine/include/mforce/render/build_instrument.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -2797,7 +2866,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 11,
+   "lines": 21,
    "longest_function": [
     0,
     ""
@@ -2829,19 +2898,6 @@
    "longest_function": [
     34,
     "mforce::compile_pitch_curve"
-   ],
-   "module": "render",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/include/mforce/render/embedded_score.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 16,
-   "longest_function": [
-    0,
-    ""
    ],
    "module": "render",
    "mutable_vars": 0,
@@ -4334,7 +4390,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 180,
+   "lines": 181,
    "longest_function": [
     32,
     "mforce::assemble_mixer"
@@ -4372,19 +4428,6 @@
    "mutable_vars": 0,
    "types": []
   },
-  "engine/src/embedded_score.cpp": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 134,
-   "longest_function": [
-    72,
-    "mforce::perform_notes"
-   ],
-   "module": "render",
-   "mutable_vars": 0,
-   "types": []
-  },
   "engine/src/mixer.cpp": {
    "changelog_comments": 1,
    "const_cast": 0,
@@ -4410,6 +4453,21 @@
    "module": "music",
    "mutable_vars": 5,
    "types": []
+  },
+  "engine/src/music/embedded_score.cpp": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 143,
+   "longest_function": [
+    41,
+    "mforce::perform_notes"
+   ],
+   "module": "music",
+   "mutable_vars": 0,
+   "types": [
+    "ScoreWarnings"
+   ]
   },
   "engine/src/patch/build_graph.cpp": {
    "changelog_comments": 0,
@@ -4513,6 +4571,19 @@
     "Entry",
     "Table"
    ]
+  },
+  "engine/src/play/play.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 135,
+   "longest_function": [
+    33,
+    "mforce::play"
+   ],
+   "module": "play",
+   "mutable_vars": 0,
+   "types": []
   },
   "engine/src/source/additive/additive_source.cpp": {
    "changelog_comments": 0,
@@ -4767,7 +4838,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 37,
-   "lines": 15007,
+   "lines": 15176,
    "longest_function": [
     327,
     "run_envelope_table_tests"
@@ -4867,10 +4938,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1193,
+   "lines": 951,
    "longest_function": [
-    174,
-    "run_compose"
+    74,
+    "run_chords"
    ],
    "module": "cli",
    "mutable_vars": 0,
@@ -5031,9 +5102,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 5,
-   "lines": 1212,
+   "lines": 1199,
    "longest_function": [
-    125,
+    111,
     "run_render"
    ],
    "module": "tests",
@@ -5094,37 +5165,19 @@
    "include": "nlohmann/json.hpp",
    "module": "music",
    "target": "json"
-  },
-  {
-   "file": "engine/src/embedded_score.cpp",
-   "include": "mforce/music/basics.h",
-   "module": "render",
-   "target": "music"
-  },
-  {
-   "file": "engine/src/embedded_score.cpp",
-   "include": "mforce/music/conductor.h",
-   "module": "render",
-   "target": "music"
-  },
-  {
-   "file": "engine/src/embedded_score.cpp",
-   "include": "mforce/music/music_json.h",
-   "module": "render",
-   "target": "music"
   }
  ],
  "summary": {
   "changelog_comments": 96,
   "const_cast": 10,
-  "duplicate_blocks": 135,
+  "duplicate_blocks": 126,
   "dynamic_cast": 54,
   "file_level_mutable_vars": 24,
-  "files": 249,
-  "files_over_limit": 16,
-  "functions_over_limit": 62,
-  "include_violations": 9,
-  "lines": 54406,
+  "files": 252,
+  "files_over_limit": 15,
+  "functions_over_limit": 57,
+  "include_violations": 6,
+  "lines": 54516,
   "unmapped_files": 0
  }
 }

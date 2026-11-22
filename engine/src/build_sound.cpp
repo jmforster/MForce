@@ -1,10 +1,8 @@
 #include "mforce/render/build_sound.h"
 #include "mforce/patch/build_graph.h"
 #include "mforce/render/build_instrument.h"
-#include "mforce/render/embedded_score.h"
 #include "mforce/source/output/sound_channel.h"
 #include "mforce/source/output/stereo_mixer.h"
-#include <algorithm>
 #include <cmath>
 #include <map>
 #include <set>
@@ -160,21 +158,24 @@ void build_plain(BuiltSound& built, const Patch& patch) {
 BuiltSound build_sound(const Patch& patch) {
   BuiltSound built;
   built.sampleRate = patch.sampleRate;
-  built.frames = patch.seconds ? int(std::lround(*patch.seconds * patch.sampleRate)) : patch.sampleRate * 5;
+  built.frames = sound_frames(patch);
   if (!patch.instrument) {
     build_plain(built, patch);
     return built;
   }
-  auto inst = build_instrument(patch, 0, &built.warnings);
-  if (!patch.score.empty()) {
-    const int scoreFrames = int(std::lround(play_embedded_score(*inst, patch.score) * patch.sampleRate));
-    built.frames = patch.seconds ? std::max(built.frames, scoreFrames) : scoreFrames;
-  }
-  auto mixer = std::make_unique<Mixer>();
-  mixer->channels.push_back(unity_channel(std::move(inst)));
-  mixer->prepare(RenderContext{patch.sampleRate});
-  built.mixer = std::move(mixer);
+  built.mixer = instrument_mixer(build_instrument(patch, 0, &built.warnings), patch.sampleRate);
   return built;
+}
+
+int sound_frames(const Patch& patch) {
+  return patch.seconds ? int(std::lround(*patch.seconds * patch.sampleRate)) : patch.sampleRate * 5;
+}
+
+std::unique_ptr<Mixer> instrument_mixer(std::unique_ptr<Instrument> instrument, int sampleRate) {
+  auto mixer = std::make_unique<Mixer>();
+  mixer->channels.push_back(unity_channel(std::move(instrument)));
+  mixer->prepare(RenderContext{sampleRate});
+  return mixer;
 }
 
 } // namespace mforce

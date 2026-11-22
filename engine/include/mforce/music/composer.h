@@ -387,7 +387,7 @@ private:
     for (auto& pt : tmpl.parts) {
       Part p;
       p.name = pt.name;
-      p.instrumentType = pt.name;  // conductor looks up by instrumentType
+      p.instrumentType = pt.name;  // the ensemble maps instrumentType to an instrument
       piece.parts.push_back(std::move(p));
     }
 
@@ -418,11 +418,8 @@ private:
   // chord events.
   // -------------------------------------------------------------------------
   static float section_start_beat_(const Piece& piece, const std::string& sectionName) {
-    float beat = 0.0f;
-    for (const auto& s : piece.sections) {
-      if (s.name == sectionName) return beat;
-      beat += s.beats;
-    }
+    for (std::size_t k = 0; k < piece.sections.size(); ++k)
+      if (piece.sections[k].name == sectionName) return section_start_beat(piece.sections, k);
     return 0.0f;
   }
 

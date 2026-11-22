@@ -284,28 +284,6 @@ struct SimpleNote {
   Ornament ornament;
 };
 
-// ===== Tone — render-ready note (output of Conductor) =====
-
-struct Tone {
-  float noteNumber;
-  float velocity;
-  float duration;  // seconds
-  Articulation articulation{articulations::Default{}};
-
-  Tone(float nn, float vel, float dur, Articulation art = articulations::Default{})
-    : noteNumber(nn), velocity(vel), duration(dur), articulation(art) {}
-};
-
-// ===== DrumHit — render-ready drum event (output of Conductor) =====
-
-struct DrumHit {
-  int drumNumber;
-  float velocity;
-  float duration;  // seconds
-
-  DrumHit(int dn, float vel, float dur) : drumNumber(dn), velocity(vel), duration(dur) {}
-};
-
 // ===== Beat (drum pattern) =====
 
 struct Beat {

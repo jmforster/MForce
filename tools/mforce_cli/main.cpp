@@ -5,6 +5,7 @@
 #include "mforce/patch/type_declarations.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"
+#include "mforce/play/play.h"
 #include "explore.h"
 #include "patch_file.h"
 #include "mforce/music/basics.h"
@@ -26,22 +27,51 @@
 #include <algorithm>
 #include <string>
 #include <sstream>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 
-// After a render: one line per node that reported a fault, or nothing.
-// After a render: what the nodes reported, one line per node id, cleared as
-// read. The host is an Instrument or the patch's Mixer.
-template <class Host>
-static void report_faults(Host& host) {
-    std::vector<mforce::FaultReport> faults;
-    host.collect_faults(faults);
-    for (const auto& f : faults)
-        std::cerr << "[faults] " << mforce::fault_report_text(f) << "\n";
+using namespace mforce;
+
+// ---------------------------------------------------------------------------
+// What every playing mode prints and writes
+// ---------------------------------------------------------------------------
+
+// What the nodes reported during the render, one line per node id.
+static void report_faults(const PlayResult& r) {
+    for (const auto& f : r.faults)
+        std::cerr << "[faults] " << fault_report_text(f) << "\n";
 }
 
-using namespace mforce;
+// The stereo frames as a 16-bit WAV; on failure the line `failText` + path.
+static bool write_stereo(const std::string& path, int sampleRate, const std::vector<float>& stereo,
+                         const char* failText = "Failed to write: ") {
+    if (write_wav_16le_stereo(path, sampleRate, stereo)) return true;
+    std::cerr << failText << path << "\n";
+    return false;
+}
+
+// The levels line on stderr, with the count of nonzero samples when asked.
+static void print_levels(const PlayResult& r, bool withNonzero) {
+    std::cerr << "  peak=" << r.peak << " rms=" << r.rms;
+    if (withNonzero) {
+        const auto nonzero = std::count_if(r.stereo.begin(), r.stereo.end(), [](float s) { return s != 0.0f; });
+        std::cerr << " nonzero=" << nonzero << "/" << r.stereo.size();
+    }
+    std::cerr << "\n";
+}
+
+// The line a scaled multi-instrument mix prints.
+static void print_scale(const PlayResult& r) {
+    if (r.scale != 1.0f)
+        std::cout << "  normalized: mix peak " << r.mixPeak << " scaled by " << r.scale << "\n";
+}
+
+// A piece's beats, summed over its sections.
+static float total_beats(const Piece& piece) {
+    float beats = 0.0f;
+    for (const auto& s : piece.sections) beats += s.beats;
+    return beats;
+}
 
 // ---------------------------------------------------------------------------
 // Chord progression mode
@@ -90,62 +120,34 @@ static int run_chords(int argc, char** argv) {
         return 1;
     }
 
-    // Load instrument
     auto ip = instrument_from_file(patchPath);
     ip.instrument->volume = volume;
 
-    // Build Part from chord tokens
+    // One section around one part of chord tokens.
     Part part;
     part.name = "chords";
-    for (const auto& token : chordTokens) {
-        Chord chord = parse_chord_token(token, octave, dictName, beatsPerChord);
-        part.add_chord(chord);
-    }
+    part.instrumentType = "chords";
+    for (const auto& token : chordTokens)
+        part.add_chord(parse_chord_token(token, octave, dictName, beatsPerChord));
+    Piece piece;
+    Section section;
+    section.name = "chords";
+    section.beats = part.totalBeats();
+    section.tempo = bpm;
+    piece.add_section(std::move(section));
+    piece.add_part(std::move(part));
 
-    // Perform
     Conductor conductor;
     conductor.chordPerformer.defaultSpreadMs = 15.0f;
-    conductor.perform(part, bpm, *ip.instrument);
-
-    // Render
-    float totalSeconds = part.totalBeats() * 60.0f / bpm + 1.0f; // +1s tail
-    int frames = int(totalSeconds * float(ip.sampleRate));
-    std::vector<float> mono(frames, 0.0f);
-    { ip.instrument->render(mono.data(), frames); };
-
-    // Convert mono to stereo
-    std::vector<float> stereo(frames * 2);
-    for (int i = 0; i < frames; ++i) {
-        stereo[i * 2]     = mono[i];
-        stereo[i * 2 + 1] = mono[i];
-    }
-
-    if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
-        std::cerr << "Failed to write wav: " << outPath << "\n";
-        return 1;
-    }
-
-    // Stats
-    float peak = 0.0f;
-    double rms = 0.0;
-    int nonzero = 0;
-    for (auto s : stereo) {
-        if (s != 0.0f) nonzero++;
-        float a = std::fabs(s);
-        if (a > peak) peak = a;
-        rms += double(s) * double(s);
-    }
-    rms = std::sqrt(rms / stereo.size());
+    const PlayResult r = play(piece, Ensemble{{{"chords", ip.instrument.get()}}}, conductor, 1.0f);   // +1s tail
+    if (!write_stereo(outPath, r.sampleRate, r.stereo, "Failed to write wav: ")) return 1;
 
     std::cout << "Wrote: " << outPath
-              << " (" << frames << " frames @ " << ip.sampleRate << " Hz)\n";
+              << " (" << r.frames << " frames @ " << r.sampleRate << " Hz)\n";
     std::cout << "  " << chordTokens.size() << " chords, "
-              << part.totalBeats() << " beats @ " << bpm << " bpm\n";
-    std::cerr << "  peak=" << peak
-              << " rms=" << rms
-              << " nonzero=" << nonzero << "/" << stereo.size() << "\n";
-    report_faults(*ip.instrument);
-
+              << total_beats(piece) << " beats @ " << bpm << " bpm\n";
+    print_levels(r, true);
+    report_faults(r);
     return 0;
 }
 
@@ -172,59 +174,69 @@ static Phrase build_descending_phrase(Pitch startPitch, const MelodicFigure& rep
     return phrase;
 }
 
-// ---------------------------------------------------------------------------
-// Render a Piece to a stereo WAV
-// ---------------------------------------------------------------------------
-static bool render_piece_to_wav(Piece& piece, const std::string& instrumentType,
-                                PitchedInstrument& instrument,
-                                int sampleRate, const std::string& outPath) {
-    Conductor conductor;
-    conductor.instruments[instrumentType] = &instrument;
-    conductor.perform(piece);
-
-    // Compute total duration from sections
-    float totalBeats = 0;
-    float bpm = 100.0f;
-    for (const auto& s : piece.sections) {
-        totalBeats += s.beats;
-        bpm = s.tempo; // use last section's tempo for time calc
-    }
-    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-    int frames = int(totalSeconds * float(sampleRate));
-    std::vector<float> mono(frames, 0.0f);
-    { instrument.render(mono.data(), frames); };
-
-    instrument.clear();
-
-    std::vector<float> stereo(frames * 2);
-    for (int i = 0; i < frames; ++i) {
-        stereo[i * 2]     = mono[i];
-        stereo[i * 2 + 1] = mono[i];
-    }
-
-    if (!write_wav_16le_stereo(outPath, sampleRate, stereo))
-        return false;
-
-    float peak = 0.0f;
-    double rms = 0.0;
-    for (auto s : stereo) {
-        float a = std::fabs(s);
-        if (a > peak) peak = a;
-        rms += double(s) * double(s);
-    }
-    rms = std::sqrt(rms / stereo.size());
-
-    std::cout << "Wrote: " << outPath
-              << " (" << frames << " frames, "
-              << totalBeats << " beats @ " << bpm << " bpm)\n";
-    std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
-    report_faults(instrument);
-    return true;
-}
 
 // ---------------------------------------------------------------------------
 // Melody composition mode — uses compositional hierarchy (Piece/Passage/Phrase)
 // ---------------------------------------------------------------------------
+
+// One variation's piece: four phrases over random stepwise figures.
+static Piece melody_piece(int variation) {
+    Pitch E4 = Pitch::from_name("E", 4);
+    Pitch D4 = Pitch::from_name("D", 4);
+
+    // fig1: 3 repeated notes, quarter quarter half
+    PulseSequence ps1;
+    ps1.add(1.0f); ps1.add(1.0f); ps1.add(2.0f);
+    StepSequence ss1;
+    ss1.add(0); ss1.add(0);
+    MelodicFigure fig1(ps1, ss1);
+
+    StepGenerator stepGen(0xBE10'0000u + uint32_t(variation) * 111);
+
+    // fig2: 4 notes, random stepwise, last pulse 4 beats
+    PulseSequence ps2;
+    ps2.add(1.0f); ps2.add(1.0f); ps2.add(1.0f); ps2.add(4.0f);
+    MelodicFigure fig2(ps2, stepGen.random_sequence(3, 0.0f));
+
+    // fig3: 6 notes, random stepwise, last pulse 8 beats
+    PulseSequence ps3;
+    ps3.add(1.0f); ps3.add(1.0f); ps3.add(1.0f);
+    ps3.add(1.0f); ps3.add(1.0f); ps3.add(8.0f);
+    MelodicFigure fig3(ps3, stepGen.random_sequence(5, 0.0f));
+
+    // fig4: 8 notes, random stepwise, last pulse 8 beats
+    PulseSequence ps4;
+    ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f);
+    ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f); ps4.add(8.0f);
+    MelodicFigure fig4(ps4, stepGen.random_sequence(7, 0.0f));
+
+    // Build Passage: p1, p2, p1, p3
+    Phrase p1 = build_descending_phrase(E4, fig1, 3, -2, fig2);
+    Phrase p2 = build_descending_phrase(D4, fig1, 3, -2, fig3);
+    Phrase p3 = build_descending_phrase(D4, fig1, 2, -2, fig4);
+    Passage passage;
+    passage.add_phrase(p1);
+    passage.add_phrase(p2);
+    passage.add_phrase(p1);
+    passage.add_phrase(p3);
+
+    float totalBeats = 0;
+    for (const auto& ph : passage.phrases)
+        for (const auto& fig : ph.figures)
+            for (const auto& u : fig->units)
+                totalBeats += u.duration;
+
+    Piece piece;
+    piece.key = Key::get("C Major");
+    piece.add_section(Section("Main", totalBeats, 100.0f, Meter::M_4_4, Scale::get("C", "Major")));
+    Part part;
+    part.name = "melody";
+    part.instrumentType = "pluck";
+    part.passages["Main"] = std::move(passage);
+    piece.add_part(std::move(part));
+    return piece;
+}
+
 static int run_melody(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: mforce_cli --melody <patch.json> <out_prefix>\n";
@@ -239,132 +251,76 @@ static int run_melody(int argc, char** argv) {
         return 1;
     }
 
-    Pitch E4 = Pitch::from_name("E", 4);
-    Pitch D4 = Pitch::from_name("D", 4);
-
-    // fig1: 3 repeated notes, quarter quarter half
-    PulseSequence ps1;
-    ps1.add(1.0f); ps1.add(1.0f); ps1.add(2.0f);
-    StepSequence ss1;
-    ss1.add(0); ss1.add(0);
-    MelodicFigure fig1(ps1, ss1);
-
     for (int variation = 0; variation < 3; ++variation) {
         auto ip = instrument_from_file(patchPath);
         ip.instrument->volume = 0.5f;
-
-        StepGenerator stepGen(0xBE10'0000u + uint32_t(variation) * 111);
-
-        // fig2: 4 notes, random stepwise, last pulse 4 beats
-        PulseSequence ps2;
-        ps2.add(1.0f); ps2.add(1.0f); ps2.add(1.0f); ps2.add(4.0f);
-        MelodicFigure fig2(ps2, stepGen.random_sequence(3, 0.0f));
-
-        // fig3: 6 notes, random stepwise, last pulse 8 beats
-        PulseSequence ps3;
-        ps3.add(1.0f); ps3.add(1.0f); ps3.add(1.0f);
-        ps3.add(1.0f); ps3.add(1.0f); ps3.add(8.0f);
-        MelodicFigure fig3(ps3, stepGen.random_sequence(5, 0.0f));
-
-        // fig4: 8 notes, random stepwise, last pulse 8 beats
-        PulseSequence ps4;
-        ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f);
-        ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f); ps4.add(8.0f);
-        MelodicFigure fig4(ps4, stepGen.random_sequence(7, 0.0f));
-
-        // Build Phrases
-        Phrase p1 = build_descending_phrase(E4, fig1, 3, -2, fig2);
-        Phrase p2 = build_descending_phrase(D4, fig1, 3, -2, fig3);
-        Phrase p3 = build_descending_phrase(D4, fig1, 2, -2, fig4);
-
-        // Build Passage: p1, p2, p1, p3
-        Passage passage;
-        passage.add_phrase(p1);
-        passage.add_phrase(p2);
-        passage.add_phrase(p1);
-        passage.add_phrase(p3);
-
-        // Compute total beats
-        float totalBeats = 0;
-        for (const auto& ph : passage.phrases)
-            for (const auto& fig : ph.figures)
-                for (const auto& u : fig->units)
-                    totalBeats += u.duration;
-
-        // Build Piece
-        Piece piece;
-        piece.key = Key::get("C Major");
-
-        Section section("Main", totalBeats, 100.0f, Meter::M_4_4,
-                        Scale::get("C", "Major"));
-        piece.add_section(std::move(section));
-
-        Part part;
-        part.name = "melody";
-        part.instrumentType = "pluck";
-        part.passages["Main"] = std::move(passage);
-        piece.add_part(std::move(part));
+        const Piece piece = melody_piece(variation);
+        Conductor conductor;
+        const PlayResult r = play(piece, Ensemble{{{"pluck", ip.instrument.get()}}}, conductor);
 
         std::string outPath = outPrefix + "_" + std::to_string(variation + 1) + ".wav";
-        if (!render_piece_to_wav(piece, "pluck", *ip.instrument, ip.sampleRate, outPath)) {
-            std::cerr << "Failed to write: " << outPath << "\n";
-            return 1;
-        }
+        if (!write_stereo(outPath, r.sampleRate, r.stereo)) return 1;
+        std::cout << "Wrote: " << outPath
+                  << " (" << r.frames << " frames, "
+                  << total_beats(piece) << " beats @ " << piece.sections.back().tempo << " bpm)\n";
+        print_levels(r, false);
+        report_faults(r);
     }
 
     return 0;
 }
 
 // ---------------------------------------------------------------------------
-// Multi-instrument render helper
-// ---------------------------------------------------------------------------
-static void render_and_write(const std::vector<Instrument*>& instruments,
-                             int sampleRate, float totalBeats, float bpm,
-                             const std::string& outPath) {
-    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-    int frames = int(totalSeconds * float(sampleRate));
-
-    // Render each instrument into its own buffer and mix
-    std::vector<float> mix(frames, 0.0f);
-    std::vector<float> buf(frames);
-
-    for (auto* inst : instruments) {
-        std::fill(buf.begin(), buf.end(), 0.0f);
-        { inst->render(buf.data(), frames); };
-        report_faults(*inst);
-        for (int i = 0; i < frames; ++i)
-            mix[i] += buf[i];
-    }
-
-    // Convert mono to stereo
-    std::vector<float> stereo(frames * 2);
-    for (int i = 0; i < frames; ++i) {
-        stereo[i * 2]     = mix[i];
-        stereo[i * 2 + 1] = mix[i];
-    }
-
-    if (!write_wav_16le_stereo(outPath, sampleRate, stereo)) {
-        throw std::runtime_error("Failed to write: " + outPath);
-    }
-
-    float peak = 0.0f;
-    double rms = 0.0;
-    for (auto s : stereo) {
-        float a = std::fabs(s);
-        if (a > peak) peak = a;
-        rms += double(s) * double(s);
-    }
-    rms = std::sqrt(rms / stereo.size());
-
-    std::cout << "Wrote: " << outPath
-              << " (" << frames << " frames, "
-              << totalBeats << " beats @ " << bpm << " bpm)\n";
-    std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
-}
-
-// ---------------------------------------------------------------------------
 // Josie mode — multi-part chord progression rendering
 // ---------------------------------------------------------------------------
+
+// The four parts over the parsed chords: guitar chords, the bass on each
+// chord's root an octave down, kick on beats 1 and 3, snare on 2 and the
+// ands of 3 and 4.
+static Piece josie_piece(const std::vector<ParsedChord>& parsed, float totalBeats, float bpm) {
+    Part guitarPart;
+    guitarPart.name = "guitar";
+    guitarPart.instrumentType = "guitar";
+    for (auto& pc : parsed) guitarPart.add_chord(pc.chord);
+
+    Part bassPart;
+    bassPart.name = "bass";
+    bassPart.instrumentType = "bass";
+    for (auto& pc : parsed) bassPart.add_note(pc.chord.root.note_number() - 12.0f, 0.9f, pc.chord.dur);
+
+    Part kickPart;
+    kickPart.name = "kick";
+    kickPart.instrumentType = "kick";
+    const float kickNN = 40.0f;  // E2 — good kick fundamental
+    for (float beat = 0; beat < totalBeats; beat += 4.0f) {
+        kickPart.add_note(beat, kickNN, 0.9f, 0.15f);        // beat 1
+        if (beat + 2.0f < totalBeats)
+            kickPart.add_note(beat + 2.0f, kickNN, 0.8f, 0.15f);  // beat 3
+    }
+
+    Part snarePart;
+    snarePart.name = "snare";
+    snarePart.instrumentType = "snare";
+    const float snareNN = 200.0f;  // high frequency for noise character
+    for (float beat = 0; beat < totalBeats; beat += 4.0f) {
+        if (beat + 1.0f < totalBeats)
+            snarePart.add_note(beat + 1.0f, snareNN, 0.8f, 0.12f);  // beat 2
+        if (beat + 2.5f < totalBeats)
+            snarePart.add_note(beat + 2.5f, snareNN, 0.6f, 0.08f);  // AND of 3
+        if (beat + 3.5f < totalBeats)
+            snarePart.add_note(beat + 3.5f, snareNN, 0.6f, 0.08f);  // AND of 4
+    }
+
+    Piece piece;
+    piece.key = Key::get("E Minor");
+    piece.add_section(Section("Josie", totalBeats, bpm, Meter::M_4_4, Scale::get("E", "Minor")));
+    piece.add_part(std::move(guitarPart));
+    piece.add_part(std::move(bassPart));
+    piece.add_part(std::move(kickPart));
+    piece.add_part(std::move(snarePart));
+    return piece;
+}
+
 static int run_josie(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: mforce_cli --josie <patches_dir> <out.wav> [chord_string]\n";
@@ -398,106 +354,37 @@ static int run_josie(int argc, char** argv) {
 
     float bpm = 132.0f;
     int baseOctave = 3;  // guitar at octave 3
-
-    // Parse chords
     auto parsed = parse_chord_string(chordStr, baseOctave, "Default", "Josie");
-
     std::cout << "Parsed " << parsed.size() << " chords\n";
-
     float totalBeats = 0;
     for (auto& pc : parsed) totalBeats += pc.chord.dur;
-
     std::cout << "Total: " << totalBeats << " beats (" << (totalBeats / 4) << " bars) @ " << bpm << " bpm\n";
 
-    // Load separate patches for each instrument
-    std::string guitarPath = patchDir + "/guitar_pluck.json";
-    std::string bassPath   = patchDir + "/fm_bass.json";
-    std::string kickPath   = patchDir + "/kick_drum.json";
-    std::string snarePath  = patchDir + "/snare_drum.json";
+    // One patch per instrument, at its level in the mix.
+    auto guitar = instrument_from_file(patchDir + "/guitar_pluck.json");
+    auto bass   = instrument_from_file(patchDir + "/fm_bass.json");
+    auto kick   = instrument_from_file(patchDir + "/kick_drum.json");
+    auto snare  = instrument_from_file(patchDir + "/snare_drum.json");
+    guitar.instrument->volume = 0.25f;
+    bass.instrument->volume = 0.30f;
+    kick.instrument->volume = 0.40f;
+    snare.instrument->volume = 0.25f;
 
-    auto guitarPatch = instrument_from_file(guitarPath);
-    auto bassPatch   = instrument_from_file(bassPath);
-    auto kickPatch   = instrument_from_file(kickPath);
-    auto snarePatch  = instrument_from_file(snarePath);
-
-    guitarPatch.instrument->volume = 0.25f;
-    bassPatch.instrument->volume = 0.30f;
-    kickPatch.instrument->volume = 0.40f;
-    snarePatch.instrument->volume = 0.25f;
-
-    // Build guitar chord Part
-    Part guitarPart;
-    guitarPart.name = "guitar";
-    guitarPart.instrumentType = "guitar";
-    for (auto& pc : parsed) {
-        guitarPart.add_chord(pc.chord);
-    }
-
-    // Build bass Part — root note, 1 octave below chord
-    Part bassPart;
-    bassPart.name = "bass";
-    bassPart.instrumentType = "bass";
-    for (auto& pc : parsed) {
-        float rootNN = pc.chord.root.note_number() - 12.0f;
-        bassPart.add_note(rootNN, 0.9f, pc.chord.dur);
-    }
-
-    // Build kick Part — beats 1 and 3
-    Part kickPart;
-    kickPart.name = "kick";
-    kickPart.instrumentType = "kick";
-    float kickNN = 40.0f;  // E2 — good kick fundamental
-    for (float beat = 0; beat < totalBeats; beat += 4.0f) {
-        kickPart.add_note(beat, kickNN, 0.9f, 0.15f);        // beat 1
-        if (beat + 2.0f < totalBeats)
-            kickPart.add_note(beat + 2.0f, kickNN, 0.8f, 0.15f);  // beat 3
-    }
-
-    // Build snare Part — beat 2, AND of 3, AND of 4
-    Part snarePart;
-    snarePart.name = "snare";
-    snarePart.instrumentType = "snare";
-    float snareNN = 200.0f;  // high frequency for noise character
-    for (float beat = 0; beat < totalBeats; beat += 4.0f) {
-        if (beat + 1.0f < totalBeats)
-            snarePart.add_note(beat + 1.0f, snareNN, 0.8f, 0.12f);  // beat 2
-        if (beat + 2.5f < totalBeats)
-            snarePart.add_note(beat + 2.5f, snareNN, 0.6f, 0.08f);  // AND of 3
-        if (beat + 3.5f < totalBeats)
-            snarePart.add_note(beat + 3.5f, snareNN, 0.6f, 0.08f);  // AND of 4
-    }
-
-    // Build Piece
-    Piece piece;
-    piece.key = Key::get("E Minor");
-
-    Section section("Josie", totalBeats, bpm, Meter::M_4_4, Scale::get("E", "Minor"));
-    piece.add_section(std::move(section));
-    piece.add_part(std::move(guitarPart));
-    piece.add_part(std::move(bassPart));
-    piece.add_part(std::move(kickPart));
-    piece.add_part(std::move(snarePart));
-
-    // Register instruments and perform
     Conductor conductor;
     conductor.chordPerformer.register_josie_figures();
     conductor.chordPerformer.defaultSpreadMs = 12.0f;
     conductor.chordPerformer.humanize = 0.3f;
-    conductor.instruments["guitar"] = guitarPatch.instrument.get();
-    conductor.instruments["bass"]   = bassPatch.instrument.get();
-    conductor.instruments["kick"]   = kickPatch.instrument.get();
-    conductor.instruments["snare"]  = snarePatch.instrument.get();
-    conductor.perform(piece);
+    const Ensemble ensemble{{{"guitar", guitar.instrument.get()}, {"bass", bass.instrument.get()},
+                             {"kick", kick.instrument.get()}, {"snare", snare.instrument.get()}}};
+    const PlayResult r = play(josie_piece(parsed, totalBeats, bpm), ensemble, conductor);
+    report_faults(r);
+    print_scale(r);
+    if (!write_stereo(outPath, r.sampleRate, r.stereo)) return 1;
 
-    // Render and mix all instruments
-    std::vector<Instrument*> allInstruments = {
-        guitarPatch.instrument.get(),
-        bassPatch.instrument.get(),
-        kickPatch.instrument.get(),
-        snarePatch.instrument.get()
-    };
-    render_and_write(allInstruments, guitarPatch.sampleRate, totalBeats, bpm, outPath);
-
+    std::cout << "Wrote: " << outPath
+              << " (" << r.frames << " frames, "
+              << totalBeats << " beats @ " << bpm << " bpm)\n";
+    print_levels(r, false);
     return 0;
 }
 
@@ -505,6 +392,88 @@ static int run_josie(int argc, char** argv) {
 // ---------------------------------------------------------------------------
 // Classical composition mode — algorithmic melody generation
 // ---------------------------------------------------------------------------
+
+// The composed piece's harmony timeline and each part's counts, on stdout.
+static void print_composed(const Piece& piece) {
+    for (const auto& sec : piece.sections) {
+      if (!sec.harmonyTimeline.empty()) {
+        std::cout << "  Harmony for '" << sec.name << "':";
+        for (const auto& seg : sec.harmonyTimeline.segments) {
+          std::cout << " [" << seg.startBeat << "-" << seg.endBeat << ": "
+                    << seg.progression.count() << " chords]";
+        }
+        std::cout << "\n";
+      }
+    }
+    for (const auto& part : piece.parts) {
+      std::cout << "  Part '" << part.name << "': "
+                << part.elementSequence.size() << " events, "
+                << part.passages.size() << " passages\n";
+    }
+}
+
+// Composition `i` of the template, played, written and printed.
+static int compose_one(const PieceTemplate& baseTmpl, const std::string& patchPath,
+                       const std::string& outPrefix, int i) {
+    // Per-part instrument patches (comp rule 2026-09-21: melody oboe1,
+    // accompaniment piano_default — carried in instrumentPatch; the CLI
+    // patch argument is the fallback). One loaded instance per unique path.
+    std::map<std::string, FileInstrument> patchByPath;
+    auto patch_for = [&](const std::string& p) -> FileInstrument& {
+        const std::string& key = p.empty() ? patchPath : p;
+        auto it = patchByPath.find(key);
+        if (it == patchByPath.end()) {
+            auto loaded = instrument_from_file(key);
+            loaded.instrument->volume = 0.5f;
+            it = patchByPath.emplace(key, std::move(loaded)).first;
+        }
+        return it->second;
+    };
+
+    PieceTemplate tmpl = baseTmpl;
+    tmpl.masterSeed = baseTmpl.masterSeed
+        ? baseTmpl.masterSeed + uint32_t(i) * 137
+        : 0xC1A5'0000u + uint32_t(i) * 137;
+
+    // Ensure at least one section and one part if template didn't specify
+    if (tmpl.sections.empty())
+        tmpl.sections.push_back({"Main", 32.0f});
+    if (tmpl.parts.empty())
+        tmpl.parts.push_back({"melody", PartRole::Melody, patchPath});
+
+    // Ensure the first part has the instrument patch
+    if (tmpl.parts[0].instrumentPatch.empty())
+        tmpl.parts[0].instrumentPatch = patchPath;
+
+    Piece piece;
+    ClassicalComposer composer(tmpl.masterSeed);
+    composer.compose(piece, tmpl);
+
+    // The composer sets each part's instrumentType to its template part's name.
+    Ensemble ensemble;
+    for (const auto& partTmpl : tmpl.parts)
+        ensemble.byPart[partTmpl.name] = patch_for(partTmpl.instrumentPatch).instrument.get();
+    Conductor conductor;
+    const PlayResult r = play(piece, ensemble, conductor);
+    report_faults(r);
+    print_scale(r);
+
+    std::string outPath = outPrefix + "_" + std::to_string(i + 1) + ".wav";
+    if (!write_stereo(outPath, r.sampleRate, r.stereo)) return 1;
+    std::cout << "Composed #" << (i + 1) << ": " << outPath
+              << " (" << total_beats(piece) << " beats @ " << piece.sections[0].tempo << " bpm)\n";
+    print_levels(r, false);
+
+    // Save piece as JSON
+    std::string jsonPath = outPrefix + "_" + std::to_string(i + 1) + ".json";
+    json pieceJson = piece;
+    std::ofstream jf(jsonPath);
+    jf << pieceJson.dump(2);
+    std::cout << "  Saved: " << jsonPath << "\n";
+    print_composed(piece);
+    return 0;
+}
+
 static int run_compose(int argc, char** argv) {
     // Usage: --compose <patch.json> <out_prefix> [count] [--template <template.json>]
     if (argc < 4) {
@@ -546,137 +515,8 @@ static int run_compose(int argc, char** argv) {
         std::cout << "Loaded template: " << templatePath << "\n";
     }
 
-    for (int i = 0; i < count; ++i) {
-        // Per-part instrument patches (comp rule 2026-09-21: melody oboe1,
-        // accompaniment piano_default — carried in instrumentPatch; the CLI
-        // patch argument is the fallback). One loaded instance per unique
-        // path, so single-patch templates render exactly as before.
-        std::map<std::string, FileInstrument> patchByPath;
-        auto patch_for = [&](const std::string& p) -> FileInstrument& {
-            const std::string& key = p.empty() ? patchPath : p;
-            auto it = patchByPath.find(key);
-            if (it == patchByPath.end()) {
-                auto loaded = instrument_from_file(key);
-                loaded.instrument->volume = 0.5f;
-                it = patchByPath.emplace(key, std::move(loaded)).first;
-            }
-            return it->second;
-        };
-
-        // Use loaded template or build a default one
-        PieceTemplate tmpl = baseTmpl;
-        tmpl.masterSeed = baseTmpl.masterSeed
-            ? baseTmpl.masterSeed + uint32_t(i) * 137
-            : 0xC1A5'0000u + uint32_t(i) * 137;
-
-        // Ensure at least one section and one part if template didn't specify
-        if (tmpl.sections.empty())
-            tmpl.sections.push_back({"Main", 32.0f});
-        if (tmpl.parts.empty())
-            tmpl.parts.push_back({"melody", PartRole::Melody, patchPath});
-
-        // Ensure the first part has the instrument patch
-        if (tmpl.parts[0].instrumentPatch.empty())
-            tmpl.parts[0].instrumentPatch = patchPath;
-
-        Piece piece;
-        ClassicalComposer composer(tmpl.masterSeed);
-        composer.compose(piece, tmpl);
-
-        // Perform via Conductor — lookup is by part.instrumentType, which
-        // the composer sets to the template part name (composer.h).
-        Conductor conductor;
-        std::vector<Instrument*> instruments;   // unique, in part order
-        for (const auto& partTmpl : tmpl.parts) {
-            auto& partPatch = patch_for(partTmpl.instrumentPatch);
-            conductor.instruments[partTmpl.name] = partPatch.instrument.get();
-            if (std::find(instruments.begin(), instruments.end(),
-                          partPatch.instrument.get()) == instruments.end())
-                instruments.push_back(partPatch.instrument.get());
-        }
-        conductor.perform(piece);
-
-        // Render each unique instrument and sum — with one instrument this
-        // is exactly the old single-buffer render.
-        float totalBeats = 0;
-        for (auto& sec : piece.sections) totalBeats += sec.beats;
-        float bpm = piece.sections[0].tempo;
-        float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-        int sampleRate = patchByPath.begin()->second.sampleRate;
-        int frames = int(totalSeconds * float(sampleRate));
-        std::vector<float> mono(frames, 0.0f);
-        std::vector<float> buf(frames);
-        for (auto* inst : instruments) {
-            std::fill(buf.begin(), buf.end(), 0.0f);
-            { inst->render(buf.data(), frames); };
-            report_faults(*inst);
-            for (int k = 0; k < frames; ++k) mono[k] += buf[k];
-        }
-
-        // A multi-instrument sum can exceed full scale, and the 16-bit
-        // writer clamps — normalize the MULTI-instrument mix only. A
-        // single-patch render keeps its historical output bit-for-bit,
-        // including any clipping it always had.
-        float mixPeak = 0.0f;
-        for (int k = 0; k < frames; ++k)
-            mixPeak = std::max(mixPeak, std::fabs(mono[k]));
-        if (instruments.size() > 1 && mixPeak > 0.98f) {
-            const float g = 0.98f / mixPeak;
-            for (int k = 0; k < frames; ++k) mono[k] *= g;
-            std::cout << "  normalized: mix peak " << mixPeak
-                      << " scaled by " << g << "\n";
-        }
-
-        std::vector<float> stereo(frames * 2);
-        for (int j = 0; j < frames; ++j) {
-            stereo[j * 2]     = mono[j];
-            stereo[j * 2 + 1] = mono[j];
-        }
-
-        std::string outPath = outPrefix + "_" + std::to_string(i + 1) + ".wav";
-        if (!write_wav_16le_stereo(outPath, sampleRate, stereo)) {
-            std::cerr << "Failed to write: " << outPath << "\n";
-            return 1;
-        }
-
-        float peak = 0.0f;
-        double rms = 0.0;
-        for (auto s : stereo) {
-            float a = std::fabs(s);
-            if (a > peak) peak = a;
-            rms += double(s) * double(s);
-        }
-        rms = std::sqrt(rms / stereo.size());
-
-        std::cout << "Composed #" << (i + 1) << ": " << outPath
-                  << " (" << totalBeats << " beats @ " << bpm << " bpm)\n";
-        std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
-
-        // Save piece as JSON
-        std::string jsonPath = outPrefix + "_" + std::to_string(i + 1) + ".json";
-        json pieceJson = piece;
-        std::ofstream jf(jsonPath);
-        jf << pieceJson.dump(2);
-        std::cout << "  Saved: " << jsonPath << "\n";
-
-        // Print harmony timeline if populated
-        for (const auto& sec : piece.sections) {
-          if (!sec.harmonyTimeline.empty()) {
-            std::cout << "  Harmony for '" << sec.name << "':";
-            for (const auto& seg : sec.harmonyTimeline.segments) {
-              std::cout << " [" << seg.startBeat << "-" << seg.endBeat << ": "
-                        << seg.progression.count() << " chords]";
-            }
-            std::cout << "\n";
-          }
-        }
-        for (const auto& part : piece.parts) {
-          std::cout << "  Part '" << part.name << "': "
-                    << part.elementSequence.size() << " events, "
-                    << part.passages.size() << " passages\n";
-        }
-    }
-
+    for (int i = 0; i < count; ++i)
+        if (compose_one(baseTmpl, patchPath, outPrefix, i) != 0) return 1;
     return 0;
 }
 
@@ -707,54 +547,20 @@ static int run_play(int argc, char** argv) {
               << ", " << piece.sections.size() << " sections, "
               << piece.parts.size() << " parts\n";
 
-    // Load instrument and register for all parts
+    // One instrument for every part.
     auto ip = instrument_from_file(patchPath);
     ip.instrument->volume = 0.5f;
-
+    Ensemble ensemble;
+    for (auto& part : piece.parts) ensemble.byPart[part.instrumentType] = ip.instrument.get();
     Conductor conductor;
-    for (auto& part : piece.parts) {
-        conductor.instruments[part.instrumentType] = ip.instrument.get();
-    }
-    conductor.perform(piece);
+    const PlayResult r = play(piece, ensemble, conductor);
+    if (!write_stereo(outPath, r.sampleRate, r.stereo)) return 1;
 
-    // Render
-    float totalBeats = 0;
-    float bpm = 120.0f;
-    for (auto& s : piece.sections) {
-        totalBeats += s.beats;
-        bpm = s.tempo;
-    }
-
-    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-    int frames = int(totalSeconds * float(ip.sampleRate));
-    std::vector<float> mono(frames, 0.0f);
-    { ip.instrument->render(mono.data(), frames); };
-
-    std::vector<float> stereo(frames * 2);
-    for (int i = 0; i < frames; ++i) {
-        stereo[i * 2]     = mono[i];
-        stereo[i * 2 + 1] = mono[i];
-    }
-
-    if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
-        std::cerr << "Failed to write: " << outPath << "\n";
-        return 1;
-    }
-
-    float peak = 0.0f;
-    double rms = 0.0;
-    for (auto s : stereo) {
-        float a = std::fabs(s);
-        if (a > peak) peak = a;
-        rms += double(s) * double(s);
-    }
-    rms = std::sqrt(rms / stereo.size());
-
+    const float bpm = piece.sections.empty() ? 120.0f : piece.sections.back().tempo;
     std::cout << "Played: " << outPath
-              << " (" << totalBeats << " beats @ " << bpm << " bpm)\n";
-    std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
-    report_faults(*ip.instrument);
-
+              << " (" << total_beats(piece) << " beats @ " << bpm << " bpm)\n";
+    print_levels(r, false);
+    report_faults(r);
     return 0;
 }
 
@@ -775,58 +581,51 @@ static int run_patch(int argc, char** argv) {
         return 1;
     }
 
-    // Timed separately from the render below: instrument+score patches
-    // PRE-RENDER their voices during load, so for those the synthesis cost
-    // lands here and the render timer only sees mixing. Stage-1 profiling
-    // (run 8) chased a phantom 25x speedup for exactly this reason.
-    auto _l0 = std::chrono::steady_clock::now();
-    BuiltSound p = sound_from_file(patchPath);
-    auto _l1 = std::chrono::steady_clock::now();
-    double _loadMs = std::chrono::duration<double, std::milli>(_l1 - _l0).count();
+    // load= is the build and, for an instrument with a score, the score's
+    // pre-render of every voice; render= is the mixer alone.
+    const PlayResult r = play(load_patch(patchPath));
+    print_build_warnings(r.warnings);
+    const double audioMs = 1000.0 * double(r.frames) / double(r.sampleRate);
+    const double sps = r.renderMs > 0.0 ? double(r.frames) / (r.renderMs / 1000.0) : 0.0;
+    std::cerr << "  load=" << r.buildMs << "ms\n";
+    std::cerr << "  render=" << r.renderMs << "ms for " << r.frames << " frames ("
+              << (sps / 1e6) << " Msamp/s, " << (audioMs / r.renderMs) << "x realtime)\n";
+    std::cerr << "  total=" << (r.buildMs + r.renderMs) << "ms ("
+              << (audioMs / (r.buildMs + r.renderMs)) << "x realtime end-to-end)\n";
 
-    std::vector<float> out((size_t)p.frames * 2);
-    auto _t0 = std::chrono::steady_clock::now();
-    { p.mixer->render(out.data(), p.frames); };
-    auto _t1 = std::chrono::steady_clock::now();
-    double _ms = std::chrono::duration<double, std::milli>(_t1 - _t0).count();
-    double _audioMs = 1000.0 * double(p.frames) / double(p.sampleRate);
-    double _sps = _ms > 0.0 ? double(p.frames) / (_ms / 1000.0) : 0.0;
-    std::cerr << "  load=" << _loadMs << "ms\n";
-    std::cerr << "  render=" << _ms << "ms for " << p.frames << " frames ("
-              << (_sps / 1e6) << " Msamp/s, " << (_audioMs / _ms) << "x realtime)\n";
-    std::cerr << "  total=" << (_loadMs + _ms) << "ms ("
-              << (_audioMs / (_loadMs + _ms)) << "x realtime end-to-end)\n";
-
-    if (!write_wav_16le_stereo(outPath, p.sampleRate, out)) {
-        std::cerr << "Failed to write wav: " << outPath << "\n";
-        return 1;
-    }
-
-    float peak = 0.0f;
-    double rms = 0.0;
-    int nonzero = 0;
-    for (auto s : out) {
-        if (s != 0.0f) nonzero++;
-        float a = std::fabs(s);
-        if (a > peak) peak = a;
-        rms += double(s) * double(s);
-    }
-    rms = std::sqrt(rms / out.size());
+    if (!write_stereo(outPath, r.sampleRate, r.stereo, "Failed to write wav: ")) return 1;
 
     std::cout << "Wrote: " << outPath
-              << " (" << p.frames << " frames @ "
-              << p.sampleRate << " Hz)\n";
-    std::cerr << "  peak=" << peak
-              << " rms=" << rms
-              << " nonzero=" << nonzero << "/" << out.size() << "\n";
-    report_faults(*p.mixer);
-
+              << " (" << r.frames << " frames @ "
+              << r.sampleRate << " Hz)\n";
+    print_levels(r, true);
+    report_faults(r);
     return 0;
 }
 
 // ---------------------------------------------------------------------------
 // DUN mode — render a .dun/.txt melody file
 // ---------------------------------------------------------------------------
+
+// The sections and each phrase's starting pitch, on stdout.
+static void print_dun_sections(const Piece& piece) {
+    if (piece.parts.empty()) return;
+    for (int si = 0; si < int(piece.sections.size()); ++si) {
+        auto& sec = piece.sections[si];
+        std::cout << "  " << sec.name << ": " << sec.beats << " beats";
+        if (sec.truncateTailBeats > 0)
+            std::cout << " (truncate tail " << sec.truncateTailBeats << ")";
+        std::cout << "\n";
+        auto it = piece.parts[0].passages.find(sec.name);
+        if (it != piece.parts[0].passages.end()) {
+            for (int p = 0; p < int(it->second.phrases.size()); ++p) {
+                std::cout << "    Phrase " << p << " start: "
+                          << it->second.phrases[p].startingPitch.to_string() << "\n";
+            }
+        }
+    }
+}
+
 static int run_dun(int argc, char** argv) {
     if (argc < 5) {
         std::cerr << "Usage: mforce_cli --dun <melody.txt> <patch.json> <out.wav> [--octave N]\n";
@@ -843,7 +642,6 @@ static int run_dun(int argc, char** argv) {
             octave = std::stoi(argv[++i]);
     }
 
-    // Parse DUN file
     auto dun = load_dun(dunPath);
     int totalPhrases = 0;
     for (auto& s : dun.sections) totalPhrases += int(s.phrases.size());
@@ -851,68 +649,28 @@ static int run_dun(int argc, char** argv) {
               << " (" << dun.sections.size() << " sections, "
               << totalPhrases << " phrases, key "
               << dun.header.keyName << " " << dun.header.scaleName << ")\n";
-
-    // Build Piece
     Piece piece = dun_to_piece(dun, octave);
+    print_dun_sections(piece);
 
-    // Debug: dump sections & phrase starts, note any truncation
-    if (!piece.parts.empty()) {
-        for (int si = 0; si < int(piece.sections.size()); ++si) {
-            auto& sec = piece.sections[si];
-            std::cout << "  " << sec.name << ": " << sec.beats << " beats";
-            if (sec.truncateTailBeats > 0)
-                std::cout << " (truncate tail " << sec.truncateTailBeats << ")";
-            std::cout << "\n";
-            auto it = piece.parts[0].passages.find(sec.name);
-            if (it != piece.parts[0].passages.end()) {
-                for (int p = 0; p < int(it->second.phrases.size()); ++p) {
-                    std::cout << "    Phrase " << p << " start: "
-                              << it->second.phrases[p].startingPitch.to_string() << "\n";
-                }
-            }
-        }
-    }
-
-    // Load instrument
     auto ip = instrument_from_file(patchPath);
     ip.instrument->volume = 0.5f;
-
-    // Perform
     Conductor conductor;
-    conductor.instruments["melody"] = ip.instrument.get();
-    conductor.perform(piece);
-
-    // Render (honors section truncation)
-    float totalBeats = 0;
-    for (auto& sec : piece.sections) {
-        totalBeats += std::max(0.0f, sec.beats - sec.truncateTailBeats);
-    }
-    float bpm = piece.sections[0].tempo;
-    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-    int frames = int(totalSeconds * float(ip.sampleRate));
-    std::vector<float> mono(frames, 0.0f);
-    { ip.instrument->render(mono.data(), frames); };
-    report_faults(*ip.instrument);
+    const PlayResult r = play(piece, Ensemble{{{"melody", ip.instrument.get()}}}, conductor);
+    report_faults(r);
 
     // Leading silence (pre-roll) so Windows audio output priming doesn't
     // eat the first note. 1s is comfortable for most drivers.
     const float prerollSeconds = 1.0f;
-    int prerollFrames = int(prerollSeconds * float(ip.sampleRate));
-    std::vector<float> stereo((frames + prerollFrames) * 2, 0.0f);
-    for (int j = 0; j < frames; ++j) {
-        stereo[(prerollFrames + j) * 2]     = mono[j];
-        stereo[(prerollFrames + j) * 2 + 1] = mono[j];
-    }
+    const int prerollFrames = int(prerollSeconds * float(r.sampleRate));
+    std::vector<float> stereo(size_t(prerollFrames) * 2, 0.0f);
+    stereo.insert(stereo.end(), r.stereo.begin(), r.stereo.end());
+    if (!write_stereo(outPath, r.sampleRate, stereo)) return 1;
 
-    if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
-        std::cerr << "Failed to write: " << outPath << "\n";
-        return 1;
-    }
-
-    float peak = 0.0f;
-    for (auto s : stereo) { float a = std::fabs(s); if (a > peak) peak = a; }
+    // The printed beats leave out each section's truncated tail.
+    float playedBeats = 0;
+    for (auto& sec : piece.sections) playedBeats += std::max(0.0f, sec.beats - sec.truncateTailBeats);
     std::cout << "Rendered: " << outPath
-              << " (" << totalBeats << " beats @ " << bpm << " bpm, peak=" << peak << ")\n";
+              << " (" << playedBeats << " beats @ " << piece.sections[0].tempo << " bpm, peak=" << r.peak << ")\n";
     return 0;
 }
 

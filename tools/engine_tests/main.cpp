@@ -1719,14 +1719,11 @@ static void run_hold_delivery_tests() {
 }
 
 #include "mforce/music/conductor.h"
-
-// An instrument that keeps each performance it is handed and plays nothing.
-struct RecordingInstrument final : Instrument {
-    std::vector<Performance> played;
-    InstrumentClass cls;
-    const InstrumentClass& instrument_class() const override { return cls; }
-    void play(const Performance& part) override { played.push_back(part); }
-};
+#include "mforce/music/embedded_score.h"
+#include "mforce/music/time_map.h"
+#include "mforce/play/play.h"
+#include <bit>
+#include <cstdint>
 
 // The part the Conductor's data test performs at 120 bpm (half a second a
 // beat): two plain notes, a staccato note, a mordent, a bend, a two-note slide
@@ -1745,18 +1742,21 @@ static Part conductor_test_part(const Chord& chord) {
     return part;
 }
 
-// The Conductor's performance of one part, as data: what the instrument is
-// handed, in delivery order. A plain note waits for the next note (it may
-// anchor a slide run), so the chord, played at once, comes before the run.
+// The Conductor's performance of one part, as data, in delivery order. A
+// plain note waits for the next note (it may anchor a slide run), so the
+// chord, played at once, comes before the run. A one-section map at the same
+// tempo performs the part the same.
 static void run_conductor_performance_tests() {
     std::printf("the Conductor's performance as data: count, order, seconds, velocity, curves, hits\n");
     const Chord chord = Chord::create("C", 4, "Major", 1.0f);
-    RecordingInstrument rec;
     Conductor conductor;
-    conductor.perform(conductor_test_part(chord), 120.0f, rec);
-    CHECK(rec.played.size() == 1);
-    if (rec.played.size() != 1) return;
-    const Performance& perf = rec.played[0];
+    const Performance perf = conductor.perform(conductor_test_part(chord), TimeMap(120.0f));
+    const Performance viaSection = conductor.perform(
+        conductor_test_part(chord), TimeMap(std::vector<Section>{Section("A", 9.0f, 120.0f, Meter::M_4_4, Scale::get("C", "Major"))}));
+    bool sameAsSection = viaSection.notes.size() == perf.notes.size() && viaSection.hits.size() == perf.hits.size();
+    for (size_t k = 0; sameAsSection && k < perf.notes.size(); ++k)
+        sameAsSection = viaSection.notes[k].start == perf.notes[k].start && viaSection.notes[k].duration == perf.notes[k].duration;
+    CHECK(sameAsSection);
     const int chordNotes = chord.pitch_count();
     CHECK(chordNotes == 3);
     CHECK(perf.notes.size() == size_t(8 + chordNotes));
@@ -1824,6 +1824,168 @@ static void run_instrument_play_tests() {
         CHECK(kit.renderedNotes.empty());
         kit.play(Performance{{}, {hit}});
         CHECK(kit.renderedNotes.size() == 1 && kit.renderedNotes[0].samples.size() == size_t(0.1f * sr));
+    }
+}
+
+// A note of the common shape: start and duration in seconds, pitch, velocity, hold.
+static PerformedNote note_at(float start, float duration, float noteNumber, float velocity = 0.8f,
+                             bool hold = false) {
+    return {.start = start, .duration = duration, .noteNumber = noteNumber, .velocity = velocity, .hold = hold};
+}
+
+// Whether two notes agree in every field but the curve.
+static bool same_note(const PerformedNote& a, const PerformedNote& b) {
+    return a.start == b.start && a.duration == b.duration && a.noteNumber == b.noteNumber
+        && a.velocity == b.velocity && a.onset == b.onset && a.hold == b.hold;
+}
+
+// A section of `beats` at `bpm`, in C major 4/4.
+static Section section_of(const char* name, float beats, float bpm) {
+    return Section(name, beats, bpm, Meter::M_4_4, Scale::get("C", "Major"));
+}
+
+// One tempo maps beats to seconds bit for bit as b * 60 / bpm; across two
+// tempi a beat belongs to the last section starting at or before it, the
+// boundary beat to the later section, and a beat past the end to the last.
+static void run_time_map_tests() {
+    std::printf("the time map: one tempo bit for bit, two tempi, the boundary, past the end\n");
+    bool same = true;
+    for (float bpm : {60.0f, 97.3f, 120.0f, 132.0f, 177.7f}) {
+        const TimeMap one(std::vector<Section>{section_of("A", 64.0f, bpm)}), endless(bpm);
+        for (int i = 0; i <= 2000; ++i) {
+            const float b = float(i) * 0.0371f;               // to 74.2 beats: past the end too
+            const auto want = std::bit_cast<std::uint32_t>(b * 60.0f / bpm);
+            same = same && std::bit_cast<std::uint32_t>(one.seconds_at(b)) == want
+                        && std::bit_cast<std::uint32_t>(endless.seconds_at(b)) == want
+                        && one.bpm_at(b) == bpm && endless.bpm_at(b) == bpm;
+        }
+    }
+    CHECK(same);
+    const std::vector<Section> two{section_of("A", 8.0f, 120.0f), section_of("B", 6.0f, 60.0f)};
+    const TimeMap time(two);
+    CHECK(section_start_beat(two, 0) == 0.0f && section_start_beat(two, 1) == 8.0f);
+    CHECK(time.seconds_at(4.0f) == 2.0f && time.bpm_at(4.0f) == 120.0f);
+    CHECK(time.bpm_at(7.5f) == 120.0f);
+    CHECK(time.seconds_at(8.0f) == 4.0f && time.bpm_at(8.0f) == 60.0f);      // the boundary: the later section
+    CHECK(time.seconds_at(11.0f) == 7.0f);
+    CHECK(time.seconds_at(20.0f) == 16.0f && time.bpm_at(20.0f) == 60.0f);   // past the end: the last section
+}
+
+// An instrument that keeps each performance it is handed and renders each
+// note as one sample of `level` at the note's start.
+struct RecordingInstrument final : Instrument {
+    std::vector<Performance> played;
+    InstrumentClass cls;
+    float level{0.5f};
+    RecordingInstrument() { prepare(RenderContext{48000}); }
+    const InstrumentClass& instrument_class() const override { return cls; }
+    void play(const Performance& part) override {
+        played.push_back(part);
+        for (const auto& n : part.notes) { float s = level; add_rendered(n.start, &s, 1); }
+    }
+};
+
+// A piece of one section per tempo in `sections`, and one part per entry of
+// `parts`: its instrument type and the beats its one-beat notes start on.
+static Piece piece_of(std::vector<Section> sections,
+                      const std::vector<std::pair<std::string, std::vector<float>>>& parts) {
+    Piece piece;
+    for (auto& s : sections) piece.add_section(std::move(s));
+    for (const auto& [type, beats] : parts) {
+        Part part;
+        part.instrumentType = type;
+        for (float b : beats) part.add_note(b, 60.0f, 0.8f, 1.0f);
+        piece.add_part(std::move(part));
+    }
+    return piece;
+}
+
+// play(piece): each part performed once over the whole piece at the map's
+// seconds; the length the map's seconds plus the tail; a sum of two
+// instruments past 0.98 scaled, one instrument never; instruments cleared.
+static void run_play_piece_tests() {
+    std::printf("play(piece): each part once at the map's seconds, the length, the scale rule, cleared\n");
+    {
+        const Piece piece = piece_of({section_of("A", 4.0f, 120.0f), section_of("B", 4.0f, 60.0f)},
+                                     {{"lead", {0.0f, 2.0f, 4.0f, 6.0f}}});
+        RecordingInstrument rec;
+        Conductor conductor;
+        const PlayResult r = play(piece, Ensemble{{{"lead", &rec}}}, conductor);
+        CHECK(rec.played.size() == 1 && rec.played[0].notes.size() == 4);
+        const float want[] = {0.0f, 1.0f, 2.0f, 4.0f};
+        bool at = rec.played.size() == 1 && rec.played[0].notes.size() == 4;
+        for (size_t k = 0; at && k < 4; ++k)
+            at = rec.played[0].notes[k].start == want[k] && r.stereo[size_t(int(want[k] * 48000.0f)) * 2] == 0.5f;
+        CHECK(at);
+        CHECK(std::count(r.stereo.begin(), r.stereo.end(), 0.5f) == 8);
+        CHECK(r.sampleRate == 48000 && r.frames == int((TimeMap(piece.sections).seconds_at(8.0f) + 2.0f) * 48000.0f));
+        CHECK(r.frames == 8 * 48000 && r.stereo.size() == size_t(r.frames) * 2);
+        CHECK(rec.renderedNotes.empty());
+        CHECK(r.scale == 1.0f && r.peak == 0.5f);
+    }
+    {
+        const Piece piece = piece_of({section_of("A", 4.0f, 120.0f)}, {{"a", {0.0f}}, {"b", {0.0f}}});
+        RecordingInstrument a, b;
+        a.level = b.level = 0.7f;
+        Conductor conductor;
+        const PlayResult r = play(piece, Ensemble{{{"a", &a}, {"b", &b}}}, conductor, 1.0f);
+        CHECK(r.mixPeak == 0.7f + 0.7f && r.scale == 0.98f / r.mixPeak);
+        CHECK_NEAR(r.peak, 0.98f, 1e-6f);
+        CHECK(r.frames == 3 * 48000 && a.renderedNotes.empty() && b.renderedNotes.empty());
+    }
+    {
+        const Piece piece = piece_of({section_of("A", 4.0f, 120.0f)}, {{"a", {0.0f}}, {"b", {}}});
+        RecordingInstrument loud;
+        loud.level = 1.5f;
+        loud.peakGuard = false;
+        Conductor conductor;
+        const PlayResult r = play(piece, Ensemble{{{"a", &loud}, {"b", &loud}}}, conductor);
+        CHECK(r.mixPeak == 1.5f && r.scale == 1.0f && r.peak == 1.5f);   // one instrument: never scaled
+        CHECK(loud.played.size() == 1);                                   // a part with no events is not performed
+    }
+}
+
+// perform_embedded_score: phrased notes copied across with hold and onset;
+// hold dropped, with its warning, on a class that does not sustain; an
+// unknown onset name warned once; score order kept when phrased and
+// unphrased notes mix; the score's end.
+static void run_perform_embedded_score_tests() {
+    std::printf("perform_embedded_score: phrased copies, hold dropped, onsets warned once, order, the end\n");
+    const InstrumentClass sustaining{.sustaining = true, .onsets = {"tongue"}};
+    const InstrumentClass plucked{.sustaining = false, .onsets = {"tongue"}};
+    const char* line = R"([{"note":60,"time":0,"duration":0.5,"hold":true,"onset":"tongue"},{"note":62,"duration":0.5}])";
+    {
+        const EmbeddedScore s = perform_embedded_score(line, sustaining);
+        PerformedNote first = note_at(0.0f, 0.5f, 60.0f, 0.8f, true);
+        first.onset = 1;
+        CHECK(s.performance.notes.size() == 2 && s.warnings.empty() && s.performance.hits.empty());
+        CHECK(s.performance.notes.size() == 2 && same_note(s.performance.notes[0], first)
+              && same_note(s.performance.notes[1], note_at(0.5f, 0.5f, 62.0f)));
+        CHECK(s.endSeconds == 1.0);
+    }
+    {
+        const EmbeddedScore s = perform_embedded_score(line, plucked);
+        CHECK(s.performance.notes.size() == 2 && !s.performance.notes[0].hold && s.performance.notes[0].onset == 1);
+        CHECK(s.warnings == std::vector<std::string>{
+            "[score] \"hold\" ignored: this patch's instrument block is not marked \"sustaining\""});
+    }
+    {
+        const EmbeddedScore s = perform_embedded_score(
+            R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck"},{"note":62,"duration":0.5,"onset":"pluck"}])", sustaining);
+        CHECK(s.performance.notes.size() == 2 && s.performance.notes[0].onset == 0 && s.performance.notes[1].onset == 0);
+        CHECK(s.warnings == std::vector<std::string>{
+            "[onset] name 'pluck' is not in this instrument's onsets[] vocabulary — it will never fire"});
+    }
+    {
+        const EmbeddedScore s = perform_embedded_score(
+            R"([{"note":60,"time":0,"duration":1},{"note":62,"time":1,"duration":1,"onset":"tongue"},{"note":64,"time":2.5,"duration":1}])",
+            sustaining);
+        const PerformedNote want[] = {note_at(0.0f, 1.0f, 60.0f), note_at(1.0f, 1.0f, 62.0f), note_at(2.5f, 1.0f, 64.0f)};
+        bool order = s.performance.notes.size() == 3;
+        for (size_t k = 0; order && k < 3; ++k)
+            order = s.performance.notes[k].start == want[k].start && s.performance.notes[k].noteNumber == want[k].noteNumber;
+        CHECK(order);
+        CHECK(s.performance.notes.size() == 3 && s.performance.notes[1].onset == 1 && s.endSeconds == 3.5);
     }
 }
 
@@ -2122,7 +2284,6 @@ static void run_note_reseed_tests() {
     CHECK(same == total);   // exact replay — draws re-anchored
 }
 
-#include "mforce/render/embedded_score.h"
 #include <filesystem>
 
 // A patch file in the scratch folder for the tests that read a file: written when made (the folder too, since a fresh clone has
@@ -2198,18 +2359,25 @@ static void run_voice_gain_tests() {
     CHECK(ip.instrument->prepare_voice_at(0, 60.0f, 0.8f, 0.1f).gain == 0.8f);
 }
 
-// The frame count build_sound gives a patch file; -1, with the
-// reason printed, when the load throws.
+// The frame count play gives a patch file; -1, with the reason printed, when
+// the load throws.
 static int frames_of(const char* path, const char* text) {
     ScratchPatch file(path, text);
     int frames = -1;
-    try { frames = load_sound(file.path).frames; }
+    try { frames = play(load_patch(file.path)).frames; }
     catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
     return frames;
 }
 
-// The score a patch file carries under "score": performed at load and its end
-// returned in seconds; build_sound turns the end into the frame count.
+// The score performed for `inst`'s class and played on it; its end in seconds.
+static double play_score(PitchedInstrument& inst, const std::string& score) {
+    EmbeddedScore performed = perform_embedded_score(score, inst.instrument_class());
+    inst.play(performed.performance);
+    return performed.endSeconds;
+}
+
+// The score a patch file carries under "score": performed and its end
+// returned in seconds; play turns the end into the frame count.
 static void run_embedded_score_tests() {
     std::printf("the embedded score: its end, hold, the phrased refusal, the frames\n");
     const char* plain = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -2219,7 +2387,7 @@ static void run_embedded_score_tests() {
     // A fresh instrument per score.
     auto end_of = [](const char* patch, const char* score) {
         auto ip = load_inst(patch);
-        return play_embedded_score(*ip.instrument, score);
+        return play_score(*ip.instrument, score);
     };
     // A note with no "time" starts where its predecessor ended.
     CHECK(end_of(plain, R"([{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}])") == 1.75);
@@ -2251,7 +2419,7 @@ static void run_embedded_score_tests() {
         catch (const std::exception& e) { named = std::string(e.what()).find("phrased") != std::string::npos; }
         CHECK(named);
     }
-    // build_sound's frame arithmetic: the render covers at least the score, a
+    // play's frame arithmetic: the render covers at least the score, a
     // larger "seconds" extends it.
     CHECK(frames_of("renders/scratch/_embedded_score_noseconds.json",
         R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -2267,7 +2435,7 @@ static void run_embedded_score_tests() {
           "score":[{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}]})") == 84000);
 }
 
-// The score's end is double arithmetic on the JSON values, and build_sound
+// The score's end is double arithmetic on the JSON values, and play
 // rounds it to frames; a file with neither a score nor "seconds" renders five
 // seconds.
 static void run_embedded_score_end_tests() {
@@ -2277,7 +2445,7 @@ static void run_embedded_score_end_tests() {
     {
         auto ip = load_inst(plain);
         // 0.1 + 0.2 in double is not 0.1f + 0.2f widened.
-        CHECK(play_embedded_score(*ip.instrument, R"([{"note":60,"time":0.1,"duration":0.2}])") == 0.1 + 0.2);
+        CHECK(play_score(*ip.instrument, R"([{"note":60,"time":0.1,"duration":0.2}])") == 0.1 + 0.2);
     }
     // 1.0000125 s at 48000 is 48000.6 frames: rounded, not truncated.
     CHECK(frames_of("renders/scratch/_embedded_score_rounding.json",
@@ -2297,7 +2465,7 @@ static void run_embedded_score_delivery_tests() {
     // A note with no "time" starts where its predecessor ended.
     {
         auto ip = load_inst(plain);
-        (void)play_embedded_score(*ip.instrument,
+        (void)play_score(*ip.instrument,
             R"([{"note":60,"time":0.25,"duration":0.5},{"note":62,"duration":0.25},{"note":64,"duration":0.5}])");
         const auto& notes = ip.instrument->renderedNotes;
         const int sr = ip.instrument->render_context().sampleRate;
@@ -2309,7 +2477,7 @@ static void run_embedded_score_delivery_tests() {
     {
         auto delivered = [&](const char* score) {
             auto ip = load_inst(plain);
-            (void)play_embedded_score(*ip.instrument, score);
+            (void)play_score(*ip.instrument, score);
             const auto& notes = ip.instrument->renderedNotes;
             return notes.size() == 1 ? notes[0].samples : std::vector<float>{};
         };
@@ -2326,13 +2494,13 @@ static void run_embedded_score_delivery_tests() {
         bool named = false;
         try {
             auto ip = load_inst(plucked);
-            (void)play_embedded_score(*ip.instrument,
+            (void)play_score(*ip.instrument,
                 R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck","articulation":{"type":"Staccato"}}])");
         }
         catch (const std::exception& e) { named = std::string(e.what()).find("phrased") != std::string::npos; }
         CHECK(named);
         auto ip = load_inst(plucked);
-        (void)play_embedded_score(*ip.instrument, R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck"}])");
+        (void)play_score(*ip.instrument, R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck"}])");
         CHECK(ip.instrument->renderedNotes.size() == 1);
     }
     // A score ending on a held note leaves no line open: the line reaches the
@@ -2344,7 +2512,7 @@ static void run_embedded_score_delivery_tests() {
             "minSec":[0.0,0.0,0.0],"maxSec":[0.0,0.0,0.0],"nominal":[0.0,0.0,0.0]}},
           {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"env"}}}]}})";
         auto ip = load_inst(sustaining);
-        (void)play_embedded_score(*ip.instrument,
+        (void)play_score(*ip.instrument,
             R"([{"note":60,"time":0,"duration":0.5},{"note":62,"duration":0.5,"hold":true}])");
         CHECK(ip.instrument->renderedNotes.size() == 2);
     }
@@ -10182,16 +10350,13 @@ static void run_review_gap_tests() {
         "node 'ch1' (SoundChannel): 'source' reads 'nowhere', which names no node"));
 }
 
-// A patch file in the scratch folder built as a sound, rendered for
-// its own frame count into `buf`. False, with the reason printed, when the
-// load or the render throws.
+// A patch file in the scratch folder played, its stereo frames into `buf`.
+// False, with the reason printed, when the load or the render throws.
 static bool render_scratch_patch(const char* path, const std::string& text, std::vector<float>& buf) {
     ScratchPatch file(path, text);
     bool rendered = false;
     try {
-        auto p = load_sound(file.path);
-        buf.assign(2 * size_t(p.frames), 0.0f);
-        p.mixer->render(buf.data(), p.frames);
+        buf = play(load_patch(file.path)).stereo;
         rendered = true;
     }
     catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
@@ -14532,6 +14697,7 @@ static void run_build_sound_tests() {
     BuiltSound bare = build_sound(load_text(plain(R"({"id":"osc","type":"SineSource","params":{"frequency":220}})", "osc")));
     CHECK(bare.mixer->channels.size() == 1 && bare.frames == 12000 && bare.mixer->signals.size() == 1 &&
           bare.mixer->signals[0].id == "osc");
+    // The frames play gives an instrument patch: its score, its seconds, or five seconds.
     const std::string head = R"({"instrument":{"polyphony":1},)";
     const std::string tail = R"("graph":{"output":"osc","nodes":[{"id":"osc","type":"SineSource","params":{"frequency":220}}]}})";
     const std::string score = R"("score":[{"note":60,"time":0,"duration":0.5}],)";
@@ -14539,7 +14705,7 @@ static void run_build_sound_tests() {
                                  head + score + R"("seconds":2,)" + tail, head + R"("seconds":0.25,)" + tail};
     const int frames[] = {240000, 24000, 24000, 96000, 12000};
     for (size_t k = 0; k < std::size(forms); ++k) {
-        BuiltSound mod = build_sound(load_text(forms[k]));
+        const PlayResult mod = play(load_text(forms[k]));
         if (mod.frames != frames[k]) std::printf("  form %zu: %d frames, want %d\n", k, mod.frames, frames[k]);
         CHECK(mod.sampleRate == 48000 && mod.frames == frames[k]);
     }
@@ -14906,6 +15072,9 @@ int main() {
     run_hold_delivery_tests();
     run_conductor_performance_tests();
     run_instrument_play_tests();
+    run_time_map_tests();
+    run_play_piece_tests();
+    run_perform_embedded_score_tests();
     run_note_wire_tests();
     run_multiplex_bend_tests();
     run_note_reseed_tests();

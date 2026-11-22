@@ -12,6 +12,7 @@
 #include "mforce/music/elaborated_phrase_strategy.h"
 #include "mforce/core/randomizer.h"
 #include "mforce/patch/patch_json.h"
+#include "mforce/play/play.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/wav_writer.h"
 
@@ -1162,25 +1163,14 @@ int run_render(int argc, char** argv) {
     auto instrument = build_instrument(patch);
     instrument->volume = 0.5f;
 
+    Ensemble ensemble;
+    for (const auto& p : piece.parts) ensemble.byPart[p.instrumentType] = instrument.get();
     Conductor conductor;
-    for (const auto& p : piece.parts) {
-        conductor.instruments[p.instrumentType] = instrument.get();
-    }
-    conductor.perform(piece);
-
-    float totalBeats = 0.0f;
-    for (auto& s : piece.sections) totalBeats += s.beats;
-    float bpm = piece.sections[0].tempo;
-    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-    int frames = int(totalSeconds * float(patch.sampleRate));
-    std::vector<float> mono(frames, 0.0f);
-    { instrument->render(mono.data(), frames); }
-    std::vector<float> stereo(frames * 2);
-    for (int j = 0; j < frames; ++j) { stereo[j*2] = mono[j]; stereo[j*2+1] = mono[j]; }
+    const PlayResult r = play(piece, ensemble, conductor);
 
     std::string wavPath  = outDir + "/fig.wav";
     std::string jsonPath = outDir + "/fig.json";
-    if (!write_wav_16le_stereo(wavPath, patch.sampleRate, stereo)) {
+    if (!write_wav_16le_stereo(wavPath, r.sampleRate, r.stereo)) {
         std::cerr << "Failed to write " << wavPath << "\n"; return 1;
     }
     {
@@ -1189,12 +1179,9 @@ int run_render(int argc, char** argv) {
         jf << pj.dump(2);
     }
 
-    float peak = 0.0f; double rms = 0.0;
-    for (auto s : stereo) { float a = std::fabs(s); if (a > peak) peak = a; rms += double(s)*s; }
-    rms = std::sqrt(rms / stereo.size());
     std::cout << "render: base=" << base.units.size() << "u  inv=" << inv.units.size()
               << "u  retro=" << ret.units.size() << "u  ri=" << ri.units.size()
-              << "u  peak=" << peak << "  rms=" << rms << "\n"
+              << "u  peak=" << r.peak << "  rms=" << r.rms << "\n"
               << "  " << wavPath << "\n  " << jsonPath << "\n";
     return 0;
 }
