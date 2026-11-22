@@ -17,16 +17,20 @@
 
 namespace mforce {
 
+// Appends one note to a performance: its start and duration in seconds, its
+// pitch and velocity, and the pitch curve it carries, if any.
+inline void append_note(Performance& out, float start, float duration,
+                        float noteNumber, float velocity,
+                        std::optional<PitchCurve> curve = std::nullopt) {
+  out.notes.push_back({.start = start, .duration = duration,
+                       .noteNumber = noteNumber, .velocity = velocity,
+                       .curve = std::move(curve)});
+}
+
 // ---------------------------------------------------------------------------
-// NotePerformer — plays individual notes. Beat→seconds + humanization.
+// NotePerformer — performs individual notes. Beat→seconds.
 // ---------------------------------------------------------------------------
 struct NotePerformer {
-  float humanize{0.0f};
-  Randomizer rng{0xA07E'0000u};
-
-  // Random timing offset (seconds). humanize is in milliseconds — max |offset|.
-  float jitter() { return humanize * 0.001f * rng.valuePN(); }
-
   // Articulation parameter transforms — returns {adjustedDuration, adjustedVelocity}
   static std::pair<float, float> apply_articulation(const Articulation& art,
                                                      float durSeconds, float velocity) {
@@ -73,7 +77,7 @@ struct NotePerformer {
 
   void perform_mordent(const Note& note, const Mordent& m,
                        float startSeconds, float durSeconds, float subDur,
-                       PitchedInstrument& instrument) {
+                       Performance& out) {
     float neighborNN = note.noteNumber + float(m.direction * m.semitones);
 
     Articulation neighborArt = m.articulations.size() > 0 ? m.articulations[0] : Articulation{articulations::Default{}};
@@ -81,24 +85,21 @@ struct NotePerformer {
 
     // 1. Main note (short) — uses the Note's own articulation
     auto [dur1, vel1] = apply_articulation(note.articulation, subDur, note.velocity);
-    instrument.play_note({.start = startSeconds + jitter(), .duration = dur1,
-                          .noteNumber = note.noteNumber, .velocity = vel1});
+    append_note(out, startSeconds, dur1, note.noteNumber, vel1);
 
     // 2. Neighbor note
     auto [dur2, vel2] = apply_articulation(neighborArt, subDur, note.velocity);
-    instrument.play_note({.start = startSeconds + subDur + jitter(), .duration = dur2,
-                          .noteNumber = neighborNN, .velocity = vel2});
+    append_note(out, startSeconds + subDur, dur2, neighborNN, vel2);
 
     // 3. Main note (remainder)
     float remainDur = durSeconds - 2.0f * subDur;
     auto [dur3, vel3] = apply_articulation(returnArt, remainDur, note.velocity);
-    instrument.play_note({.start = startSeconds + 2.0f * subDur + jitter(), .duration = dur3,
-                          .noteNumber = note.noteNumber, .velocity = vel3});
+    append_note(out, startSeconds + 2.0f * subDur, dur3, note.noteNumber, vel3);
   }
 
   void perform_turn(const Note& note, const Turn& t,
                     float startSeconds, float durSeconds, float subDur,
-                    PitchedInstrument& instrument) {
+                    Performance& out) {
     float remainDur = durSeconds - 3.0f * subDur;
 
     float aboveNN = note.noteNumber + float(t.semitonesAbove);
@@ -130,15 +131,14 @@ struct NotePerformer {
       }
 
       auto [dur, vel] = apply_articulation(art, notes[i].dur, note.velocity);
-      instrument.play_note({.start = cursor + jitter(), .duration = dur,
-                            .noteNumber = notes[i].nn, .velocity = vel});
+      append_note(out, cursor, dur, notes[i].nn, vel);
       cursor += notes[i].dur;
     }
   }
 
   void perform_trill(const Note& note, const Trill& t,
                      float startSeconds, float durSeconds, float subDur,
-                     PitchedInstrument& instrument) {
+                     Performance& out) {
     float neighborNN = note.noteNumber + float(t.direction * t.semitones);
     int count = std::max(2, int(durSeconds / subDur));
     float actualSubDur = durSeconds / float(count);
@@ -158,8 +158,7 @@ struct NotePerformer {
       }
 
       auto [dur, vel] = apply_articulation(art, actualSubDur, note.velocity);
-      instrument.play_note({.start = startSeconds + float(i) * actualSubDur + jitter(),
-                            .duration = dur, .noteNumber = nn, .velocity = vel});
+      append_note(out, startSeconds + float(i) * actualSubDur, dur, nn, vel);
     }
   }
 
@@ -169,7 +168,7 @@ struct NotePerformer {
   std::vector<QueuedNote> noteBuf;
 
   void perform_note(const Note& note, float startBeats, float bpm,
-                    PitchedInstrument& instrument) {
+                    Performance& out) {
     const bool isSlide = std::holds_alternative<articulations::Slide>(note.articulation);
 
     if (isSlide) {
@@ -180,42 +179,38 @@ struct NotePerformer {
     }
 
     // Non-slide arriving: prior buffer (if any) is a complete unit.
-    if (!noteBuf.empty()) play_buffered(bpm, instrument);
+    if (!noteBuf.empty()) play_buffered(bpm, out);
     noteBuf.push_back({note, startBeats});  // new anchor of a possible future run
   }
 
-  // Conductor calls this after iterating a part's notes to drain the buffer.
-  void conclude(float bpm, PitchedInstrument& instrument) {
-    if (!noteBuf.empty()) play_buffered(bpm, instrument);
+  // Drains the buffer into `out`: called after a part's last note.
+  void conclude(float bpm, Performance& out) {
+    if (!noteBuf.empty()) play_buffered(bpm, out);
   }
 
 private:
   // Emit whatever is currently in noteBuf, then clear.
-  void play_buffered(float bpm, PitchedInstrument& instrument) {
+  void play_buffered(float bpm, Performance& out) {
     if (noteBuf.size() == 1)
-      play_single(noteBuf.front().note, noteBuf.front().startBeats, bpm, instrument);
+      play_single(noteBuf.front().note, noteBuf.front().startBeats, bpm, out);
     else
-      play_run(noteBuf, bpm, instrument);
+      play_run(noteBuf, bpm, out);
     noteBuf.clear();
   }
 
   // One note, no slide bundling. Existing articulation/ornament/bend realization.
   void play_single(const Note& note, float startBeats, float bpm,
-                   PitchedInstrument& instrument) {
+                   Performance& out) {
     float startSeconds = startBeats * 60.0f / bpm;
     float durSeconds = note.durationBeats * 60.0f / bpm;
 
     auto play_plain = [&]() {
       auto [dur, vel] = apply_articulation(note.articulation, durSeconds, note.velocity);
       // Stateful articulations (Bend) compile to a PitchCurve here.
-      if (auto bend = std::get_if<articulations::Bend>(&note.articulation)) {
-        instrument.play_note({.start = startSeconds + jitter(), .duration = dur,
-                              .noteNumber = note.noteNumber, .velocity = vel,
-                              .curve = compile_bend(*bend)});
-      } else {
-        instrument.play_note({.start = startSeconds + jitter(), .duration = dur,
-                              .noteNumber = note.noteNumber, .velocity = vel});
-      }
+      if (auto bend = std::get_if<articulations::Bend>(&note.articulation))
+        append_note(out, startSeconds, dur, note.noteNumber, vel, compile_bend(*bend));
+      else
+        append_note(out, startSeconds, dur, note.noteNumber, vel);
     };
 
     if (has_ornament(note.ornament)) {
@@ -224,21 +219,20 @@ private:
         if constexpr (std::is_same_v<T, Mordent>) {
           float subDur = ornament_subnote_duration(note.durationBeats, bpm);
           if (subDur <= 0.0f) { play_plain(); return; }
-          perform_mordent(note, orn, startSeconds, durSeconds, subDur, instrument);
+          perform_mordent(note, orn, startSeconds, durSeconds, subDur, out);
         } else if constexpr (std::is_same_v<T, Trill>) {
           float subDur = trill_subnote_duration(note.durationBeats, bpm);
           if (subDur <= 0.0f) { play_plain(); return; }
-          perform_trill(note, orn, startSeconds, durSeconds, subDur, instrument);
+          perform_trill(note, orn, startSeconds, durSeconds, subDur, out);
         } else if constexpr (std::is_same_v<T, Turn>) {
           float subDur = ornament_subnote_duration(note.durationBeats, bpm);
           if (subDur <= 0.0f) { play_plain(); return; }
-          perform_turn(note, orn, startSeconds, durSeconds, subDur, instrument);
+          perform_turn(note, orn, startSeconds, durSeconds, subDur, out);
         } else if constexpr (std::is_same_v<T, BendMordent>) {
           // Continuous-pitch realization — one note, PitchCurve handles the excursion.
           auto [dur, vel] = apply_articulation(note.articulation, durSeconds, note.velocity);
-          instrument.play_note({.start = startSeconds + jitter(), .duration = dur,
-                                .noteNumber = note.noteNumber, .velocity = vel,
-                                .curve = compile_bend_mordent(orn)});
+          append_note(out, startSeconds, dur, note.noteNumber, vel,
+                      compile_bend_mordent(orn));
         } else if constexpr (std::is_same_v<T, std::monostate>) {
           // no ornament — unreachable due to has_ornament guard
         }
@@ -248,10 +242,10 @@ private:
     }
   }
 
-  // Bundle: anchor + 1+ slide notes realized as a single legato play_note
+  // Bundle: anchor + 1+ slide notes realized as a single legato note
   // with a multi-segment PitchCurve spanning the whole run.
   void play_run(const std::vector<QueuedNote>& buf, float bpm,
-                PitchedInstrument& instrument) {
+                Performance& out) {
     // Build SlideRunNote inputs; first is the anchor (no slide).
     std::vector<SlideRunNote> run;
     run.reserve(buf.size());
@@ -277,30 +271,30 @@ private:
     float totalSeconds = totalBeats * 60.0f / bpm;
     float velocity = anchor.note.velocity;  // run uses anchor's velocity
 
-    instrument.play_note({.start = startSeconds + jitter(), .duration = totalSeconds,
-                          .noteNumber = anchor.note.noteNumber, .velocity = velocity,
-                          .curve = combine(run)});
+    append_note(out, startSeconds, totalSeconds, anchor.note.noteNumber, velocity,
+                combine(run));
   }
 };
 
 // ---------------------------------------------------------------------------
-// DrumPerformer — plays drum hits. Beat→seconds + humanization.
+// DrumPerformer — performs drum hits. Beat→seconds + humanization.
 // ---------------------------------------------------------------------------
 struct DrumPerformer {
   float humanize{0.0f};
   Randomizer rng{0xD12A'0000u};
 
   void perform_hit(int drumNumber, float velocity, float durationBeats,
-                   float startBeats, float bpm, DrumKit& kit) {
+                   float startBeats, float bpm, Performance& out) {
     float startSeconds = startBeats * 60.0f / bpm;
     float durSeconds = durationBeats * 60.0f / bpm;
     startSeconds += humanize * 0.001f * rng.valuePN();
-    kit.play_hit(drumNumber, velocity, durSeconds, startSeconds);
+    out.hits.push_back({.start = startSeconds, .duration = durSeconds,
+                        .drumNumber = drumNumber, .velocity = velocity});
   }
 };
 
 // ---------------------------------------------------------------------------
-// ChordPerformer — knows how to play chords on an instrument.
+// ChordPerformer — performs chords: a figure, or a block chord.
 // ---------------------------------------------------------------------------
 struct ChordPerformer {
   float defaultSpreadMs{10.0f};
@@ -314,16 +308,16 @@ struct ChordPerformer {
   ChordRealization* defaultFigure{nullptr};
 
   void perform_chord(const Chord& chord, float velocity, float startBeats, float bpm,
-                     PitchedInstrument& instrument) {
+                     Performance& out) {
     float startSeconds = startBeats * 60.0f / bpm;
     float chordDurSeconds = chord.dur * 60.0f / bpm;
 
     ChordRealization* fig = select_figure(chord);
 
     if (fig) {
-      perform_with_figure(chord, velocity, *fig, startSeconds, chordDurSeconds, bpm, instrument);
+      perform_with_figure(chord, velocity, *fig, startSeconds, chordDurSeconds, bpm, out);
     } else {
-      perform_block(chord, velocity, startSeconds, chordDurSeconds, instrument);
+      perform_block(chord, velocity, startSeconds, chordDurSeconds, out);
     }
   }
 
@@ -403,22 +397,20 @@ private:
   }
 
   void perform_block(const Chord& chord, float velocity, float startSeconds,
-                     float durSeconds, PitchedInstrument& instrument) {
+                     float durSeconds, Performance& out) {
     float spreadSeconds = defaultSpreadMs * 0.001f;
     for (int i = 0; i < chord.pitch_count(); ++i) {
       float noteStart = startSeconds + float(i) * spreadSeconds;
       float noteDur = durSeconds - float(i) * spreadSeconds;
       if (noteDur < 0.01f) noteDur = 0.01f;
       noteStart += humanize * 0.001f * rng.valuePN();
-      instrument.play_note({.start = noteStart, .duration = noteDur,
-                            .noteNumber = chord.pitches[i].note_number(),
-                            .velocity = velocity});
+      append_note(out, noteStart, noteDur, chord.pitches[i].note_number(), velocity);
     }
   }
 
   void perform_with_figure(const Chord& chord, float velocity, const ChordRealization& fig,
                            float startSeconds, float chordDurSeconds, float bpm,
-                           PitchedInstrument& instrument) {
+                           Performance& out) {
     int pitchCount = chord.pitch_count();
     float elapsed = 0.0f;
     int elemIdx = 0;
@@ -454,9 +446,7 @@ private:
 
         noteStart += humanize * 0.001f * rng.valuePN();
 
-        instrument.play_note({.start = noteStart, .duration = noteDur,
-                              .noteNumber = chord.pitches[idx].note_number(),
-                              .velocity = velocity});
+        append_note(out, noteStart, noteDur, chord.pitches[idx].note_number(), velocity);
 
         if (std::find(playedList.begin(), playedList.end(), idx) == playedList.end())
           playedList.push_back(idx);
@@ -531,8 +521,8 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// Conductor — reads the score and dispatches to sub-performers.
-// Holds instrument registry. perform(Piece) is the main entry point.
+// Conductor — reads the score and directs the performers. Holds the
+// instrument registry. perform(Piece) is the main entry point.
 // ---------------------------------------------------------------------------
 struct Conductor {
   ChordPerformer chordPerformer;
@@ -561,7 +551,7 @@ struct Conductor {
 
         // Composer fully populates Part.elementSequence; that's all we read.
         if (!part.elementSequence.empty()) {
-          perform_events(part, bpm, beatOffset, inst);
+          inst->play(perform_events(part, bpm, beatOffset));
         }
       }
 
@@ -571,12 +561,8 @@ struct Conductor {
 
   // --- Convenience: perform a single Part with explicit instrument + bpm ---
 
-  void perform(const Part& part, float bpm, PitchedInstrument& instrument) {
-    perform_events(part, bpm, 0.0f, &instrument);
-  }
-
-  void perform(const Part& part, float bpm, DrumKit& kit) {
-    perform_events(part, bpm, 0.0f, &kit);
+  void perform(const Part& part, float bpm, Instrument& instrument) {
+    instrument.play(perform_events(part, bpm, 0.0f));
   }
 
 private:
@@ -587,32 +573,29 @@ private:
 
   // --- Event-list performance ---
 
-  void perform_events(const Part& part, float bpm, float beatOffset, Instrument* inst) {
-    auto* pitched = dynamic_cast<PitchedInstrument*>(inst);
-    auto* drums = dynamic_cast<DrumKit*>(inst);
-
+  // Every event of the part, in sequence order: notes and chords into
+  // `notes`, hits into `hits`; the slide-run buffer drained at the end.
+  Performance perform_events(const Part& part, float bpm, float beatOffset) {
+    Performance out;
     for (const auto& event : part.elementSequence) {
       float absBeats = beatOffset + event.startBeats;
 
-      if (event.is_note() && pitched) {
-        notePerformer.perform_note(event.note(), absBeats, bpm, *pitched);
+      if (event.is_note()) {
+        notePerformer.perform_note(event.note(), absBeats, bpm, out);
       }
-      else if (event.is_chord() && pitched) {
-        chordPerformer.perform_chord(event.chord(), 1.0f, absBeats, bpm, *pitched);
+      else if (event.is_chord()) {
+        chordPerformer.perform_chord(event.chord(), 1.0f, absBeats, bpm, out);
       }
-      else if (event.is_hit() && drums) {
+      else if (event.is_hit()) {
         const auto& h = event.hit();
         drumPerformer.perform_hit(h.drumNumber, h.velocity, h.durationBeats,
-                                  absBeats, bpm, *drums);
+                                  absBeats, bpm, out);
       }
     }
 
-    // Drain any pending slide-run buffer.
-    if (pitched) notePerformer.conclude(bpm, *pitched);
+    notePerformer.conclude(bpm, out);
+    return out;
   }
-
-  // perform_passage / perform_phrase removed: tree-walk path retired at Stage 8.
-  // Pitch resolution and figure-walking now live in Composer's realize step.
 };
 
 } // namespace mforce

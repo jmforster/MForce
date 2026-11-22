@@ -43,6 +43,13 @@ struct Instrument : MonoSource {
   // What a performer may know about this instrument.
   virtual const InstrumentClass& instrument_class() const = 0;
 
+  // Pre-renders one part's performance. Called once per part; several parts
+  // may share an instrument. render() mixes everything played.
+  virtual void play(const Performance& part) = 0;
+
+  // Forgets what was played.
+  void clear() { renderedNotes.clear(); }
+
   // The host's facts arrive here, once; every per-note length is computed
   // from them and every per-note envelope is prepared with them.
   void prepare(const RenderContext& c) override { ctx_ = c; }
@@ -494,6 +501,14 @@ struct PitchedInstrument final : Instrument {
                          durSamples, duration, fromFreq, onsetId);
   }
 
+  // Each note of the part in the order given, then an open line is ended.
+  // A pitched instrument plays no hits.
+  void play(const Performance& part) override {
+    for (const auto& note : part.notes) play_note(note);
+    finish_open_lines();
+  }
+
+private:
   // Per-note delivery against a possibly-living line voice (spec §4).
   // Three cases, in order:
   //   1. the line is open  -> CONTINUE it (no acquisition, no prepare);
@@ -694,9 +709,8 @@ struct PitchedInstrument final : Instrument {
     line_ = HeldLine{};
   }
 
-  // End-of-score safety (spec §4.3): a hold:true final note cannot leak an
-  // immortal voice. Score loader and UI generate both call this after
-  // their note loop.
+  // End-of-part safety (spec §4.3): a hold:true final note cannot leak an
+  // immortal voice. play() calls this after its note loop.
   void finish_open_lines() { if (line_.open) finish_line(); }
 };
 
@@ -739,6 +753,13 @@ struct DrumKit final : Instrument {
     }
   }
 
+  // Each hit of the part in the order given. A kit plays no notes.
+  void play(const Performance& part) override {
+    for (const auto& h : part.hits)
+      play_hit(h.drumNumber, h.velocity, h.duration, h.start);
+  }
+
+private:
   void play_hit(int drumNumber, float velocity, float duration, float startTime) {
     if (drumNumber < 0 || drumNumber >= int(sources.size()))
       return;  // silently ignore out-of-range

@@ -194,7 +194,7 @@ static bool render_piece_to_wav(Piece& piece, const std::string& instrumentType,
     std::vector<float> mono(frames, 0.0f);
     { instrument.render(mono.data(), frames); };
 
-    instrument.renderedNotes.clear();
+    instrument.clear();
 
     std::vector<float> stereo(frames * 2);
     for (int i = 0; i < frames; ++i) {

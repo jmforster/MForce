@@ -29,11 +29,11 @@ static int onset_of(const InstrumentClass& cls, const std::string& name,
     return id;
 }
 
-// The embedded score, delivered to the instrument the way the pre-render
-// does it: a NotePerformer at 60 bpm (beats are seconds, as the score's
-// "time" and "duration" are), the v2 keys "hold" and "onset", articulation
-// and ornament on unphrased notes, the open line finished at the end.
-static void perform_notes(PitchedInstrument& inst, const json& score)
+// The embedded score as one performance, in score order: a NotePerformer at
+// 60 bpm (beats are seconds, as the score's "time" and "duration" are), the
+// v2 keys "hold" and "onset", articulation and ornament on unphrased notes.
+// A phrased note first concludes the note the performer holds pending.
+static Performance perform_notes(const InstrumentClass& cls, const json& score)
 {
     NotePerformer performer;
     const float bpm = 60.0f;
@@ -47,7 +47,7 @@ static void perform_notes(PitchedInstrument& inst, const json& score)
     // ended, which is what makes a held line sequential. These
     // scores play Performer for themselves — a real Performer
     // stamps the same two facts from phrase notation.
-    const InstrumentClass& cls = inst.instrument_class();
+    Performance out;
     std::set<std::string> warnedOnsets;
     bool lineOpen = false;
     bool warnedNotSustaining = false;
@@ -80,10 +80,11 @@ static void perform_notes(PitchedInstrument& inst, const json& score)
                 throw std::runtime_error("score: articulation/"
                     "ornament are unsupported on phrased notes "
                     "(spec 2026-09-20 §3)");
-            inst.play_note({.start = start, .duration = duration,
-                            .noteNumber = note, .velocity = velocity,
-                            .onset = onset_of(cls, onset, warnedOnsets),
-                            .hold = hold});
+            performer.conclude(bpm, out);
+            out.notes.push_back({.start = start, .duration = duration,
+                                 .noteNumber = note, .velocity = velocity,
+                                 .onset = onset_of(cls, onset, warnedOnsets),
+                                 .hold = hold});
             lineOpen = hold;
             prevEnd = start + duration;
             continue;
@@ -98,11 +99,11 @@ static void perform_notes(PitchedInstrument& inst, const json& score)
             from_json(noteJson.at("ornament"), orn);
 
         Note n{note, velocity, duration, art, orn};
-        performer.perform_note(n, start, bpm, inst);
+        performer.perform_note(n, start, bpm, out);
         prevEnd = start + duration;
     }
-    inst.finish_open_lines();   // §4.3 end-of-score safety
-    performer.conclude(bpm, inst);
+    performer.conclude(bpm, out);
+    return out;
 }
 
 // The score's end in seconds, in double from the JSON values. A note with no
@@ -126,7 +127,7 @@ static double score_end(const json& score)
 double play_embedded_score(PitchedInstrument& inst, const std::string& scoreText)
 {
     const json score = json::parse(scoreText);
-    perform_notes(inst, score);
+    inst.play(perform_notes(inst.instrument_class(), score));
     return score_end(score);
 }
 

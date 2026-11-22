@@ -1522,6 +1522,12 @@ static LoadedInstrument load_scoreless(const char* path) {
     return load_inst(j.dump());
 }
 
+// Plays `notes` on `inst` as one part: a held line among them ends when the
+// list does.
+static void play_notes(Instrument& inst, std::vector<PerformedNote> notes) {
+    inst.play(Performance{std::move(notes), {}});
+}
+
 // A minimal sustaining patch: percent-mode adsr (attack 5%, decay 10%,
 // expand, release 25%) into a sine whose frequency is WIRED to the Note
 // node. The wire matters: a value pushed once at Setup (a dynamic pin)
@@ -1578,12 +1584,12 @@ static void run_hold_delivery_tests() {
         auto a = load_scoreless("patches/baselines/BaselineSIN.json");
         auto* pa = dynamic_cast<PitchedInstrument*>(a.instrument.get());
         CHECK(pa != nullptr);
-        pa->play_note({.start = 0.0f, .duration = 1.0f, .noteNumber = 60.0f, .velocity = 0.8f});
+        play_notes(*pa, {{.start = 0.0f, .duration = 1.0f, .noteNumber = 60.0f, .velocity = 0.8f}});
         auto bufA = render_all(a, N);
 
         auto b = load_scoreless("patches/baselines/BaselineSIN.json");
         auto* pb = dynamic_cast<PitchedInstrument*>(b.instrument.get());
-        pb->play_note({.start = 0.0f, .duration = 1.0f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(*pb, {{.start = 0.0f, .duration = 1.0f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         auto bufB = render_all(b, N);
         CHECK(std::memcmp(bufA.data(), bufB.data(),
                           size_t(N) * sizeof(float)) == 0);
@@ -1597,8 +1603,8 @@ static void run_hold_delivery_tests() {
         auto ip = load_inst(hold_patch_json(15.0f));
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         CHECK(pi != nullptr);
-        pi->play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-        pi->play_note({.start = 0.4f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(*pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                         {.start = 0.4f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         auto b = render_all(ip, N);
         float sustain  = rms_of(b, 0.30f, 0.34f);
         float boundary = rms_of(b, 0.38f, 0.42f);
@@ -1615,8 +1621,8 @@ static void run_hold_delivery_tests() {
         const int N = int(2.4f * sr);
         auto ip = load_inst(hold_patch_json(15.0f));
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        pi->play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-        pi->play_note({.start = 0.4f, .duration = 0.8f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(*pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                         {.start = 0.4f, .duration = 0.8f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         auto b = render_all(ip, N);
         float peak = 0.0f;
         for (float v : b) peak = std::max(peak, std::fabs(v));
@@ -1635,14 +1641,14 @@ static void run_hold_delivery_tests() {
         const int N = int(1.6f * sr);
         auto glided = load_inst(hold_patch_json(15.0f));
         auto* pg = dynamic_cast<PitchedInstrument*>(glided.instrument.get());
-        pg->play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-        pg->play_note({.start = 0.4f, .duration = 0.4f, .noteNumber = 67.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(*pg, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                         {.start = 0.4f, .duration = 0.4f, .noteNumber = 67.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         auto bg = render_all(glided, N);
 
         auto instant = load_inst(hold_patch_json(0.0f));
         auto* pn = dynamic_cast<PitchedInstrument*>(instant.instrument.get());
-        pn->play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-        pn->play_note({.start = 0.4f, .duration = 0.4f, .noteNumber = 67.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(*pn, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                         {.start = 0.4f, .duration = 0.4f, .noteNumber = 67.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         auto bn = render_all(instant, N);
 
         // f0 from INTERPOLATED rising zero crossings (a raw crossing count
@@ -1676,14 +1682,13 @@ static void run_hold_delivery_tests() {
         CHECK(maxStep(bg) < maxStep(bn));
     }
 
-    // (e) finish_open_lines (§4.3): a line left open at score end is
-    //     released, not leaked — the output decays away.
+    // (e) A line left open when the part's notes end (§4.3) is released,
+    //     not leaked — the output decays away.
     {
         const int N = int(2.0f * sr);
         auto ip = load_inst(hold_patch_json(15.0f));
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        pi->play_note({.start = 0.0f, .duration = 0.5f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-        pi->finish_open_lines();
+        play_notes(*pi, {{.start = 0.0f, .duration = 0.5f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true}});
         auto b = render_all(ip, N);
         float peak = 0.0f;
         for (float v : b) peak = std::max(peak, std::fabs(v));
@@ -1698,8 +1703,8 @@ static void run_hold_delivery_tests() {
         const int N = int(1.6f * sr);
         auto c = load_scoreless("patches/baselines/BaselineSIN.json");
         auto* pc = dynamic_cast<PitchedInstrument*>(c.instrument.get());
-        pc->play_note({.start = 0.0f, .duration = 0.5f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-        pc->play_note({.start = 0.5f, .duration = 0.5f, .noteNumber = 67.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(*pc, {{.start = 0.0f, .duration = 0.5f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                         {.start = 0.5f, .duration = 0.5f, .noteNumber = 67.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         auto bufC = render_all(c, N);
         auto zc = [&](int from, int to) {
             int n = 0;
@@ -1713,6 +1718,115 @@ static void run_hold_delivery_tests() {
     }
 }
 
+#include "mforce/music/conductor.h"
+
+// An instrument that keeps each performance it is handed and plays nothing.
+struct RecordingInstrument final : Instrument {
+    std::vector<Performance> played;
+    InstrumentClass cls;
+    const InstrumentClass& instrument_class() const override { return cls; }
+    void play(const Performance& part) override { played.push_back(part); }
+};
+
+// The part the Conductor's data test performs at 120 bpm (half a second a
+// beat): two plain notes, a staccato note, a mordent, a bend, a two-note slide
+// run, a block chord and a hit, one beat apart.
+static Part conductor_test_part(const Chord& chord) {
+    Part part;
+    part.add_note(0.0f, 60.0f, 0.5f, 1.0f);
+    part.add_note(1.0f, 62.0f, 0.7f, 1.0f);
+    part.add_note(2.0f, 64.0f, 0.6f, 1.0f, articulations::Staccato{});
+    part.add_note(3.0f, 65.0f, 0.5f, 1.0f, articulations::Default{}, Mordent{1, 2, {}});
+    part.add_note(4.0f, 67.0f, 0.5f, 1.0f, articulations::Bend{});
+    part.add_note(5.0f, 69.0f, 0.4f, 1.0f);
+    part.add_note(6.0f, 71.0f, 0.4f, 1.0f, articulations::Slide{0.2f});
+    part.add_chord(7.0f, chord);
+    part.add_hit(8.0f, 3, 0.7f, 0.5f);
+    return part;
+}
+
+// The Conductor's performance of one part, as data: what the instrument is
+// handed, in delivery order. A plain note waits for the next note (it may
+// anchor a slide run), so the chord, played at once, comes before the run.
+static void run_conductor_performance_tests() {
+    std::printf("the Conductor's performance as data: count, order, seconds, velocity, curves, hits\n");
+    const Chord chord = Chord::create("C", 4, "Major", 1.0f);
+    RecordingInstrument rec;
+    Conductor conductor;
+    conductor.perform(conductor_test_part(chord), 120.0f, rec);
+    CHECK(rec.played.size() == 1);
+    if (rec.played.size() != 1) return;
+    const Performance& perf = rec.played[0];
+    const int chordNotes = chord.pitch_count();
+    CHECK(chordNotes == 3);
+    CHECK(perf.notes.size() == size_t(8 + chordNotes));
+    if (perf.notes.size() != size_t(8 + chordNotes) || chordNotes != 3) return;
+    struct Want { float start, duration, noteNumber, velocity; bool curve; };
+    const Want want[] = {
+        {0.0f,   0.5f,   60.0f, 0.5f, false},   // plain
+        {0.5f,   0.5f,   62.0f, 0.7f, false},   // plain
+        {1.0f,   0.25f,  64.0f, 0.6f, false},   // staccato: half the length
+        {1.5f,   0.125f, 65.0f, 0.5f, false},   // mordent: main, a quarter beat
+        {1.625f, 0.125f, 67.0f, 0.5f, false},   //          neighbour above
+        {1.75f,  0.25f,  65.0f, 0.5f, false},   //          main, the remainder
+        {2.0f,   0.5f,   67.0f, 0.5f, true},    // bend
+    };
+    for (size_t k = 0; k < std::size(want); ++k) {
+        const PerformedNote& n = perf.notes[k];
+        CHECK(n.start == want[k].start && n.duration == want[k].duration);
+        CHECK(n.noteNumber == want[k].noteNumber && n.velocity == want[k].velocity);
+        CHECK(n.curve.has_value() == want[k].curve);
+        CHECK(n.onset == 0 && !n.hold);
+    }
+    for (int i = 0; i < chordNotes; ++i) {                 // block chord: 10 ms spread
+        const PerformedNote& n = perf.notes[std::size(want) + size_t(i)];
+        CHECK_NEAR(n.start, 3.5f + 0.01f * float(i), 1e-6f);
+        CHECK_NEAR(n.duration, 0.5f - 0.01f * float(i), 1e-6f);
+        CHECK(n.noteNumber == chord.pitches[size_t(i)].note_number());
+        CHECK(n.velocity == 1.0f && !n.curve);
+    }
+    const PerformedNote& run = perf.notes.back();       // the slide run: one note
+    CHECK(run.start == 2.5f && run.duration == 1.0f && run.noteNumber == 69.0f);
+    CHECK(run.velocity == 0.4f && run.curve.has_value());
+    CHECK(perf.hits.size() == 1);
+    if (perf.hits.size() == 1) {
+        const PerformedHit& h = perf.hits[0];
+        CHECK(h.start == 4.0f && h.duration == 0.25f && h.drumNumber == 3 && h.velocity == 0.7f);
+    }
+}
+
+// What each kind of instrument takes from a performance: a pitched one plays
+// the notes and no hits, a kit the hits and no notes; and play on one held
+// note ends its line, so the note reaches the timeline at a finite length.
+static void run_instrument_play_tests() {
+    std::printf("Instrument::play: a pitched instrument ignores hits, a kit notes; a lone held note ends\n");
+    const int sr = 48000;
+    const PerformedNote held{.start = 0.0f, .duration = 0.5f, .noteNumber = 60.0f, .velocity = 0.8f, .hold = true};
+    const PerformedHit hit{.start = 0.0f, .duration = 0.1f, .drumNumber = 0, .velocity = 1.0f};
+    {
+        auto ip = load_inst(hold_patch_json(15.0f));
+        ip.instrument->play(Performance{{}, {hit}});
+        CHECK(ip.instrument->renderedNotes.empty());
+        ip.instrument->play(Performance{{held}, {}});
+        const auto& notes = ip.instrument->renderedNotes;
+        CHECK(notes.size() == 1);
+        CHECK(notes.size() == 1 && notes[0].samples.size() > size_t(0.5f * sr)
+              && notes[0].samples.size() <= size_t((0.5f + PitchedInstrument::kMaxRingSec) * sr));
+    }
+    {
+        auto ip = load_inst(hold_patch_json(15.0f));
+        DrumKit kit;
+        DrumKit::DrumSource ds;
+        ds.source = ip.instrument->voicePool[0].source;
+        kit.sources.push_back(std::move(ds));
+        kit.prepare(RenderContext{sr});
+        kit.play(Performance{{held}, {}});
+        CHECK(kit.renderedNotes.empty());
+        kit.play(Performance{{}, {hit}});
+        CHECK(kit.renderedNotes.size() == 1 && kit.renderedNotes[0].samples.size() == size_t(0.1f * sr));
+    }
+}
+
 // Renders notes 60 and 72 of an instrument patch whose Note node drives `osc`'s
 // frequency: the load must succeed, the output be finite and audible, and the
 // octave double the zero crossings, so the note's pitch reached the oscillator.
@@ -1721,7 +1835,7 @@ static void check_note_pitch_reaches_osc(const std::string& patch) {
     auto render = [&](float midi) {
         auto ip = load_inst(patch);
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        pi->play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = midi, .velocity = 0.8f});
+        play_notes(*pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = midi, .velocity = 0.8f}});
         std::vector<float> b(size_t(n), 0.0f);
         ip.instrument->render(b.data(), n);
         return b;
@@ -1793,7 +1907,7 @@ static void run_multiplex_bend_tests() {
     auto render = [&](std::optional<PitchCurve> curve) {
         auto ip = load_inst(patch);
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        pi->play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = curve});
+        play_notes(*pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = curve}});
         std::vector<float> b(size_t(n), 0.0f);
         ip.instrument->render(b.data(), n);
         return b;
@@ -1930,8 +2044,8 @@ static void run_onset_trigger_tests() {
     auto ip = load_inst(kJson);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
-    pi->play_note({.start = 0.0f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-    pi->play_note({.start = 0.5f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = pi->instrument_class().onset_id("tongue"), .hold = false});
+    play_notes(*pi, {{.start = 0.0f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                     {.start = 0.5f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = pi->instrument_class().onset_id("tongue"), .hold = false}});
     const int N = int(1.2f * 48000);
     std::vector<float> buf(size_t(N), 0.0f);
     RenderContext ctx{48000};
@@ -1952,8 +2066,8 @@ static void run_onset_trigger_tests() {
     // Control: same line, no onset name — no dip.
     auto ip2 = load_inst(kJson);
     auto* pi2 = dynamic_cast<PitchedInstrument*>(ip2.instrument.get());
-    pi2->play_note({.start = 0.0f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-    pi2->play_note({.start = 0.5f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+    play_notes(*pi2, {{.start = 0.0f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                      {.start = 0.5f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
     std::vector<float> buf2(size_t(N), 0.0f);
     ip2.instrument->render(buf2.data(), N);
     double s = 0.0;
@@ -1990,8 +2104,8 @@ static void run_note_reseed_tests() {
     auto ip = load_inst(kJson);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
-    pi->play_note({.start = 0.0f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true, .curve = std::nullopt});
-    pi->play_note({.start = 0.5f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = std::nullopt});
+    play_notes(*pi, {{.start = 0.0f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true, .curve = std::nullopt},
+                     {.start = 0.5f, .duration = 0.5f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = std::nullopt}});
     const int N = int(0.5f * 48000);
     std::vector<float> buf(size_t(int(1.6f * 48000)), 0.0f);
     RenderContext ctx{48000};
@@ -3506,11 +3620,11 @@ static void run_shared_source_tests() {
     CHECK(vg.nodesById.at("sine2")->get_param("amplitude").get() == env.get());
     CHECK(vg.nodesById.at("sine1")->get_param("amplitude").get() == env.get());   // the second consumer holds the node itself
     const int N = 24000;
-    pi->play_note({.start = 0.0f, .duration = 0.25f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+    play_notes(*pi, {{.start = 0.0f, .duration = 0.25f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
     auto shared = render_all(ip, N);
     auto dupIp = load_inst(shared_env_patch_json(true));
     auto* dp = dynamic_cast<PitchedInstrument*>(dupIp.instrument.get());
-    dp->play_note({.start = 0.0f, .duration = 0.25f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+    play_notes(*dp, {{.start = 0.0f, .duration = 0.25f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
     auto dup = render_all(dupIp, N);
     CHECK(shared.size() == dup.size() &&
           std::memcmp(shared.data(), dup.data(), shared.size() * sizeof(float)) == 0);
@@ -6996,8 +7110,8 @@ static void run_host_split_tests() {
         for (auto* out : {&a, &b}) {
             auto ip = load_scoreless(path);
             auto* inst = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-            inst->play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = std::nullopt});
-            inst->play_note({.start = 0.5f, .duration = 0.4f, .noteNumber = 64.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = std::nullopt});
+            play_notes(*inst, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = std::nullopt},
+                               {.start = 0.5f, .duration = 0.4f, .noteNumber = 64.0f, .velocity = 0.8f, .onset = 0, .hold = false, .curve = std::nullopt}});
             ip.instrument->render(out->data(), n);
         }
         CHECK(same_bits(a, b));
@@ -7147,7 +7261,7 @@ static void run_fault_tests() {
     auto ip = load_inst(json);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
-    pi->play_note({.start = 0.0f, .duration = 0.1f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+    play_notes(*pi, {{.start = 0.0f, .duration = 0.1f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
     std::vector<float> out(4800);
     ip.instrument->render(out.data(), int(out.size()));
     ip.instrument->prepare(RenderContext{48000});      // a scored patch is pre-rendered at load, then prepared again
@@ -7345,7 +7459,7 @@ static void run_envelope_form_tests() {
 static std::vector<float> render_loaded_note(const char* json, int n) {
     auto ip = load_inst(json);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-    pi->play_note({.start = 0.0f, .duration = 0.2f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+    play_notes(*pi, {{.start = 0.0f, .duration = 0.2f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
     std::vector<float> out(static_cast<size_t>(n));
     ip.instrument->render(out.data(), n);
     return out;
@@ -8544,9 +8658,9 @@ static void run_dynamic_pin_tests() {
         auto ip = load_inst(dynamic_pin_patch_json(2));
         PitchedInstrument& pi = *ip.instrument;
         CHECK(pi.voicePool.size() == 2);
-        pi.play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         CHECK_NEAR(timescale(pi, 0), at60, 1e-5f);
-        pi.play_note({.start = 1.0f, .duration = 0.4f, .noteNumber = 72.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(pi, {{.start = 1.0f, .duration = 0.4f, .noteNumber = 72.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         CHECK_NEAR(timescale(pi, 1), at72, 1e-5f);
         CHECK_NEAR(timescale(pi, 0), at60, 1e-5f);     // the first voice keeps its note's value
         // 3. Each voice's curve was stepped at Setup with that voice's context:
@@ -8563,9 +8677,9 @@ static void run_dynamic_pin_tests() {
     {
         auto ip = load_inst(dynamic_pin_patch_json(1));
         PitchedInstrument& pi = *ip.instrument;
-        pi.play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-        CHECK_NEAR(timescale(pi), at60, 1e-5f);
-        pi.play_note({.start = 0.4f, .duration = 0.4f, .noteNumber = 72.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+        play_notes(pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                        {.start = 0.4f, .duration = 0.4f, .noteNumber = 72.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
+        CHECK(pi.renderedNotes.size() == 1);            // one line: the second note continued the first
         CHECK_NEAR(timescale(pi), at60, 1e-5f);
     }
 }
@@ -12404,9 +12518,9 @@ static std::vector<float> render_trigger_line(int trigger, int constant, bool& l
         listed = listed && env->trigger.source == nullptr
               && std::find(vg.triggerBindings.begin(), vg.triggerBindings.end(), env.get()) != vg.triggerBindings.end();
     }
-    pi->play_note({.start = 0.0f, .duration = 0.1f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-    pi->play_note({.start = 0.1f, .duration = 0.1f, .noteNumber = 59.0f, .velocity = 0.8f, .onset = 0, .hold = true});
-    pi->play_note({.start = 0.2f, .duration = 0.1f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false});
+    play_notes(*pi, {{.start = 0.0f, .duration = 0.1f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                     {.start = 0.1f, .duration = 0.1f, .noteNumber = 59.0f, .velocity = 0.8f, .onset = 0, .hold = true},
+                     {.start = 0.2f, .duration = 0.1f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
     std::vector<float> buf(size_t(0.5f * 48000), 0.0f);
     ip.instrument->render(buf.data(), int(buf.size()));
     return buf;
@@ -14010,9 +14124,9 @@ static std::vector<float> render_signal(ValueSource& src, int n) {
 }
 // Three notes on the offline path: a held one, the note that ends its line, and one alone.
 static std::vector<float> play_three(PitchedInstrument& pi, int onset = 0) {
-    pi.play_note({.start = 0.0f, .duration = 0.4f, .noteNumber = 48.0f, .velocity = 0.9f, .onset = onset, .hold = true});
-    pi.play_note({.start = 0.4f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.4f, .onset = onset, .hold = false});
-    pi.play_note({.start = 1.0f, .duration = 0.4f, .noteNumber = 67.0f, .velocity = 0.9f, .onset = onset, .hold = false});
+    play_notes(pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 48.0f, .velocity = 0.9f, .onset = onset, .hold = true},
+                    {.start = 0.4f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.4f, .onset = onset, .hold = false},
+                    {.start = 1.0f, .duration = 0.4f, .noteNumber = 67.0f, .velocity = 0.9f, .onset = onset, .hold = false}});
     std::vector<float> b(size_t(2 * 48000), 0.0f);
     pi.render(b.data(), int(b.size()));
     return b;
@@ -14790,6 +14904,8 @@ int main() {
     run_passage_parse_tests();
     run_onset_field_tests();
     run_hold_delivery_tests();
+    run_conductor_performance_tests();
+    run_instrument_play_tests();
     run_note_wire_tests();
     run_multiplex_bend_tests();
     run_note_reseed_tests();

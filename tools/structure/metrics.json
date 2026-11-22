@@ -245,13 +245,13 @@
    [
     [
      "engine/include/mforce/render/instrument.h",
-     615,
-     633
+     630,
+     648
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     670,
-     682
+     685,
+     697
     ]
    ]
   ],
@@ -455,13 +455,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4893,
-     4908
+     5007,
+     5022
     ],
     [
      "tools/engine_tests/main.cpp",
-     5187,
-     5202
+     5301,
+     5316
     ]
    ]
   ],
@@ -915,18 +915,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4895,
-     4905
+     5009,
+     5019
     ],
     [
      "tools/engine_tests/main.cpp",
-     5189,
-     5199
+     5303,
+     5313
     ],
     [
      "tools/engine_tests/main.cpp",
-     5716,
-     5726
+     5830,
+     5840
     ]
    ]
   ],
@@ -1135,13 +1135,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     1558,
-     1566
+     1564,
+     1572
     ],
     [
      "tools/engine_tests/main.cpp",
-     3493,
-     3501
+     3607,
+     3615
     ]
    ]
   ]
@@ -1752,8 +1752,8 @@
   "engine/include/mforce/music/conductor.h": {
    "changelog_comments": 0,
    "const_cast": 0,
-   "dynamic_cast": 2,
-   "lines": 618,
+   "dynamic_cast": 0,
+   "lines": 601,
    "longest_function": [
     56,
     "mforce::ChordPerformer::get_pitch_indices"
@@ -2851,7 +2851,7 @@
    "changelog_comments": 15,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 761,
+   "lines": 782,
    "longest_function": [
     135,
     "mforce::PitchedInstrument::play_note"
@@ -4376,9 +4376,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 133,
+   "lines": 134,
    "longest_function": [
-    71,
+    72,
     "mforce::perform_notes"
    ],
    "module": "render",
@@ -4767,7 +4767,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 37,
-   "lines": 14891,
+   "lines": 15007,
    "longest_function": [
     327,
     "run_envelope_table_tests"
@@ -4782,6 +4782,7 @@
     "BwRef",
     "Playback",
     "LoadedInstrument",
+    "RecordingInstrument",
     "ScratchPatch",
     "PinProbe",
     "Doubler",
@@ -5116,14 +5117,14 @@
  "summary": {
   "changelog_comments": 96,
   "const_cast": 10,
-  "duplicate_blocks": 133,
-  "dynamic_cast": 56,
+  "duplicate_blocks": 135,
+  "dynamic_cast": 54,
   "file_level_mutable_vars": 24,
   "files": 249,
   "files_over_limit": 16,
   "functions_over_limit": 62,
   "include_violations": 9,
-  "lines": 54285,
+  "lines": 54406,
   "unmapped_files": 0
  }
 }
