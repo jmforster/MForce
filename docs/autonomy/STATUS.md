@@ -1,13 +1,32 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-4.7'S RUN, WHERE IT STANDS (session XXIII, 2026-11-20 13:15 HST): TASK 0 IS
-DONE AND COMMITTED — base `34222c8`; the arms, gate scripts, `t0/` and the
-48 fixtures of `synth_ui/` under `renders/scratch/ab47/`; its results are the
-Ledger's execution note in the plan, and no number differed from the plan.
-THE RUN IS STOPPED BEFORE TASK 1, waiting for Matt's go-ahead and his word on
-Ledger ruling 2 (`SettingOrigin::Derived` on three settings). Nothing of
-Task 1 exists, not its brief. The block below is session XXII's and predates
-the base commit.
+THE REFACTOR WAS RESET ON 2026-11-21 (session XXII; Matt: "YEs"). READ
+`CLAUDE.md`, "Scope right now", FIRST: it replaces the gates protocol's
+per-checkpoint ceremony and everything in the blocks below that says how a
+checkpoint is run. In short: the engine as refactored through Part 4 stays;
+the old editor (`tools/mforce_ui`) is deleted and a new one is written fresh
+on the `patch` module from a short design Matt signs before code; proof is
+the build, `engine_tests` and the null gate, with one review and one short
+report per part; the order is (1) the engine flip, (2) the new editor's
+design, (3) the editor in slices, the first being open, play, tweak, hear,
+save, (4) render, music and build piece by piece. The freeze lifts for sound
+work once the first slices are usable. Matt does not need an editor until
+then, and his measure is when he can make sounds again.
+WHERE IT STANDS: step (1), the engine flip, in two commits; `git log` says
+how far it got. Stage 1: the command-line tool, the explorer, `alloc_gate`,
+`test_figures` and `engine_tests` build through the module (brief:
+`renders/scratch/ab47/briefs/flip_stage1.md`), with the twin gate run one
+last time. Stage 2: `patch_loader.{h,cpp}`, the registry's configurator, the
+Multiplex's JSON template members, the lint, the twin gate and
+`tools/mforce_ui` with the gates that drove it are deleted. Checkpoint 4.7's
+plan is superseded (its header says so): only its Task 0 ran (`34222c8`,
+`226099b`). Its Task 1 was started and killed on 2026-11-20; those
+uncommitted edits were reverted unread on 11-21 (a copy:
+`renders/scratch/ab47/t1/task1_uncommitted_at_stop.diff`; its
+`ExplicitPartials` mend returned early on the last column and was not
+trusted), so CLEANUP 107 stays open and no derived mark exists. NEXT after
+the flip: the new editor's design; offer max before it. Everything below
+this block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
 and the plan — Matt: "Yes, at xhigh").

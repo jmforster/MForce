@@ -59,6 +59,32 @@ Replicate legacy functionality of node-based UI to:
 - REFACTOR ONLY (Matt 2026-10-04): "Absolutely no feature work for awhile", in
   any lane, including autonomous "go" runs, until Matt lifts it. Protocol:
   docs/superpowers/specs/2026-10-04-refactor-gates-design.md
+- THE REFACTOR, LIGHTER AND REORDERED (Matt 2026-11-21, approved that day
+  with "YEs"; his words on why: the refactor "seems to be collapsing under
+  the weight of all your safeguards", "I've done nothing productive (ie,
+  making new sounds) since the refactor started", and of the old editor "one
+  13k line pile of rubbish, albeit working rubbish", with the hope that the
+  result "won't be pile-of-rubbish 2.0"). Where this conflicts with the gates
+  protocol or with a line below, this wins:
+  + The engine as refactored through Part 4 stays. The old editor
+    (tools/mforce_ui) is DELETED, not adapted: Matt has no need for an editor
+    until the new one exists. The new editor is written fresh on the `patch`
+    module, from a short design Matt signs before any code.
+  + Order: (1) the engine flip (every host on the `patch` module; the loader
+    and the old editor deleted); (2) the new editor's design; (3) the editor
+    in slices, the first being open, play, tweak, hear, save; (4) render,
+    music and build piece by piece, when work touches them.
+  + The freeze lifts for sound work once the editor's first slices are
+    usable. Until then, still no feature work.
+  + Proof from here: the build, engine_tests and the null gate. No synthetic
+    sets, twin gates, mutation runs, fix waves or per-checkpoint reports. One
+    independent review and one short report per part, the C++ lessons kept.
+    Interfaces are still designed with Matt before code: design is not what
+    was cut.
+  + The new editor's structure limits fail the build from its first commit,
+    with no exemptions: a file 600 lines, a function 80, no file-level
+    mutable variable, the module map. Its logic is operations on plain data
+    with tests; the window is a thin layer over them.
 - Windows-only is fine for now, but plan for future cross-platform
 - Refactor verdicts (Matt 2026-11-02): for the remainder of the refactor do
   NOT put Matt in the loop for easily-tweaked items (colours, menu dividers,
@@ -87,7 +113,9 @@ Replicate legacy functionality of node-based UI to:
 - Git holds the full history: no dated changelog in code comments.
 - If the refactor protocol (gates, independent review, architecture reports)
   exhausts the weekly quota by Wednesday, that is acceptable. Do not thin the
-  protocol to save quota.
+  protocol to save quota. (Amended 2026-11-21, see "Scope right now": the
+  per-checkpoint proofs were cut because they cost far more than they caught,
+  not to save quota; design and review are not thinned.)
 - C++ boot camp is part of the work: primer at docs/matt/cpp_primer_10000ft.md,
   then a lesson or two in every architecture report (the idiom used and its
   alternative, the C#/Java analogue, why the name was chosen).
