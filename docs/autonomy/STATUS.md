@@ -12,13 +12,24 @@ design, (3) the editor in slices, the first being open, play, tweak, hear,
 save, (4) render, music and build piece by piece. The freeze lifts for sound
 work once the first slices are usable. Matt does not need an editor until
 then, and his measure is when he can make sounds again.
-WHERE IT STANDS: step (1), the engine flip, in two commits; `git log` says
-how far it got. Stage 1: the command-line tool, the explorer, `alloc_gate`,
-`test_figures` and `engine_tests` build through the module (brief:
-`renders/scratch/ab47/briefs/flip_stage1.md`), with the twin gate run one
-last time. Stage 2: `patch_loader.{h,cpp}`, the registry's configurator, the
-Multiplex's JSON template members, the lint, the twin gate and
-`tools/mforce_ui` with the gates that drove it are deleted. Checkpoint 4.7's
+WHERE IT STANDS (2026-11-21): STEP (1), THE ENGINE FLIP, IS DONE AND
+COMMITTED. `8852453`: the command-line tool, the explorer, `alloc_gate`,
+`test_figures` and `engine_tests` build through the module; the twin gate's
+last run was 131 of 131 the same. `9f084c9`: `patch_loader.{h,cpp}`, the
+registry's JSON hooks, the Multiplex's JSON template members, the lint, the
+twin gate and `tools/mforce_ui` with `stamp_test` and the roundtrip scripts
+are deleted. After both: `engine_tests` 11,820 checks in about 33 s, the null
+gate 77 of 77, the allocation gate 0 of 131, `--check` four refused (pending's
+four), and `python tools/gates.py --fast` prints ALL GATES PASS for the first
+time (ctest and the allocation gate; the slow set is the null gate). The
+meter against `226099b`: 70,202 lines to 54,235, file-level mutable variables
+120 to 24, functions over the limit 96 to 62, `dynamic_cast` 73 to 56. LEFT
+AS FOUND: `tools/gen_trombone2.py` still drives the old editor's headless
+modes and has no binary to run; five test functions keep "loader" in their
+names; CLEANUP's rows are not yet updated for the flip (several close with
+it: 43, 75, 76, 87, 103, 115); the last built `mforce_ui.exe` is still on
+disk under `build/` and opens today's files, though nothing rebuilds it.
+Checkpoint 4.7's
 plan is superseded (its header says so): only its Task 0 ran (`34222c8`,
 `226099b`). Its Task 1 was started and killed on 2026-11-20; those
 uncommitted edits were reverted unread on 11-21 (a copy:

@@ -139,8 +139,8 @@ Replicate legacy functionality of node-based UI to:
   reviewers are Opus 5.5 subagents (the Agent tool's model "opus"), and
   claude-opus-4-8 is no longer the required fallback. Offer xhigh/max before
   design or review work.
-- Session start: sweep stale renamed UI exes (build/tools/mforce_ui/Release/
-  mforce_ui_*.exe — rename-then-link leftovers; skip any still locked/running)
+- (No UI exe to sweep at session start: the old editor, tools/mforce_ui, was
+  deleted 2026-11-21. The rule returns with the new editor.)
 - Build from repo root
 - Main executable: mforce_cli
 - Write renders into renders/
