@@ -245,13 +245,13 @@
    [
     [
      "engine/include/mforce/render/instrument.h",
-     654,
-     672
+     615,
+     633
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     709,
-     721
+     670,
+     682
     ]
    ]
   ],
@@ -1147,6 +1147,53 @@
   ]
  ],
  "files": {
+  "engine/include/mforce/contract/instrument_class.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 27,
+   "longest_function": [
+    6,
+    "mforce::InstrumentClass::onset_id"
+   ],
+   "module": "contract",
+   "mutable_vars": 0,
+   "types": [
+    "InstrumentClass"
+   ]
+  },
+  "engine/include/mforce/contract/performance.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 36,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "contract",
+   "mutable_vars": 0,
+   "types": [
+    "PerformedNote",
+    "PerformedHit",
+    "Performance"
+   ]
+  },
+  "engine/include/mforce/contract/pitch_curve.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 91,
+   "longest_function": [
+    53,
+    "mforce::PitchCurve::validate"
+   ],
+   "module": "contract",
+   "mutable_vars": 0,
+   "types": [
+    "PitchCurve"
+   ]
+  },
   "engine/include/mforce/core/component.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -1706,7 +1753,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 2,
-   "lines": 616,
+   "lines": 618,
    "longest_function": [
     56,
     "mforce::ChordPerformer::get_pitch_indices"
@@ -2105,34 +2152,19 @@
     "PitchRange"
    ]
   },
-  "engine/include/mforce/music/pitch_bend.h": {
-   "changelog_comments": 1,
+  "engine/include/mforce/music/pitch_gestures.h": {
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 130,
+   "lines": 79,
    "longest_function": [
-    34,
-    "mforce::compile_pitch_curve"
+    26,
+    "mforce::combine"
    ],
    "module": "music",
    "mutable_vars": 0,
    "types": [
     "SlideRunNote"
-   ]
-  },
-  "engine/include/mforce/music/pitch_curve.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 91,
-   "longest_function": [
-    53,
-    "mforce::PitchCurve::validate"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PitchCurve"
    ]
   },
   "engine/include/mforce/music/pitch_reader.h": {
@@ -2789,6 +2821,19 @@
     "BuiltSound"
    ]
   },
+  "engine/include/mforce/render/compile_pitch_curve.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 51,
+   "longest_function": [
+    34,
+    "mforce::compile_pitch_curve"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/include/mforce/render/embedded_score.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -2803,18 +2848,17 @@
    "types": []
   },
   "engine/include/mforce/render/instrument.h": {
-   "changelog_comments": 17,
+   "changelog_comments": 15,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 796,
+   "lines": 761,
    "longest_function": [
-    131,
+    135,
     "mforce::PitchedInstrument::play_note"
    ],
    "module": "render",
    "mutable_vars": 0,
    "types": [
-    "PerformedNote",
     "Instrument",
     "PitchedInstrument",
     "DrumKit"
@@ -4332,9 +4376,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 113,
+   "lines": 133,
    "longest_function": [
-    67,
+    71,
     "mforce::perform_notes"
    ],
    "module": "render",
@@ -5027,12 +5071,6 @@
    "target": "json"
   },
   {
-   "file": "engine/include/mforce/music/pitch_bend.h",
-   "include": "mforce/source/envelope/envelope.h",
-   "module": "music",
-   "target": "source"
-  },
-  {
    "file": "engine/include/mforce/music/pool_figure_builder.h",
    "include": "nlohmann/json.hpp",
    "module": "music",
@@ -5057,18 +5095,6 @@
    "target": "json"
   },
   {
-   "file": "engine/include/mforce/render/instrument.h",
-   "include": "mforce/music/pitch_bend.h",
-   "module": "render",
-   "target": "music"
-  },
-  {
-   "file": "engine/include/mforce/render/instrument.h",
-   "include": "mforce/music/pitch_curve.h",
-   "module": "render",
-   "target": "music"
-  },
-  {
    "file": "engine/src/embedded_score.cpp",
    "include": "mforce/music/basics.h",
    "module": "render",
@@ -5088,16 +5114,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 99,
+  "changelog_comments": 96,
   "const_cast": 10,
-  "duplicate_blocks": 129,
+  "duplicate_blocks": 133,
   "dynamic_cast": 56,
   "file_level_mutable_vars": 24,
-  "files": 246,
+  "files": 249,
   "files_over_limit": 16,
   "functions_over_limit": 62,
-  "include_violations": 12,
-  "lines": 54235,
+  "include_violations": 9,
+  "lines": 54285,
   "unmapped_files": 0
  }
 }

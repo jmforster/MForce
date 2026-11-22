@@ -64,9 +64,9 @@ std::unique_ptr<PitchedInstrument> build_instrument(const Patch& patch, int minP
   const InstrumentBlock& block = *patch.instrument;
   auto inst = std::make_unique<PitchedInstrument>();
   inst->volume = block.volume;
-  inst->onsetNames = block.onsets;
+  inst->instrumentClass.onsets = block.onsets;
   inst->glideSec = block.glideMs / 1000.0f;
-  inst->sustaining = block.sustaining;
+  inst->instrumentClass.sustaining = block.sustaining;
   const int polyphony = std::max(block.polyphony, minPolyphony);
   for (int v = 0; v < polyphony; ++v) {
     PitchedInstrument::VoiceGraph vg;

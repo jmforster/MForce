@@ -5,8 +5,8 @@
 #include "mforce/music/pitch_walker.h"
 #include "mforce/music/dynamic_state.h"
 #include "mforce/render/instrument.h"
-#include "mforce/music/pitch_bend.h"
-#include "mforce/music/pitch_curve.h"
+#include "mforce/music/pitch_gestures.h"
+#include "mforce/contract/performance.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
 #include <algorithm>
@@ -81,19 +81,19 @@ struct NotePerformer {
 
     // 1. Main note (short) — uses the Note's own articulation
     auto [dur1, vel1] = apply_articulation(note.articulation, subDur, note.velocity);
-    instrument.play_note({note.noteNumber, vel1, dur1},
-                         startSeconds + jitter());
+    instrument.play_note({.start = startSeconds + jitter(), .duration = dur1,
+                          .noteNumber = note.noteNumber, .velocity = vel1});
 
     // 2. Neighbor note
     auto [dur2, vel2] = apply_articulation(neighborArt, subDur, note.velocity);
-    instrument.play_note({neighborNN, vel2, dur2},
-                         startSeconds + subDur + jitter());
+    instrument.play_note({.start = startSeconds + subDur + jitter(), .duration = dur2,
+                          .noteNumber = neighborNN, .velocity = vel2});
 
     // 3. Main note (remainder)
     float remainDur = durSeconds - 2.0f * subDur;
     auto [dur3, vel3] = apply_articulation(returnArt, remainDur, note.velocity);
-    instrument.play_note({note.noteNumber, vel3, dur3},
-                         startSeconds + 2.0f * subDur + jitter());
+    instrument.play_note({.start = startSeconds + 2.0f * subDur + jitter(), .duration = dur3,
+                          .noteNumber = note.noteNumber, .velocity = vel3});
   }
 
   void perform_turn(const Note& note, const Turn& t,
@@ -130,7 +130,8 @@ struct NotePerformer {
       }
 
       auto [dur, vel] = apply_articulation(art, notes[i].dur, note.velocity);
-      instrument.play_note({notes[i].nn, vel, dur}, cursor + jitter());
+      instrument.play_note({.start = cursor + jitter(), .duration = dur,
+                            .noteNumber = notes[i].nn, .velocity = vel});
       cursor += notes[i].dur;
     }
   }
@@ -157,8 +158,8 @@ struct NotePerformer {
       }
 
       auto [dur, vel] = apply_articulation(art, actualSubDur, note.velocity);
-      instrument.play_note({nn, vel, dur},
-                           startSeconds + float(i) * actualSubDur + jitter());
+      instrument.play_note({.start = startSeconds + float(i) * actualSubDur + jitter(),
+                            .duration = dur, .noteNumber = nn, .velocity = vel});
     }
   }
 
@@ -208,12 +209,12 @@ private:
       auto [dur, vel] = apply_articulation(note.articulation, durSeconds, note.velocity);
       // Stateful articulations (Bend) compile to a PitchCurve here.
       if (auto bend = std::get_if<articulations::Bend>(&note.articulation)) {
-        PitchCurve curve = compile_bend(*bend);
-        instrument.play_note({note.noteNumber, vel, dur, 0.0f, false, &curve},
-                             startSeconds + jitter());
+        instrument.play_note({.start = startSeconds + jitter(), .duration = dur,
+                              .noteNumber = note.noteNumber, .velocity = vel,
+                              .curve = compile_bend(*bend)});
       } else {
-        instrument.play_note({note.noteNumber, vel, dur},
-                             startSeconds + jitter());
+        instrument.play_note({.start = startSeconds + jitter(), .duration = dur,
+                              .noteNumber = note.noteNumber, .velocity = vel});
       }
     };
 
@@ -235,9 +236,9 @@ private:
         } else if constexpr (std::is_same_v<T, BendMordent>) {
           // Continuous-pitch realization — one note, PitchCurve handles the excursion.
           auto [dur, vel] = apply_articulation(note.articulation, durSeconds, note.velocity);
-          PitchCurve curve = compile_bend_mordent(orn);
-          instrument.play_note({note.noteNumber, vel, dur, 0.0f, false, &curve},
-                               startSeconds + jitter());
+          instrument.play_note({.start = startSeconds + jitter(), .duration = dur,
+                                .noteNumber = note.noteNumber, .velocity = vel,
+                                .curve = compile_bend_mordent(orn)});
         } else if constexpr (std::is_same_v<T, std::monostate>) {
           // no ornament — unreachable due to has_ornament guard
         }
@@ -276,10 +277,9 @@ private:
     float totalSeconds = totalBeats * 60.0f / bpm;
     float velocity = anchor.note.velocity;  // run uses anchor's velocity
 
-    PitchCurve curve = combine(run);
-    instrument.play_note({anchor.note.noteNumber, velocity, totalSeconds,
-                          0.0f, false, &curve},
-                         startSeconds + jitter());
+    instrument.play_note({.start = startSeconds + jitter(), .duration = totalSeconds,
+                          .noteNumber = anchor.note.noteNumber, .velocity = velocity,
+                          .curve = combine(run)});
   }
 };
 
@@ -410,8 +410,9 @@ private:
       float noteDur = durSeconds - float(i) * spreadSeconds;
       if (noteDur < 0.01f) noteDur = 0.01f;
       noteStart += humanize * 0.001f * rng.valuePN();
-      instrument.play_note({chord.pitches[i].note_number(), velocity, noteDur},
-                           noteStart);
+      instrument.play_note({.start = noteStart, .duration = noteDur,
+                            .noteNumber = chord.pitches[i].note_number(),
+                            .velocity = velocity});
     }
   }
 
@@ -453,8 +454,9 @@ private:
 
         noteStart += humanize * 0.001f * rng.valuePN();
 
-        instrument.play_note({chord.pitches[idx].note_number(), velocity,
-                              noteDur}, noteStart);
+        instrument.play_note({.start = noteStart, .duration = noteDur,
+                              .noteNumber = chord.pitches[idx].note_number(),
+                              .velocity = velocity});
 
         if (std::find(playedList.begin(), playedList.end(), idx) == playedList.end())
           playedList.push_back(idx);

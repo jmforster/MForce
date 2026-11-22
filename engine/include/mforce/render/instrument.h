@@ -7,40 +7,19 @@
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp/one_pole.h"
 #include "mforce/core/equal_temperament.h"
-#include "mforce/music/pitch_bend.h"
-#include "mforce/music/pitch_curve.h"
+#include "mforce/contract/instrument_class.h"
+#include "mforce/contract/performance.h"
+#include "mforce/contract/pitch_curve.h"
+#include "mforce/render/compile_pitch_curve.h"
 #include "mforce/render/perform_source.h"
 #include <cstdio>
 #include <memory>
-#include <set>
 #include <vector>
 #include <string>
 #include <unordered_map>
 #include <cmath>
 
 namespace mforce {
-
-// ---------------------------------------------------------------------------
-// PerformedNote — the Performance→Realization boundary object (spec
-// 2026-09-20-note-onsets-v2 §1). Every per-note decision the Performer
-// makes crosses here in ONE struct: pitch, velocity, length, how the note
-// begins (`onsetId`, already interned by the caller via onset_id()) and
-// whether the excitation continues past its end (`hold`). The loose
-// (noteNumber, velocity, duration, curve) argument list it replaces let
-// the PitchCurve dangle at the end and had nowhere to grow.
-//
-// Tier discipline: music::Note (Compose) gains NOTHING — onset and hold
-// are Interpretation products, the same category as PitchCurve, and live
-// only here. NoteState stays the render-side mirror the graph reads.
-// ---------------------------------------------------------------------------
-struct PerformedNote {
-  float noteNumber{60.0f};
-  float velocity{0.8f};
-  float duration{1.0f};          // seconds
-  float onsetId{0.0f};           // interned; 0 = none
-  bool  hold{false};
-  const PitchCurve* curve{nullptr};
-};
 
 // ---------------------------------------------------------------------------
 // Instrument — shared render infrastructure for pitched and percussion.
@@ -60,6 +39,9 @@ struct Instrument : MonoSource {
   // its scale-to-0.95 normalization can do real work).
   bool peakGuard{true};
   std::vector<RenderedNote> renderedNotes;
+
+  // What a performer may know about this instrument.
+  virtual const InstrumentClass& instrument_class() const = 0;
 
   // The host's facts arrive here, once; every per-note length is computed
   // from them and every per-note envelope is prepared with them.
@@ -325,34 +307,9 @@ struct PitchedInstrument final : Instrument {
   // write and the push-binding evaluation (the dynamic pins). Push
   // deliveries happen BEFORE vg.source->start — a node lays out its
   // per-note state from its settings there.
-  // Onset vocabulary (spec 2026-09-20-note-onsets-v2 §6/§8): the
-  // instrument block's "onsets" array, in declaration order. Interned
-  // ids are 1-based; 0 = none/unknown. Stable, so ordinal use in a Curve
-  // is dependable.
-  std::vector<std::string> onsetNames;
-  // Does this instrument sustain? (spec §2, instrument block
-  // "sustaining"). DECLARED, never inferred — only the patch's author
-  // knows, and no envelope-shape test can tell a piano's long decay from
-  // a wind's hold. Phrasing (hold, onset gestures, glide) applies only
-  // when true, which is what makes the piano invariant hold by
-  // construction: a non-sustaining instrument never receives hold.
-  bool sustaining{false};
-  std::set<std::string> warnedOnsets_;   // once-per-name unknown warn
-  float onset_id(const std::string& name) {
-    if (name.empty()) return 0.0f;
-    // Untaught instrument (no vocabulary): every name maps to 0,
-    // SILENTLY — lines still play, gestures just don't exist here
-    // (the degradation contract, spec §6). The warn is for a taught
-    // instrument receiving a name outside its vocabulary.
-    if (onsetNames.empty()) return 0.0f;
-    for (size_t k = 0; k < onsetNames.size(); ++k)
-      if (onsetNames[k] == name) return float(k + 1);
-    if (warnedOnsets_.insert(name).second)
-      std::fprintf(stderr, "[onset] name '%s' is not in this "
-                   "instrument's onsets[] vocabulary — it will never "
-                   "fire\n", name.c_str());
-    return 0.0f;
-  }
+  // The instrument block's "sustaining" and "onsets", filled at build.
+  InstrumentClass instrumentClass;
+  const InstrumentClass& instrument_class() const override { return instrumentClass; }
 
   void apply_note_bindings(VoiceGraph& vg, float freq, float velocity,
                            int durSamples, float durSeconds,
@@ -546,16 +503,20 @@ struct PitchedInstrument final : Instrument {
   // the same test the live keyboard's key-overlap makes, against the same
   // state, so offline and live are one mechanism and nothing anywhere
   // looks ahead.
-  void play_note(const PerformedNote& pn, float startTime) {
+  void play_note(const PerformedNote& pn) {
     if (voicePool.empty()) return;
+    const float startTime = pn.start;
     const float freq = note_to_freq(pn.noteNumber);
     const int durSamples = int(pn.duration * float(ctx_.sampleRate));
+    // The graph reads the onset as a float; the curve, when the note has one.
+    const float onsetId = float(pn.onset);
+    const PitchCurve* curve = pn.curve ? &*pn.curve : nullptr;
 
     // --- 1. Continuation -------------------------------------------------
     if (line_.open) {
       auto& vg = voicePool[size_t(line_.vIdx)];
       deliver_continuation(vg, freq, pn.velocity, durSamples, pn.duration,
-                           line_.lastFreq, pn.onsetId);
+                           line_.lastFreq, onsetId);
       line_.lastFreq = freq;
       line_.lastNote = pn.noteNumber;
       line_.lastDurSamples = durSamples;
@@ -595,7 +556,7 @@ struct PitchedInstrument final : Instrument {
     // --- 2. Fresh held voice ---------------------------------------------
     if (hold) {
       apply_note_bindings(vg, freq, pn.velocity, durSamples, pn.duration,
-                          pn.curve, pn.onsetId);
+                          curve, onsetId);
       // Gate BEFORE prepare: the envelopes must lay out a holdable expand
       // stage and sit on it when this note's end arrives.
       for (auto* e : vg.allEnvelopes) e->set_gated(true);
@@ -625,7 +586,7 @@ struct PitchedInstrument final : Instrument {
     const float noteNumber = pn.noteNumber;      // containment report id
 
     apply_note_bindings(vg, freq, pn.velocity, durSamples, pn.duration,
-                        pn.curve, pn.onsetId);
+                        curve, onsetId);
 
     vg.source->start(durSamples);
     for (auto& a : vg.advanceList) a->start(durSamples);
@@ -755,6 +716,10 @@ struct DrumKit final : Instrument {
   };
 
   std::vector<DrumSource> sources;  // indexed by drum number
+
+  // A kit has no onsets and does not sustain.
+  InstrumentClass instrumentClass;
+  const InstrumentClass& instrument_class() const override { return instrumentClass; }
 
   // Drum graphs have no file ids: a drum reports as "drum <number>".
   void collect_faults(std::vector<FaultReport>& out) override {

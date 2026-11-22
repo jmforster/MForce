@@ -6,12 +6,28 @@
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cstdio>
+#include <set>
 #include <stdexcept>
 #include <string>
 
 using json = nlohmann::json;
 
 namespace mforce {
+
+// The onset id of a score note's name. A name outside the instrument's
+// vocabulary is reported once; an instrument with no vocabulary maps every
+// name to 0 without a word (lines still play, gestures do not exist there).
+static int onset_of(const InstrumentClass& cls, const std::string& name,
+                    std::set<std::string>& warned)
+{
+    const int id = cls.onset_id(name);
+    if (id == 0 && !name.empty() && !cls.onsets.empty() &&
+        warned.insert(name).second)
+        std::fprintf(stderr, "[onset] name '%s' is not in this "
+                     "instrument's onsets[] vocabulary — it will never "
+                     "fire\n", name.c_str());
+    return id;
+}
 
 // The embedded score, delivered to the instrument the way the pre-render
 // does it: a NotePerformer at 60 bpm (beats are seconds, as the score's
@@ -31,6 +47,8 @@ static void perform_notes(PitchedInstrument& inst, const json& score)
     // ended, which is what makes a held line sequential. These
     // scores play Performer for themselves — a real Performer
     // stamps the same two facts from phrase notation.
+    const InstrumentClass& cls = inst.instrument_class();
+    std::set<std::string> warnedOnsets;
     bool lineOpen = false;
     bool warnedNotSustaining = false;
     float prevEnd = 0.0f;
@@ -46,7 +64,7 @@ static void perform_notes(PitchedInstrument& inst, const json& score)
         // The piano invariant (§2): a non-sustaining instrument
         // never receives hold, so a phrase-marked score on it
         // emits ordinary independent notes.
-        if (hold && !inst.sustaining) {
+        if (hold && !cls.sustaining) {
             if (!warnedNotSustaining) {
                 warnedNotSustaining = true;
                 std::fprintf(stderr, "[score] \"hold\" ignored: this "
@@ -62,8 +80,10 @@ static void perform_notes(PitchedInstrument& inst, const json& score)
                 throw std::runtime_error("score: articulation/"
                     "ornament are unsupported on phrased notes "
                     "(spec 2026-09-20 §3)");
-            inst.play_note({note, velocity, duration,
-                             inst.onset_id(onset), hold}, start);
+            inst.play_note({.start = start, .duration = duration,
+                            .noteNumber = note, .velocity = velocity,
+                            .onset = onset_of(cls, onset, warnedOnsets),
+                            .hold = hold});
             lineOpen = hold;
             prevEnd = start + duration;
             continue;
