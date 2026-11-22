@@ -139,8 +139,11 @@ Replicate legacy functionality of node-based UI to:
   picked last; Matt sets 5.2 in the picker. Opus 5.5 is allowed again (Matt 2026-11-06 rescinded the "never
   Opus 5/5.5" rule: "just delegate to Opus 5.5 agents"); executors and
   reviewers are Opus 5.5 subagents (the Agent tool's model "opus"), and
-  claude-opus-4-8 is no longer the required fallback. Offer xhigh/max before
-  design or review work.
+  claude-opus-4-8 is no longer the required fallback. Do NOT offer or suggest
+  a higher effort setting (Matt 2026-11-22, removing the old "offer xhigh/max
+  before design or review work" rule: "overkill is currently what's killing
+  us"). Matt picks the setting; work at it. The target architecture's
+  "maximum effort" marks predate this and no longer apply.
 - (No UI exe to sweep at session start: the old editor, tools/mforce_ui, was
   deleted 2026-11-21. The rule returns with the new editor.)
 - Build from repo root

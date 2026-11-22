@@ -38,8 +38,34 @@ uncommitted edits were reverted unread on 11-21 (a copy:
 `renders/scratch/ab47/t1/task1_uncommitted_at_stop.diff`; its
 `ExplicitPartials` mend returned early on the last column and was not
 trusted), so CLEANUP 107 stays open and no derived mark exists. NEXT after
-the flip (2026-11-22): the render part, starting with what it holds and the
-interfaces Matt must decide; offer max before the design. The editor's
+the flip (2026-11-22): THE RENDER PART'S DESIGN (the target's Part 5): short,
+the interfaces, for Matt to sign before any code, written at the session's
+own effort setting (Matt removed the offer-max rule on 11-22: no effort
+offers). SURVEYED 11-22, NOTHING BUILT: render is about 1,750 lines plus the
+616-line `music/conductor.h` that drives it; `instrument.h` is 796 lines and
+`play_note` 131, both over the limits; `PitchedInstrument` holds the voice
+pool, note delivery, the held line, the sample loop, ring-out (written twice:
+`play_note`'s classic path and `finish_line`), capture and the live calls;
+the performers call `play_note`/`play_hit` at 12 places and the Conductor
+picks pitched or drums by two `dynamic_cast`s; a Conductor is hand-built six
+times in `mforce_cli/main.cpp` and once in `test_figures`, and
+`embedded_score.cpp` has its own note player; five of the meter's 12 include
+violations are render including music (`instrument.h` to `pitch_curve.h` and
+`pitch_bend.h`; `embedded_score.cpp` to `basics.h`, `conductor.h` and
+`music_json.h`); the live calls (`acquire_voice`, `prepare_voice_at`,
+`continue_voice_live`) and capture lost their user with the old editor (only
+the tests, `alloc_gate` and the explorer call them). THE BUILD ORDER PUT TO
+MATT (he has heard it and not ruled on it): (1) the contract module
+(`PerformedNote` owning its curve, `PitchCurve`, the drum hit,
+`InstrumentClass`), with `compile_pitch_curve` moved into render; (2)
+performers return notes, each instrument takes a part's notes through one
+entry point, the type test goes; (3) one play function replaces the
+hand-built loops and the embedded score's player, with the
+replay-once-per-section fix, the only step where renders may change; (4) the
+instrument split (voice pool, voice renderer, one ring-out rule, capture);
+(5) the live class behind one "fill this buffer" function, which I proposed
+building in this part with tests as its user, since the editor comes last.
+Steps 1, 2 and 4 must leave the null gate at 77 of 77. The editor's
 design waits until render, music and build are done. Everything below this
 block predates the reset and is history.
 
