@@ -66,7 +66,32 @@ instrument split (voice pool, voice renderer, one ring-out rule, capture);
 (5) the live class behind one "fill this buffer" function, which I proposed
 building in this part with tests as its user, since the editor comes last.
 Steps 1, 2 and 4 must leave the null gate at 77 of 77. The editor's
-design waits until render, music and build are done. Everything below this
+design waits until render, music and build are done.
+THE RENDER PART'S DESIGN IS WRITTEN (2026-11-22, session XXIV, Fable 5.2
+xhigh): `docs/architecture/part5-render.md`, 457 lines, uncommitted.
+IT AWAITS MATT'S SIGNATURE; nothing of it is built and no code changed. It
+holds the interfaces as code (the contract's `PerformedNote`, `PerformedHit`,
+`Performance`, `InstrumentClass`; `Instrument::play`; `TimeMap` and the
+Conductor returning data; `play(piece, ensemble, conductor)` and
+`play(patch)`; `Voice`, `VoicePool`, `RingOut`, `NodeCapture`; `SpscQueue`
+and `LivePlayer` with its five messages), the same five steps, and in its
+section 9 the seven rulings a signature accepts: (1) the live player is built
+in this part, last; (2) the pool is twice the voices, the steal is
+released-first then oldest with a 5 ms fade, a burst past the spares is
+dropped; (3) one `Performance` per part with a list of notes and a list of
+hits; (4) `play` has `--compose`'s mixing and length rules for every mode;
+(5) `DrumKit` and capture are kept though nothing builds the one or calls the
+other; (6) the performers stay in `music/` until Part 6; (7) `onset` is an
+`int` in the contract. FOUND WHILE WRITING IT: `capture_begin` has no caller
+in the tree; no code builds a `DrumKit` (one test makes one by hand); `Tone`
+and `DrumHit` in `music/basics.h` are referenced nowhere; the composer stamps
+events in whole-piece beats, which is why the Conductor's per-section loop
+replays, and `scores/baselines/template_binary.json` is the one comp baseline
+with two sections (the one that moves at step 3); the null gate's patches
+never reach the Conductor's piece loop or the chord performer, so the design
+runs the existing comp gate at steps 2, 3 and 4; most library patches declare
+polyphony 1, so the live player takes its voice count from the host. NEXT ON
+A SIGNATURE: step 1 (the contract module). Everything below this
 block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
