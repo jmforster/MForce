@@ -43,11 +43,10 @@ void Mixer::render(float* outLR, int frames) {
       float p = ch.pan->next();                  // [-1,1]
       p = std::clamp(p, -1.0f, 1.0f);
 
-      // Equal-power panning: map [-1,1] -> [0,1], normalized to UNITY at
-      // center (Matt 2026-09-14: mono/center patches write x1.0 to both
-      // channels so WAV loudness == UI's unity-mono monitoring). Edges
-      // reach +3 dB relative to the old -3 dB-center law; soft_clip below
-      // still bounds the mix.
+      // Equal-power panning: map [-1,1] -> [0,1], normalized to unity at
+      // center, so a mono or centred patch writes x1.0 to both channels;
+      // the edges reach +3 dB over the centre. soft_clip below still bounds
+      // the mix.
       float t = (p + 1.0f) * 0.5f;
       constexpr float kRoot2 = 1.41421356237309504880f;
       float aL = kRoot2 * std::cos(t * 0.5f * 3.14159265358979323846f);

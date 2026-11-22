@@ -1,50 +1,13 @@
 #pragma once
 #include <string>
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/render/channel.h"
+#include "mforce/render/fault_report.h"
+#include "mforce/render/mono_source.h"
 #include <memory>
 #include <vector>
 
 namespace mforce {
-
-// One node's faults, as a host reports them after a render.
-struct FaultReport {
-  std::string nodeId;
-  const char* type;
-  unsigned char faults;
-};
-
-// "osc1 (SineSource): frequency clamped, table length clamped" — the one
-// wording every host prints.
-inline std::string fault_report_text(const FaultReport& r) {
-  std::string s = r.nodeId + " (" + r.type + "):";
-  bool first = true;
-  for (unsigned char bit = 1; bit; bit = static_cast<unsigned char>(bit << 1)) {
-    if (!(r.faults & bit)) continue;
-    s += first ? " " : ", ";
-    s += fault_name(static_cast<Fault>(bit));
-    first = false;
-  }
-  return s;
-}
-
-// A mono producer the mixer owns. prepare(ctx) once, from the host that
-// built it; render() as often as the host wants frames.
-struct MonoSource {
-  virtual ~MonoSource() = default;
-  virtual void prepare(const RenderContext& ctx) = 0;
-  virtual void render(float* out, int frames) = 0;
-  // The faults every node of this producer reported since the last call,
-  // one entry per node id, cleared as they are read. Control side only,
-  // after a render. A producer with no ids of its own (a plain sound's graph)
-  // reports nothing; the mixer lists such a graph's nodes itself (signals).
-  virtual void collect_faults(std::vector<FaultReport>&) {}
-};
-
-struct Channel {
-  std::unique_ptr<MonoSource> source;
-  std::shared_ptr<ValueSource> volume;
-  std::shared_ptr<ValueSource> pan; // [-1,1]
-};
 
 struct Mixer {
   std::vector<Channel> channels;

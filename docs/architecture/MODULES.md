@@ -9,7 +9,7 @@ Phase 1: describes today's layout. Do not edit by hand.
 | contract | The types that cross from performance to realization. | `engine/include/mforce/contract/` | nothing |
 | source | Every node type, one folder per family (filter folded in), and the list that registers them. | `engine/include/mforce/source/`, `engine/src/source/` | core |
 | patch | A patch as data: the records, the declarations a type makes, the codec, the graph build. | `engine/include/mforce/patch/`, `engine/src/patch/` | core, source |
-| render | Instruments, voices, mixing, a patch built as an instrument or a sound, WAV I/O. | `engine/include/mforce/render/`, `engine/src/build_instrument.cpp`, `engine/src/build_sound.cpp`, `engine/src/mixer.cpp`, `engine/src/wav_writer.cpp`, `engine/src/wav_reader.cpp` | core, source, patch, contract |
+| render | Instruments, voices, mixing, a patch built as an instrument or a sound, WAV I/O. | `engine/include/mforce/render/`, `engine/src/render/` | core, source, patch, contract |
 | music | The music model and composition. | `engine/include/mforce/music/`, `engine/src/music/`, `engine/src/music.cpp`, `engine/src/chord.cpp` | core, contract |
 | play | One function that runs performance and realization end to end. | `engine/include/mforce/play/`, `engine/src/play/` | core, source, patch, render, music, contract |
 | util | Stand-alone analysis helpers (FFT, signal statistics). | `engine/include/mforce/util/` | nothing |

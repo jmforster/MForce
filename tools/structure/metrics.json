@@ -81,21 +81,6 @@
    ]
   ],
   [
-   41,
-   [
-    [
-     "engine/include/mforce/source/filter/bw_highpass_filter.h",
-     8,
-     48
-    ],
-    [
-     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
-     8,
-     53
-    ]
-   ]
-  ],
-  [
    39,
    [
     [
@@ -237,21 +222,6 @@
      "engine/include/mforce/source/filter/hammer_bank.h",
      8,
      31
-    ]
-   ]
-  ],
-  [
-   19,
-   [
-    [
-     "engine/include/mforce/render/instrument.h",
-     630,
-     648
-    ],
-    [
-     "engine/include/mforce/render/instrument.h",
-     685,
-     697
     ]
    ]
   ],
@@ -455,13 +425,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5175,
-     5190
+     5326,
+     5341
     ],
     [
      "tools/engine_tests/main.cpp",
-     5469,
-     5484
+     5620,
+     5635
     ]
    ]
   ],
@@ -885,18 +855,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5177,
-     5187
+     5328,
+     5338
     ],
     [
      "tools/engine_tests/main.cpp",
-     5471,
-     5481
+     5622,
+     5632
     ],
     [
      "tools/engine_tests/main.cpp",
-     5998,
-     6008
+     6149,
+     6159
     ]
    ]
   ],
@@ -1070,13 +1040,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     1564,
-     1572
+     1571,
+     1579
     ],
     [
      "tools/engine_tests/main.cpp",
-     3775,
-     3783
+     3926,
+     3934
     ]
    ]
   ],
@@ -1085,13 +1055,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5139,
-     5147
+     5290,
+     5298
     ],
     [
      "tools/engine_tests/main.cpp",
-     5856,
-     5864
+     6007,
+     6015
     ]
    ]
   ],
@@ -1167,6 +1137,46 @@
      "tools/test_figures/main.cpp",
      808,
      816
+    ]
+   ]
+  ],
+  [
+   8,
+   [
+    [
+     "engine/include/mforce/music/passage_strategies.h",
+     344,
+     351
+    ],
+    [
+     "engine/include/mforce/music/passage_strategies.h",
+     676,
+     682
+    ]
+   ]
+  ],
+  [
+   8,
+   [
+    [
+     "engine/include/mforce/source/filter/distorted_source.h",
+     9,
+     16
+    ],
+    [
+     "engine/include/mforce/source/oscillator/fm_source.h",
+     8,
+     24
+    ],
+    [
+     "engine/include/mforce/source/oscillator/triangle_source.h",
+     6,
+     24
+    ],
+    [
+     "engine/include/mforce/source/physical/allpass_resonator.h",
+     11,
+     47
     ]
    ]
   ]
@@ -2890,6 +2900,21 @@
     "BuiltSound"
    ]
   },
+  "engine/include/mforce/render/channel.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 15,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "Channel"
+   ]
+  },
   "engine/include/mforce/render/compile_pitch_curve.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -2903,21 +2928,64 @@
    "mutable_vars": 0,
    "types": []
   },
-  "engine/include/mforce/render/instrument.h": {
-   "changelog_comments": 15,
+  "engine/include/mforce/render/delivery.h": {
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 782,
+   "lines": 20,
    "longest_function": [
-    135,
-    "mforce::PitchedInstrument::play_note"
+    4,
+    "mforce::choose_delivery"
    ],
    "module": "render",
    "mutable_vars": 0,
    "types": [
-    "Instrument",
-    "PitchedInstrument",
+    "Delivery"
+   ]
+  },
+  "engine/include/mforce/render/drum_kit.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 41,
+   "longest_function": [
+    1,
+    "mforce::DrumKit::instrument_class"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
     "DrumKit"
+   ]
+  },
+  "engine/include/mforce/render/fault_report.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 28,
+   "longest_function": [
+    11,
+    "mforce::fault_report_text"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "FaultReport"
+   ]
+  },
+  "engine/include/mforce/render/instrument.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 56,
+   "longest_function": [
+    1,
+    "mforce::Instrument::rendered"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "Instrument"
    ]
   },
   "engine/include/mforce/render/limiter.h": {
@@ -2937,18 +3005,45 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 83,
+   "lines": 46,
    "longest_function": [
-    11,
-    "mforce::fault_report_text"
+    7,
+    "mforce::Mixer::collect_faults"
    ],
    "module": "render",
    "mutable_vars": 0,
    "types": [
-    "FaultReport",
-    "MonoSource",
-    "Channel",
     "Mixer"
+   ]
+  },
+  "engine/include/mforce/render/mono_source.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 21,
+   "longest_function": [
+    1,
+    "mforce::MonoSource::collect_faults"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "MonoSource"
+   ]
+  },
+  "engine/include/mforce/render/node_capture.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 42,
+   "longest_function": [
+    7,
+    "mforce::NodeCapture::record"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "NodeCapture"
    ]
   },
   "engine/include/mforce/render/perform_source.h": {
@@ -2967,6 +3062,66 @@
     "NoteState",
     "PerformSource",
     "PerformOut"
+   ]
+  },
+  "engine/include/mforce/render/pitched_instrument.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 110,
+   "longest_function": [
+    1,
+    "mforce::PitchedInstrument::pool"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "PitchedInstrument"
+   ]
+  },
+  "engine/include/mforce/render/ring_out.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 77,
+   "longest_function": [
+    7,
+    "mforce::RingOut::shape"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "RingOut"
+   ]
+  },
+  "engine/include/mforce/render/voice.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 133,
+   "longest_function": [
+    7,
+    "mforce::Voice::next"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "Voice"
+   ]
+  },
+  "engine/include/mforce/render/voice_pool.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 40,
+   "longest_function": [
+    5,
+    "mforce::VoicePool::next_scheduled"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "VoicePool"
    ]
   },
   "engine/include/mforce/render/wav_reader.h": {
@@ -4373,35 +4528,6 @@
     "SignalStats"
    ]
   },
-  "engine/src/build_instrument.cpp": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 1,
-   "lines": 83,
-   "longest_function": [
-    21,
-    "mforce::build_instrument"
-   ],
-   "module": "render",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/src/build_sound.cpp": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 181,
-   "longest_function": [
-    32,
-    "mforce::assemble_mixer"
-   ],
-   "module": "render",
-   "mutable_vars": 0,
-   "types": [
-    "MonoSignal",
-    "PullLoop"
-   ]
-  },
   "engine/src/chord.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -4425,19 +4551,6 @@
     "mforce::Component::set_param"
    ],
    "module": "core",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/src/mixer.cpp": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 66,
-   "longest_function": [
-    42,
-    "mforce::Mixer::render"
-   ],
-   "module": "render",
    "mutable_vars": 0,
    "types": []
   },
@@ -4585,6 +4698,139 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/src/render/build_instrument.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 21,
+   "longest_function": [
+    13,
+    "mforce::build_instrument"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/build_sound.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 181,
+   "longest_function": [
+    32,
+    "mforce::assemble_mixer"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "MonoSignal",
+    "PullLoop"
+   ]
+  },
+  "engine/src/render/drum_kit.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 51,
+   "longest_function": [
+    16,
+    "mforce::DrumKit::play_hit"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/instrument.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 38,
+   "longest_function": [
+    23,
+    "mforce::Instrument::render"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/mixer.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 65,
+   "longest_function": [
+    41,
+    "mforce::Mixer::render"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/node_capture.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 16,
+   "longest_function": [
+    9,
+    "mforce::NodeCapture::begin"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/pitched_instrument.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 214,
+   "longest_function": [
+    19,
+    "mforce::PitchedInstrument::play_note"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/voice.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 203,
+   "longest_function": [
+    33,
+    "mforce::Voice::Voice"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/wav_reader.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 109,
+   "longest_function": [
+    77,
+    "mforce::read_wav_16le_stereo"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/wav_writer.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 65,
+   "longest_function": [
+    44,
+    "mforce::write_wav_16le_stereo"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/src/source/additive/additive_source.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -4660,32 +4906,6 @@
     "mforce::derived_label"
    ],
    "module": "core",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/src/wav_reader.cpp": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 109,
-   "longest_function": [
-    77,
-    "mforce::read_wav_16le_stereo"
-   ],
-   "module": "render",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/src/wav_writer.cpp": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 65,
-   "longest_function": [
-    44,
-    "mforce::write_wav_16le_stereo"
-   ],
-   "module": "render",
    "mutable_vars": 0,
    "types": []
   },
@@ -4838,7 +5058,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 37,
-   "lines": 15176,
+   "lines": 15329,
    "longest_function": [
     327,
     "run_envelope_table_tests"
@@ -5168,16 +5388,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 96,
+  "changelog_comments": 80,
   "const_cast": 10,
-  "duplicate_blocks": 126,
+  "duplicate_blocks": 124,
   "dynamic_cast": 54,
   "file_level_mutable_vars": 24,
-  "files": 252,
-  "files_over_limit": 15,
-  "functions_over_limit": 57,
+  "files": 267,
+  "files_over_limit": 14,
+  "functions_over_limit": 56,
   "include_violations": 6,
-  "lines": 54516,
+  "lines": 54892,
   "unmapped_files": 0
  }
 }

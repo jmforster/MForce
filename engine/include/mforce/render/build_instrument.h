@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include "mforce/patch/patch.h"
-#include "mforce/render/instrument.h"
+#include "mforce/render/pitched_instrument.h"
 
 namespace mforce {
 

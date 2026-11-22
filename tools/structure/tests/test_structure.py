@@ -126,19 +126,39 @@ class RulesAndReportTests(unittest.TestCase):
 class KnownAnswerTests(unittest.TestCase):
     """Spec 2026-10-04 §3.12: the meter must report what the audit measured."""
 
-    def test_instrument_ring_out_duplicate_is_found(self):
-        # The audit's known duplicate: the ring-out loop of the fresh voice and
-        # of the held line. Anchored on their one-sample render_chunk calls,
-        # not on line numbers, which move with every edit above them.
-        path = "engine/include/mforce/render/instrument.h"
-        lines = (ROOT / path).read_text(encoding="utf-8").splitlines()
-        anchors = [i + 1 for i, l in enumerate(lines) if "render_chunk(vg, buf, " in l and ", 1, " in l]
+    def test_a_loop_written_twice_is_found(self):
+        # The shape the audit found in the instrument: one ring-out loop
+        # written in two functions with different variable names. The copy is
+        # a fixture, so the test holds whatever the tree's own code does.
+        def loop(buf, level, limit):
+            return [
+                f"  for (int i = base; i < {limit}; ++i) {{",
+                f"    if (i >= renderSamples && {level} < kRingFloor) break;",
+                f"    render_one(voice, {buf}, startFrame, gain);",
+                f"    {level} = std::max(std::fabs({buf}[size_t(i)]), {level} * ringDecay);",
+                "    rendered = i + 1;",
+                "    const int fadeN = int(0.08f * float(sampleRate));",
+                f"    if (i >= {limit} - fadeN && {level} >= kRingFloor)",
+                f"      {buf}[size_t(i)] *= float({limit} - i) / float(fadeN);",
+                "  }",
+                "  int checkStart = std::max(0, rendered - sampleRate / 1000);",
+                "  float tailPeak = 0.0f;",
+                "  for (int i = checkStart; i < rendered; ++i)",
+                f"    tailPeak = std::max(tailPeak, std::fabs({buf}[size_t(i)]));",
+                "  if (tailPeak > 1e-4f) report(tailPeak);",
+            ]
+        src = (["void play_fresh() {"] + loop("buf", "ringEnv", "maxSamples") + ["}", "",
+               "void finish_line() {"] + loop("lineBuf", "follower", "cap") + ["}", ""])
+        with tempfile.TemporaryDirectory() as root:
+            (Path(root) / "twice.h").write_text("\n".join(src), encoding="utf-8")
+            blocks = measure.token_duplicates(["twice.h"], root)
+        anchors = [i + 1 for i, l in enumerate(src) if "render_one(voice, " in l]
         self.assertEqual(len(anchors), 2)
-        blocks = measure.token_duplicates([path], ROOT)
-        spans = {s: e for _, places in blocks for _, s, e in places}
+        spans = [(s, e) for _, places in blocks for _, s, e in places]
         for a in anchors:
-            self.assertIn(a, spans)
-            self.assertGreaterEqual(spans[a] - a, 12)
+            covering = [e - s for s, e in spans if s <= a <= e]
+            self.assertTrue(covering, f"no duplicate block covers line {a}")
+            self.assertGreaterEqual(max(covering), 10)
 
     def test_every_tracked_source_is_on_a_module(self):
         import subprocess

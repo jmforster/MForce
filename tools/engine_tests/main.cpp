@@ -1414,6 +1414,13 @@ static void run_onset_field_tests() {
 }
 
 #include "mforce/render/instrument.h"
+#include "mforce/core/equal_temperament.h"
+#include "mforce/render/delivery.h"
+#include "mforce/render/drum_kit.h"
+#include "mforce/render/node_capture.h"
+#include "mforce/render/pitched_instrument.h"
+#include "mforce/render/ring_out.h"
+#include "mforce/render/voice.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
@@ -1806,24 +1813,22 @@ static void run_instrument_play_tests() {
     {
         auto ip = load_inst(hold_patch_json(15.0f));
         ip.instrument->play(Performance{{}, {hit}});
-        CHECK(ip.instrument->renderedNotes.empty());
+        CHECK(ip.instrument->rendered().empty());
         ip.instrument->play(Performance{{held}, {}});
-        const auto& notes = ip.instrument->renderedNotes;
+        const auto& notes = ip.instrument->rendered();
         CHECK(notes.size() == 1);
         CHECK(notes.size() == 1 && notes[0].samples.size() > size_t(0.5f * sr)
-              && notes[0].samples.size() <= size_t((0.5f + PitchedInstrument::kMaxRingSec) * sr));
+              && notes[0].samples.size() <= size_t((0.5f + RingOut::kMaxSeconds) * sr));
     }
     {
         auto ip = load_inst(hold_patch_json(15.0f));
         DrumKit kit;
-        DrumKit::DrumSource ds;
-        ds.source = ip.instrument->voicePool[0].source;
-        kit.sources.push_back(std::move(ds));
+        kit.add(ip.instrument->pool().voice(0).output());
         kit.prepare(RenderContext{sr});
         kit.play(Performance{{held}, {}});
-        CHECK(kit.renderedNotes.empty());
+        CHECK(kit.rendered().empty());
         kit.play(Performance{{}, {hit}});
-        CHECK(kit.renderedNotes.size() == 1 && kit.renderedNotes[0].samples.size() == size_t(0.1f * sr));
+        CHECK(kit.rendered().size() == 1 && kit.rendered()[0].samples.size() == size_t(0.1f * sr));
     }
 }
 
@@ -1842,6 +1847,152 @@ static bool same_note(const PerformedNote& a, const PerformedNote& b) {
 // A section of `beats` at `bpm`, in C major 4/4.
 static Section section_of(const char* name, float beats, float bpm) {
     return Section(name, beats, bpm, Meter::M_4_4, Scale::get("C", "Major"));
+}
+
+// A kit through play: each hit on its drum at its start, a hit on a drum the
+// kit lacks ignored, the notes of a performance ignored.
+static void run_drum_kit_play_tests() {
+    std::printf("DrumKit::play: each hit on its drum, a missing drum ignored, notes ignored\n");
+    const char* drum = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":180.0}}]}})";
+    auto ip = load_inst(drum);
+    DrumKit kit;
+    kit.add(ip.instrument->pool().voice(0).output());
+    kit.add(ip.instrument->pool().voice(1).output());
+    kit.prepare(RenderContext{48000});
+    Performance part;
+    part.notes.push_back({.start = 0.0f, .duration = 0.1f, .noteNumber = 60.0f, .velocity = 0.8f});
+    part.hits = {{.start = 0.0f, .duration = 0.05f, .drumNumber = 1, .velocity = 1.0f},
+                 {.start = 0.5f, .duration = 0.1f, .drumNumber = 5, .velocity = 1.0f},
+                 {.start = 0.25f, .duration = 0.1f, .drumNumber = 0, .velocity = 0.5f}};
+    kit.play(part);
+    const auto& r = kit.rendered();
+    CHECK(r.size() == 2);
+    CHECK(r.size() == 2 && r[0].startSample == 0 && r[0].samples.size() == size_t(0.05f * 48000.0f)
+          && r[1].startSample == int(0.25f * 48000.0f) && r[1].samples.size() == size_t(0.1f * 48000.0f));
+    CHECK(kit.instrument_class().onsets.empty() && !kit.instrument_class().sustaining);
+}
+
+// RingOut alone: a silent voice stops at its body plus the fixed tail
+// exactly; a loud one runs to the cap, its last 80 ms fading to zero; a
+// follower given its body late, or primed over what the voice played, steps
+// as one given it at the start.
+static void run_ring_out_tests() {
+    std::printf("RingOut: silence stops at body plus tail, a loud voice runs to the cap and fades, a late body\n");
+    const int sr = 48000, body = 4800;
+    const int tail = int(RingOut::kTailSeconds * float(sr));
+    const int cap = body + int(RingOut::kMaxSeconds * float(sr));
+    const int fade = int(0.08f * float(sr));
+    {
+        RingOut ring(sr, body);
+        int n = 0;
+        while (ring.more()) { (void)ring.shape(0.0f); ++n; }
+        CHECK(n == body + tail);
+    }
+    {
+        RingOut ring(sr, body);
+        std::vector<float> out;
+        while (ring.more()) out.push_back(ring.shape(0.5f));
+        CHECK(int(out.size()) == cap && ring.limit() == cap);
+        CHECK(int(out.size()) == cap && out[size_t(cap - fade - 1)] == 0.5f && out[size_t(cap - fade)] == 0.5f);
+        bool falling = true;
+        for (int i = cap - fade + 1; falling && i < cap; ++i) falling = out[size_t(i)] < out[size_t(i - 1)];
+        CHECK(falling && out.back() == 0.5f * (1.0f / float(fade)));
+    }
+    {
+        const auto x = [](int i) { return 0.5f * std::exp(-float(i) / 3000.0f); };
+        RingOut early(sr, body), late(sr), primed(sr, body);
+        std::vector<float> a, b, played;
+        bool lateGoesOn = true;
+        for (int i = 0; i < 2000; ++i) {
+            a.push_back(early.shape(x(i)));
+            lateGoesOn = lateGoesOn && late.more();
+            b.push_back(late.shape(x(i)));
+            played.push_back(x(i));
+        }
+        late.set_body(body);
+        primed.prime(played);
+        std::vector<float> c(a);
+        for (int i = 2000; early.more(); ++i) {
+            a.push_back(early.shape(x(i)));
+            lateGoesOn = lateGoesOn && late.more() && primed.more();
+            b.push_back(late.shape(x(i)));
+            c.push_back(primed.shape(x(i)));
+        }
+        CHECK(lateGoesOn && !late.more() && !primed.more());
+        CHECK(a == b && a == c && int(a.size()) == body + tail);   // the decay is under the floor by the tail's end
+    }
+}
+
+// The three-way choice, every row: an open line takes the note; a fresh held
+// note opens a line only on a voice that can hold one; the rest are classic.
+static void run_delivery_choice_tests() {
+    std::printf("the delivery choice: continue, open a line, classic\n");
+    struct Row { bool open, hold, canHold; Delivery want; };
+    const Row rows[] = {
+        {true, true, true, Delivery::Continue},    {true, true, false, Delivery::Continue},
+        {true, false, true, Delivery::Continue},   {true, false, false, Delivery::Continue},
+        {false, true, true, Delivery::OpenLine},   {false, true, false, Delivery::Classic},
+        {false, false, true, Delivery::Classic},   {false, false, false, Delivery::Classic},
+    };
+    for (const Row& r : rows) CHECK(choose_delivery(r.open, r.hold, r.canHold) == r.want);
+}
+
+// A held line on a voice whose only envelope is in a Multiplex template: the
+// template's envelope is not the voice's to gate, so the line is delivered as
+// ordinary notes and the second note sounds. An envelope outside the template
+// is the voice's.
+static void run_multiplex_held_line_tests() {
+    std::printf("a held line on a Multiplex template's envelope: ordinary notes, the second sounds\n");
+    const std::string head = R"({"sampleRate":48000,"instrument":{"polyphony":2,"sustaining":true},"graph":{"output":")";
+    const std::string nodes = R"(","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.01,"decay":0.05,"sustainLevel":0.7,"release":0.05}},
+      {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"env"}}},
+      {"id":"mux","type":"MultiplexSource","params":{"count":2,"source":{"ref":"osc"}}})";
+    auto inside = load_inst(head + "mux" + nodes + "]}}");
+    PitchedInstrument& pi = *inside.instrument;
+    CHECK(!pi.pool().voice(0).can_hold() && pi.pool().voice(0).envelopes().empty());
+    play_notes(pi, {note_at(0.0f, 0.4f, 60.0f, 0.8f, true), note_at(0.4f, 0.4f, 64.0f)});
+    CHECK(pi.rendered().size() == 2);
+    float second = 0.0f;
+    if (pi.rendered().size() == 2)
+        for (float s : pi.rendered()[1].samples) second = std::max(second, std::fabs(s));
+    CHECK(second > 0.01f);
+    auto outside = load_inst(head + "out" + nodes + R"(,
+      {"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.01,"decay":0.05,"sustainLevel":0.7,"release":0.05}},
+      {"id":"out","type":"CombinedSource","params":{"source1":{"ref":"mux"},"source2":{"ref":"amp"},"operation":"Multiply"}}]}})");
+    const Voice& v = outside.instrument->pool().voice(0);
+    CHECK(v.can_hold() && v.envelopes().size() == 1 && v.envelopes()[0] == v.nodes().at("amp").get());
+}
+
+// The capture: one node id over a one-note play is zero outside the note and
+// the node's raw output inside it, the note's samples before the velocity.
+static void run_node_capture_tests() {
+    std::printf("the capture: one node over a one-note play, zero outside, the raw output inside\n");
+    auto ip = load_inst(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.01,"decay":0.05,"sustainLevel":0.5,"release":0.05}},
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"env"}}}]}})");
+    PitchedInstrument& pi = *ip.instrument;
+    const int frames = 48000, start = 12000;
+    pi.capture().begin(pi.pool(), {"osc"}, frames);
+    CHECK(pi.capture().active());
+    play_notes(pi, {note_at(0.25f, 0.1f, 60.0f, 0.8f)});
+    pi.capture().end();
+    CHECK(!pi.capture().active() && pi.capture().buffers().size() == 1);
+    if (pi.capture().buffers().size() != 1 || pi.rendered().size() != 1) { CHECK(false); return; }
+    const auto& strip = pi.capture().buffers()[0];
+    const auto& note = pi.rendered()[0].samples;
+    const int len = int(note.size());
+    CHECK(int(strip.size()) == frames && start + len < frames);
+    bool outsideZero = true, insideRaw = true, audible = false;
+    for (int f = 0; f < frames; ++f) {
+        const int k = f - start;
+        if (k < 0 || k >= len) { outsideZero = outsideZero && strip[size_t(f)] == 0.0f; continue; }
+        insideRaw = insideRaw && strip[size_t(f)] * 0.8f == note[size_t(k)];
+        audible = audible || strip[size_t(f)] != 0.0f;
+    }
+    CHECK(outsideZero && insideRaw && audible);
 }
 
 // One tempo maps beats to seconds bit for bit as b * 60 / bpm; across two
@@ -1920,7 +2071,7 @@ static void run_play_piece_tests() {
         CHECK(std::count(r.stereo.begin(), r.stereo.end(), 0.5f) == 8);
         CHECK(r.sampleRate == 48000 && r.frames == int((TimeMap(piece.sections).seconds_at(8.0f) + 2.0f) * 48000.0f));
         CHECK(r.frames == 8 * 48000 && r.stereo.size() == size_t(r.frames) * 2);
-        CHECK(rec.renderedNotes.empty());
+        CHECK(rec.rendered().empty());
         CHECK(r.scale == 1.0f && r.peak == 0.5f);
     }
     {
@@ -1931,7 +2082,7 @@ static void run_play_piece_tests() {
         const PlayResult r = play(piece, Ensemble{{{"a", &a}, {"b", &b}}}, conductor, 1.0f);
         CHECK(r.mixPeak == 0.7f + 0.7f && r.scale == 0.98f / r.mixPeak);
         CHECK_NEAR(r.peak, 0.98f, 1e-6f);
-        CHECK(r.frames == 3 * 48000 && a.renderedNotes.empty() && b.renderedNotes.empty());
+        CHECK(r.frames == 3 * 48000 && a.rendered().empty() && b.rendered().empty());
     }
     {
         const Piece piece = piece_of({section_of("A", 4.0f, 120.0f)}, {{"a", {0.0f}}, {"b", {}}});
@@ -2312,7 +2463,7 @@ static int file_voice_count(const char* path, const std::string& text) {
         auto built = load_sound(file.path);
         if (built.mixer && built.mixer->channels.size() == 1)
             if (auto* pi = dynamic_cast<PitchedInstrument*>(built.mixer->channels[0].source.get()))
-                voices = int(pi->voicePool.size());
+                voices = int(pi->pool().size());
     }
     catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
     return voices;
@@ -2333,10 +2484,10 @@ static void run_voice_pool_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
     const char* none = R"({"sampleRate":48000,"instrument":{"polyphony":0},"graph":{"output":"osc","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
-    CHECK(load_inst(two, 5).instrument->voicePool.size() == 5);
-    CHECK(load_inst(two, 0).instrument->voicePool.size() == 2);
-    CHECK(load_inst(six, 3).instrument->voicePool.size() == 6);   // a floor below is no cut
-    CHECK(load_inst(unstated, 0).instrument->voicePool.size() == 4);
+    CHECK(load_inst(two, 5).instrument->pool().size() == 5);
+    CHECK(load_inst(two, 0).instrument->pool().size() == 2);
+    CHECK(load_inst(six, 3).instrument->pool().size() == 6);   // a floor below is no cut
+    CHECK(load_inst(unstated, 0).instrument->pool().size() == 4);
     auto defaultRate = load_inst(noRate);
     CHECK(defaultRate.sampleRate == 48000);
     CHECK(defaultRate.instrument->render_context().sampleRate == 48000);
@@ -2467,7 +2618,7 @@ static void run_embedded_score_delivery_tests() {
         auto ip = load_inst(plain);
         (void)play_score(*ip.instrument,
             R"([{"note":60,"time":0.25,"duration":0.5},{"note":62,"duration":0.25},{"note":64,"duration":0.5}])");
-        const auto& notes = ip.instrument->renderedNotes;
+        const auto& notes = ip.instrument->rendered();
         const int sr = ip.instrument->render_context().sampleRate;
         CHECK(notes.size() == 3);
         CHECK(notes.size() == 3 && notes[0].startSample == int(0.25 * sr)
@@ -2478,7 +2629,7 @@ static void run_embedded_score_delivery_tests() {
         auto delivered = [&](const char* score) {
             auto ip = load_inst(plain);
             (void)play_score(*ip.instrument, score);
-            const auto& notes = ip.instrument->renderedNotes;
+            const auto& notes = ip.instrument->rendered();
             return notes.size() == 1 ? notes[0].samples : std::vector<float>{};
         };
         const auto unstated = delivered(R"([{"note":60,"time":0,"duration":0.25}])");
@@ -2501,7 +2652,7 @@ static void run_embedded_score_delivery_tests() {
         CHECK(named);
         auto ip = load_inst(plucked);
         (void)play_score(*ip.instrument, R"([{"note":60,"time":0,"duration":0.5,"onset":"pluck"}])");
-        CHECK(ip.instrument->renderedNotes.size() == 1);
+        CHECK(ip.instrument->rendered().size() == 1);
     }
     // A score ending on a held note leaves no line open: the line reaches the
     // timeline at the end.
@@ -2514,7 +2665,7 @@ static void run_embedded_score_delivery_tests() {
         auto ip = load_inst(sustaining);
         (void)play_score(*ip.instrument,
             R"([{"note":60,"time":0,"duration":0.5},{"note":62,"duration":0.5,"hold":true}])");
-        CHECK(ip.instrument->renderedNotes.size() == 2);
+        CHECK(ip.instrument->rendered().size() == 2);
     }
 }
 
@@ -3782,11 +3933,11 @@ static void run_shared_source_tests() {
     };
     auto ip = load_inst(shared_env_patch_json(false));
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-    CHECK(pi != nullptr && !pi->voicePool.empty());
-    auto& vg = pi->voicePool[0];
-    auto env = vg.nodesById.at("env");
-    CHECK(vg.nodesById.at("sine2")->get_param("amplitude").get() == env.get());
-    CHECK(vg.nodesById.at("sine1")->get_param("amplitude").get() == env.get());   // the second consumer holds the node itself
+    CHECK(pi != nullptr && !pi->pool().empty());
+    auto& vg = pi->pool().voice(0);
+    auto env = vg.nodes().at("env");
+    CHECK(vg.nodes().at("sine2")->get_param("amplitude").get() == env.get());
+    CHECK(vg.nodes().at("sine1")->get_param("amplitude").get() == env.get());   // the second consumer holds the node itself
     const int N = 24000;
     play_notes(*pi, {{.start = 0.0f, .duration = 0.25f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
     auto shared = render_all(ip, N);
@@ -7019,7 +7170,7 @@ static std::shared_ptr<ValueSource> make_multiplex_voice() {
           "params": { "count": 3, "source": { "ref": "osc" } } } ] }
     })");
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-    return pi->voicePool.at(0).source;
+    return pi->pool().voice(0).output();
 }
 
 static void run_combine_mod_pin_split_tests() {
@@ -7646,7 +7797,7 @@ static void run_envelope_form_loader_tests() {
     auto env_of = [](const char* json) {
         auto ip = load_inst(json);
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        return std::dynamic_pointer_cast<Envelope>(pi->voicePool.at(0).nodesById.at("Env"));
+        return std::dynamic_pointer_cast<Envelope>(pi->pool().voice(0).nodes().at("Env"));
     };
     auto ef = env_of(form), es = env_of(stages);
     CHECK(ef && es && same_layout(*ef, *es));
@@ -7904,7 +8055,7 @@ static void run_envelope_table_tests() {
         auto env_of = [](const std::string& json) {
             auto ip = load_inst(json);
             auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-            return std::dynamic_pointer_cast<Envelope>(pi->voicePool.at(0).nodesById.at("Env"));
+            return std::dynamic_pointer_cast<Envelope>(pi->pool().voice(0).nodes().at("Env"));
         };
         auto refusal = [](const std::string& json) {
             return load_refused(json);
@@ -8233,7 +8384,7 @@ static void run_curve_table_tests() {
         auto curve_of = [](const std::string& json) {
             auto ip = load_inst(json);
             auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-            return std::dynamic_pointer_cast<CurveNode>(pi->voicePool.at(0).nodesById.at("cv"));
+            return std::dynamic_pointer_cast<CurveNode>(pi->pool().voice(0).nodes().at("cv"));
         };
         auto refusal = [](const std::string& json) {
             return load_refused(json);
@@ -8422,7 +8573,7 @@ static void run_allocation_tests_partials() {
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
         auto edited = load_inst(rows);
         (void)render_one_live_note(*edited.instrument, 60.0f);
-        edited.instrument->voicePool[0].nodesById.at("parts")->set_array("ampl1", {1.0f, 0.1f, 0.1f, 0.1f});
+        edited.instrument->pool().voice(0).nodes().at("parts")->set_array("ampl1", {1.0f, 0.1f, 0.1f, 0.1f});
         edited.instrument->prepare(RenderContext{48000});
         const auto afterEdit = render_one_live_note(*edited.instrument, 60.0f);
         auto loaded = load_inst(editedRows);
@@ -8542,9 +8693,9 @@ static void run_allocation_tests_pins() {
         PitchedInstrument& inst = *ip.instrument;
         inst.release_voice(inst.acquire_voice());
         const int slot = std::max(0, inst.acquire_voice());
-        auto& vg = inst.voicePool[size_t(slot)];
-        CHECK(!vg.allEnvelopes.empty());
-        for (auto* e : vg.allEnvelopes) e->set_gated(true);
+        Voice& vg = inst.pool().voice(slot);
+        CHECK(vg.can_hold());
+        vg.gate();
         alloc_probe::reset();
         alloc_probe::arm();
         PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, 60.0f, 0.8f, 0.5f);
@@ -8552,7 +8703,7 @@ static void run_allocation_tests_pins() {
             for (int i = 0; i < n; ++i) { sv.tick(); (void)sv.source->next(); for (auto& a : sv.advanceList) a->next(); }
         };
         pull(sv.durSamples / 2);
-        for (auto* e : vg.allEnvelopes) e->gate_release(int(0.5f * 48000.0f));   // the releasing note's length: the release is re-laid against it
+        (void)vg.release(int(0.5f * 48000.0f));   // the releasing note's length: the release is re-laid against it
         pull(sv.durSamples / 2);
         alloc_probe::disarm();
         CHECK(alloc_probe::count() == 0);
@@ -8569,15 +8720,14 @@ static void run_allocation_tests_pins() {
           {"id":"osc","type":"SineSource","params":{"frequency":180.0,"amplitude":{"ref":"env"}}}]}})";
         auto ip = load_inst(drum);
         DrumKit kit;
-        DrumKit::DrumSource ds;
-        ds.source = ip.instrument->voicePool[0].source;
-        kit.sources.push_back(std::move(ds));
+        const auto drumSource = ip.instrument->pool().voice(0).output();
+        kit.add(drumSource);
         kit.prepare(RenderContext{48000});
-        auto& d = kit.sources[0];
+        SampleClock& clock = kit.clock_of(0);
         alloc_probe::reset();
         alloc_probe::arm();
-        d.source->start(4800);
-        for (int i = 0; i < 4800; ++i) { d.clock->tick(); (void)d.source->next(); }
+        drumSource->start(4800);
+        for (int i = 0; i < 4800; ++i) { clock.tick(); (void)drumSource->next(); }
         alloc_probe::disarm();
         CHECK(alloc_probe::count() == 0);
     }
@@ -8619,7 +8769,7 @@ static void run_structural_setting_tests() {
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
         auto edited = load_inst(even);
         const auto before = render_one_live_note(*edited.instrument, 60.0f);
-        edited.instrument->voicePool[0].nodesById.at("parts")->set_setting("evenWeight1", 0.0f);
+        edited.instrument->pool().voice(0).nodes().at("parts")->set_setting("evenWeight1", 0.0f);
         edited.instrument->prepare(RenderContext{48000});
         const auto after = render_one_live_note(*edited.instrument, 60.0f);
         auto loaded = load_inst(odd);
@@ -8817,7 +8967,7 @@ static void run_dynamic_pin_tests() {
     const float at72 = curve.map(note_to_freq(72.0f));
     CHECK(std::fabs(at60 - at72) > 0.1f);              // the two notes give two values
     auto timescale = [](PitchedInstrument& pi, size_t voice = 0) {
-        return pi.voicePool[voice].nodesById.at("env1")->get_setting("timeScale");
+        return pi.pool().voice(int(voice)).nodes().at("env1")->get_setting("timeScale");
     };
     // 1. Each fresh note sets the setting to the curve at its own frequency,
     //    on its own voice: with two voices, play_note's rotation hands the
@@ -8825,7 +8975,7 @@ static void run_dynamic_pin_tests() {
     {
         auto ip = load_inst(dynamic_pin_patch_json(2));
         PitchedInstrument& pi = *ip.instrument;
-        CHECK(pi.voicePool.size() == 2);
+        CHECK(pi.pool().size() == 2);
         play_notes(pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
         CHECK_NEAR(timescale(pi, 0), at60, 1e-5f);
         play_notes(pi, {{.start = 1.0f, .duration = 0.4f, .noteNumber = 72.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
@@ -8847,7 +8997,7 @@ static void run_dynamic_pin_tests() {
         PitchedInstrument& pi = *ip.instrument;
         play_notes(pi, {{.start = 0.0f, .duration = 0.4f, .noteNumber = 60.0f, .velocity = 0.8f, .onset = 0, .hold = true},
                         {.start = 0.4f, .duration = 0.4f, .noteNumber = 72.0f, .velocity = 0.8f, .onset = 0, .hold = false}});
-        CHECK(pi.renderedNotes.size() == 1);            // one line: the second note continued the first
+        CHECK(pi.rendered().size() == 1);            // one line: the second note continued the first
         CHECK_NEAR(timescale(pi), at60, 1e-5f);
     }
 }
@@ -8889,9 +9039,9 @@ static void run_wiring_door_tests() {
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
     auto ip = load_inst(additive);
-    const auto& vg = ip.instrument->voicePool[0];
-    CHECK(vg.signals.size() == 1 && vg.signals[0].id == "add");   // the part is no signal
-    CHECK(vg.nodesById.count("parts") == 1 && vg.nodesById.count("add") == 1);
+    const auto& vg = ip.instrument->pool().voice(0);
+    CHECK(vg.signals().size() == 1 && vg.signals()[0].id == "add");   // the part is no signal
+    CHECK(vg.nodes().count("parts") == 1 && vg.nodes().count("add") == 1);
 }
 
 // The formant family are parts: a FormantSequence holds its formants in a
@@ -8924,7 +9074,7 @@ static void run_formant_part_tests() {
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"fm"},"formantWeight":1.0}}]}})";
         auto ip = load_inst(shaped);
         const auto before = render_one_live_note(*ip.instrument, 60.0f);
-        ip.instrument->voicePool[0].nodesById.at("fm")->set_array("gain", {0.0f});
+        ip.instrument->pool().voice(0).nodes().at("fm")->set_array("gain", {0.0f});
         ip.instrument->prepare(RenderContext{48000});
         const auto after = render_one_live_note(*ip.instrument, 60.0f);
         CHECK(!same_bits(before, after));
@@ -9549,7 +9699,7 @@ static void run_formant_peaks_load_tests() {
       {"id":"pk","type":"FormantPeaks","params":{"frequency":[440.0,1320.0],"gain":[1.0,0.5],"width":[300.0,400.0],"power":[2.0,2.0]}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"pk"},"formantWeight":1.0,"formantFloor":0.0}}]}})";
     auto ip = load_inst(rows);
-    auto* pk = dynamic_cast<FormantPeaks*>(ip.instrument->voicePool[0].nodesById.at("pk").get());
+    auto* pk = dynamic_cast<FormantPeaks*>(ip.instrument->pool().voice(0).nodes().at("pk").get());
     CHECK(pk != nullptr && pk->peak_count() == 2);
     const auto before = render_one_live_note(*ip.instrument, 60.0f);
     CHECK(std::any_of(before.begin(), before.end(), [](float v) { return v != 0.0f; }));
@@ -9562,7 +9712,7 @@ static void run_formant_peaks_load_tests() {
       {"id":"pk","type":"FormantPeaks"},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"pk"},"formantWeight":1.0}}]}})";
     auto empty = load_inst(none);                            // no rows: a formant that gains nothing
-    auto* pk0 = dynamic_cast<FormantPeaks*>(empty.instrument->voicePool[0].nodesById.at("pk").get());
+    auto* pk0 = dynamic_cast<FormantPeaks*>(empty.instrument->pool().voice(0).nodes().at("pk").get());
     CHECK(pk0 != nullptr && pk0->peak_count() == 0 && same_bits(pk0->gain(1000.0f), 0.0f));
 }
 
@@ -9591,7 +9741,7 @@ static std::string one_node(const char* type, const nlohmann::json& params) {
 static std::shared_ptr<Component> load_node(const char* type, const nlohmann::json& params, LoadedInstrument& ip) {
     try { ip = load_inst(one_node(type, params)); }
     catch (const std::exception& e) { std::printf("  %s %s: %s\n", type, params.dump().c_str(), e.what()); return nullptr; }
-    return ip.instrument->voicePool[0].nodesById.at("n");
+    return ip.instrument->pool().voice(0).nodes().at("n");
 }
 static float load_setting(const char* type, const char* key, const nlohmann::json& value) {
     LoadedInstrument ip;
@@ -9917,14 +10067,14 @@ static void run_input_list_loader_tests() {
     auto feeds_of = [](const std::string& doc, LoadedInstrument& ip) -> ListProbe* {
         try { ip = load_inst(doc); }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return nullptr; }
-        return dynamic_cast<ListProbe*>(ip.instrument->voicePool[0].nodesById.at("n").get());
+        return dynamic_cast<ListProbe*>(ip.instrument->pool().voice(0).nodes().at("n").get());
     };
     {
         LoadedInstrument ip;
         auto* n = feeds_of(list_doc(nlohmann::json::array({{{"ref", "a"}}, {{"tap", "b"}}, {{"ref", "b"}}})), ip);
         CHECK(n != nullptr);
         if (n) {
-            const auto& nodes = ip.instrument->voicePool[0].nodesById;
+            const auto& nodes = ip.instrument->pool().voice(0).nodes();
             CHECK(n->feeds.sources.size() == 3);
             auto* tap = n->feeds.sources.size() == 3 ? dynamic_cast<TapSource*>(n->feeds.sources[1].get()) : nullptr;
             CHECK(n->feeds.sources.size() == 3 && n->feeds.sources[0] == nodes.at("a") && n->feeds.sources[2] == nodes.at("b"));
@@ -9935,7 +10085,7 @@ static void run_input_list_loader_tests() {
         LoadedInstrument ip;
         auto* n = feeds_of(list_doc({{"ref", "b"}}), ip);
         CHECK(n != nullptr && n->feeds.sources.size() == 1);
-        if (n && n->feeds.sources.size() == 1) CHECK(n->feeds.sources[0] == ip.instrument->voicePool[0].nodesById.at("b"));
+        if (n && n->feeds.sources.size() == 1) CHECK(n->feeds.sources[0] == ip.instrument->pool().voice(0).nodes().at("b"));
     }
     for (const bool file : {false, true}) {
         const std::string inList = list_doc(nlohmann::json::array({{{"ref", "a"}}, {{"ref", "pk"}}}), "FormantPeaks");
@@ -10516,7 +10666,7 @@ static void run_review_gap_lifecycle_tests() {
         const int slot = std::max(0, inst.acquire_voice());
         (void)inst.prepare_voice_at(slot, 60.0f, 0.8f, 0.1f);
         inst.continue_voice_live(slot, 62.0f, 0.8f, 0.1f, 261.6f, 0.0f);
-        auto* probe = dynamic_cast<ReseedProbe*>(inst.voicePool[size_t(slot)].nodesById.at("p").get());
+        auto* probe = dynamic_cast<ReseedProbe*>(inst.pool().voice(slot).nodes().at("p").get());
         CHECK(probe != nullptr && probe->reseeds == 1);
         inst.release_voice(slot);
     }
@@ -11112,7 +11262,7 @@ static void run_name_gate_name_tests() {
         catch (const std::exception& e) { std::printf("  %s: %s\n", name, e.what()); loaded = false; }
         CHECK(loaded);
         if (!loaded) continue;
-        auto* g = dynamic_cast<NameGate*>(ip.instrument->voicePool[0].nodesById.at("n").get());
+        auto* g = dynamic_cast<NameGate*>(ip.instrument->pool().voice(0).nodes().at("n").get());
         CHECK(g && g->get_string("name") == name && g->targetId == id);   // 1-based; outside the vocabulary -1
     }
     CHECK(three_kinds::refused_naming(gate_doc(3), false, {"node 'n' (NameGate): 'name' takes a string, not 3"}));
@@ -11430,7 +11580,7 @@ static uint64_t loaded_render(const std::string& doc, const char* id, std::vecto
                               std::initializer_list<const char*> names = {}) {
     try {
         LoadedInstrument ip = load_inst(doc);
-        auto n = ip.instrument->voicePool[0].nodesById.at(id);
+        auto n = ip.instrument->pool().voice(0).nodes().at(id);
         if (arrays) for (const char* a : names) for (float v : n->get_array(a)) arrays->push_back(v);
         return node_twins::render(*std::dynamic_pointer_cast<ValueSource>(n), 4800, 2);
     } catch (const std::exception& e) {
@@ -12472,12 +12622,10 @@ static int perform_field_of(const nlohmann::json& perfNode, std::string& refusal
                    {"graph", J{{"output", "osc"}, {"nodes", J::array({perfNode, osc})}}}};
     try {
         auto ip = load_inst(doc.dump());
-        const auto& v = ip.instrument->voicePool[0];
-        const Component* f = v.nodesById.at("f").get();
-        const Component* six[] = {v.freqOut.get(), v.velOut.get(), v.wheelOut.get(),
-                                  v.pressOut.get(), v.durOut.get(), v.onsetOut.get()};
+        const auto& v = ip.instrument->pool().voice(0);
+        const Component* f = v.nodes().at("f").get();
         for (int k = 0; k < 6; ++k)
-            if (f == six[k]) return k;
+            if (f == v.note_signals().field(k).get()) return k;
         return -1;
     }
     catch (const std::exception& e) { refusal = e.what(); }
@@ -12670,18 +12818,18 @@ static std::string trigger_line_patch(int trigger) {
 static std::vector<float> render_trigger_line(int trigger, int constant, bool& listed) {
     auto ip = load_inst(trigger_line_patch(trigger));
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-    listed = pi != nullptr && !pi->voicePool.empty();
+    listed = pi != nullptr && !pi->pool().empty();
     if (!pi) return {};
-    for (auto& vg : pi->voicePool) {
-        auto it = vg.nodesById.find("env1");
-        auto env = it == vg.nodesById.end() ? nullptr : std::dynamic_pointer_cast<Envelope>(it->second);
+    for (auto& vg : pi->pool()) {
+        auto it = vg.nodes().find("env1");
+        auto env = it == vg.nodes().end() ? nullptr : std::dynamic_pointer_cast<Envelope>(it->second);
         if (!env) { listed = false; continue; }
         if (constant >= 0) {
             env->clear_param("trigger");
             env->trigger.constant = float(constant);
         }
         listed = listed && env->trigger.source == nullptr
-              && std::find(vg.triggerBindings.begin(), vg.triggerBindings.end(), env.get()) != vg.triggerBindings.end();
+              && std::find(vg.triggers().begin(), vg.triggers().end(), env.get()) != vg.triggers().end();
     }
     play_notes(*pi, {{.start = 0.0f, .duration = 0.1f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true},
                      {.start = 0.1f, .duration = 0.1f, .noteNumber = 59.0f, .velocity = 0.8f, .onset = 0, .hold = true},
@@ -14527,7 +14675,7 @@ static void run_build_template_closure_tests() {
         const Patch p = load_text(kMultiplexTexts[0].text);
         kept = build_instrument(p);
     }
-    static_cast<MultiplexSource&>(*kept->voicePool[0].nodesById.at("mux")).mark_dirty();
+    static_cast<MultiplexSource&>(*kept->pool().voice(0).nodes().at("mux")).mark_dirty();
     kept->prepare(RenderContext{48000});
     auto fresh = build_instrument(load_text(kMultiplexTexts[0].text));
     CHECK(same_samples(play_three(*kept), play_three(*fresh)));
@@ -14632,24 +14780,24 @@ static void run_build_instrument_tests() {
         "out", R"({"polyphony":3,"volume":0.5,"sustaining":true,"onsets":["tongue"],"glideMs":20})"));
     std::vector<std::string> w;
     const auto pi = build_instrument(p, 0, &w);
-    CHECK(pi->voicePool.size() == 3 && pi->volume == 0.5f && pi->instrument_class().sustaining && pi->glideSec == 20.0f / 1000.0f);
+    CHECK(pi->pool().size() == 3 && pi->volume == 0.5f && pi->instrument_class().sustaining && pi->glide_seconds() == 20.0f / 1000.0f);
     CHECK(pi->instrument_class().onsets == std::vector<std::string>({"tongue"}));
     CHECK(w.size() == 2);                        // the gate's name and the bend: once, not once per voice
-    CHECK(build_instrument(p, 5)->voicePool.size() == 5 && build_instrument(p, 2)->voicePool.size() == 3);
-    for (const auto& vg : pi->voicePool) {
-        const auto at = [&](const char* id) { return vg.nodesById.at(id).get(); };
-        CHECK(vg.source.get() == at("out"));
-        CHECK(vg.allEnvelopes.size() == 3 && vg.allEnvelopes[0] == at("env") && vg.allEnvelopes[1] == at("env0") &&
-              vg.allEnvelopes[2] == at("envW"));
-        CHECK(vg.triggerBindings.size() == 2 && vg.triggerBindings[0] == at("env") && vg.triggerBindings[1] == at("envW"));
-        CHECK(vg.pushBindings.size() == 1 && vg.pushBindings[0].consumer.get() == at("ks") &&
-              vg.pushBindings[0].paramName == "t60" && vg.pushBindings[0].chain.get() == at("c"));
-        CHECK(vg.advanceList.size() == 1 && vg.advanceList[0].get() == at("T"));
-        CHECK(vg.signals.size() == vg.nodesById.size() && std::is_sorted(vg.signals.begin(), vg.signals.end(),
+    CHECK(build_instrument(p, 5)->pool().size() == 5 && build_instrument(p, 2)->pool().size() == 3);
+    for (const auto& vg : pi->pool()) {
+        const auto at = [&](const char* id) { return vg.nodes().at(id).get(); };
+        CHECK(vg.output().get() == at("out"));
+        CHECK(vg.envelopes().size() == 3 && vg.envelopes()[0] == at("env") && vg.envelopes()[1] == at("env0") &&
+              vg.envelopes()[2] == at("envW"));
+        CHECK(vg.triggers().size() == 2 && vg.triggers()[0] == at("env") && vg.triggers()[1] == at("envW"));
+        CHECK(vg.push_bindings().size() == 1 && vg.push_bindings()[0].consumer.get() == at("ks") &&
+              vg.push_bindings()[0].paramName == "t60" && vg.push_bindings()[0].chain.get() == at("c"));
+        CHECK(vg.tails().size() == 1 && vg.tails()[0].get() == at("T"));
+        CHECK(vg.signals().size() == vg.nodes().size() && std::is_sorted(vg.signals().begin(), vg.signals().end(),
                                                                          [](const auto& x, const auto& y) { return x.id < y.id; }));
-        CHECK(at("pf") == vg.freqOut.get() && vg.performSource != nullptr);
+        CHECK(at("pf") == vg.note_signals().frequency.get() && vg.perform_source() != nullptr);
     }
-    CHECK(pi->voicePool[0].nodesById.at("out") != pi->voicePool[1].nodesById.at("out"));
+    CHECK(pi->pool().voice(0).nodes().at("out") != pi->pool().voice(1).nodes().at("out"));
     Patch partOut = load_text(inst(R"({"id":"o","type":"SineSource"},{"id":"parts","type":"FullPartials"})", "o"));
     partOut.graph.output = "parts";
     std::string msg;
@@ -14660,7 +14808,7 @@ static void run_build_instrument_tests() {
     CHECK(msg == "Patch has no 'instrument' section");
     const Patch slow = load_text(R"({"sampleRate":22050,"instrument":{"polyphony":1},)"
                                  R"("graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"}]}})");
-    CHECK(build_instrument(slow)->voicePool[0].ctx.sampleRate == 22050);
+    CHECK(build_instrument(slow)->pool().voice(0).context().sampleRate == 22050);
 }
 
 // build_sound: the base's seven plain-sound hashes; the sharing refusal's
@@ -15075,6 +15223,11 @@ int main() {
     run_time_map_tests();
     run_play_piece_tests();
     run_perform_embedded_score_tests();
+    run_drum_kit_play_tests();
+    run_ring_out_tests();
+    run_delivery_choice_tests();
+    run_multiplex_held_line_tests();
+    run_node_capture_tests();
     run_note_wire_tests();
     run_multiplex_bend_tests();
     run_note_reseed_tests();
