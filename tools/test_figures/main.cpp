@@ -11,7 +11,8 @@
 #include "mforce/music/two_figure_phrase_strategy.h"
 #include "mforce/music/elaborated_phrase_strategy.h"
 #include "mforce/core/randomizer.h"
-#include "mforce/render/patch_loader.h"
+#include "mforce/patch/patch_json.h"
+#include "mforce/render/build_instrument.h"
 #include "mforce/render/wav_writer.h"
 
 #include <cmath>
@@ -1157,12 +1158,13 @@ int run_render(int argc, char** argv) {
     ClassicalComposer composer(tmpl.masterSeed);
     composer.compose(piece, tmpl);
 
-    auto ip = load_instrument_patch(patchPath);
-    ip.instrument->volume = 0.5f;
+    const Patch patch = load_patch(patchPath);
+    auto instrument = build_instrument(patch);
+    instrument->volume = 0.5f;
 
     Conductor conductor;
     for (const auto& p : piece.parts) {
-        conductor.instruments[p.instrumentType] = ip.instrument.get();
+        conductor.instruments[p.instrumentType] = instrument.get();
     }
     conductor.perform(piece);
 
@@ -1170,15 +1172,15 @@ int run_render(int argc, char** argv) {
     for (auto& s : piece.sections) totalBeats += s.beats;
     float bpm = piece.sections[0].tempo;
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-    int frames = int(totalSeconds * float(ip.sampleRate));
+    int frames = int(totalSeconds * float(patch.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    { ip.instrument->render(mono.data(), frames); }
+    { instrument->render(mono.data(), frames); }
     std::vector<float> stereo(frames * 2);
     for (int j = 0; j < frames; ++j) { stereo[j*2] = mono[j]; stereo[j*2+1] = mono[j]; }
 
     std::string wavPath  = outDir + "/fig.wav";
     std::string jsonPath = outDir + "/fig.json";
-    if (!write_wav_16le_stereo(wavPath, ip.sampleRate, stereo)) {
+    if (!write_wav_16le_stereo(wavPath, patch.sampleRate, stereo)) {
         std::cerr << "Failed to write " << wavPath << "\n"; return 1;
     }
     {

@@ -1413,7 +1413,6 @@ static void run_onset_field_tests() {
     CHECK(out.current() == 0.0f);
 }
 
-#include "mforce/render/patch_loader.h"
 #include "mforce/render/instrument.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -1421,98 +1420,18 @@ static void run_onset_field_tests() {
 #include <cstring>
 
 // ---------------------------------------------------------------------------
-// The tests' one door to a patch: load_inst and load_sound return the
-// loader's result, and beside it build the same text through the module
-// (the codec, then build_instrument or build_sound) and compare a render with
-// one of a second loader build, sample for sample: a C4 on the live path for
-// an instrument, the opening of the mix for a sound. A load the module
-// refuses or renders otherwise fails the run unless the table below names it.
+// The tests' one door to a patch: load_inst reads JSON text through the codec
+// and builds the instrument; load_sound builds the file at a path as a sound;
+// load_refused says what a read or a build of a text refuses with.
 #include "mforce/patch/patch_json.h"
+#include "mforce/patch/retired_spellings.h"
+#include "mforce/patch/table_rule.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"
 #include <set>
-#include <source_location>
 #include <string_view>
 
-namespace reader_twin {
-// Every load whose patch the module refuses or renders otherwise than the
-// loader: the function the load sits in, a piece of the patch's text that
-// tells it apart (empty: every patch that function loads), the verdict
-// ("refused" or "differs"), the fixed words the module's refusal holds (a
-// refused row), and why.
-struct Known { const char* test; const char* patch; const char* verdict; const char* needle; const char* reason; };
-static const std::vector<Known>& known() {
-    static const std::vector<Known> rows = {
-        {"perform_field_of", R"("field":"FREQUENCY")", "refused", R"('field' holds "FREQUENCY", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"VELOCITY")", "refused", R"('field' holds "VELOCITY", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"WHEEL")", "refused", R"('field' holds "WHEEL", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"PRESSURE")", "refused", R"('field' holds "PRESSURE", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"DURATION")", "refused", R"('field' holds "DURATION", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"perform_field_of", R"("field":"ONSET")", "refused", R"('field' holds "ONSET", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("kind":["Expo",0,"hold"])", "refused", R"('kind' holds "hold", which is not one of its labels)",
-         "a labelled column's label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"MULTIPLY")", "refused", R"('operation' holds "MULTIPLY", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"multiply")", "refused", R"('operation' holds "multiply", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"mix")", "refused", R"('operation' holds "mix", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"fade")", "refused", R"('operation' holds "fade", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"sum")", "refused", R"('operation' holds "sum", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"load_node", R"("operation":"add")", "refused", R"('operation' holds "add", which is not one of its labels)",
-         "an enum word that is no label: the loader keeps the default and says so on stderr"},
-        {"run_curve_table_tests", R"("exprForm":["linear","POWER")", "refused", R"('exprForm' holds "POWER", which is not one of its labels)",
-         "a labelled column's label in another case: the loader matches labels ignoring case"},
-        {"run_curve_table_tests", R"("interp":"LogLog")", "refused", R"('interp' holds "LogLog", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"run_curve_table_tests", R"("interp":"cubic")", "refused", R"('interp' holds "cubic", which is not one of its labels)",
-         "an enum word that is no label: the loader keeps the default and says so on stderr"},
-        {"run_envelope_table_tests", R"("timeMode":"Seconds")", "refused", R"('timeMode' holds "Seconds", which is not one of its labels)",
-         "an enum label in another case: the loader matches labels ignoring case"},
-        {"run_envelope_table_tests", R"("type":["expo","SINE","Hold"])", "refused", R"('type' holds "expo", which is not one of its labels)",
-         "a labelled column's label in another case: the loader matches labels ignoring case"},
-    };
-    return rows;
-}
-// The rows a load has met, for the closing check that none is stale.
-static std::set<const Known*>& met() {
-    static std::set<const Known*> rows;
-    return rows;
-}
-static const Known* row_for(std::string_view where, const std::string& text) {
-    for (const auto& k : known())
-        if (where.find(k.test) != std::string_view::npos && text.find(k.patch) != std::string::npos) return &k;
-    return nullptr;
-}
-// The verdict on one load against the table: "same" holds where no row
-// names the load; any other verdict needs its row, and a refusal also needs
-// the row's fixed words in the module's sentence.
-static void judge(std::string_view where, const std::string& text, const std::string& verdict, const std::string& why) {
-    const Known* row = row_for(where, text);
-    if (verdict == "same") {
-        if (row) std::printf("  the table names %s (%s), and the readers agree\n", row->test, row->patch);
-        CHECK(row == nullptr);
-        return;
-    }
-    if (!row || verdict != row->verdict)
-        std::printf("  not in the table: %.*s: %s: %s\n", int(where.size()), where.data(), verdict.c_str(), why.c_str());
-    CHECK(row != nullptr && verdict == row->verdict);
-    if (!row) return;
-    met().insert(row);
-    if (verdict != "refused") return;
-    const bool onItsReason = why.find(row->needle) != std::string::npos;
-    if (!onItsReason)
-        std::printf("  the row %s (%s) wants '%s'; the module said: %s\n", row->test, row->patch, row->needle, why.c_str());
-    CHECK(onItsReason);
-}
+namespace patch_door {
 static bool same_samples(const std::vector<float>& a, const std::vector<float>& b) {
     return a.size() == b.size() && (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0);
 }
@@ -1553,58 +1472,48 @@ static mforce::Patch read_text(const std::string& text) {
     from_json(nlohmann::json::parse(text), p);
     return p;
 }
-// The instrument `json` makes through the module against a second loader build.
-static void twin_instrument(const std::string& json, int minPolyphony, std::string_view where) {
-    std::string verdict = "same", why;
-    auto second = load_instrument_patch_json(json, minPolyphony);
-    const auto old = live_c4(*second.instrument);
-    std::unique_ptr<PitchedInstrument> mod;
-    try { mod = build_instrument(read_text(json), minPolyphony); }
-    catch (const std::exception& e) { verdict = "refused"; why = e.what(); }
-    if (mod) {
-        const auto neu = live_c4(*mod);
-        if (!same_samples(old, neu)) { verdict = "differs"; why = difference(old, neu); }
-    }
-    judge(where, json, verdict, why);
-}
-// The sound the file at `path` makes through the module against a second loader build.
-static void twin_sound(const std::string& path, std::string_view where) {
-    std::string verdict = "same", why;
-    BuiltSound second = load_patch_file(path);
-    const auto old = render_sound(second, 24000);
-    try {
-        BuiltSound mod = build_sound(load_patch(path));
-        const auto neu = render_sound(mod, 24000);
-        if (mod.frames != second.frames || mod.sampleRate != second.sampleRate) {
-            verdict = "differs";
-            why = "frames " + std::to_string(second.frames) + " and " + std::to_string(mod.frames);
-        } else if (!same_samples(old, neu)) { verdict = "differs"; why = difference(old, neu); }
-    } catch (const std::exception& e) { verdict = "refused"; why = e.what(); }
-    std::ifstream f(path, std::ios::binary);
-    std::stringstream text;
-    text << f.rdbuf();
-    judge(where, text.str(), verdict, why);
-}
-}  // namespace reader_twin
+}  // namespace patch_door
 
-// The loader's instrument from `json`, twinned through the module.
-static InstrumentPatch load_inst(const std::string& json, int minPolyphony = 0,
-                                 const std::source_location& where = std::source_location::current()) {
-    InstrumentPatch ip = load_instrument_patch_json(json, minPolyphony);
-    reader_twin::twin_instrument(json, minPolyphony, where.function_name());
-    return ip;
+// An instrument as the tests hold it: the build, the patch's rate and what
+// the build had to say.
+struct LoadedInstrument {
+    std::unique_ptr<PitchedInstrument> instrument;
+    int sampleRate{48000};
+    std::vector<std::string> warnings;
+};
+
+// The instrument `json` describes, read through the codec and built with at
+// least `minPolyphony` voices.
+static LoadedInstrument load_inst(const std::string& json, int minPolyphony = 0) {
+    const mforce::Patch patch = patch_door::read_text(json);
+    LoadedInstrument loaded;
+    loaded.instrument = build_instrument(patch, minPolyphony, &loaded.warnings);
+    loaded.sampleRate = patch.sampleRate;
+    return loaded;
 }
-// The loader's sound from the file at `path`, twinned through the module.
-static BuiltSound load_sound(const std::string& path,
-                             const std::source_location& where = std::source_location::current()) {
-    BuiltSound built = load_patch_file(path);
-    reader_twin::twin_sound(path, where.function_name());
-    return built;
+// The sound the patch file at `path` describes.
+static BuiltSound load_sound(const std::string& path) {
+    return build_sound(load_patch(path));
+}
+// The sentence a read or a build of `json` refuses with: an instrument as
+// load_inst builds it, a plain sound as a sound; empty when it loads.
+static std::string load_refused(const std::string& json) {
+    try {
+        const mforce::Patch patch = patch_door::read_text(json);
+        if (patch.instrument) (void)build_instrument(patch);
+        else (void)build_sound(patch);
+    } catch (const std::exception& e) { return e.what(); }
+    return {};
+}
+// Whether a refusal says `sentence`: the module's refusal begins with the
+// path to what it refuses, then the sentence. An empty sentence wants none.
+static bool refusal_says(const std::string& refusal, const std::string& sentence) {
+    return sentence.empty() ? refusal.empty() : refusal.ends_with(sentence);
 }
 
 // Load a baseline patch with its score block stripped (the tests schedule
 // their own notes). Run engine_tests from the repo root.
-static InstrumentPatch load_scoreless(const char* path) {
+static LoadedInstrument load_scoreless(const char* path) {
     std::ifstream f(path);
     std::stringstream ss; ss << f.rdbuf();
     std::string txt = ss.str();
@@ -1654,7 +1563,7 @@ static void run_hold_delivery_tests() {
         for (int i = a; i < z; ++i) s += double(b[size_t(i)]) * b[size_t(i)];
         return float(std::sqrt(s / double(std::max(1, z - a))));
     };
-    auto render_all = [](InstrumentPatch& ip, int n) {
+    auto render_all = [](LoadedInstrument& ip, int n) {
         std::vector<float> b(size_t(n), 0.0f);
         ip.instrument->render(b.data(), n);
         return b;
@@ -3578,7 +3487,7 @@ static std::string shared_env_patch_json(bool duplicated) {
 }
 
 static void run_shared_source_tests() {
-    auto render_all = [](InstrumentPatch& p, int n) {
+    auto render_all = [](LoadedInstrument& p, int n) {
         std::vector<float> b(size_t(n), 0.0f);
         p.instrument->render(b.data(), n);
         return b;
@@ -7267,20 +7176,20 @@ static void run_wire_rejection_tests() {
     const char* bad_key = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
         {"id":"osc","type":"SineSource","params":{"frequncy":440.0}}]}})";
     std::string msg;
-    try { load_instrument_patch_json(bad_key); } catch (const std::runtime_error& e) { msg = e.what(); }
+    msg = load_refused(bad_key);
     CHECK(msg.find("node 'osc' (SineSource): unknown key 'frequncy'") != std::string::npos);
     const char* bad_kind = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
         {"id":"s","type":"SineSource","params":{"frequency":440.0}},
         {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"partials":{"ref":"s"}}}]}})";
     msg.clear();
-    try { load_instrument_patch_json(bad_kind); } catch (const std::runtime_error& e) { msg = e.what(); }
+    msg = load_refused(bad_kind);
     CHECK(msg.find("node 'add' (AdditiveSource): 'partials' does not accept a SineSource") != std::string::npos);
     // A key a hand-built node's branch never read (the VarSource case the lint
     // found in the bwg patches) fails the load too: the check runs per node.
     const char* hand_built = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"v","nodes":[
         {"id":"v","type":"VarSource","params":{"value":0.0}}]}})";
     msg.clear();
-    try { load_instrument_patch_json(hand_built); } catch (const std::runtime_error& e) { msg = e.what(); }
+    msg = load_refused(hand_built);
     CHECK(msg.find("node 'v' (VarSource): unknown key 'value'") != std::string::npos);
 }
 
@@ -7291,14 +7200,14 @@ static void run_string_pin_refusal_tests() {
     const char* evo = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"wt","nodes":[
         {"id":"wt","type":"WavetableSource","params":{"frequency":330.0,"evolution":"pluck","muting":0.0,"evolutionSeed":42}}]}})";
     std::string msg;
-    try { load_instrument_patch_json(evo); } catch (const std::runtime_error& e) { msg = e.what(); }
+    msg = load_refused(evo);
     CHECK(msg.find("node 'wt' (WavetableSource): 'evolution' is the string \"pluck\"") != std::string::npos);
     CHECK(msg.find("tools/convert_patch.py") != std::string::npos);
     CHECK(msg.find("a slot takes {\"ref\": id}") != std::string::npos);       // a slot, so no number is offered
     const char* freq = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
         {"id":"osc","type":"SineSource","params":{"frequency":"440"}}]}})";
     msg.clear();
-    try { load_instrument_patch_json(freq); } catch (const std::runtime_error& e) { msg = e.what(); }
+    msg = load_refused(freq);
     CHECK(msg.find("node 'osc' (SineSource): 'frequency' is the string \"440\"") != std::string::npos);
     CHECK(msg.find("convert_patch") == std::string::npos);
     CHECK(msg.find("a pin takes a number") != std::string::npos);
@@ -7703,8 +7612,8 @@ static void run_envelope_table_tests() {
                     CHECK(columns_match_layout(*e));
                 }
 
-    // (7) The loader: the table as columns; labels in any case and indices;
-    // the refusals; an empty table; timeMode on either form.
+    // (7) The load: the table as columns; labels exactly (another case
+    // refused) and indices; the refusals; an empty table; timeMode on either form.
     {
         auto patch = [](const std::string& envParams) {
             return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -7717,13 +7626,16 @@ static void run_envelope_table_tests() {
             return std::dynamic_pointer_cast<Envelope>(pi->voicePool.at(0).nodesById.at("Env"));
         };
         auto refusal = [](const std::string& json) {
-            try { load_instrument_patch_json(json); } catch (const std::exception& e) { return std::string(e.what()); }
-            return std::string();
+            return load_refused(json);
         };
         const std::string table = R"("startVal":[0.0,1.0,0.2],"endVal":[1.0,0.2,0.0],"power":[2.0,0.0,0.0],)"
-                                  R"("type":["expo","SINE","Hold"],"percent":[0.3,0.0,0.2],"minSec":[0.0,0.0,0.0],)"
+                                  R"("type":["Expo","Sine","Hold"],"percent":[0.3,0.0,0.2],"minSec":[0.0,0.0,0.0],)"
                                   R"("maxSec":[1.0,0.0,0.0],"nominal":[0.0,0.0,0.1])";
         const auto fromTable = env_of(patch(table));
+        const std::string cased = refusal(patch(R"("startVal":[0.0,1.0,0.2],"endVal":[1.0,0.2,0.0],"power":[2.0,0.0,0.0],)"
+                                                R"("type":["expo","SINE","Hold"],"percent":[0.3,0.0,0.2],"minSec":[0.0,0.0,0.0],)"
+                                                R"("maxSec":[1.0,0.0,0.0],"nominal":[0.0,0.0,0.1])"));
+        CHECK(cased.find(R"('type' holds "expo", which is not one of its labels)") != std::string::npos);
         CHECK(fromTable && fromTable->stage_count() == 3);
         CHECK(fromTable->stage(0).ramp.type == E && fromTable->stage(1).ramp.type == S && fromTable->stage(2).ramp.type == H);
         const std::string indices = R"("startVal":[0.0,1.0,0.2],"endVal":[1.0,0.2,0.0],"power":[2.0,0.0,0.0],)"
@@ -7744,7 +7656,7 @@ static void run_envelope_table_tests() {
 
         const auto empty = env_of(patch(R"("startVal":[],"endVal":[],"power":[],"type":[],"percent":[],"minSec":[],"maxSec":[],"nominal":[])"));
         CHECK(empty && empty->stage_count() == 0);
-        CHECK(env_of(patch(table + R"(,"timeMode":"Seconds")"))->absolute_time());
+        CHECK(env_of(patch(table + R"(,"timeMode":"seconds")"))->absolute_time());
         CHECK(!env_of(patch(table))->absolute_time());
         CHECK(env_of(patch(R"("preset":"adsr","timeMode":"seconds")"))->absolute_time());
 
@@ -8029,7 +7941,7 @@ static void run_curve_table_tests() {
         }
     }
 
-    // (4) The loader: each table as its columns; labels in any case; the refusals.
+    // (4) The load: each table as its columns; labels exactly, another case refused; the refusals.
     {
         auto patch = [](const std::string& curveParams) {
             return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -8043,8 +7955,7 @@ static void run_curve_table_tests() {
             return std::dynamic_pointer_cast<CurveNode>(pi->voicePool.at(0).nodesById.at("cv"));
         };
         auto refusal = [](const std::string& json) {
-            try { load_instrument_patch_json(json); } catch (const std::exception& e) { return std::string(e.what()); }
-            return std::string();
+            return load_refused(json);
         };
         const std::string xy = R"("interp":"logx","x":[100.0,1000.0,5000.0],"y":[0.002,0.2,0.05])";
         const auto fromXY = curve_of(patch(xy));
@@ -8053,7 +7964,7 @@ static void run_curve_table_tests() {
         CHECK(fromXY->interp.value == int(CurveNode::CurveInterp::LogX) && fromXY->mode.value == 0);
 
         const std::string labels = R"("mode":"expressions","interp":"loglog","exprX":[0.0,200.0,2000.0,12000.0],)"
-                                   R"("exprForm":["linear","POWER","Linear","power"],"exprA":[0.0,0.0001,-2e-5,0.03],)"
+                                   R"("exprForm":["linear","power","linear","power"],"exprA":[0.0,0.0001,-2e-5,0.03],)"
                                    R"("exprB":[0.001,1.5,0.05,0.25])";
         const std::string indices = R"("mode":"expressions","interp":"loglog","exprX":[0.0,200.0,2000.0,12000.0],)"
                                     R"("exprForm":[0,1,0,1],"exprA":[0.0,0.0001,-2e-5,0.03],"exprB":[0.001,1.5,0.05,0.25])";
@@ -8065,11 +7976,14 @@ static void run_curve_table_tests() {
         CHECK(fromLabels->expr_knots().size() == 4 && fromLabels->expr_knots()[2].form == KF::Linear
               && fromLabels->expr_knots()[1].form == KF::Power);
 
-        // interp and mode as labels in any case; a label that matches none keeps the default.
-        const auto cased = curve_of(patch(R"("interp":"LogLog","mode":"EXPRESSIONS")"));
-        CHECK(cased->interp.value == int(CurveNode::CurveInterp::LogLog) && cased->mode.value == 1);
-        const auto unknownSetting = curve_of(patch(R"("interp":"cubic","mode":"spline")"));
-        CHECK(unknownSetting->interp.value == int(CurveNode::CurveInterp::Linear) && unknownSetting->mode.value == 0);
+        // a column's label, interp and mode in another case are refused, and so is a word that matches no label
+        const std::string casedForm = refusal(patch(R"("mode":"expressions","interp":"loglog","exprX":[0.0,200.0],)"
+                                                    R"("exprForm":["linear","POWER"],"exprA":[0.0,0.0001],"exprB":[0.001,1.5])"));
+        CHECK(casedForm.find(R"('exprForm' holds "POWER", which is not one of its labels)") != std::string::npos);
+        const std::string cased = refusal(patch(R"("interp":"LogLog","mode":"EXPRESSIONS")"));
+        CHECK(cased.find(R"('interp' holds "LogLog", which is not one of its labels)") != std::string::npos);
+        const std::string unknownSetting = refusal(patch(R"("interp":"cubic","mode":"spline")"));
+        CHECK(unknownSetting.find(R"('interp' holds "cubic", which is not one of its labels)") != std::string::npos);
         const auto absent = curve_of(patch(R"("x":[0.0,1.0],"y":[0.0,1.0])"));
         CHECK(absent->interp.value == 0 && absent->mode.value == 0);
 
@@ -8090,8 +8004,7 @@ static void run_retired_type_message_tests() {
     auto message_for = [](const char* type) {
         const std::string json = std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"n","nodes":[
             {"id":"n","type":")") + type + R"(","params":{}}]}})";
-        try { load_instrument_patch_json(json); } catch (const std::runtime_error& e) { return std::string(e.what()); }
-        return std::string();
+        return load_refused(json);
     };
     for (const char* t : {"ASEnvelope", "ADSREnvelope", "KSPianoString"}) {
         const std::string msg = message_for(t);
@@ -8442,14 +8355,11 @@ static void run_structural_setting_tests() {
 // A load that fails for the reason the needle names; another reason is
 // printed, so a test that expected one refusal and got another says so.
 static bool load_fails_naming(const char* patch, const char* needle) {
-    try { (void)load_instrument_patch_json(patch); }
-    catch (const std::exception& e) {
-        const std::string msg = e.what();
-        if (msg.find(needle) == std::string::npos)
-            std::printf("  load failed for another reason: %s\n", msg.c_str());
-        return msg.find(needle) != std::string::npos;
-    }
-    return false;
+    const std::string msg = load_refused(patch);
+    if (msg.empty()) return false;
+    if (msg.find(needle) == std::string::npos)
+        std::printf("  load failed for another reason: %s\n", msg.c_str());
+    return msg.find(needle) != std::string::npos;
 }
 
 static void run_structural_push_refusal_tests() {
@@ -8464,7 +8374,7 @@ static void run_structural_push_refusal_tests() {
       {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
       {"id":"parts","type":"SequencePartials","params":{"maxPartials":4},"dynamicPins":{"incr1":{"ref":"pf"}}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
-    CHECK(load_fails_naming(pinShaping, "parts.dynamicPins.incr1"));
+    CHECK(load_fails_naming(pinShaping, "graph.nodes[1].dynamicPins.incr1: node 'parts' (SequencePartials)"));
     CHECK(load_fails_naming(pinShaping, "structural"));
     const char* pinCount = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
@@ -8504,15 +8414,14 @@ static void run_param_map_refusal_tests() {
     CHECK(load_fails_naming(nullMap, "paramMap"));
     CHECK(load_fails_naming(nullMap, "tools/convert_patch.py"));
     {
-        std::string msg;
-        try { (void)load_instrument_patch_json(withMap); }
-        catch (const std::exception& e) { msg = e.what(); }
-        CHECK(msg == kParamMapRefusal);
+        const std::string msg = load_refused(withMap);
+        if (!refusal_says(msg, kParamMapRefusal)) std::printf("  paramMap: %s\n", msg.c_str());
+        CHECK(refusal_says(msg, kParamMapRefusal));
     }
     {
         ScratchPatch file("renders/scratch/_param_map_refusal.json", withMap);
         std::string msg;
-        try { (void)load_patch_file(file.path); }
+        try { (void)load_sound(file.path); }
         catch (const std::exception& e) { msg = e.what(); }
         CHECK(msg.find("paramMap") != std::string::npos);
         CHECK(msg.find("tools/convert_patch.py") != std::string::npos);
@@ -8537,12 +8446,11 @@ static void run_retired_key_refusal_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"n"}}}]}})";
     };
     auto text_refusal = [](const std::string& json) {
-        try { (void)load_instrument_patch_json(json); } catch (const std::exception& e) { return std::string(e.what()); }
-        return std::string();
+        return load_refused(json);
     };
     auto file_refusal = [](const char* path, const std::string& json) {
         ScratchPatch file(path, json);
-        try { (void)load_patch_file(file.path); } catch (const std::exception& e) { return std::string(e.what()); }
+        try { (void)load_sound(file.path); } catch (const std::exception& e) { return std::string(e.what()); }
         return std::string();
     };
     auto loads = [](const std::string& json) {
@@ -8565,13 +8473,13 @@ static void run_retired_key_refusal_tests() {
         const std::string sentence = retired_key_refusal(r.type, r.key);
         const std::string want = std::string("node 'n' (") + r.type + "): " + sentence;
         for (const std::string& msg : {text_refusal(patch(r.node)), file_refusal(r.file, patch(r.node))}) {
-            if (msg != want) std::printf("  %s.%s: got \"%s\"\n", r.type, r.key, msg.c_str());
+            if (!refusal_says(msg, want)) std::printf("  %s.%s: got \"%s\"\n", r.type, r.key, msg.c_str());
             CHECK(msg.find(std::string("node 'n' (") + r.type + ")") != std::string::npos);
             CHECK(msg.find(std::string("'") + r.key + "'") != std::string::npos);
             CHECK(msg.find("no longer read") != std::string::npos);
             CHECK(msg.find("python tools/convert_patch.py") != std::string::npos);
             CHECK(msg.size() >= sentence.size() && msg.compare(msg.size() - sentence.size(), sentence.size(), sentence) == 0);
-            CHECK(msg == want);
+            CHECK(refusal_says(msg, want));
         }
     }
     // The sentence for each retired pair, and none for any other pair.
@@ -8596,7 +8504,7 @@ static void run_retired_key_refusal_tests() {
     // two forms'; a preset beside a stage column gets the two forms'.
     const std::string listAndPreset = text_refusal(patch(
         R"({"id":"n","type":"Envelope","params":{"preset":"adsr","stages":[{"startVal":0.0,"endVal":1.0,"type":"Linear","percent":0.5}]}})"));
-    CHECK(listAndPreset == "node 'n' (Envelope): " + retired_key_refusal("Envelope", "stages"));
+    CHECK(refusal_says(listAndPreset, "node 'n' (Envelope): " + retired_key_refusal("Envelope", "stages")));
     CHECK(listAndPreset.find("one form") == std::string::npos);
     const std::string presetAndColumn = text_refusal(patch(R"({"id":"n","type":"Envelope","params":{"preset":"ar","type":["Linear"]}})"));
     CHECK(presetAndColumn.find("node 'n' (Envelope): holds both 'preset' and 'type'; an Envelope takes one form: "
@@ -9399,27 +9307,25 @@ static std::string one_node(const char* type, const nlohmann::json& params) {
     return doc.dump();
 }
 // The node `n` of a loaded one-node graph, or null with the refusal printed.
-static std::shared_ptr<Component> load_node(const char* type, const nlohmann::json& params, InstrumentPatch& ip) {
+static std::shared_ptr<Component> load_node(const char* type, const nlohmann::json& params, LoadedInstrument& ip) {
     try { ip = load_inst(one_node(type, params)); }
     catch (const std::exception& e) { std::printf("  %s %s: %s\n", type, params.dump().c_str(), e.what()); return nullptr; }
     return ip.instrument->voicePool[0].nodesById.at("n");
 }
 static float load_setting(const char* type, const char* key, const nlohmann::json& value) {
-    InstrumentPatch ip;
+    LoadedInstrument ip;
     auto n = load_node(type, nlohmann::json{{key, value}}, ip);
     return n ? n->get_setting(key) : -1.0f;
 }
 // The probe's `kind` column after a load of `params`, or {-1} on a refusal.
 static std::vector<float> load_kind(const nlohmann::json& params) {
-    InstrumentPatch ip;
+    LoadedInstrument ip;
     auto n = load_node("EnumTableProbe", params, ip);
     return n ? n->get_array("kind") : std::vector<float>{-1.0f};
 }
 // Whether the probe's load of `params` is refused with every one of `needles`.
 static bool probe_fails_naming(const nlohmann::json& params, std::initializer_list<const char*> needles) {
-    try { (void)load_instrument_patch_json(one_node("EnumTableProbe", params)); }
-    catch (const std::exception& e) {
-        const std::string msg = e.what();
+    if (const std::string msg = load_refused(one_node("EnumTableProbe", params)); !msg.empty()) {
         bool all = true;
         for (const char* n : needles) all = all && msg.find(n) != std::string::npos;
         if (!all) std::printf("  refused for another reason: %s\n", msg.c_str());
@@ -9448,7 +9354,7 @@ static void run_enum_column_tests() {
     {
         const auto byLabel = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {"Linear", "Expo", "Hold"}}});
         const auto byIndex = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {0, 1, 2}}});
-        const auto mixed   = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {"Expo", 0, "hold"}}});
+        const auto mixed   = load_kind({{"level", {0.1, 0.2, 0.3}}, {"kind", {"Expo", 0, "Hold"}}});
         CHECK((byLabel == std::vector<float>{0.0f, 1.0f, 2.0f}));
         CHECK(byIndex == byLabel);
         CHECK((mixed == std::vector<float>{1.0f, 0.0f, 2.0f}));
@@ -9468,16 +9374,23 @@ static void run_enum_column_tests() {
                                  {"node 'n' (EnumTableProbe)", "table 'rows'", "(got level 3, kind 2)"}));
         CHECK(probe_fails_naming({{"level", {0.1, 0.2}}}, {"node 'n' (EnumTableProbe)", "table 'rows'", "(got level 2, kind absent)"}));
         CHECK(probe_fails_naming({{"kind", nlohmann::json::array({"Expo"})}}, {"table 'rows'", "(got level absent, kind 1)"}));
-        CHECK(probe_fails_naming({{"level", 0.5}, {"kind", nlohmann::json::array({"Expo"})}}, {"table 'rows'", "(got level absent, kind 1)"}));   // not an array: absent
+        CHECK(probe_fails_naming({{"level", 0.5}, {"kind", nlohmann::json::array({"Expo"})}}, {"node 'n' (EnumTableProbe): 'level' takes a list of numbers, not 0.5"}));   // not an array: refused
         CHECK(probe_fails_naming({{"level", nlohmann::json::array()}, {"kind", nlohmann::json::array({0})}}, {"(got level 0, kind 1)"}));
         CHECK(load_kind(nlohmann::json::object()).empty());                                 // both absent
         CHECK(load_kind({{"level", nlohmann::json::array()}, {"kind", nlohmann::json::array()}}).empty());   // both empty
         CHECK((load_kind({{"level", {0.1, 0.2}}, {"kind", {"Hold", 1}}}) == std::vector<float>{2.0f, 1.0f}));   // one length
     }
-    // CombinedSource reads its own labels in any case, and the ordinals and "add" as before
+    // CombinedSource reads its own labels and the ordinals; a label in another
+    // case and "add", a word that is no label, are refused
     {
-        const std::pair<nlohmann::json, int> ops[] = {{"Mix", 0}, {"Multiply", 1}, {"Fade", 2}, {"Sum", 3}, {"mix", 0}, {"MULTIPLY", 1},
-                                                      {0, 0}, {1, 1}, {2, 2}, {3, 3}, {"add", 0}};
+        for (const char* word : {"mix", "MULTIPLY", "add"}) {
+            const std::string msg = load_refused(one_node("CombinedSource", {{"operation", word}}));
+            const bool named = msg.find(std::string("'operation' holds \"") + word + "\", which is not one of its labels") != std::string::npos;
+            if (!named) std::printf("  CombinedSource operation %s: %s\n", word, msg.c_str());
+            CHECK(named);
+        }
+        const std::pair<nlohmann::json, int> ops[] = {{"Mix", 0}, {"Multiply", 1}, {"Fade", 2}, {"Sum", 3},
+                                                      {0, 0}, {1, 1}, {2, 2}, {3, 3}};
         for (const auto& [v, want] : ops) {
             const float got = load_setting("CombinedSource", "operation", v);
             if (got != float(want)) std::printf("  CombinedSource operation %s: got %g, want %d\n", v.dump().c_str(), got, want);
@@ -9654,10 +9567,10 @@ static void run_string_setting_loader_tests() {
     std::printf("the string setting through the loader: a string read, a number and a pin refused\n");
     register_probes();
     {
-        InstrumentPatch ip;
+        LoadedInstrument ip;
         auto n = enum_column::load_node("StringProbe", {{"label", "hello"}}, ip);
         CHECK(n != nullptr && n->get_string("label") == "hello");
-        InstrumentPatch absent;
+        LoadedInstrument absent;
         auto d = enum_column::load_node("StringProbe", nlohmann::json::object(), absent);
         CHECK(d != nullptr && d->get_string("label") == "x");      // absent: the default
         StringProbe::lastLabel.clear();
@@ -9674,7 +9587,7 @@ static void run_string_setting_loader_tests() {
         auto doc = nlohmann::json::parse(enum_column::one_node("StringProbe", nlohmann::json::object()));
         doc["graph"]["nodes"][1]["dynamicPins"] = {{"label", {{"ref", "out"}}}};
         for (const bool file : {false, true})
-            CHECK(refused_naming(doc.dump(), file, {"'n.dynamicPins.label' is a structural setting on StringProbe"}));
+            CHECK(refused_naming(doc.dump(), file, {"graph.nodes[1].dynamicPins.label: node 'n' (StringProbe): 'label' is a structural setting on StringProbe"}));
     }
 }
 
@@ -9720,13 +9633,13 @@ static void run_input_list_loader_tests() {
     using namespace three_kinds;
     std::printf("the list of signal inputs through the loader: refs and taps in file order\n");
     register_probes();
-    auto feeds_of = [](const std::string& doc, InstrumentPatch& ip) -> ListProbe* {
+    auto feeds_of = [](const std::string& doc, LoadedInstrument& ip) -> ListProbe* {
         try { ip = load_inst(doc); }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return nullptr; }
         return dynamic_cast<ListProbe*>(ip.instrument->voicePool[0].nodesById.at("n").get());
     };
     {
-        InstrumentPatch ip;
+        LoadedInstrument ip;
         auto* n = feeds_of(list_doc(nlohmann::json::array({{{"ref", "a"}}, {{"tap", "b"}}, {{"ref", "b"}}})), ip);
         CHECK(n != nullptr);
         if (n) {
@@ -9738,7 +9651,7 @@ static void run_input_list_loader_tests() {
         }
     }
     {
-        InstrumentPatch ip;
+        LoadedInstrument ip;
         auto* n = feeds_of(list_doc({{"ref", "b"}}), ip);
         CHECK(n != nullptr && n->feeds.sources.size() == 1);
         if (n && n->feeds.sources.size() == 1) CHECK(n->feeds.sources[0] == ip.instrument->voicePool[0].nodesById.at("b"));
@@ -9773,20 +9686,16 @@ static void run_validate_tests() {
         CHECK(nlohmann::json::parse(bare)["graph"]["nodes"][1].count("params") == 0);
         CHECK(refused_naming(file ? plain(bare) : bare, file, {"node 'n' (RefusingProbe): probe refuses as built"}));
     }
-    // asked once per built node: one voice builds the probe once, in each
-    // reader (the loader's load alone is counted, then the module's build)
-    const auto loader_loads = [](const std::string& doc) {
-        try { (void)load_instrument_patch_json(doc); return true; }
+    // asked once per built node: one voice builds the probe once
+    const auto module_builds = [](const std::string& doc) {
+        try { (void)build_instrument(patch_door::read_text(doc)); return true; }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
     };
-    const auto module_builds = [](const std::string& doc) { (void)build_instrument(reader_twin::read_text(doc)); };
     {
         const std::string doc = enum_column::one_node("CheckProbe", {{"warn", true}});
         const int v0 = CheckProbe::validated, w0 = CheckProbe::warned;
-        CHECK(loader_loads(doc));
+        CHECK(module_builds(doc));
         CHECK(CheckProbe::validated - v0 == 1 && CheckProbe::warned - w0 == 1);
-        module_builds(doc);
-        CHECK(CheckProbe::validated - v0 == 2 && CheckProbe::warned - w0 == 2);
     }
     // inside a Multiplex template: each clone's build asks its own node
     auto mux_doc = [](const nlohmann::json& params) {
@@ -9798,11 +9707,9 @@ static void run_validate_tests() {
     };
     {
         const int v0 = CheckProbe::validated, w0 = CheckProbe::warned;
-        CHECK(loader_loads(mux_doc({{"warn", true}})));
+        CHECK(module_builds(mux_doc({{"warn", true}})));
         if (CheckProbe::validated - v0 != 4) std::printf("  validated %d times, want 4\n", CheckProbe::validated - v0);
         CHECK(CheckProbe::validated - v0 == 4 && CheckProbe::warned - w0 == 4);   // the template's node, then three clones
-        module_builds(mux_doc({{"warn", true}}));
-        CHECK(CheckProbe::validated - v0 == 8 && CheckProbe::warned - w0 == 8);
     }
     for (const bool file : {false, true}) {
         const std::string refused = mux_doc({{"refuse", true}}), seeded = mux_doc({{"refuseSeeded", true}});
@@ -10104,7 +10011,7 @@ struct ReseedProbe final : Generator {
 static bool file_fails_naming(const char* path, const char* text, const char* needle) {
     ScratchPatch file(path, text);
     bool named = false;
-    try { (void)load_patch_file(file.path); }
+    try { (void)load_sound(file.path); }
     catch (const std::exception& e) {
         const std::string msg = e.what();
         if (msg.find(needle) == std::string::npos) std::printf("  load failed for another reason: %s\n", msg.c_str());
@@ -10135,7 +10042,7 @@ static void run_review_gap_tests() {
       {"id":"spec","type":"FormantPeaks","params":{"frequency":[500.0],"gain":[1.0],"width":[500.0],"power":[2.0]}},
       {"id":"seq","type":"FormantSequence","params":{"blend":0.5,"formants":[{"ref":"spec"}]}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"seq"},"formantWeight":1.0}}]}})";
-    CHECK(load_fails_naming(seqAlias, "not 'formants'"));
+    CHECK(load_fails_naming(seqAlias, "node 'seq' (FormantSequence): unknown key 'formants'"));
     // a part as the instrument's output, as a mixer-mode output, as a channel's source
     const char* partAsVoiceOutput = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"parts","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})";
@@ -10159,7 +10066,7 @@ static void run_review_gap_tests() {
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"nowhere"},"volume":1.0,"pan":0.0}},
           {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"gainL":1.0,"gainR":1.0}}]}})",
-        "Unresolved node ref: nowhere"));
+        "node 'ch1' (SoundChannel): 'source' reads 'nowhere', which names no node"));
 }
 
 // A patch the standalone loader reads from the scratch folder, rendered for
@@ -10921,7 +10828,7 @@ static void run_name_gate_name_tests() {
         return doc.dump();
     };
     for (const auto& [name, id] : {std::pair<const char*, float>{"tongue", 1.0f}, {"pluck", 2.0f}, {"slur", -1.0f}}) {
-        InstrumentPatch ip;
+        LoadedInstrument ip;
         bool loaded = true;
         try { ip = load_inst(gate_doc(name)); }
         catch (const std::exception& e) { std::printf("  %s: %s\n", name, e.what()); loaded = false; }
@@ -11020,7 +10927,7 @@ static void run_declared_default_load_tests() {
     for (const char* type : {"RangeSource", "SegmentSource", "Vibrato", "BWLowpassFilter",
                              "BWHighpassFilter", "BWBandpassFilter", "HybridKSSource"})
         for (bool withParams : {true, false}) {
-            InstrumentPatch ip;
+            LoadedInstrument ip;
             auto n = enum_column::load_node(type, withParams ? nlohmann::json::object() : nlohmann::json(), ip);
             CHECK(n != nullptr);
             if (!n) continue;
@@ -11031,7 +10938,7 @@ static void run_declared_default_load_tests() {
     // A RepeatingSource's gapDuration holds what the file gives, or its default.
     for (const auto& [params, want] : std::initializer_list<std::pair<const char*, float>>{
              {R"({"gapDuration":0.5})", 0.5f}, {R"({})", 0.2f}}) {
-        InstrumentPatch rip;
+        LoadedInstrument rip;
         auto r = enum_column::load_node("RepeatingSource", nlohmann::json::parse(params), rip);
         CHECK(r && r->get_setting("gapDuration") == want);
     }
@@ -11245,7 +11152,7 @@ static std::string voice_doc(const nlohmann::json& nodes) {
 static uint64_t loaded_render(const std::string& doc, const char* id, std::vector<float>* arrays = nullptr,
                               std::initializer_list<const char*> names = {}) {
     try {
-        InstrumentPatch ip = load_inst(doc);
+        LoadedInstrument ip = load_inst(doc);
         auto n = ip.instrument->voicePool[0].nodesById.at(id);
         if (arrays) for (const char* a : names) for (float v : n->get_array(a)) arrays->push_back(v);
         return node_twins::render(*std::dynamic_pointer_cast<ValueSource>(n), 4800, 2);
@@ -11649,13 +11556,13 @@ static std::string doc(const std::string& nodes) {
 static std::string node(const char* type, const std::string& params) {
     return std::string(R"([{"id":"n","type":")") + type + R"(","params":)" + params + "}]";
 }
-// Whether the load of `nodes` fails through both entry points with `want` whole.
+// Whether the load of `nodes` fails through both entry points with `want` after its path.
 static bool refused_with(const std::string& nodes, const std::string& want) {
     bool ok = true;
     for (bool file : {false, true}) {
         const std::string msg = refusal(doc(nodes), file);
-        if (msg != want) std::printf("  %s: got \"%s\"\n  want \"%s\"\n", file ? "file" : "text", msg.c_str(), want.c_str());
-        ok = ok && msg == want;
+        if (!refusal_says(msg, want)) std::printf("  %s: got \"%s\"\n  want \"%s\"\n", file ? "file" : "text", msg.c_str(), want.c_str());
+        ok = ok && refusal_says(msg, want);
     }
     return ok;
 }
@@ -11788,7 +11695,7 @@ static void run_feed_shape_refusal_tests() {
                        "node 'n' (AdditiveSource): 'formant' holds an object where a slot takes {\"ref\": id}"));
     // On a signal pin, the same object reaches the resolver's own sentence.
     CHECK(refused_with(node("SineSource", R"({"amplitude":{"foo":1}})"),
-                       "Param must be a number, {\"ref\":\"...\"} or {\"tap\":\"...\"}"));
+                       "node 'n' (SineSource): 'amplitude' takes a number, {\"ref\": id} or {\"tap\": id}, not {\"foo\":1}"));
     // A plain feed and a tap load.
     CHECK(loads_both(node("SineSource", R"({"amplitude":{"ref":"a"},"frequency":{"tap":"b"}})")));
 }
@@ -11799,17 +11706,23 @@ static void run_declared_reader_tests() {
     std::printf("the deleted readers' keys, read by the declarations alone\n");
     // A VarSource with empty params and with none: nothing wired, val 1.
     for (bool withParams : {true, false}) {
-        InstrumentPatch ip;
+        LoadedInstrument ip;
         auto n = load_node("VarSource", withParams ? nlohmann::json::object() : nlohmann::json(), ip);
         auto* v = dynamic_cast<VarSource*>(n.get());
         CHECK(v && !v->get_param("val") && !v->get_param("var") && !v->get_param("varPct"));
         CHECK(v && v->val.current() == 1.0f && v->get_setting("absolute") == 1.0f);
         if (v) { v->prepare(RenderContext{48000}); v->start(4); CHECK(v->next() == 1.0f); }
     }
-    // CombinedSource's operation by its labels and indices; "add" matches no
-    // label and keeps the default, Mix.
+    // CombinedSource's operation by its labels and indices; "add", which
+    // matches no label, and a label in another case are refused.
+    for (const char* word : {"add", "mix", "fade", "sum"}) {
+        const std::string msg = load_refused(enum_column::one_node("CombinedSource", {{"operation", word}}));
+        const bool named = msg.find(std::string("'operation' holds \"") + word + "\", which is not one of its labels") != std::string::npos;
+        if (!named) std::printf("  operation %s: %s\n", word, msg.c_str());
+        CHECK(named);
+    }
     const std::pair<nlohmann::json, float> ops[] = {
-        {"add", 0.0f}, {"Mix", 0.0f}, {"mix", 0.0f}, {"fade", 2.0f}, {"Multiply", 1.0f}, {"sum", 3.0f},
+        {"Mix", 0.0f}, {"Fade", 2.0f}, {"Multiply", 1.0f}, {"Sum", 3.0f},
         {0, 0.0f}, {1, 1.0f}, {2, 2.0f}, {3, 3.0f}};
     for (const auto& [op, want] : ops) {
         const float got = load_setting("CombinedSource", "operation", op);
@@ -11817,15 +11730,15 @@ static void run_declared_reader_tests() {
         CHECK(got == want);
     }
     {
-        InstrumentPatch ip;
-        auto c = load_node("CombinedSource", nlohmann::json{{"operation", "multiply"}}, ip);
+        LoadedInstrument ip;
+        auto c = load_node("CombinedSource", nlohmann::json{{"operation", "Multiply"}}, ip);
         CHECK(c && c->get_setting("gainAdj") == 0.0f && c->get_setting("operation") == 1.0f);
     }
     CHECK(load_setting("RepeatingSource", "gapDuration", 0.5) == 0.5f);
     // A CrossfadeSource and a RepeatingSource with no settings hold the declared defaults.
     for (const char* type : {"CrossfadeSource", "RepeatingSource"})
         for (bool withParams : {true, false}) {
-            InstrumentPatch ip;
+            LoadedInstrument ip;
             auto n = load_node(type, withParams ? nlohmann::json::object() : nlohmann::json(), ip);
             CHECK(n != nullptr);
             if (!n) continue;
@@ -11959,11 +11872,16 @@ static void run_output_part_tests() {
 }
 
 namespace plain_parts {
-// The standalone loader's refusal of a patch file, whole; empty when it loads.
+// The refusal of a patch file read and built as a sound, after the path its
+// message begins with; empty when it loads.
 static std::string file_refusal(const char* path, const std::string& text) {
     ScratchPatch file(path, text);
-    try { (void)load_patch_file(file.path); }
-    catch (const std::exception& e) { return e.what(); }
+    try { (void)load_sound(file.path); }
+    catch (const std::exception& e) {
+        std::string msg = e.what();
+        if (msg.rfind(file.path + ": ", 0) == 0) msg.erase(0, file.path.size() + 2);
+        return msg;
+    }
     return {};
 }
 // The mixer the standalone loader builds from a patch file; null, with the
@@ -12070,11 +11988,9 @@ static void run_plain_part_refusal_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}},)";
     CHECK(file_refusal("renders/scratch/_plain_no_source.json", osc
         + R"({"id":"ch1","type":"SoundChannel","params":{"volume":1.0}},
-             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})")
-          == "node 'ch1' (SoundChannel): 'source' is not wired; a channel the mixer lists needs a source");
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})").ends_with("node 'ch1' (SoundChannel): 'source' is not wired; a channel the mixer lists needs a source"));
     CHECK(file_refusal("renders/scratch/_plain_signal_channel.json",
-                       osc + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"osc"}]}}]}})")
-          == "node 'mix' (StereoMixer): 'channels' does not accept a SineSource; 'channels' takes a SoundChannel");
+                       osc + R"({"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"osc"}]}}]}})").ends_with("node 'mix' (StereoMixer): 'channels' does not accept a SineSource; 'channels' takes a SoundChannel"));
     CHECK(file_fails_naming("renders/scratch/_plain_part_source.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
@@ -12083,17 +11999,17 @@ static void run_plain_part_refusal_tests() {
         "node 'ch1' (SoundChannel): 'source' does not accept a FullPartials, a part, not a signal"));
     CHECK(file_refusal("renders/scratch/_plain_source_nowhere.json", osc
         + R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"nowhere"}}},
-             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})") == "Unresolved node ref: nowhere");
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})").ends_with("node 'ch1' (SoundChannel): 'source' reads 'nowhere', which names no node"));
     CHECK(file_refusal("renders/scratch/_plain_channel_output.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"ch1","nodes":[
           {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
-          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"}}}]}})") == "'ch1' is a SoundChannel, a part, not a signal");
+          {"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"}}}]}})").ends_with("'ch1' is a SoundChannel, a part, not a signal"));
     CHECK(file_refusal("renders/scratch/_plain_channel_key.json", osc
         + R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"},"bogus":1}},
-             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})") == "node 'ch1' (SoundChannel): unknown key 'bogus'");
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}]}}]}})").ends_with("node 'ch1' (SoundChannel): unknown key 'bogus'"));
     CHECK(file_refusal("renders/scratch/_plain_mixer_key.json", osc
         + R"({"id":"ch1","type":"SoundChannel","params":{"source":{"ref":"osc"}}},
-             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"bogus":1}}]}})") == "node 'mix' (StereoMixer): unknown key 'bogus'");
+             {"id":"mix","type":"StereoMixer","params":{"channels":[{"ref":"ch1"}],"bogus":1}}]}})").ends_with("node 'mix' (StereoMixer): unknown key 'bogus'"));
 }
 
 // A node two of a plain sound's pull loops reach is refused, naming the node
@@ -12254,11 +12170,7 @@ static void run_retired_spelling_load_tests() {
     const std::string none;
     auto nodes = [&](const std::string& ch, const std::string& mix) { return osc + "," + ch + "," + mix + "]}}"; };
     auto instrument_refusal = [&](const std::string& ch, const std::string& mix) -> std::string {
-        try {
-            (void)load_instrument_patch_json(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[)"
-                                             + nodes(ch, mix));
-        } catch (const std::exception& e) { return e.what(); }
-        return {};
+        return load_refused(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[)" + nodes(ch, mix));
     };
     struct Case { const char* what; const std::string& ch; const std::string& mix; const std::string& want; };
     const Case cases[] = {{"the channel's", chOld, mixNew, chWant}, {"the mixer's", chNew, mixOld, mixWant},
@@ -12267,10 +12179,10 @@ static void run_retired_spelling_load_tests() {
         const std::string inFile = file_refusal("renders/scratch/_retired_inputs.json",
             R"({"sampleRate":48000,"seconds":0.05,"graph":{"output":"mix","nodes":[)" + nodes(c.ch, c.mix));
         const std::string inVoice = instrument_refusal(c.ch, c.mix);
-        if (inFile != c.want || inVoice != c.want)
+        if (!refusal_says(inFile, c.want) || !refusal_says(inVoice, c.want))
             std::printf("  %s: file \"%s\", instrument \"%s\"\n", c.what, inFile.c_str(), inVoice.c_str());
-        CHECK(inFile == c.want);
-        CHECK(inVoice == c.want);
+        CHECK(refusal_says(inFile, c.want));
+        CHECK(refusal_says(inVoice, c.want));
     }
 }
 
@@ -12296,7 +12208,8 @@ static int perform_field_of(const nlohmann::json& perfNode, std::string& refusal
 }
 
 // A PerformNode's field is read against the type's declared labels: a label
-// in any case, an index, absent as the first; the adapter is the voice's own.
+// exactly (the label in upper case is refused), an index, absent as the
+// first; the adapter is the voice's own.
 static void run_perform_node_field_tests() {
     using J = nlohmann::json;
     std::printf("PerformNode: the field against its declared labels\n");
@@ -12307,7 +12220,9 @@ static void run_perform_node_field_tests() {
         std::string upper = label;
         for (auto& c : upper) c = char(std::toupper(static_cast<unsigned char>(c)));
         CHECK(perform_field_of(field_node(label), refusal) == k);
-        CHECK(perform_field_of(field_node(upper), refusal) == k);
+        refusal.clear();
+        CHECK(perform_field_of(field_node(upper), refusal) == -2);
+        CHECK(refusal.find("'field' holds \"" + upper + "\", which is not one of its labels") != std::string::npos);
         CHECK(perform_field_of(field_node(k), refusal) == k);
     }
     CHECK(perform_field_of(J{{"id", "f"}, {"type", "PerformNode"}}, refusal) == 0);
@@ -12315,10 +12230,10 @@ static void run_perform_node_field_tests() {
     for (const J& bad : {J("bogus"), J(6), J(2.5), J(true)}) {
         refusal.clear();
         CHECK(perform_field_of(field_node(bad), refusal) == -2);
-        const std::string want = "PerformNode 'f': unknown field " + bad.dump()
-                               + " (expected frequency|velocity|wheel|pressure|duration|onset)";
-        if (refusal != want) std::printf("  %s: %s\n", bad.dump().c_str(), refusal.c_str());
-        CHECK(refusal == want);
+        const std::string want = "node 'f' (PerformNode): 'field' holds " + bad.dump()
+                               + ", which is not one of its labels (frequency, velocity, wheel, pressure, duration, onset) or an index into them";
+        if (!refusal_says(refusal, want)) std::printf("  %s: %s\n", bad.dump().c_str(), refusal.c_str());
+        CHECK(refusal_says(refusal, want));
     }
     // the bend check reads the field the same way: an index loads beside a node that reads frequency once
     bool loaded = true;
@@ -12331,7 +12246,7 @@ static void run_perform_node_field_tests() {
     CHECK(file_fails_naming("renders/scratch/_plain_perform.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"osc","nodes":[
           {"id":"f","type":"PerformNode","params":{"field":"velocity"}},
-          {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"f"}}}]}})", "no voice context"));
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"f"}}}]}})", "node 'f' (PerformNode): a plain sound has no note to read"));
 }
 
 // The registered type: a Generator with one enum setting, the six labels.
@@ -12473,8 +12388,8 @@ static std::string trigger_line_patch(int trigger) {
 
 // Loads trigger_line_patch(trigger) and renders the line. A `constant` of 0
 // or more first unwires every voice's env1.trigger and sets the pin's own
-// constant to it. `listed` says whether env1 stayed in every voice's trigger
-// bindings.
+// constant to it. `listed` says whether env1 is in every voice's trigger
+// bindings with no wire on its trigger: a number is the pin's own constant.
 static std::vector<float> render_trigger_line(int trigger, int constant, bool& listed) {
     auto ip = load_inst(trigger_line_patch(trigger));
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
@@ -12488,7 +12403,7 @@ static std::vector<float> render_trigger_line(int trigger, int constant, bool& l
             env->clear_param("trigger");
             env->trigger.constant = float(constant);
         }
-        listed = listed && (env->trigger.source == nullptr) == (constant >= 0)
+        listed = listed && env->trigger.source == nullptr
               && std::find(vg.triggerBindings.begin(), vg.triggerBindings.end(), env.get()) != vg.triggerBindings.end();
     }
     pi->play_note({57.0f, 0.8f, 0.1f, 0.0f, true}, 0.0f);
@@ -12499,17 +12414,17 @@ static std::vector<float> render_trigger_line(int trigger, int constant, bool& l
     return buf;
 }
 
-// fire_triggers asks the trigger's value: a pin unwired by hand whose own
-// constant is 1 restarts the Envelope as the wired 1 does, and a constant 0
-// does not.
+// fire_triggers asks the trigger's value: the pin's own constant 1 restarts
+// the Envelope, as loaded or set by hand, and a constant 0 does not.
 static void run_trigger_value_tests() {
     std::printf("fire_triggers: an Envelope restarts on its trigger's value, wired or not\n");
     bool listedA = false, listedB = false, listedC = false, listedD = false;
-    const auto a = render_trigger_line(1, -1, listedA);   // as loaded: the trigger a wired constant 1
+    const auto a = render_trigger_line(1, -1, listedA);   // as loaded: the trigger the pin's own constant 1
     const auto b = render_trigger_line(1, 1, listedB);    // unwired, the pin's constant 1
     const auto c = render_trigger_line(1, 0, listedC);    // unwired, the pin's constant 0
-    const auto d = render_trigger_line(0, 0, listedD);    // "trigger": 0, unwired the same way
-    CHECK(listedA && listedB && listedC && listedD);
+    const auto d = render_trigger_line(0, 0, listedD);    // "trigger": 0, the pin's own 0, which binds nothing
+    CHECK(listedA && listedB && listedC);
+    CHECK(!listedD);
     CHECK(!a.empty() && a == b);
     CHECK(c != a);
     CHECK(c == d);
@@ -13304,7 +13219,7 @@ static void run_patch_check_tests() {
 namespace patch_codec {
 using J = nlohmann::json;
 // A patch read from JSON text through the codec; throws as from_json does.
-static Patch load_text(const std::string& text) { return reader_twin::read_text(text); }
+static Patch load_text(const std::string& text) { return patch_door::read_text(text); }
 // The refusal reading `text` gives, whole; empty when it reads.
 static std::string refusal(const std::string& text) {
     try { (void)load_text(text); } catch (const std::exception& e) { return e.what(); }
@@ -14030,10 +13945,10 @@ static void run_codec_untouched_tests() {
 namespace build_tests {
 using patch_codec::load_text;
 using J = nlohmann::json;
-using reader_twin::first_difference;
-using reader_twin::live_c4;
-using reader_twin::render_sound;
-using reader_twin::same_samples;
+using patch_door::first_difference;
+using patch_door::live_c4;
+using patch_door::render_sound;
+using patch_door::same_samples;
 
 // The six note signals as the constants 1 to 6, each its own object.
 static NoteSignals constant_note() {
@@ -14241,29 +14156,25 @@ static const Named kMultiplexTexts[] = {
 static const char* const kGateInTemplate = R"J({"graph":{"nodes":[{"id":"pfF","type":"PerformNode","params":{"field":"frequency"}},{"id":"pfO","type":"PerformNode","params":{"field":"onset"}},{"id":"ng","type":"NameGate","params":{"name":"tongue","in":{"ref":"pfO"}}},{"id":"gest","type":"Envelope","params":{"minValue":0.0,"maxValue":1.0,"ramp_accuracy":1.0,"stage_accuracy":1.0,"timeMode":"seconds","timeScale":1.0,"startVal":[1.0,0.1,1.0],"endVal":[0.1,1.0,1.0],"power":[0.0,0.0,0.0],"type":["Linear","Linear","Linear"],"percent":[0.01,0.02,0.0],"minSec":[0.0,0.0,0.0],"maxSec":[0.0,0.0,0.0],"nominal":[0.0,0.0,0.0],"trigger":{"ref":"ng"}}},{"id":"lift","type":"CombinedSource","params":{"source1":{"ref":"ng"},"source2":1.0,"operation":"Sum","gainAdj":0.0}},{"id":"amp2","type":"CombinedSource","params":{"source1":{"ref":"gest"},"source2":{"ref":"lift"},"operation":"Multiply","gainAdj":0.0}},{"id":"R","type":"SawSource","params":{"amplitude":{"ref":"amp2"},"frequency":{"ref":"pfF"},"phase":0.0}},{"id":"mux","type":"MultiplexSource","params":{"count":2,"source":{"ref":"R"}}}],"output":"mux"},"instrument":{"polyphony":1,"volume":0.5,"onsets":["tongue"],"sustaining":true},"sampleRate":48000})J";
 }  // namespace build_tests
 
-// The template against the loader, sample for sample, on the Multiplex
-// texts: a held line and a note alone. A NameGate inside a template resolves
-// against the block's onsets, where the loader's clones are given none.
+// The template on the Multiplex texts: each plays something. A NameGate
+// inside a template resolves against the block's onsets: it fires on a name
+// the block holds and not on one it lacks.
 static void run_build_template_reader_tests() {
     using namespace build_tests;
-    std::printf("the template against the loader: the Multiplex files, sample for sample\n");
+    std::printf("the template: the Multiplex files play; a gate in the template fires on the block's onset\n");
     for (const auto& t : kMultiplexTexts) {
-        auto old = load_instrument_patch_json(t.text);
         auto mod = build_instrument(load_text(t.text));
-        const auto a = play_three(*old.instrument), b = play_three(*mod);
+        const auto b = play_three(*mod);
         const bool audible = std::any_of(b.begin(), b.end(), [](float s) { return s != 0.0f; });
-        if (!same_samples(a, b)) std::printf("  %s: the readers differ first at sample %zu\n", t.name, first_difference(a, b));
-        CHECK(same_samples(a, b));
+        if (!audible) std::printf("  %s: silent\n", t.name);
         CHECK(audible);
     }
     std::string outside = kGateInTemplate;
     outside.replace(outside.find(R"("name":"tongue")"), 15, R"("name":"slap")");
-    auto old = load_instrument_patch_json(kGateInTemplate);
     auto mod = build_instrument(load_text(kGateInTemplate));
     auto modOutside = build_instrument(load_text(outside));
-    const auto a = play_three(*old.instrument, 1.0f), b = play_three(*mod, 1.0f), c = play_three(*modOutside, 1.0f);
-    CHECK(!same_samples(a, b));                  // the clone's gate fires in the module
-    CHECK(same_samples(a, c));                   // as the loader's never does, nor the module's on a name it lacks
+    const auto b = play_three(*mod, 1.0f), c = play_three(*modOutside, 1.0f);
+    CHECK(!same_samples(b, c));                  // the clone's gate fires on the block's onset, not on a name it lacks
 }
 
 namespace build_tests {
@@ -14476,9 +14387,9 @@ static void run_build_instrument_tests() {
 }
 
 // build_sound: the base's seven plain-sound hashes; the sharing refusal's
-// shapes with the loader's sentences and the shapes that load; the bare
-// output; the instrument form and the frame count's three cases against the
-// loader; a tail in a plain sound and a faulting node, each named by id.
+// shapes with their sentences and the shapes that load; the bare output; the
+// instrument form and the frame count's three cases; a tail in a plain sound
+// and a faulting node, each named by id.
 static void run_build_sound_tests() {
     using namespace build_tests;
     std::printf("build_sound: the base's plain sounds, the sharing walk, the three forms, the frames\n");
@@ -14514,13 +14425,11 @@ static void run_build_sound_tests() {
     const std::string score = R"("score":[{"note":60,"time":0,"duration":0.5}],)";
     const std::string forms[] = {head + tail, head + score + tail, head + score + R"("seconds":0.25,)" + tail,
                                  head + score + R"("seconds":2,)" + tail, head + R"("seconds":0.25,)" + tail};
-    const int frames[] = {240000, -1, -1, 96000, 12000};
+    const int frames[] = {240000, 24000, 24000, 96000, 12000};
     for (size_t k = 0; k < std::size(forms); ++k) {
-        ScratchPatch file("renders/scratch/_build_sound_form.json", forms[k]);
-        BuiltSound old = load_patch_file(file.path);
         BuiltSound mod = build_sound(load_text(forms[k]));
-        CHECK(old.frames == mod.frames && mod.sampleRate == 48000 && (frames[k] < 0 || mod.frames == frames[k]));
-        CHECK(same_samples(render_sound(old), render_sound(mod)));
+        if (mod.frames != frames[k]) std::printf("  form %zu: %d frames, want %d\n", k, mod.frames, frames[k]);
+        CHECK(mod.sampleRate == 48000 && mod.frames == frames[k]);
     }
     BuiltSound tailed = build_sound(load_text(plain(R"({"id":"T","type":"SawSource"},)"
         R"({"id":"out","type":"CombinedSource","params":{"source1":{"tap":"T"}}})", "out")));
@@ -14538,6 +14447,11 @@ static void run_build_sound_tests() {
 // the declarations table writes, read by both readers.
 namespace reader_twin {
 using J = nlohmann::json;
+using patch_door::difference;
+using patch_door::live_c4;
+using patch_door::read_text;
+using patch_door::render_sound;
+using patch_door::same_samples;
 // The three texts per type: the sparse one; one whose arrays all hold rows
 // and whose Params the text does not feed all hold a number off their
 // defaults; one whose scalar settings all stand off their defaults.
@@ -14663,41 +14577,38 @@ static std::string twin_text(const std::string& type, TwinText text, std::string
     else doc["seconds"] = 0.25;
     return doc.dump();
 }
-// One render of `text` through a reader: the loader (`old`) or the module.
-static std::vector<float> twin_render(const std::string& text, bool old) {
-    if (old) {
-        if (nlohmann::json::parse(text).contains("instrument")) return live_c4(*load_instrument_patch_json(text).instrument);
-        ScratchPatch file("renders/scratch/_reader_twin.json", text);
-        BuiltSound s = load_patch_file(file.path);
-        return render_sound(s);
-    }
+// One render of `text` through the module: a C4 of an instrument, the mix of a sound.
+static std::vector<float> twin_render(const std::string& text) {
     const Patch p = read_text(text);
     if (p.instrument) return live_c4(*build_instrument(p));
     BuiltSound s = build_sound(p);
     return render_sound(s);
 }
-// What one text of one type gave: each reader's refusal, and what the
+// What one text of one type gave: the module's refusal, and what the
 // properties found (empty fields where they hold).
 struct TwinResult {
-    std::string unbuilt, oldRefusal, newRefusal, loaderVsModule, sparseVsWritten, identity;
+    std::string unbuilt, refusal, sparseVsWritten, identity;
     bool audible{false};
     double seconds{0.0};
 };
-// One reader's render of `text`, or its refusal.
-static std::vector<float> render_or_refusal(const std::string& text, bool old, std::string& refusal) {
-    try { return twin_render(text, old); } catch (const std::exception& e) { refusal = e.what(); }
+// The module's render of `text`, or its refusal.
+static std::vector<float> render_or_refusal(const std::string& text, std::string& refusal) {
+    try { return twin_render(text); } catch (const std::exception& e) { refusal = e.what(); }
     return {};
+}
+// The types whose text is refused by design: probes that refuse as built,
+// and the probe whose refusal is a setting the settings text turns on.
+static bool refused_by_design(const std::string& type, TwinText kind) {
+    return type == "RefusingProbe" || (type == "CheckProbe" && kind == TwinText::Settings);
 }
 static TwinResult twin_one(const std::string& type, TwinText kind) {
     TwinResult r;
     const std::string text = twin_text(type, kind, r.unbuilt);
     if (text.empty()) return r;
     const auto start = std::chrono::steady_clock::now();
-    const auto old = render_or_refusal(text, true, r.oldRefusal);
-    const auto mod = render_or_refusal(text, false, r.newRefusal);
+    const auto mod = render_or_refusal(text, r.refusal);
     r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-    if (!r.oldRefusal.empty() || !r.newRefusal.empty()) return r;
-    if (!same_samples(old, mod)) r.loaderVsModule = difference(old, mod);
+    if (!r.refusal.empty()) return r;
     r.audible = std::any_of(mod.begin(), mod.end(), [](float s) { return s != 0.0f; });
     const Patch p = read_text(text);
     J written;
@@ -14706,12 +14617,13 @@ static TwinResult twin_one(const std::string& type, TwinText kind) {
     from_json(written, back);
     if (!(back == p)) r.identity = "from_json(to_json(p)) differs from p";
     if (kind == TwinText::Settings) return r;
-    const auto again = twin_render(written.dump(), false);
+    const auto again = twin_render(written.dump());
     if (!same_samples(mod, again)) r.sparseVsWritten = difference(mod, again);
     return r;
 }
 // One text over every registered type: each finding printed and failed, a
-// type both readers refuse listed with the two sentences, the counts printed.
+// refused type listed with its sentence and failed unless refused by design,
+// the counts printed.
 static void twin_all(TwinText kind, const char* name) {
     int types = 0, built = 0, audible = 0;
     std::vector<std::string> silent;
@@ -14720,21 +14632,18 @@ static void twin_all(TwinText kind, const char* name) {
         const TwinResult r = twin_one(type, kind);
         const char* t = type.c_str();
         if (!r.unbuilt.empty()) std::printf("  %s %s: no text: %s\n", name, t, r.unbuilt.c_str());
-        const bool oldRefused = !r.oldRefusal.empty(), newRefused = !r.newRefusal.empty();
-        if (oldRefused || newRefused)
-            std::printf("  %s %s: refused by %s: the loader \"%s\"; the module \"%s\"\n", name, t,
-                        oldRefused && newRefused ? "both" : "one reader", r.oldRefusal.c_str(), r.newRefusal.c_str());
-        if (!r.loaderVsModule.empty()) std::printf("  %s %s: the loader and the module differ, %s\n", name, t, r.loaderVsModule.c_str());
+        const bool refused = !r.refusal.empty();
+        if (refused) std::printf("  %s %s: refused: \"%s\"\n", name, t, r.refusal.c_str());
         if (!r.sparseVsWritten.empty()) std::printf("  %s %s: the text and the written text differ, %s\n", name, t, r.sparseVsWritten.c_str());
         if (!r.identity.empty()) std::printf("  %s %s: %s\n", name, t, r.identity.c_str());
         if (r.seconds > 2.0) std::printf("  %s %s: took %.1f s\n", name, t, r.seconds);
-        CHECK(oldRefused == newRefused && r.loaderVsModule.empty() && r.sparseVsWritten.empty() && r.identity.empty());
-        if (!r.unbuilt.empty() || oldRefused || newRefused) continue;
+        CHECK(refused == refused_by_design(type, kind) && r.sparseVsWritten.empty() && r.identity.empty());
+        if (!r.unbuilt.empty() || refused) continue;
         ++built;
         if (r.audible) ++audible;
         else silent.push_back(type);
     }
-    std::printf("  %s: %d types, %d built by both, %d render something, %zu render silence:", name, types, built, audible, silent.size());
+    std::printf("  %s: %d types, %d built, %d render something, %zu render silence:", name, types, built, audible, silent.size());
     for (const auto& s : silent) std::printf(" %s", s.c_str());
     std::printf("\n");
     CHECK(types > 0);
@@ -14743,28 +14652,17 @@ static void twin_all(TwinText kind, const char* name) {
 
 // For every registered type, three texts the declarations table writes: the
 // sparse one; one whose every array holds rows and whose every Param the
-// text does not feed holds a number off its default, so a Param's number is
-// heard as the pin's own constant against the loader's wired constant; one
-// whose every scalar setting stands off its default. Of each: (i) the loader and the module
-// build it alike and render a C4 of a quarter second the same, and (ii)
+// text does not feed holds a number off its default; one whose every scalar
+// setting stands off its default. Of each: (i) the module builds it (a probe
+// refused by design aside) and renders a C4 of a quarter second, and (ii)
 // from_json(to_json(p)) == p; of the first two also (iii) the module renders
 // the text and the text of to_json(from_json(text)) the same.
 static void run_generated_reader_twin_tests() {
     using namespace reader_twin;
-    std::printf("the generated reader twin: every registered type through both readers, three texts\n");
+    std::printf("the generated twin: every registered type through the module, three texts\n");
     twin_all(TwinText::Sparse, "sparse");
     twin_all(TwinText::Rows, "rows");
     twin_all(TwinText::Settings, "settings");
-}
-
-// Every row of the tests' table was met by a load: a row no load meets is stale.
-static void run_reader_twin_table_tests() {
-    std::printf("the tests' table: %zu rows, each met by a load\n", reader_twin::known().size());
-    for (const auto& k : reader_twin::known()) {
-        const bool met = reader_twin::met().count(&k) != 0;
-        if (!met) std::printf("  a row no load met: %s (%s)\n", k.test, k.patch);
-        CHECK(met);
-    }
 }
 
 int main() {
@@ -14989,7 +14887,6 @@ int main() {
     patch_codec::guarded("run_build_sound_tests", run_build_sound_tests);
     patch_codec::guarded("run_generated_reader_twin_tests", run_generated_reader_twin_tests);
     run_type_declaration_late_tests();       // registers its probe: last
-    patch_codec::guarded("run_reader_twin_table_tests", run_reader_twin_table_tests);   // after every load
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

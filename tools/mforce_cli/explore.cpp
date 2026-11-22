@@ -22,15 +22,15 @@
 //
 // Two basePatch styles are supported:
 // - Render-style (no "instrument" section, output is a StereoMixer):
-//   rendered offline via load_patch_file + mixer->render. "duration" in the
+//   rendered offline via sound_from_file + mixer->render. "duration" in the
 //   spec overrides the patch's top-level "seconds".
 // - Instrument-style ("instrument" section present, output is a ValueSource):
-//   rendered via load_instrument_patch + PitchedInstrument::prepare_voice +
+//   rendered via instrument_from_file + PitchedInstrument::prepare_voice +
 //   per-sample pull. Saved variants are immediately loadable in mforce_ui.
 //   Spec fields: "noteNumber" (default 60), "duration" (seconds, default 3.0).
 
 #include "explore.h"
-#include "mforce/render/patch_loader.h"
+#include "patch_file.h"
 #include "mforce/render/wav_writer.h"
 #include "mforce/render/instrument.h"
 #include "mforce/render/limiter.h"
@@ -331,9 +331,8 @@ int run_explore(int argc, char** argv) {
             std::filesystem::path patchPath = outDir / (variantId + ".patch.json");
             std::filesystem::path wavPath   = outDir / (variantId + ".wav");
 
-            // Serialize the variant patch to a temp file so load_patch_file
-            // can pick it up (load_patch_file currently takes a path, not
-            // an in-memory JSON tree).
+            // Write the variant patch to its file; the render below reads
+            // that file.
             {
                 std::ofstream pf(patchPath);
                 pf << variant.dump(2);
@@ -348,7 +347,7 @@ int run_explore(int argc, char** argv) {
                 if (basePatchIsInstrument) {
                     // Instrument-style render: load patch, grab voicePool[0],
                     // prepare with note duration, pull samples by hand.
-                    auto ip = load_instrument_patch(patchPath.string());
+                    auto ip = instrument_from_file(patchPath.string());
                     auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
                     if (!pitched) throw std::runtime_error("not a PitchedInstrument");
                     sr = ip.sampleRate;
@@ -371,7 +370,7 @@ int run_explore(int argc, char** argv) {
                     stats = compute_all_stats(mono.data(), frames, sr);
                 } else {
                     // Render-style: existing path via Mixer.
-                    BuiltSound p = load_patch_file(patchPath.string());
+                    BuiltSound p = sound_from_file(patchPath.string());
                     sr     = p.sampleRate;
                     frames = p.frames;
                     out.resize(size_t(frames) * 2);

@@ -1,5 +1,4 @@
 #include "mforce/core/denormals.h"
-#include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
 #include "mforce/core/source_registry.h"
 #include "mforce/patch/patch_json.h"
@@ -7,6 +6,7 @@
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"
 #include "explore.h"
+#include "patch_file.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/conductor.h"
@@ -91,7 +91,7 @@ static int run_chords(int argc, char** argv) {
     }
 
     // Load instrument
-    auto ip = load_instrument_patch(patchPath);
+    auto ip = instrument_from_file(patchPath);
     ip.instrument->volume = volume;
 
     // Build Part from chord tokens
@@ -250,7 +250,7 @@ static int run_melody(int argc, char** argv) {
     MelodicFigure fig1(ps1, ss1);
 
     for (int variation = 0; variation < 3; ++variation) {
-        auto ip = load_instrument_patch(patchPath);
+        auto ip = instrument_from_file(patchPath);
         ip.instrument->volume = 0.5f;
 
         StepGenerator stepGen(0xBE10'0000u + uint32_t(variation) * 111);
@@ -415,10 +415,10 @@ static int run_josie(int argc, char** argv) {
     std::string kickPath   = patchDir + "/kick_drum.json";
     std::string snarePath  = patchDir + "/snare_drum.json";
 
-    auto guitarPatch = load_instrument_patch(guitarPath);
-    auto bassPatch   = load_instrument_patch(bassPath);
-    auto kickPatch   = load_instrument_patch(kickPath);
-    auto snarePatch  = load_instrument_patch(snarePath);
+    auto guitarPatch = instrument_from_file(guitarPath);
+    auto bassPatch   = instrument_from_file(bassPath);
+    auto kickPatch   = instrument_from_file(kickPath);
+    auto snarePatch  = instrument_from_file(snarePath);
 
     guitarPatch.instrument->volume = 0.25f;
     bassPatch.instrument->volume = 0.30f;
@@ -551,12 +551,12 @@ static int run_compose(int argc, char** argv) {
         // accompaniment piano_default — carried in instrumentPatch; the CLI
         // patch argument is the fallback). One loaded instance per unique
         // path, so single-patch templates render exactly as before.
-        std::map<std::string, InstrumentPatch> patchByPath;
-        auto patch_for = [&](const std::string& p) -> InstrumentPatch& {
+        std::map<std::string, FileInstrument> patchByPath;
+        auto patch_for = [&](const std::string& p) -> FileInstrument& {
             const std::string& key = p.empty() ? patchPath : p;
             auto it = patchByPath.find(key);
             if (it == patchByPath.end()) {
-                auto loaded = load_instrument_patch(key);
+                auto loaded = instrument_from_file(key);
                 loaded.instrument->volume = 0.5f;
                 it = patchByPath.emplace(key, std::move(loaded)).first;
             }
@@ -708,7 +708,7 @@ static int run_play(int argc, char** argv) {
               << piece.parts.size() << " parts\n";
 
     // Load instrument and register for all parts
-    auto ip = load_instrument_patch(patchPath);
+    auto ip = instrument_from_file(patchPath);
     ip.instrument->volume = 0.5f;
 
     Conductor conductor;
@@ -780,7 +780,7 @@ static int run_patch(int argc, char** argv) {
     // lands here and the render timer only sees mixing. Stage-1 profiling
     // (run 8) chased a phantom 25x speedup for exactly this reason.
     auto _l0 = std::chrono::steady_clock::now();
-    BuiltSound p = load_patch_file(patchPath);
+    BuiltSound p = sound_from_file(patchPath);
     auto _l1 = std::chrono::steady_clock::now();
     double _loadMs = std::chrono::duration<double, std::milli>(_l1 - _l0).count();
 
@@ -874,7 +874,7 @@ static int run_dun(int argc, char** argv) {
     }
 
     // Load instrument
-    auto ip = load_instrument_patch(patchPath);
+    auto ip = instrument_from_file(patchPath);
     ip.instrument->volume = 0.5f;
 
     // Perform

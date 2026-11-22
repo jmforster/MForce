@@ -13,7 +13,9 @@
 // that allocates is reported with its count and the first allocation's call
 // stack; the exit code is 1 if any did, 2 if any failed to load.
 #include "alloc_probe.h"
-#include "mforce/render/patch_loader.h"
+#include "mforce/patch/patch_json.h"
+#include "mforce/render/build_instrument.h"
+#include "mforce/render/build_sound.h"
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -106,8 +108,8 @@ void take_result(Result& r) {
 // timing does not bear on allocation, so the notes play one after another.
 Result gate_instrument(const fs::path& path, const json& root) {
     Result r;
-    InstrumentPatch ip = load_instrument_patch(path.string());
-    PitchedInstrument& inst = *ip.instrument;
+    const std::unique_ptr<PitchedInstrument> built = build_instrument(load_patch(path.string()));
+    PitchedInstrument& inst = *built;
     std::vector<Event> events = score_events(root);
     if (events.empty()) events.push_back(Event{});
     inst.release_voice(inst.acquire_voice());   // the slot table is sized on first use: before arming
@@ -149,7 +151,7 @@ Result gate_one(const fs::path& path) {
     try {
         const json root = json::parse(slurp(path));
         if (root.contains("instrument")) return gate_instrument(path, root);
-        BuiltSound p = load_patch_file(path.string());          // unarmed: the mixer-mode graph, prepared
+        BuiltSound p = build_sound(load_patch(path.string()));          // unarmed: the mixer-mode graph, prepared
         return gate_mixer(p);
     } catch (const std::exception& e) {
         Result r;
