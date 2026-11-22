@@ -7,11 +7,13 @@ checkpoint is run. In short: the engine as refactored through Part 4 stays;
 the old editor (`tools/mforce_ui`) is deleted and a new one is written fresh
 on the `patch` module from a short design Matt signs before code; proof is
 the build, `engine_tests` and the null gate, with one review and one short
-report per part; the order is (1) the engine flip, (2) the new editor's
-design, (3) the editor in slices, the first being open, play, tweak, hear,
-save, (4) render, music and build piece by piece. The freeze lifts for sound
-work once the first slices are usable. Matt does not need an editor until
-then, and his measure is when he can make sounds again.
+report per part. THE ORDER WAS CORRECTED ON 2026-11-22 (Matt: "Editor
+last"; the 11-21 order had the editor second, a misreading of his "no need
+for the editor until this is done"): (1) the engine flip, done; (2) the
+render, music and build parts, in that order; (3) the new editor's design;
+(4) the editor in slices, the first being open, play, tweak, hear, save. The
+freeze lifts for sound work once the first slices are usable. Matt does not
+need an editor until the rest of the refactor is done.
 WHERE IT STANDS (2026-11-21): STEP (1), THE ENGINE FLIP, IS DONE AND
 COMMITTED. `8852453`: the command-line tool, the explorer, `alloc_gate`,
 `test_figures` and `engine_tests` build through the module; the twin gate's
@@ -36,8 +38,10 @@ uncommitted edits were reverted unread on 11-21 (a copy:
 `renders/scratch/ab47/t1/task1_uncommitted_at_stop.diff`; its
 `ExplicitPartials` mend returned early on the last column and was not
 trusted), so CLEANUP 107 stays open and no derived mark exists. NEXT after
-the flip: the new editor's design; offer max before it. Everything below
-this block predates the reset and is history.
+the flip (2026-11-22): the render part, starting with what it holds and the
+interfaces Matt must decide; offer max before the design. The editor's
+design waits until render, music and build are done. Everything below this
+block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
 and the plan — Matt: "Yes, at xhigh").

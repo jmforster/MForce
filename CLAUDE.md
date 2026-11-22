@@ -68,12 +68,14 @@ Replicate legacy functionality of node-based UI to:
   protocol or with a line below, this wins:
   + The engine as refactored through Part 4 stays. The old editor
     (tools/mforce_ui) is DELETED, not adapted: Matt has no need for an editor
-    until the new one exists. The new editor is written fresh on the `patch`
-    module, from a short design Matt signs before any code.
-  + Order: (1) the engine flip (every host on the `patch` module; the loader
-    and the old editor deleted); (2) the new editor's design; (3) the editor
-    in slices, the first being open, play, tweak, hear, save; (4) render,
-    music and build piece by piece, when work touches them.
+    until the rest of the refactor is done. The new editor is written fresh on
+    the `patch` module, from a short design Matt signs before any code.
+  + Order (Matt 2026-11-22: "Editor last". The 11-21 text put the editor
+    second; that misread his "no need for the editor until this is done"):
+    (1) the engine flip (every host on the `patch` module; the loader and the
+    old editor deleted), DONE 11-21; (2) the render, music and build parts,
+    in that order; (3) the new editor's design; (4) the editor in slices, the
+    first being open, play, tweak, hear, save.
   + The freeze lifts for sound work once the editor's first slices are
     usable. Until then, still no feature work.
   + Proof from here: the build, engine_tests and the null gate. No synthetic
