@@ -74,12 +74,16 @@ Replicate legacy functionality of node-based UI to:
     second; that misread his "no need for the editor until this is done"):
     (1) the engine flip (every host on the `patch` module; the loader and the
     old editor deleted), DONE 11-21; (2) the render, music and build parts,
-    in that order (render and music DONE 11-22; build is next); (3) the new
+    in that order (render and music DONE 11-22; build DONE 11-23; the
+    editor's design is next); (3) the new
     editor's design; (4) the editor in slices, the
     first being open, play, tweak, hear, save.
   + The freeze lifts for sound work once the editor's first slices are
     usable. Until then, still no feature work.
-  + Proof from here: the build, engine_tests and the null gate. No synthetic
+  + Proof from here: the build, engine_tests and the null gate. (Since
+    Part 8, 2026-11-23, `engine_tests` is one test program per module and
+    the proof is one command, `python tools/gates.py`: see "Build and
+    run".) No synthetic
     sets, twin gates, mutation runs, fix waves or per-checkpoint reports. One
     independent review and one short report per part, the C++ lessons kept.
     Interfaces are still designed with Matt before code: design is not what
@@ -147,7 +151,18 @@ Replicate legacy functionality of node-based UI to:
   "maximum effort" marks predate this and no longer apply.
 - (No UI exe to sweep at session start: the old editor, tools/mforce_ui, was
   deleted 2026-11-21. The rule returns with the new editor.)
-- Build from repo root
+- Build from repo root: `cmake --build build --config Release --parallel`.
+  Every warning is an error. A NEW build folder needs
+  `-G "Visual Studio 17 2022"` (the `cmake` on PATH defaults to Ninja and
+  MinGW). Matt's `build/` is configured with `-DMFORCE_SHELVED=ON`; the
+  default is off (Part 8, 2026-11-23).
+- Tests and gates: `python tools/gates.py --fast` (the per-module test
+  programs, the structure gate, the tool tests) or `python tools/gates.py`
+  (adds the null, allocation and comp gates). Neither builds.
+- The engine is one folder per module, `engine/<module>/{include,src,tests}`;
+  a module's `CMakeLists.txt` names what it may use and the compiler
+  refuses anything else. The structure limits are a gate:
+  `python tools/structure/check.py --gate`.
 - Main executable: mforce_cli
 - Write renders into renders/
 - Comp-lane renders: MELODY on patches/library/winds/oboe1.json,

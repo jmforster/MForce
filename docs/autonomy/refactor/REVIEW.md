@@ -19,6 +19,48 @@ given.
 
 ## Awaiting
 
+**R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
+`97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design
+`docs/architecture/part8-build.md`, signed 11-22; report
+`docs/autonomy/refactor/reports/2026-11-23-part8-build.md`). Nothing to
+hear: no render and no composed piece moved at any step. This closes the
+render, music and build parts; the editor's design is next.
+- **What is different when you sit down.** Build with
+  `cmake --build build --config Release --parallel`. Test with
+  `python tools/gates.py --fast` (under a minute) or `python tools/gates.py`
+  (about three). `engine_tests.exe` and `test_figures.exe` are gone: there
+  is a test program per module. Every engine file has a new folder and
+  the same `#include` line. `README.md` has all of it.
+- **Your `build/` has shelved on; everyone else's default is off.** On a
+  default build seven of the baseline templates are refused by name, and
+  the full gate run fails saying the comp gate cannot run there. That is
+  the 2026-10-05 decision as the design restated it.
+- **A clean build takes twice as long** (354 s to 635-745 s). The price
+  of a compile per module and of 113 test files where there was one; a
+  rebuild after an edit is quicker than it was. CLEANUP 147 has the two
+  ways to win it back.
+- **Eight corrections to the design you signed**, in its section 14;
+  seven were made before any code. The three that change what you would
+  see: each module compiles all its own headers (without it the compiler
+  would refuse a forbidden include only in a `.cpp`); duplicated blocks
+  are printed and not gated, because the detector's count moves when no
+  duplication does; the extra test program for tests no one module can
+  reach turned out not to be needed. Say so if you want any another way.
+- **One limit you signed that the review sharpened.** "No file-level
+  mutable variable" was being measured by a pattern that missed
+  `int counter = 0;` at file scope. It is now measured by a reader that
+  knows namespace scope, with its three remaining misses written down
+  (CLEANUP 151). A `static` inside a function is still invisible to it
+  (CLEANUP 134). The editor's limits rest on this rule.
+- **One question: where does the workaround cleanup go?** BACKLOG row 8
+  (retire the byte-identity preservations and the until-X guards; renders
+  may change there, oboe1 excepted) was slated for "after Part 8". The
+  reset's order goes from the build part straight to the editor's design
+  and does not name it. My read: it waits with the rest of CLEANUP until
+  the editor's first slices are usable, since it changes renders and you
+  have no editor to hear them in. Say so if you want it first.
+- Try: `python tools/gates.py`; `python tools/structure/check.py --gate`.
+
 **R23 — Part 6: music** (2026-11-22, commits `4d3ad66`, `983a241`,
 `6e400c7`, `795eacf`, fix wave `2c52e0e`; design
 `docs/architecture/part6-music.md`, signed that day; report
@@ -53,8 +95,9 @@ same at every step.
   section 0, and overwrote part 0's passage in the plan. It is fixed. A
   template of that shape composes different music now; no baseline has
   the shape.
-- Try: `python tools/comp_template_null_gate.py compare p6base p6s5` (21
-  same); `mforce_cli --dun scores/baselines/k467_bars_1_to_12.dun
+- Try: `python tools/comp_template_null_gate.py check` (22 of 22 as
+  frozen; Part 8 replaced the stage-pair form of this gate with a frozen
+  manifest, which equals the last Part 6 stage); `mforce_cli --dun scores/baselines/k467_bars_1_to_12.dun
   patches/library/winds/oboe1.json renders/scratch/dun.wav`.
 
 **R21 — checkpoint 4.6: the module, beside the loader** (2026-11-19, commits

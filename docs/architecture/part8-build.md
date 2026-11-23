@@ -483,3 +483,84 @@ one disagrees with an earlier section, it wins.
    largest blocks. A duplicate rule that can fail needs a measure whose
    answer for a block depends on that block and its copy alone: booked
    in CLEANUP.
+
+## 15. As built (2026-11-23)
+
+Commits `5df7dee`, `270bfaa`, `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`,
+fix wave `3ba6354`. Report: `docs/autonomy/refactor/reports/2026-11-23-part8-build.md`
+(R24). Where the code differs from the sections above, this section and
+section 14 say how.
+
+**The module function (section 2).**
+
+```cmake
+mforce_module(<name> [JSON] [SOURCES <files>] [USES <modules>])
+mforce_tests(<name> SOURCES <files>)
+mforce_compile_rules(<target>)
+```
+
+- `mforce_module` makes `mforce_<name>`: a static library, or with no
+  `SOURCES` a header-only target. `USES` must name modules made before
+  it. `JSON` links `mforce_json`, a target of its own that holds
+  `engine/third_party` as a system folder.
+- Every module also gets `mforce_<name>_header_check`, an object library
+  that compiles one generated file including each `.h` and `.hpp` under
+  the module's `include/`. The list is a glob re-read at every build.
+- `engine/testing` (the harness) is made with the same function and is
+  not part of `mforce_engine`.
+
+**The harness (section 5), as written:**
+
+```cpp
+namespace mforce::testing {
+struct Test  { const char* name; void (*run)(); };
+struct Tally { int checks; int fails; };
+Tally tally();
+int   run_tests(std::span<const Test> tests);
+}
+#define CHECK(cond)            // counts; prints file, line and the text on failure
+#define CHECK_NEAR(a, b, eps)  // |a - b| <= eps as floats; a NaN on either side fails
+#define REQUIRE(cond)          // as CHECK, and ends this test (it throws; run_tests catches)
+```
+
+- `run_tests` prints `ALL PASS (N checks)`, `F/N FAILED`, or
+  `NO CHECKS MADE` (which fails) for the checks its own tests made.
+- A test program's `main.cpp` holds its list as a `constexpr` table at
+  namespace scope and a one-line `main`.
+- There is no `integration_tests` (amendment 2 was not needed).
+- Helpers shared by two programs are in the lower module's
+  `tests/fixtures.h`; a test program is given `engine/` as an include
+  folder to write `#include "core/tests/fixtures.h"`. The meter refuses
+  an include that names any other header by a folder path.
+- `patch_tests` registers six probe types before the type-declaration
+  tests, which check every registered type.
+
+**The gates (sections 7 and 8).**
+
+- `tools/gates.py [--fast] [--build DIR]` reads the registered tests
+  from CTest and passes only when every one has a result that says
+  Passed. It names one test, `comp_gate`, to say why it is absent on a
+  build without shelved; such a full run prints `NOT ALL GATES RAN` and
+  fails.
+- CTest tests: `structure_meter_tests`, `structure_gate`, `tool_tests`,
+  the eleven test programs, and under the label `gate`: `null_gate`,
+  `allocation_gate`, `comp_gate` (only with `MFORCE_SHELVED` on). Python
+  3 is required at configure.
+- `tools/comp_template_null_gate.py check|freeze [--build DIR]`, with
+  `tools/comp_gate_manifest.json`. A refusal is exit code 1 with no
+  output; any other failure never equals a frozen value.
+- `check.py --gate` fails on, with no baseline entry or worse than one:
+  a file over 600 lines; a function over 80; a variable defined at
+  namespace scope that is not const; an include outside the map; an
+  include by folder path or into `third_party/`; a `const_cast`; a
+  `dynamic_cast` in `engine/`; a comment holding a date or a tracker id;
+  a file on no module. It measures tracked files and untracked files
+  that are not ignored. It does not gate duplicated blocks (amendment 8)
+  and does not find history told in words.
+- `tools/structure/baseline.json`: 98 entries. A long function is keyed
+  by its signature. `--tighten` lowers and drops; `--init-baseline`
+  writes the file only when there is none.
+
+**Measured.** Files over 600 lines 10 to 8; changelog comment lines 77 to
+0; functions over 80 lines 52 to 50; checks 12,054 (and 43 figure tests)
+to 12,308; a clean build 354 s to 635-745 s with `--parallel`.

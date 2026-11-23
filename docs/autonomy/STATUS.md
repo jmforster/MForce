@@ -113,20 +113,69 @@ read each report and the new headers, staged, ran the meter and committed;
 one review, one fix wave. Three faults of the design were found while
 writing the briefs and written into the design the same hour, before code.
 Usage: weekly Fable 14 percent at the session's start, 22 at the close;
-all-models 10 to 18. NEXT: PART 8 (BUILD)'S DESIGN, in the same shape, for
-Matt to sign before any code (the target's row 8 of section 7 and item 7 of
-section 8: a target per module, warnings as errors, third-party sources, the
-test layout with `test_figures` folded into the engine tests, the shelved
-target and its option, the meter, the comment purge; then phase 2's gates).
-WHAT PART 6 LEAVES IT: shelved code is compiled into the engine target and
-every host registers it (the option that leaves it out is Part 8's); the
-compose code shows two `/W4` warnings (CLEANUP 137); the meter's count of
-file-level mutable variables does not see a function-local `static`
-(CLEANUP 134); the strategies are header-only; `tools/structure/metrics.json`
-is a snapshot at `2c52e0e`. Then the editor's design, whose engine half for
-its first slice (`LivePlayer`) exists. GIT: main is ahead of origin by the
-Part 6 commits (nothing pushed; push only on Matt's word); GOALS.md is
-Matt's own, never staged. Everything below this
+all-models 10 to 18. PART 8 (BUILD) IS DESIGNED, SIGNED, BUILT AND
+REVIEWED (2026-11-22 to 11-23, session XXV; Matt: "Signed, proceed"). Design
+`docs/architecture/part8-build.md` (its section 14 holds eight amendments,
+section 15 "As built"); report R24
+`docs/autonomy/refactor/reports/2026-11-23-part8-build.md`; REVIEW R24 awaits
+Matt (nothing to hear; R23 also still awaits him). Base `13195ed`; commits
+`5df7dee` (one set of compile rules in `cmake/MforceModule.cmake`, `/W4
+/permissive- /WX`, the old warnings fixed in the code, glfw/rtaudio/rtmidi
+out), `270bfaa` (every engine file under `engine/<module>/{include/mforce/
+<module>,src}`; `mforce_module(<name> [JSON] SOURCES .. USES ..)` makes
+`mforce_<name>`; a forbidden include is C1083; a header check per module),
+`97e24ad` (`engine/testing` harness; ten `<module>_tests` programs in
+`engine/<module>/tests/`; `tools/engine_tests`, `tools/test_figures`,
+`tools/alloc_probe` deleted), `e5b0760` (`-DMFORCE_SHELVED=ON`, off by
+default, MATT'S `build/` HAS IT ON), `6445a39` (the comment purge: 356
+rewritten, 11 deleted, no code line changed), `4f99fab` (the meter's gate,
+the comp gate's manifest, `tools/gates.py`, `README.md`), fix wave `3ba6354`.
+HOW TO PROVE A CHANGE NOW: `cmake --build build --config Release --parallel`
+then `python tools/gates.py --fast` (the test programs, `structure_gate`,
+the tool tests; under a minute) or `python tools/gates.py` (adds `null_gate`,
+`allocation_gate`, `comp_gate`; about three minutes). Where a line above or
+CLAUDE.md says `engine_tests`, read "the test programs". AT THE CLOSE: 0
+warning lines; 17 CTest tests; checks sum 12,308 (the 12,054 of
+`engine_tests` unchanged plus 254 from the 43 figure tests, now counted as
+checks); null 77 of 77; allocation 0 of 131; comp 22 of 22 as frozen (21
+hashes equal to stage `p6s5`, `test_k467_walker` frozen as refused); with
+shelved off 13 tests and 11,684 checks; a fresh clone of the final tree
+builds and passes by the README's commands. The meter against `13195ed`:
+files over 600 lines 10 to 8, functions over 80 lines 52 to 50, changelog
+comments 77 to 0, mutable variables 24 to 22, files 306 to 439;
+`tools/structure/baseline.json` has 98 entries. THE GATE'S RULES AS BUILT
+(`python tools/structure/check.py --gate`, CTest `structure_gate`): a file
+over 600 lines, a function over 80, a non-const variable at namespace scope
+(read by `tools/structure/cxx.py`), an include outside the map or by a
+folder path, `const_cast`, `dynamic_cast` in `engine/`, a comment with a
+date or a tracker id, a file on no module; untracked files are measured
+too; duplicates are printed, never gated (lizard's count moves when no
+duplication does); `--tighten` lowers entries, an exception is an edit to
+`baseline.json` in the commit. The review: 2 false claims (`gates.py` could
+print ALL GATES PASS past a timed-out test; a 101-line `main` written in
+this part had been baselined), 6 weak rules, 7 notes; all fixed but one
+note. CLEANUP rows 142 to 154 are new and 137 is closed. HOW IT RAN: as
+Parts 5 and 6, with the executor allowed to stage (`git mv`, `git add` of
+explicit paths) because the meter reads tracked files; briefs, rules, gate
+script, the review brief and the fix-wave brief are under
+`renders/scratch/ab8/`. WHAT IT COST: a clean build is 635 to 745 s with
+`--parallel` where it was 354 s (CLEANUP 147). A NEW BUILD FOLDER NEEDS
+`-G "Visual Studio 17 2022"`: the `cmake` on PATH is a MinGW build whose
+default generator is Ninja. Usage: weekly Fable 22 percent at the start of
+Part 8, 30 at the close;
+all-models 18 to 28. NEXT: THE NEW EDITOR'S DESIGN, short, for Matt
+to sign before any code (CLAUDE.md, "Scope right now": written fresh on the
+`patch` module; its structure limits fail the build from its first commit
+with no exemptions; its logic is operations on plain data with tests and
+the window is a thin layer; first slice open, play, tweak, hear, save).
+WHAT PART 8 LEAVES IT: a new module is one folder and one `mforce_module`
+call, with its tests beside it; a module with no baseline entries fails the
+gate on any violation, which is the editor's rule; the engine half of the
+first slice (`LivePlayer`) exists; glfw, rtaudio, rtmidi and imgui are in
+no build and no clone (the design says where the editor's libraries come
+from). GIT: main is ahead of origin by the Part 6 and Part 8 commits
+(nothing pushed; push only on Matt's word); GOALS.md is Matt's own, never
+staged. Everything below this
 block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
