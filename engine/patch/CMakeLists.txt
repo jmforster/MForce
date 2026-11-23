@@ -1,5 +1,6 @@
 mforce_module(patch JSON
   SOURCES src/build_graph.cpp
+          src/edit.cpp
           src/node_json.cpp
           src/patch.cpp
           src/patch_json.cpp
@@ -13,6 +14,8 @@ mforce_tests(patch
           tests/blep_tests.cpp
           tests/codec_refusal_tests.cpp
           tests/codec_tests.cpp
+          tests/edit_census_tests.cpp
+          tests/edit_tests.cpp
           tests/envelope_form_tests.cpp
           tests/graph_build_tests.cpp
           tests/patch_check_tests.cpp

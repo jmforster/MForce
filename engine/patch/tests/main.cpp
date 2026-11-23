@@ -28,6 +28,12 @@ void run_build_named_tests();
 void run_build_template_seed_tests();
 void run_build_list_tests();
 void run_type_declaration_late_tests();
+void run_edit_apply_tests();
+void run_edit_value_refusal_tests();
+void run_edit_setting_refusal_tests();
+void run_edit_string_and_layout_refusal_tests();
+void run_edit_codec_tests();
+void run_edit_census_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -58,6 +64,12 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_build_template_seed_tests", run_build_template_seed_tests},
   {"run_build_list_tests", run_build_list_tests},
   {"run_type_declaration_late_tests", run_type_declaration_late_tests},
+  {"run_edit_apply_tests", run_edit_apply_tests},
+  {"run_edit_value_refusal_tests", run_edit_value_refusal_tests},
+  {"run_edit_setting_refusal_tests", run_edit_setting_refusal_tests},
+  {"run_edit_string_and_layout_refusal_tests", run_edit_string_and_layout_refusal_tests},
+  {"run_edit_codec_tests", run_edit_codec_tests},
+  {"run_edit_census_tests", run_edit_census_tests},
 };
 }  // namespace
 

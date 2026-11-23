@@ -4,6 +4,7 @@
 #include "mforce/patch/type_declarations.h"
 #include "float_text.h"
 #include "graph_cycles.h"
+#include "node_rules.h"
 #include "sentence.h"
 #include <algorithm>
 #include <cmath>
@@ -18,19 +19,6 @@ namespace mforce {
 namespace {
 
 std::string node_path(size_t i) { return "graph.nodes[" + std::to_string(i) + "]"; }
-
-// What a node's name means for its pins: a Param, or an Input of any sort.
-struct Pin {
-  bool declared{false};
-  bool list{false};
-  const TypeDeclarations::Input* slot{nullptr};          // the slot's declaration when the pin is one
-};
-
-Pin pin_of(const TypeDeclarations& d, std::string_view name) {
-  if (d.param(name)) return {true, false, nullptr};
-  if (const auto* in = d.input(name)) return {true, in->list, in->slot ? in : nullptr};
-  return {};
-}
 
 // The violations found so far, and the patch's nodes by id: an id's first
 // node, which is the one a feed of that id reads.
@@ -102,14 +90,10 @@ void check_declared(Checker& c, const NodeAt& at) {
     if (!pin_of(at.d, name).declared) refuse(name, "a pin");
   for (const auto& [name, feeds] : at.node.wires)
     if (!pin_of(at.d, name).declared) refuse(name, "a pin");
-  for (const auto& [name, v] : at.node.settings) {
-    const auto* s = at.d.setting(name);
-    if (!s || s->type == SettingType::String) refuse(name, "a setting");
-  }
-  for (const auto& [name, v] : at.node.strings) {
-    const auto* s = at.d.setting(name);
-    if (!s || s->type != SettingType::String) refuse(name, "a string setting");
-  }
+  for (const auto& [name, v] : at.node.settings)
+    if (!scalar_setting(at.d, name)) refuse(name, "a setting");
+  for (const auto& [name, v] : at.node.strings)
+    if (!string_setting(at.d, name)) refuse(name, "a string setting");
   for (const auto& [name, v] : at.node.arrays)
     if (!at.d.array(name)) refuse(name, "an array");
 }
@@ -178,22 +162,10 @@ void check_feeds(Checker& c, const NodeAt& at) {
 // into its labels, a float or an int inside its range, an int whole.
 void check_settings(Checker& c, const NodeAt& at) {
   for (const auto& [name, v] : at.node.settings) {
-    const auto* s = at.d.setting(name);
-    if (!s || s->type == SettingType::String) continue;
+    const auto* s = scalar_setting(at.d, name);
+    if (!s) continue;
     const std::string head = at.opening + in_quotes(name) + " is " + float_text(v);
-    if (s->type == SettingType::Bool) {
-      if (v != 0.0f && v != 1.0f) c.add(at.param_path(name), head + ": a bool setting holds 0 or 1");
-      continue;
-    }
-    if (!s->labels.empty()) {
-      if (!is_index(v, s->labels.size()))
-        c.add(at.param_path(name), head + ", which is not an index into its labels (" + comma_list(s->labels) + ")");
-      continue;
-    }
-    if (!(v >= s->min && v <= s->max))
-      c.add(at.param_path(name), head + ", outside its range " + float_text(s->min) + " to " + float_text(s->max));
-    if (s->type == SettingType::Int && std::isfinite(v) && v != std::trunc(v))
-      c.add(at.param_path(name), head + ": an int setting holds a whole number");
+    for (const auto& fault : setting_faults(*s, v)) c.add(at.param_path(name), head + fault);
   }
 }
 
@@ -247,12 +219,10 @@ void check_dynamic_pins(Checker& c, const NodeAt& at) {
 void check_node(Checker& c, size_t i) {
   const Node& n = c.patch.graph.nodes[i];
   const std::string path = node_path(i);
-  const std::string opening = "node " + in_quotes(n.id) + " (" + n.type + "): ";
+  const std::string opening = node_opening(n);
   const TypeDeclarations* d = type_declarations(n.type);
   if (!d) {
-    std::string sentence = "Unknown node type: " + n.type;
-    if (const char* hint = retired_type_hint(n.type)) sentence += std::string("; ") + hint;
-    c.add(path + ".type", opening + sentence);
+    c.add(path + ".type", opening + unknown_type_sentence(n.type));
     return;
   }
   const NodeAt at{n, path, opening, *d};
@@ -274,7 +244,7 @@ void check_plain_sound(Checker& c) {
   if (c.patch.instrument) return;
   const auto& nodes = c.patch.graph.nodes;
   for (size_t i = 0; i < nodes.size(); ++i) {
-    const std::string opening = "node " + in_quotes(nodes[i].id) + " (" + nodes[i].type + "): ";
+    const std::string opening = node_opening(nodes[i]);
     if (nodes[i].type == "PerformNode")
       c.add(node_path(i) + ".type", opening + "a plain sound has no note to read");
     for (const auto& [key, source] : nodes[i].dynamicPins)

@@ -62,6 +62,17 @@ class MutableVariableTests(unittest.TestCase):
         src = '// int a = 0;\n/* int b;\n   int c; */\nconst char* s = "int d = 0;";\nconst char* r = R"(int e;)";\n'
         self.assertEqual(counted(src), [])
 
+    def test_an_out_of_line_defaulted_or_deleted_member_does_not(self):
+        src = ("Window::~Window() = default;\nWindow::Window() = default;\n"
+               "Window& Window::operator=(const Window&) = default;\nWindow::Window(const Window&) = delete;\n"
+               "Window& Window::operator=(Window&&) = delete;\nWindow::~Window() = delete;\n"
+               "Window::Window(Window&&) noexcept = default;\n")
+        self.assertEqual(counted(src), [])
+
+    def test_a_variable_beside_a_defaulted_member_still_counts(self):
+        src = "Window::~Window() = default;\nint counter = 0;\nstatic Foo g = Foo();\n"
+        self.assertEqual(counted(src), ["int counter = 0", "static Foo g = Foo()"])
+
     def test_a_digit_separator_is_not_a_character_literal(self):
         self.assertEqual(counted("constexpr int big = 1'000'000;\nint w = 0;\n"), ["int w = 0"])
 

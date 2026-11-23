@@ -18,6 +18,9 @@ _CHANGELOG = re.compile(r'\b20\d\d[-/]\d\d[-/]\d\d\b|\b(?:backlog|BACKLOG|CLEANU
 # The statements that are never a variable, by their first word.
 _NOT_A_VARIABLE = re.compile(r'^(?:using|typedef|static_assert|template|namespace|extern|friend)\b')
 _TYPE_HEAD = re.compile(r'^(?:class|struct|union|enum)\b')
+# A special member defaulted or deleted out of line (`Window::~Window() = default`):
+# a parameter list, perhaps `noexcept`, then `= default` or `= delete`. A function.
+_DEFAULTED_MEMBER = re.compile(r'\)[^()=]*=\s*(?:default|delete)$')
 _DECORATION = re.compile(r'\[\[.*?\]\]|\b(?:alignas|__declspec)\s*\([^()]*\)')
 _TYPE_DECL = re.compile(r'^(?:struct|class|enum class|enum)\s+([A-Za-z_]\w*)\b(?!\s*;)')
 _DUP_SPAN = re.compile(r'^(.*):(\d+) ~ (\d+)$')
@@ -61,7 +64,7 @@ def _is_mutable_variable(stmt):
     static_assert or macro call. A variable initialised with parentheses
     (`Foo x(1);`) reads as a function declaration and is not counted."""
     s = _DECORATION.sub(" ", stmt).strip()
-    if not s or _NOT_A_VARIABLE.match(s):
+    if not s or _NOT_A_VARIABLE.match(s) or _DEFAULTED_MEMBER.search(s):
         return False
     if _TYPE_HEAD.match(s):
         rest = s.rsplit("{}", 1)[1] if "{}" in s else ""

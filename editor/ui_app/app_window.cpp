@@ -102,7 +102,7 @@ AppWindow::AppWindow(int width, int height, const std::string& title)
     : parts_(std::make_unique<Parts>(width, height, title)) {}
 
 // Defined here, where Parts is complete, so unique_ptr can destroy it.
-AppWindow::~AppWindow() {}
+AppWindow::~AppWindow() = default;
 
 bool AppWindow::should_close() const { return glfwWindowShouldClose(parts_->window.handle) != 0; }
 
