@@ -23,7 +23,9 @@ add_library(mforce_engine
   src/patch/retired_spellings.cpp
   src/patch/table_rule.cpp
   src/patch/type_declarations.cpp
+  src/music/compose.cpp
   src/music/embedded_score.cpp
+  src/music/register_builtin.cpp
   src/play/play.cpp
   src/component.cpp
   src/source_registry.cpp

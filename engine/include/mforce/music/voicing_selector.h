@@ -1,10 +1,8 @@
 #pragma once
 #include "mforce/music/basics.h"
 #include "mforce/music/voicing_profile.h"
-#include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 namespace mforce {
 
@@ -33,31 +31,6 @@ class VoicingSelector {
   virtual ~VoicingSelector() = default;
   virtual std::string name() const = 0;
   virtual Chord select(const VoicingRequest& req) = 0;
-};
-
-// ---------------------------------------------------------------------------
-// VoicingSelectorRegistry — registers named selectors for lookup by name.
-// Parallel to StrategyRegistry. Populated at Composer construction time.
-// ---------------------------------------------------------------------------
-class VoicingSelectorRegistry {
- public:
-  static VoicingSelectorRegistry& instance() {
-    static VoicingSelectorRegistry inst;
-    return inst;
-  }
-
-  void register_selector(std::unique_ptr<VoicingSelector> s) {
-    std::string n = s->name();
-    selectors_[n] = std::move(s);
-  }
-
-  VoicingSelector* resolve(const std::string& n) const {
-    auto it = selectors_.find(n);
-    return (it != selectors_.end()) ? it->second.get() : nullptr;
-  }
-
- private:
-  std::unordered_map<std::string, std::unique_ptr<VoicingSelector>> selectors_;
 };
 
 }  // namespace mforce

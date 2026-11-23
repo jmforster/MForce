@@ -3131,7 +3131,16 @@ static void run_passage_melody_tests() {
 }
 
 #include "mforce/music/anchor_selector.h"
-#include "mforce/music/classical_composer.h"
+#include "mforce/music/compose.h"
+#include "mforce/music/composer.h"
+#include "mforce/music/register_builtin.h"
+
+// Composes `tmpl` with every built-in strategy and voicing registered.
+static Composition compose_builtin(const PieceTemplate& tmpl) {
+    ComposeKit kit;
+    register_builtin(kit);
+    return compose(tmpl, kit);
+}
 
 static void run_walk1_tests() {
     using namespace mforce;
@@ -3302,7 +3311,7 @@ static void run_walk1_tests() {
         }
     }
 
-    // --- End to end: harmonic anchorMode through ClassicalComposer.
+    // --- End to end: harmonic anchorMode through compose.
     {
         json tj = json::parse(R"({
           "keyName": "C", "scaleName": "Major", "bpm": 80, "masterSeed": 7,
@@ -3330,9 +3339,7 @@ static void run_walk1_tests() {
                           {"source": "reference", "motifName": "m2"}]}]}}}]
         })");
         PieceTemplate tmpl; from_json(tj, tmpl);
-        Piece piece;
-        ClassicalComposer composer(tmpl.masterSeed);
-        composer.compose(piece, tmpl);
+        Piece piece = compose_builtin(tmpl).piece;
         CHECK(!piece.parts.empty());
         CHECK(piece.parts[0].elementSequence.size() == 6);
         // First event: R1 pitch class; last event: tonic (R3).
@@ -3694,8 +3701,7 @@ static void run_walk3_tests() {
         auto melody = [&](uint32_t seed) {
             json tj = base; tj["masterSeed"] = seed;
             PieceTemplate tmpl; from_json(tj, tmpl);
-            Piece piece; ClassicalComposer composer(tmpl.masterSeed);
-            composer.compose(piece, tmpl);
+            Piece piece = compose_builtin(tmpl).piece;
             std::vector<int> nns;
             for (auto& part : piece.parts) {
                 if (part.name != "melody") continue;
@@ -3711,6 +3717,133 @@ static void run_walk3_tests() {
         for (uint32_t s = 100; s < 110; ++s) distinct.insert(melody(s));
         CHECK(distinct.size() >= 3);            // search didn't collapse to one tune
     }
+}
+
+#include "mforce/music/music_json.h"
+
+// What compose must leave alone in a request: its JSON, and the sizes of
+// its motif list and its three realized maps (which the JSON omits).
+struct TemplateFootprint {
+    std::string text;
+    size_t motifs, realizedMotifs, realizedRhythms, realizedContours;
+    bool operator==(const TemplateFootprint&) const = default;
+};
+
+static TemplateFootprint footprint_of(const PieceTemplate& t) {
+    const json j = t;
+    return {j.dump(), t.motifs.size(), t.realizedMotifs.size(),
+            t.realizedRhythms.size(), t.realizedContours.size()};
+}
+
+static PieceTemplate template_from(const json& j) {
+    PieceTemplate t;
+    from_json(j, t);
+    return t;
+}
+
+// One 8-beat section with two chords; a melody part with one phrase of two
+// generated figures (melody part 0) and a harmony part (part 1). No part
+// names a strategy or a voicing.
+static json compose_probe_json() {
+    return json::parse(R"({
+      "keyName": "C", "scaleName": "Major", "bpm": 100, "masterSeed": 11,
+      "sections": [{"name": "Main", "beats": 8, "chordProgression": [
+        {"degree": 0, "beats": 4}, {"degree": 4, "beats": 4}]}],
+      "parts": [
+        {"name": "melody", "role": "melody", "passages": {"Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [{"name": "p",
+            "startingPitch": {"octave": 4, "pitch": "C"},
+            "figures": [{"source": "generate", "totalBeats": 4},
+                        {"source": "generate", "totalBeats": 4}]}]}}},
+        {"name": "chords", "role": "harmony", "passages": {"Main": {
+          "chordConfig": {"octave": 4}}}}]
+    })");
+}
+
+// True when composing `t` throws and the message holds `name`.
+static bool compose_throws_naming(const PieceTemplate& t, const ComposeKit& kit,
+                                  const std::string& name) {
+    try {
+        compose(t, kit);
+    } catch (const std::exception& e) {
+        return std::string(e.what()).find(name) != std::string::npos;
+    }
+    return false;
+}
+
+static void run_compose_request_tests() {
+    // A strategy that adds motifs: period_passage turns each generated
+    // antecedent figure into a motif and flattens its periods into phrases.
+    {
+        std::ifstream f("scores/baselines/period_markov_test.json");
+        const PieceTemplate request = template_from(json::parse(f));
+        const TemplateFootprint before = footprint_of(request);
+        const Composition c = compose_builtin(request);
+        CHECK(footprint_of(request) == before);
+        CHECK(request.motifs.empty());
+        CHECK(c.plan.motifs.size() == 2);
+        CHECK(request.parts[0].passages.at("Main").phrases.empty());
+        CHECK(c.plan.parts[0].passages.at("Main").phrases.size() == 2);
+
+        // Composing one request twice gives the same piece.
+        const json a = c.piece;
+        const json b = compose_builtin(request).piece;
+        CHECK(a.dump() == b.dump());
+    }
+
+    // A generated motif: realize_motifs writes its notes into the plan.
+    {
+        json j = compose_probe_json();
+        j["motifs"] = json::parse(R"([{"name": "g", "type": "figure"}])");
+        j["parts"][0]["passages"]["Main"]["phrases"][0]["figures"] =
+            json::parse(R"([{"source": "reference", "motifName": "g"}])");
+        const PieceTemplate request = template_from(j);
+        const TemplateFootprint before = footprint_of(request);
+        const Composition c = compose_builtin(request);
+        CHECK(footprint_of(request) == before);
+        CHECK(request.realizedMotifs.empty());
+        const auto it = c.plan.realizedMotifs.find("g");
+        CHECK(it != c.plan.realizedMotifs.end() && !it->second.units.empty());
+    }
+}
+
+static void run_compose_kit_tests() {
+    ComposeKit builtin;
+    register_builtin(builtin);
+    const json probe = compose_probe_json();
+    CHECK(!compose_builtin(template_from(probe)).piece.parts.empty());
+
+    // An unregistered name is an error that names it.
+    json j = probe;
+    j["parts"][0]["passages"]["Main"]["strategy"] = "no_such_passage";
+    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_passage"));
+    j = probe;
+    j["parts"][0]["passages"]["Main"]["phrases"][0]["strategy"] = "no_such_phrase";
+    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_phrase"));
+    j = probe;
+    j["parts"][1]["passages"]["Main"]["voicingSelector"] = "no_such_voicing";
+    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_voicing"));
+    j = probe;
+    j["parts"][1]["passages"]["Main"]["voicingSelector"] = "smooth";
+    j["parts"][1]["passages"]["Main"]["voicingProfileSelector"] = "no_such_profile";
+    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_profile"));
+
+    // A kit with the three defaults and the three shapes composes a melody
+    // that names no strategy, and refuses one that names period_passage.
+    ComposeKit small;
+    small.strategies.add(std::make_unique<DefaultFigureStrategy>());
+    small.strategies.add(std::make_unique<DefaultPhraseStrategy>());
+    small.strategies.add(std::make_unique<DefaultPassageStrategy>());
+    small.strategies.add(std::make_unique<ShapeCadentialApproachStrategy>());
+    small.strategies.add(std::make_unique<ShapeSkippingStrategy>());
+    small.strategies.add(std::make_unique<ShapeSteppingStrategy>());
+    json melodyOnly = probe;
+    melodyOnly["parts"].erase(1);
+    const Composition c = compose(template_from(melodyOnly), small);
+    CHECK(!c.piece.parts.empty() && !c.piece.parts[0].elementSequence.empty());
+    melodyOnly["parts"][0]["passages"]["Main"]["strategy"] = "period_passage";
+    CHECK(compose_throws_naming(template_from(melodyOnly), small, "period_passage"));
 }
 
 #include "mforce/core/component.h"
@@ -15496,6 +15629,8 @@ int main() {
     run_walk2_tests();
     run_walk3_tests();
     run_walk1_tests();
+    run_compose_request_tests();
+    run_compose_kit_tests();
     run_passage_melody_tests();
     run_passage_parse_tests();
     run_onset_field_tests();

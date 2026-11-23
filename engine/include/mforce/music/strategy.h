@@ -8,35 +8,17 @@
 
 namespace mforce {
 
-// Four typed peer bases. A strategy implements exactly one level.
-// Two-phase interface: plan_* transforms a seed template into a
-// self-contained template (may mutate pieceTemplate's motif pool);
-// compose_* realizes a self-contained template to concrete content
-// (read-only on pool by contract).
+// Three typed peer bases. A strategy implements exactly one level.
 //
-// Default plan_* returns seed unchanged. Strategies with planning work
-// (synthesizing motifs, resolving variants, filling unspecified fields)
-// override it.
-
-class SectionStrategy {
-public:
-  virtual ~SectionStrategy() = default;
-  virtual std::string name() const = 0;
-
-  virtual PieceTemplate::SectionTemplate plan_section(Locus locus,
-      PieceTemplate::SectionTemplate seed) {
-    return seed;
-  }
-};
+// A passage strategy works in two steps: plan_passage turns the passage
+// template into a self-contained one (it may add motifs to the plan's motif
+// pool), and compose_passage realizes that template into a Passage. The
+// default plan_passage returns its seed unchanged.
 
 class FigureStrategy {
 public:
   virtual ~FigureStrategy() = default;
   virtual std::string name() const = 0;
-
-  virtual FigureTemplate plan_figure(Locus /*locus*/, FigureTemplate seed) {
-    return seed;
-  }
   virtual MelodicFigure compose_figure(Locus, const FigureTemplate&) = 0;
 };
 
@@ -44,10 +26,6 @@ class PhraseStrategy {
 public:
   virtual ~PhraseStrategy() = default;
   virtual std::string name() const = 0;
-
-  virtual PhraseTemplate plan_phrase(Locus /*locus*/, PhraseTemplate seed) {
-    return seed;
-  }
   virtual Phrase compose_phrase(Locus, const PhraseTemplate&) = 0;
 };
 

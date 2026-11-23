@@ -30,7 +30,7 @@
 #include "mforce/music/realization_strategy.h"
 #include "mforce/music/dynamic_state.h"
 #include "mforce/music/pitch_walker.h"
-#include "mforce/music/rng.h"
+#include "mforce/music/compose.h"
 #include "mforce/core/randomizer.h"
 #include <cmath>
 #include <cstdio>
@@ -47,12 +47,9 @@ namespace mforce {
 // realize_motifs — free function
 //
 // Walks a PieceTemplate's Motif declarations and populates its realizedMotifs
-// / realizedRhythms / realizedContours maps. Called by Composer::setup_piece_
-// after template load. Non-const PieceTemplate& because it writes into the
-// realized maps. Takes a Randomizer& for generation-seed fallback draws.
-//
-// Lifted verbatim from the pre-refactor ClassicalComposer::realize_motifs and
-// its port to Composer::realize_motifs_. No behavioral change.
+// / realizedRhythms / realizedContours maps. Composer::setup_piece_ calls it
+// on the plan. Non-const PieceTemplate& because it writes into the realized
+// maps. Takes a Randomizer& for generation-seed fallback draws.
 // ---------------------------------------------------------------------------
 inline void realize_motifs(PieceTemplate& tmpl, Randomizer& rng) {
   tmpl.realizedMotifs.clear();
@@ -145,128 +142,39 @@ inline void realize_motifs(PieceTemplate& tmpl, Randomizer& rng) {
 // ---------------------------------------------------------------------------
 // Composer
 //
-// Owns the StrategyRegistry, the master RNG, and the realized-seed pool.
-// Walks a PieceTemplate and dispatches to the registered strategies at each
-// level of the hierarchy.
-//
-// Phase 1a: the only strategies registered are the three Defaults, and
-// dispatch always selects them regardless of any `strategy` field on the
-// template. Template-driven strategy selection arrives in Phase 3.
+// Walks a plan (the working copy of a request) and dispatches to the kit's
+// strategies at each level of the hierarchy. Every strategy draws from the
+// one Randomizer it owns, reached through Locus::rng. compose() in
+// compose.h is the entry a host calls.
 // ---------------------------------------------------------------------------
 struct Composer {
-  // Note on seed + 200: the pre-refactor ClassicalComposer had three
-  // Randomizer-like instance members seeded with (seed, seed+100, seed+200).
-  // The rng member — the one used for all per-figure/per-phrase random
-  // decisions — was seeded with seed+200. Refactor dropped the other two
-  // (dead code in practice), but rng_ must preserve the seed+200 offset
-  // or every RNG call consumes a different stream and the composer stops
-  // being bit-identical to the pre-refactor output.
-  explicit Composer(uint32_t seed = 0xC1A5'0001u) : rng_(seed + 200) {
-    auto& reg = StrategyRegistry::instance();
-    reg.register_figure (std::make_unique<DefaultFigureStrategy>());
-    reg.register_phrase (std::make_unique<DefaultPhraseStrategy>());
-    reg.register_passage(std::make_unique<DefaultPassageStrategy>());
+  // The random source is seeded with seed + 200. Every composed piece's
+  // draws come from this stream, so the offset is part of what a seed
+  // composes.
+  Composer(uint32_t seed, const ComposeKit& kit) : rng_(seed + 200), kit_(kit) {}
 
-    // Shape strategies — only those with non-trivial logic survive; the
-    // 13 thin FigureBuilder wrappers were dropped in the FigureBuilder
-    // redesign. FigureShape dispatch in compose_figure falls through to
-    // generate_figure for those shapes.
-    reg.register_figure(std::make_unique<ShapeCadentialApproachStrategy>());
-    reg.register_figure(std::make_unique<ShapeSkippingStrategy>());
-    reg.register_figure(std::make_unique<ShapeSteppingStrategy>());
-
-    // Phrase strategies (Phase 3)
-    reg.register_phrase(std::make_unique<PeriodPhraseStrategy>());
-    reg.register_phrase(std::make_unique<SentencePhraseStrategy>());
-    reg.register_phrase(std::make_unique<WrapperPhraseStrategy>());
-    reg.register_phrase(std::make_unique<TwoFigurePhraseStrategy>());
-    reg.register_phrase(std::make_unique<ElaboratedPhraseStrategy>());
-
-    // Voicing selectors (Phase 4)
-    VoicingSelectorRegistry::instance()
-        .register_selector(std::make_unique<SmoothVoicingSelector>());
-
-    // Voicing profile selectors (Phase 5)
-    VoicingProfileSelectorRegistry::instance()
-        .register_factory("static", []() {
-          return std::unique_ptr<VoicingProfileSelector>(
-              new StaticVoicingProfileSelector());
-        });
-    VoicingProfileSelectorRegistry::instance()
-        .register_factory("random", []() {
-          return std::unique_ptr<VoicingProfileSelector>(
-              new RandomVoicingProfileSelector());
-        });
-    VoicingProfileSelectorRegistry::instance()
-        .register_factory("drift", []() {
-          return std::unique_ptr<VoicingProfileSelector>(
-              new DriftVoicingProfileSelector());
-        });
-    VoicingProfileSelectorRegistry::instance()
-        .register_factory("scripted", []() {
-          return std::unique_ptr<VoicingProfileSelector>(
-              new ScriptedVoicingProfileSelector());
-        });
-
-    // Passage strategies
-    reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
-    reg.register_passage(std::make_unique<PhraseAwareFigureStrategy>());
-    reg.register_passage(std::make_unique<PeriodPassageStrategy>());
-    reg.register_passage(std::make_unique<LibraryPassageStrategy>());
-    reg.register_passage(std::make_unique<PedalBuildupStrategy>());
-    reg.register_passage(std::make_unique<SequencePassageStrategy>());
-    reg.register_passage(std::make_unique<ConnectivePassageStrategy>());
-    reg.register_passage(std::make_unique<WanderingPassageStrategy>());
-
-    // Realization strategies (Compose-tier chord-event expansion)
-    auto& realReg = RealizationStrategyRegistry::instance();
-    realReg.register_strategy(std::make_unique<BlockRealizationStrategy>());
-    realReg.register_strategy(std::make_unique<RhythmPatternRealizationStrategy>());
-  }
-
-  // --- Top-level composition ---
-  void compose(Piece& piece, const PieceTemplate& tmpl) {
-    setup_piece_(piece, tmpl);
-    for (const auto& partTmpl : tmpl.parts) {
+  // --- Top-level composition: writes the piece and the plan ---
+  void compose(Piece& piece, PieceTemplate& plan) {
+    setup_piece_(piece, plan);
+    for (const auto& partTmpl : plan.parts) {
       if (partTmpl.role == PartRole::Harmony) continue;
       for (auto& sec : piece.sections) {
-        compose_passage_(piece, tmpl, partTmpl, sec.name);
+        compose_passage_(piece, plan, partTmpl, sec.name);
       }
     }
-    realize_chord_parts_(piece, tmpl);
-    realize_event_sequences_(piece, tmpl);
-  }
-
-  // --- Dispatchers called from strategies ---
-  MelodicFigure compose_figure(Locus locus, const FigureTemplate& figTmpl) {
-    FigureStrategy* s = StrategyRegistry::instance().resolve_figure("default_figure");
-    return s->compose_figure(locus, figTmpl);
-  }
-
-  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) {
-    std::string n = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
-    PhraseStrategy* s = StrategyRegistry::instance().resolve_phrase(n);
-    if (!s) {
-      std::cerr << "Unknown phrase strategy '" << n << "', falling back to default_phrase\n";
-      s = StrategyRegistry::instance().resolve_phrase("default_phrase");
-    }
-    return s->compose_phrase(locus, phraseTmpl);
+    realize_chord_parts_(piece, plan);
+    realize_event_sequences_(piece, plan);
   }
 
   Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) {
-    std::string n = passTmpl.strategy.empty() ? std::string("default_passage") : passTmpl.strategy;
-    PassageStrategy* s = StrategyRegistry::instance().resolve_passage(n);
-    if (!s) {
-      std::cerr << "Unknown passage strategy '" << n << "', falling back to default_passage\n";
-      s = StrategyRegistry::instance().resolve_passage("default_passage");
-    }
+    PassageStrategy* s = &locus.kit->strategies.passage(passTmpl.strategy);
     // Plan phase — strategy refines the template (may mutate motif pool).
     PassageTemplate planned = s->plan_passage(locus, passTmpl);
-    // Persist planned template to PieceTemplate for regeneration / lock semantics.
+    // Persist the planned template to the plan for regeneration / lock semantics.
     if (locus.sectionIdx >= 0 && locus.sectionIdx < (int)locus.piece->sections.size()
-        && locus.partIdx >= 0 && locus.partIdx < (int)locus.pieceTemplate->parts.size()) {
+        && locus.partIdx >= 0 && locus.partIdx < (int)locus.plan->parts.size()) {
       const auto& sectionName = locus.piece->sections[locus.sectionIdx].name;
-      locus.pieceTemplate->parts[locus.partIdx].passages[sectionName] = planned;
+      locus.plan->parts[locus.partIdx].passages[sectionName] = planned;
     }
     // Compose phase — self-contained realization from the planned template.
     Passage passage = s->compose_passage(locus, planned);
@@ -278,37 +186,12 @@ struct Composer {
     return passage;
   }
 
-  // Motif accessors moved to PieceTemplate (Task 1). Callers reach them
-  // via locus.pieceTemplate->realized_motifs() / find_rhythm_motif() /
-  // find_contour_motif().
-
-  // --- Public registry lookup for Phase 2 shape dispatch ---
-  // Named awkwardly to signal it exists specifically for the shape-dispatch
-  // path in DefaultFigureStrategy::compose_figure. May be renamed later.
-  FigureStrategy* registry_get_for_phase2(const std::string& name) const {
-    return StrategyRegistry::instance().resolve_figure(name);
-  }
-
-  // --- Public helper used by the IComposer-compatible ClassicalComposer
-  // --- facade in Task 8. Given a (part, section) pair, realize exactly that
-  // --- passage onto piece.parts[].passages[section]. Not called during the
-  // --- normal compose() walk.
-  void compose_one_passage(Piece& piece, const PieceTemplate& tmpl,
-                           const std::string& partName,
-                           const std::string& sectionName) {
-    const PartTemplate* partTmpl = nullptr;
-    for (auto& pt : tmpl.parts) {
-      if (pt.name == partName) { partTmpl = &pt; break; }
-    }
-    if (!partTmpl) return;
-    compose_passage_(piece, tmpl, *partTmpl, sectionName);
-  }
-
 private:
   Randomizer rng_;
+  const ComposeKit& kit_;
 
-  // ---- Pre-refactor port: ClassicalComposer::setup_piece -----------------
-  void setup_piece_(Piece& piece, const PieceTemplate& tmpl) {
+  // ---- Builds the piece's sections and parts, and realizes the motifs ----
+  void setup_piece_(Piece& piece, PieceTemplate& tmpl) {
     // Key
     piece.key = Key::get(tmpl.keyName + " " +
         (tmpl.scaleName == "Minor" ? "Minor" : "Major"));
@@ -392,17 +275,7 @@ private:
     }
 
     // Realize motifs
-    realize_motifs_(piece, tmpl);
-  }
-
-  // ---- Thin wrapper around the free realize_motifs function. -------------
-  //
-  // const_cast is transitional: setup_piece_ / compose() currently take
-  // `const PieceTemplate&`; the free function mutates the realized maps.
-  // When compose() signature changes to take non-const (Plan B's plan_*
-  // requires it), this const_cast goes away.
-  void realize_motifs_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
-    ::mforce::realize_motifs(const_cast<PieceTemplate&>(tmpl), rng_);
+    realize_motifs(tmpl, rng_);
   }
 
   // -------------------------------------------------------------------------
@@ -580,9 +453,6 @@ private:
   }
 
   void realize_chord_parts_(Piece& piece, const PieceTemplate& tmpl) {
-    auto& realReg = RealizationStrategyRegistry::instance();
-    RealizationStrategy* blockStrat = realReg.resolve("block");
-
     for (int pi = 0; pi < (int)tmpl.parts.size(); ++pi) {
       const auto& partTmpl = tmpl.parts[pi];
       if (partTmpl.role != PartRole::Harmony) continue;
@@ -592,6 +462,7 @@ private:
         if (p.name == partTmpl.name) { part = &p; break; }
       }
       if (!part) continue;
+      RealizationStrategy* blockStrat = &kit_.strategies.realization("block");
 
       float beatOffset = 0.0f;
       for (int si = 0; si < (int)piece.sections.size(); ++si) {
@@ -624,17 +495,11 @@ private:
         const RhythmPattern* rp = (passTmpl && passTmpl->rhythmPattern)
             ? &*passTmpl->rhythmPattern : nullptr;
 
-        // Optional VoicingSelector (empty selectorName = legacy path).
+        // Optional VoicingSelector (empty name = inversion/spread path).
         VoicingSelector* selector = nullptr;
         if (passIt != partTmpl.passages.end()
             && !passIt->second.voicingSelector.empty()) {
-          selector = VoicingSelectorRegistry::instance()
-                         .resolve(passIt->second.voicingSelector);
-          if (!selector) {
-            std::cerr << "Unknown voicingSelector '"
-                      << passIt->second.voicingSelector
-                      << "', falling back to legacy inversion/spread path\n";
-          }
+          selector = &kit_.voicings.selector(passIt->second.voicingSelector);
         }
 
         // VoicingProfileSelector: produces a VoicingProfile per chord.
@@ -642,17 +507,8 @@ private:
         // Only built when a VoicingSelector is in play.
         std::unique_ptr<VoicingProfileSelector> profileSelector;
         if (selector && passIt != partTmpl.passages.end()) {
-          std::string selName = passIt->second.voicingProfileSelector.empty()
-                              ? std::string("static")
-                              : passIt->second.voicingProfileSelector;
-          profileSelector = VoicingProfileSelectorRegistry::instance()
-                                .create(selName);
-          if (!profileSelector) {
-            std::cerr << "Unknown voicingProfileSelector '" << selName
-                      << "', falling back to static\n";
-            profileSelector = VoicingProfileSelectorRegistry::instance()
-                                  .create("static");
-          }
+          profileSelector = kit_.voicings.make_profile_selector(
+              passIt->second.voicingProfileSelector);
           if (auto* sw = dynamic_cast<StaticVoicingProfileSelector*>(
                              profileSelector.get())) {
             sw->configure(passIt->second.voicingProfile);
@@ -766,8 +622,8 @@ private:
     }
   }
 
-  // ---- Pre-refactor port: ClassicalComposer::generate_default_passage -----
-  Passage generate_default_passage_(const Piece& piece, const PieceTemplate& tmpl,
+  // ---- The passage composed for a section the part's template omits ------
+  Passage generate_default_passage_(Piece& piece, PieceTemplate& tmpl,
                                     const Scale& scale) {
     PitchReader reader(scale);
     reader.set_pitch(5, 0);
@@ -813,15 +669,12 @@ private:
     PassageTemplate passTmpl;
     passTmpl.phrases = {ante, cons};
 
-    ::mforce::rng::Scope rngScope(rng_);
-    Locus locus{&piece, const_cast<PieceTemplate*>(&tmpl), 0, 0};
+    Locus locus{&piece, &tmpl, &kit_, &rng_, 0, 0};
     return this->compose_passage(locus, passTmpl);
   }
 
-  // ---- Per-passage dispatcher: port of
-  // ---- ClassicalComposer::compose(piece, tmpl, partName, sectionName)
-  // ---- at classical_composer.h:49-77 -------------------------------------
-  void compose_passage_(Piece& piece, const PieceTemplate& tmpl,
+  // ---- Per-passage dispatcher: one part's passage for one section --------
+  void compose_passage_(Piece& piece, PieceTemplate& tmpl,
                         const PartTemplate& partTmpl,
                         const std::string& sectionName) {
     // Find the Part object in the piece to hold the realized passage.
@@ -836,8 +689,8 @@ private:
     Scale scale = piece.key.scale;
 
     // Find the Section object for harmonic context.
-    const Section* section = nullptr;
-    for (const auto& s : piece.sections) {
+    Section* section = nullptr;
+    for (auto& s : piece.sections) {
       if (s.name == sectionName) { section = &s; break; }
     }
 
@@ -853,7 +706,7 @@ private:
       for (int i = 0; i < (int)piece.parts.size(); ++i) {
         if (piece.parts[i].name == partTmpl.name) { partIdx = i; break; }
       }
-      Locus locus{&piece, const_cast<PieceTemplate*>(&tmpl), sectionIdx, partIdx};
+      Locus locus{&piece, &tmpl, &kit_, &rng_, sectionIdx, partIdx};
       if (section) {
         locus.harmony = &section->harmonyTimeline;
       }
@@ -863,9 +716,8 @@ private:
       for (const auto& s : tmpl.sections) {
         if (s.name == sectionName) { sd = &s; break; }
       }
-      PassageStrategy* strat = StrategyRegistry::instance().resolve_passage(
-          passIt->second.strategy.empty() ? "default_passage" : passIt->second.strategy);
-      if (strat && strat->scope() == StrategyScope::Melody
+      PassageStrategy* strat = &kit_.strategies.passage(passIt->second.strategy);
+      if (strat->scope() == StrategyScope::Melody
           && section && section->harmonyTimeline.empty()
           && sd && !sd->styleName.empty()) {
         auto style = StyleTable::load_by_name(sd->styleName);
@@ -873,12 +725,11 @@ private:
         wc.startChord = ScaleChord{0, 0, &ChordDef::get("Major")};
         wc.totalBeats = sd->beats;
         auto prog = ChordWalker::walk(style, wc, tmpl.masterSeed + sectionIdx * 1000);
-        const_cast<Section*>(section)->harmonyTimeline.set_segment(
+        section->harmonyTimeline.set_segment(
             0.0f, sd->beats, prog, "chord_walker");
-        const_cast<Section*>(section)->chordProgression = prog;
+        section->chordProgression = prog;
       }
 
-      ::mforce::rng::Scope rngScope(rng_);
       passage = compose_passage(locus, passIt->second);
       // Pin this passage's scale if the template asks for it. Doubles as the
       // "this part does not follow the section's key contexts" switch, which
@@ -898,13 +749,8 @@ private:
 
 // ============================================================================
 // Out-of-line definitions for ShapeCadentialApproachStrategy,
-// ShapeSkippingStrategy, and ShapeSteppingStrategy.
-//
-// These bodies live here — BELOW the Composer class — because they call
-// ctx.composer->find_rhythm_motif() and ctx.composer->find_contour_motif(),
-// which require the full Composer definition. Placing them in
-// shape_strategies.h (where Composer is only forward-declared) would cause
-// incomplete-type errors. Same pattern as DefaultFigureStrategy::compose_figure.
+// ShapeSkippingStrategy, and ShapeSteppingStrategy. They resolve motif
+// references through Locus::plan and draw seeds from Locus::rng.
 // ============================================================================
 
 namespace detail {
@@ -912,7 +758,7 @@ namespace detail {
 inline PulseSequence resolve_rhythm(const FigureTemplate& ft, Locus locus,
                                      uint32_t seed, float totalBeats, float defaultPulse) {
   if (!ft.rhythmMotifName.empty()) {
-    const PulseSequence* ps = locus.pieceTemplate->find_rhythm_motif(ft.rhythmMotifName);
+    const PulseSequence* ps = locus.plan->find_rhythm_motif(ft.rhythmMotifName);
     if (ps) {
       PulseSequence result = *ps;
       if (ft.rhythmTransform == "retrograde") result = result.retrograded();
@@ -930,7 +776,7 @@ inline PulseSequence resolve_rhythm(const FigureTemplate& ft, Locus locus,
 inline StepSequence resolve_contour(const FigureTemplate& ft, Locus locus,
                                      uint32_t seed, int noteCount, FigureDirection dir) {
   if (!ft.contourMotifName.empty()) {
-    const StepSequence* ss = locus.pieceTemplate->find_contour_motif(ft.contourMotifName);
+    const StepSequence* ss = locus.plan->find_contour_motif(ft.contourMotifName);
     if (ss) {
       StepSequence result = *ss;
       if (ft.contourTransform == "invert") result = result.inverted();
@@ -957,7 +803,7 @@ inline StepSequence resolve_contour(const FigureTemplate& ft, Locus locus,
 
 inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
     Locus locus, const FigureTemplate& ft) {
-  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
+  uint32_t seed = ft.seed ? ft.seed : locus.rng->rng();
   Randomizer rng(seed);
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
@@ -1096,7 +942,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
 
   // If a contour motif was provided, use it instead (override the generated one)
   if (!ft.contourMotifName.empty()) {
-    const StepSequence* ss = locus.pieceTemplate->find_contour_motif(ft.contourMotifName);
+    const StepSequence* ss = locus.plan->find_contour_motif(ft.contourMotifName);
     if (ss) {
       contour = *ss;
       if (ft.contourTransform == "invert") contour = contour.inverted();
@@ -1120,7 +966,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
 
 inline MelodicFigure ShapeSkippingStrategy::compose_figure(
     Locus locus, const FigureTemplate& ft) {
-  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
+  uint32_t seed = ft.seed ? ft.seed : locus.rng->rng();
   Randomizer rng(seed);
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
@@ -1159,7 +1005,7 @@ inline MelodicFigure ShapeSkippingStrategy::compose_figure(
 
 inline MelodicFigure ShapeSteppingStrategy::compose_figure(
     Locus locus, const FigureTemplate& ft) {
-  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
+  uint32_t seed = ft.seed ? ft.seed : locus.rng->rng();
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
 
@@ -1181,25 +1027,21 @@ inline MelodicFigure ShapeSteppingStrategy::compose_figure(
 }
 
 // ============================================================================
-// Out-of-line definition of DefaultFigureStrategy::compose_figure.
-//
-// Lives here — BELOW the Composer class — because the body needs the full
-// definition of Composer to call ctx.composer->realized_motifs(). In
-// default_strategies.h, Composer is only forward-declared, so the body
-// can't be inline there.
+// Out-of-line definition of DefaultFigureStrategy::compose_figure. It looks
+// up the shape strategies in the kit, which needs ComposeKit complete.
 // ============================================================================
 
 inline MelodicFigure DefaultFigureStrategy::compose_figure(
     Locus locus, const FigureTemplate& figTmpl) {
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   // Use the figure's seed for reproducibility
-  uint32_t figSeed = figTmpl.seed ? figTmpl.seed : ::mforce::rng::next();
+  uint32_t figSeed = figTmpl.seed ? figTmpl.seed : locus.rng->rng();
 
   switch (figTmpl.source) {
     case FigureSource::Locked:
       if (figTmpl.lockedFigure) return *figTmpl.lockedFigure;
       {
-        RandomFigureBuilder rfb(::mforce::rng::next());
+        RandomFigureBuilder rfb(locus.rng->rng());
         Constraints fc; fc.length = 1.0f;
         return rfb.build_singleton(fc);  // fallback
       }
@@ -1237,14 +1079,14 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
     }
 
     case FigureSource::Reference: {
-      auto it = locus.pieceTemplate->realized_motifs().find(figTmpl.motifName);
-      if (it != locus.pieceTemplate->realized_motifs().end()) return it->second;
+      auto it = locus.plan->realized_motifs().find(figTmpl.motifName);
+      if (it != locus.plan->realized_motifs().end()) return it->second;
       return generate_figure(figTmpl, figSeed);
     }
 
     case FigureSource::Transform: {
-      auto it = locus.pieceTemplate->realized_motifs().find(figTmpl.motifName);
-      MelodicFigure base = (it != locus.pieceTemplate->realized_motifs().end())
+      auto it = locus.plan->realized_motifs().find(figTmpl.motifName);
+      MelodicFigure base = (it != locus.plan->realized_motifs().end())
         ? it->second
         : generate_figure(figTmpl, figSeed);
       return apply_transform(base, figTmpl.transform, figTmpl.transformParam, figSeed);
@@ -1268,7 +1110,7 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
           default:                             shapeName = nullptr; break;
         }
         if (shapeName) {
-          FigureStrategy* s = StrategyRegistry::instance().resolve_figure(shapeName);
+          FigureStrategy* s = locus.kit->strategies.find_figure(shapeName);
           if (s) {
             FigureTemplate shapeArg = figTmpl;
             shapeArg.seed = figSeed;
@@ -1305,11 +1147,8 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
 }
 
 // ============================================================================
-// Out-of-line definition of DefaultPassageStrategy::compose_passage.
-//
-// Lives here — BELOW the Composer class — because the body calls
-// ctx.composer->compose_phrase(...) and Composer is forward-declared only in
-// default_strategies.h. Same pattern as DefaultFigureStrategy::compose_figure.
+// Out-of-line definition of DefaultPassageStrategy::compose_passage. It
+// looks up phrase strategies in the kit, which needs ComposeKit complete.
 // ============================================================================
 
 inline Passage DefaultPassageStrategy::compose_passage(
@@ -1348,19 +1187,19 @@ inline Passage DefaultPassageStrategy::compose_passage(
   }
 
   // Walk3 best-of-N rerolls derived motifs and commits the winners, so it
-  // WRITES the piece template's realized motif pool (the same pool
-  // Composer::realize_motifs_ fills at setup). Phrases composed later —
+  // WRITES the plan's realized motif pool (the same pool realize_motifs
+  // fills at setup). Phrases composed later —
   // in this passage and any other — read the committed derivations.
   // Null (never touched) outside harmonic mode.
   using MotifPool = std::unordered_map<std::string, MelodicFigure>;
   MotifPool* const realizedPool =
-      harmonicMode ? &locus.pieceTemplate->realizedMotifs : nullptr;
+      harmonicMode ? &locus.plan->realizedMotifs : nullptr;
 
   // Rerollable = a content-less derived figure motif without a pinned
   // generationSeed (spec §3: pinned motifs are never rerolled).
   std::unordered_map<std::string, const Motif*> motifByName;
   if (harmonicMode)
-    for (const auto& m : locus.pieceTemplate->motifs) motifByName[m.name] = &m;
+    for (const auto& m : locus.plan->motifs) motifByName[m.name] = &m;
   auto is_derived = [&](const Motif* m) {
     return m && m->is_figure() && m->figure().units.empty() && m->derivedFrom;
   };
@@ -1458,7 +1297,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
           std::set<std::string> placed;
           while (progress) {
             progress = false;
-            for (const auto& m : locus.pieceTemplate->motifs) {
+            for (const auto& m : locus.plan->motifs) {
               if (placed.count(m.name) || !is_derived(&m)) continue;
               const bool parentTouched = touched.count(*m.derivedFrom) > 0;
               const bool isOwned = owned.count(m.name) > 0;
@@ -1488,8 +1327,8 @@ inline Passage DefaultPassageStrategy::compose_passage(
         std::optional<Pitch> pinned;
         if (localTmpl.parallel && lastChosenStart) pinned = lastChosenStart;
         const bool isFinal = i == (int)passTmpl.phrases.size() - 1;
-        const float pulse = locus.pieceTemplate->defaultPulse > 0.0f
-            ? locus.pieceTemplate->defaultPulse : 1.0f;
+        const float pulse = locus.plan->defaultPulse > 0.0f
+            ? locus.plan->defaultPulse : 1.0f;
 
         struct PhraseCand {
           AnchorResult res;
@@ -1497,7 +1336,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
           MotifPool motifs;
         };
         std::vector<PhraseCand> cands;
-        Randomizer candRng(::mforce::rng::next());
+        Randomizer candRng(locus.rng->rng());
         const int nCand = std::max(1, melodyProfile.search.phraseCandidates);
         for (int k = 0; k < nCand; ++k) {
           for (const auto& [n, f] : entry) realized[n] = f;
@@ -1577,12 +1416,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
 
       Locus phraseLocus = locus.with_phrase(i);
 
-      std::string pn = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
-      PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
-      if (!ps) {
-        std::cerr << "Unknown phrase strategy '" << pn << "', falling back to default_phrase\n";
-        ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
-      }
+      PhraseStrategy* ps = &locus.kit->strategies.phrase(phraseTmpl.strategy);
       Phrase phrase = ps->compose_phrase(phraseLocus, localTmpl);
 
       for (const auto& figPtr : phrase.figures)
@@ -1605,7 +1439,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
   // ---- Walk3 §3 passage level: M whole passages, ranked, top-k dice. ----
   MotifPool& realized = *realizedPool;
   const MotifPool snapshot = realized;
-  Randomizer passRng(::mforce::rng::next());
+  Randomizer passRng(locus.rng->rng());
   const int nPass = std::max(1, melodyProfile.search.passageCandidates);
   std::vector<PassageAttempt> attempts;
   attempts.reserve(size_t(nPass));
@@ -1634,11 +1468,8 @@ inline Passage DefaultPassageStrategy::compose_passage(
 }
 
 // ============================================================================
-// Out-of-line definition of DefaultPhraseStrategy::compose_phrase.
-//
-// Lives here — BELOW the Composer class — because the body calls
-// ctx.composer->compose_figure(...) and Composer is forward-declared only in
-// default_strategies.h. Same pattern as the other two out-of-line definitions.
+// Out-of-line definition of DefaultPhraseStrategy::compose_phrase. It looks
+// up the default figure strategy in the kit, which needs ComposeKit complete.
 // ============================================================================
 
 inline Phrase DefaultPhraseStrategy::compose_phrase(
@@ -1690,35 +1521,26 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
       }
     }
 
-    // MelodicFunction-driven shape selection — same logic as
-    // classical_composer.h:197-202.
+    // MelodicFunction-driven shape selection.
     FigureTemplate figTmpl = phraseTmpl.figures[i];
     if (phraseTmpl.function != MelodicFunction::Free
         && figTmpl.source == FigureSource::Generate
         && figTmpl.shape == FigureShape::Free) {
       figTmpl.shape = DefaultFigureStrategy::choose_shape(
-          phraseTmpl.function, i, numFigs, ::mforce::rng::next(),
+          phraseTmpl.function, i, numFigs, locus.rng->rng(),
           phraseTmpl.cadentialArrival == "approach");
     }
 
     // Dispatch to the figure level. DefaultFigureStrategy's Literal path
     // reads the cursor via pitch_before(locus), which walks the phrase/
-    // passage structure so far. Since the phrase we're building hasn't been
-    // inserted into the piece yet, pitch_before sees an empty passage and
-    // falls back to the passage template startingPitch — NOT the right
-    // answer for figures mid-phrase. Work around by stamping the cursor
-    // into the figure template via a synthetic startingPitch-bearing
-    // FigureTemplate is not supported; instead, we rely on the fact that
-    // the pre-refactor behavior used ctx.cursor advanced by prior figure
-    // net_steps to drive the Literal path's absoluteDeg(cursor). The
-    // runningReader here tracks that, and for the Literal path we need to
-    // provide it. Simplest fix: inline the Literal path's cursor-relative
-    // computation directly here for Literal figures; or extend pitch_before
-    // to accept an override. For Task 6 minimum viable: if the figure is
-    // Literal, copy its pitches through a small helper that honors the
-    // runningReader. For non-Literal figures, the cursor isn't read.
+    // passage structure so far. The phrase being built is not in the piece
+    // yet, so pitch_before would see an empty passage and fall back to the
+    // passage template's startingPitch, which is wrong mid-phrase. A Literal
+    // figure is therefore realized here against runningReader, the cursor
+    // advanced by the figures before it. Other sources do not read the
+    // cursor and go to the default figure strategy.
     Locus figLocus = locus.with_figure(i);
-    FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
+    FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
     MelodicFigure fig;
     if (figTmpl.source == FigureSource::Literal) {
       // Inline cursor-aware Literal realization using the runningReader.
@@ -1836,10 +1658,8 @@ inline void advance(PitchReader& reader, const ScaleChord& chord,
 // ---------------------------------------------------------------------------
 // Out-of-line definition of AlternatingFigureStrategy::compose_passage.
 //
-// Placed here (after Composer is fully defined) to break the circular
-// dependency: AlternatingFigureStrategy calls ctx.composer->compose_figure,
-// but Composer is only forward-declared in strategy.h.
-// Same pattern as DefaultPassageStrategy/DefaultPhraseStrategy/DefaultFigureStrategy.
+// It looks up the default figure strategy in the kit, which needs
+// ComposeKit complete.
 // ---------------------------------------------------------------------------
 inline Passage AlternatingFigureStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
@@ -1868,7 +1688,7 @@ inline Passage AlternatingFigureStrategy::compose_passage(
   PitchReader runningReader(scale);
   runningReader.set_pitch(phrase.startingPitch);
 
-  FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
+  FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
 
   for (int ci = 0; ci < chordProg.count(); ++ci) {
     bool isA = (ci % 2 == 0);
@@ -1961,7 +1781,7 @@ inline Passage PhraseAwareFigureStrategy::compose_passage(
 
   Passage passage;
 
-  FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
+  FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
 
   // Passage-level running cursor. Carried across phrases so a non-parallel
   // phrase continues where the previous one stopped — the same continuity

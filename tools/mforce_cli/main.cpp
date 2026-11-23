@@ -11,7 +11,8 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/conductor.h"
-#include "mforce/music/classical_composer.h"
+#include "mforce/music/compose.h"
+#include "mforce/music/register_builtin.h"
 #include "mforce/music/music_json.h"
 #include "mforce/music/parse_util.h"
 #include "mforce/music/templates.h"
@@ -413,7 +414,8 @@ static void print_composed(const Piece& piece) {
 }
 
 // Composition `i` of the template, played, written and printed.
-static int compose_one(const PieceTemplate& baseTmpl, const std::string& patchPath,
+static int compose_one(const PieceTemplate& baseTmpl, const ComposeKit& kit,
+                       const std::string& patchPath,
                        const std::string& outPrefix, int i) {
     // Per-part instrument patches: each part's instrumentPatch (the comp
     // templates give melody oboe1 and accompaniment piano_default), the CLI
@@ -445,9 +447,7 @@ static int compose_one(const PieceTemplate& baseTmpl, const std::string& patchPa
     if (tmpl.parts[0].instrumentPatch.empty())
         tmpl.parts[0].instrumentPatch = patchPath;
 
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
+    const Piece piece = compose(tmpl, kit).piece;
 
     // The composer sets each part's instrumentType to its template part's name.
     Ensemble ensemble;
@@ -515,8 +515,10 @@ static int run_compose(int argc, char** argv) {
         std::cout << "Loaded template: " << templatePath << "\n";
     }
 
+    ComposeKit kit;
+    register_builtin(kit);
     for (int i = 0; i < count; ++i)
-        if (compose_one(baseTmpl, patchPath, outPrefix, i) != 0) return 1;
+        if (compose_one(baseTmpl, kit, patchPath, outPrefix, i) != 0) return 1;
     return 0;
 }
 

@@ -1,53 +1,29 @@
 #pragma once
+#include "mforce/music/strategy_registry.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
-#include <string>
-#include <vector>
-#include <memory>
+#include "mforce/music/voicing_registry.h"
 
 namespace mforce {
 
-// ---------------------------------------------------------------------------
-// IComposer — interface for algorithmic composition.
-// Piece is always passed for full context. PieceTemplate is the recipe.
-// Narrower overloads compose only the specified scope.
-// ---------------------------------------------------------------------------
-struct IComposer {
-  virtual ~IComposer() = default;
-  virtual std::string name() const = 0;
-
-  // Compose everything
-  virtual void compose(Piece& piece, const PieceTemplate& tmpl) = 0;
-
-  // Compose all sections for one part
-  virtual void compose(Piece& piece, const PieceTemplate& tmpl,
-                       const std::string& partName) = 0;
-
-  // Compose one passage (one part + one section)
-  virtual void compose(Piece& piece, const PieceTemplate& tmpl,
-                       const std::string& partName,
-                       const std::string& sectionName) = 0;
+// What a host needs to compose: the strategies and the voicings it has
+// registered. A host builds one (register_builtin fills it) and passes it
+// to every compose call.
+struct ComposeKit {
+  StrategyRegistry strategies;
+  VoicingRegistry  voicings;
 };
 
-// ---------------------------------------------------------------------------
-// Genre — a named collection of Composers.
-// ---------------------------------------------------------------------------
-struct Genre {
-  std::string genreName;
-  std::vector<std::shared_ptr<IComposer>> composers;
-  int defaultComposer{0};
-
-  void add_composer(std::shared_ptr<IComposer> c) { composers.push_back(std::move(c)); }
-
-  IComposer* get_default() {
-    return composers.empty() ? nullptr : composers[defaultComposer].get();
-  }
-
-  IComposer* get_composer(const std::string& name) {
-    for (auto& c : composers)
-      if (c->name() == name) return c.get();
-    return nullptr;
-  }
+// The result of composing a request.
+struct Composition {
+  Piece piece;
+  PieceTemplate plan;   // the request as the strategies planned it: motifs
+                        // realized and added, each passage as its
+                        // strategy's plan step left it
 };
+
+// Composes a piece from a request. The request is copied into the plan
+// first and never changed. The seed is the request's masterSeed.
+Composition compose(const PieceTemplate& request, const ComposeKit& kit);
 
 } // namespace mforce

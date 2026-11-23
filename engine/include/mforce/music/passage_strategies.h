@@ -24,7 +24,7 @@
 // Registered as "pedal_buildup" and "sequence_passage".
 
 #include "mforce/music/strategy.h"
-#include "mforce/music/strategy_registry.h"
+#include "mforce/music/compose.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/figures.h"
@@ -99,7 +99,7 @@ inline int predicted_span(const Scale& scale, const Pitch& start,
 inline uint32_t resolve_seed(const Locus& locus, uint32_t configSeed,
                              uint32_t salt) {
   if (configSeed != 0) return configSeed ^ salt;
-  return (locus.pieceTemplate->masterSeed
+  return (locus.plan->masterSeed
           ^ (uint32_t(locus.sectionIdx) * 1031u
              + uint32_t(locus.partIdx) * 17u)) ^ salt;
 }
@@ -182,7 +182,7 @@ inline float grid_complete(Passage& passage, float grid) {
 // the name is already taken, so repeat compose calls stay idempotent).
 inline void put_motif(Locus& locus, const std::string& name,
                       MelodicFigure fig, uint32_t seed) {
-  if (locus.pieceTemplate->realizedMotifs.count(name)) return;
+  if (locus.plan->realizedMotifs.count(name)) return;
   if (!fig.units.empty()) fig.units[0].step = 0;   // step[0]=0 convention
   Motif m;
   m.name = name;
@@ -190,7 +190,7 @@ inline void put_motif(Locus& locus, const std::string& name,
   m.content = std::move(fig);
   m.origin = MotifOrigin::Generated;
   m.generationSeed = seed;
-  locus.pieceTemplate->add_motif(std::move(m));
+  locus.plan->add_motif(std::move(m));
 }
 
 // prior_passage_tail(locus, units) — the last `units` FigureUnits of the
@@ -247,11 +247,7 @@ inline Phrase compose_anchored_phrase(
   }
   pt.connectors = conns;
 
-  PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
-  if (!ps) {
-    std::cerr << "passage_anchors: default_phrase not registered\n";
-    return Phrase{};
-  }
+  PhraseStrategy* ps = &locus.kit->strategies.phrase("default_phrase");
   return ps->compose_phrase(locus.with_phrase(0), pt);
 }
 

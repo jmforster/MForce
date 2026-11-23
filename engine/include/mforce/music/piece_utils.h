@@ -9,7 +9,7 @@ namespace mforce::piece_utils {
 // Resolve the Passage at this Locus, given the parallel Section/Part indices.
 // Returns nullptr if structure isn't populated yet (e.g., mid-composition
 // before the passage has been inserted).
-// Precondition: locus.piece != nullptr && locus.pieceTemplate != nullptr.
+// Precondition: locus.piece != nullptr && locus.plan != nullptr.
 inline const Passage* passage_at(const Locus& locus) {
   if (locus.partIdx < 0 || locus.partIdx >= (int)locus.piece->parts.size()) return nullptr;
   if (locus.sectionIdx < 0 || locus.sectionIdx >= (int)locus.piece->sections.size()) return nullptr;
@@ -33,15 +33,15 @@ inline const Passage* passage_at(const Locus& locus) {
 // DefaultPhraseStrategy / PeriodPhraseStrategy / SentencePhraseStrategy all
 // guarantee this (the first phrase inherits the passage's seeded cursor).
 //
-// Precondition: locus.piece != nullptr && locus.pieceTemplate != nullptr.
+// Precondition: locus.piece != nullptr && locus.plan != nullptr.
 inline Pitch pitch_before(const Locus& locus) {
   if (locus.sectionIdx < 0 || locus.sectionIdx >= (int)locus.piece->sections.size()) return Pitch{};
-  if (locus.partIdx < 0 || locus.partIdx >= (int)locus.pieceTemplate->parts.size()) return Pitch{};
+  if (locus.partIdx < 0 || locus.partIdx >= (int)locus.plan->parts.size()) return Pitch{};
 
   const auto& sectionName = locus.piece->sections[locus.sectionIdx].name;
 
   // Resolve the PassageTemplate via PartTemplate.passages (unordered_map keyed by section name)
-  const auto& partTmpl = locus.pieceTemplate->parts[locus.partIdx];
+  const auto& partTmpl = locus.plan->parts[locus.partIdx];
   auto tmplIt = partTmpl.passages.find(sectionName);
   if (tmplIt == partTmpl.passages.end()) return Pitch{};
   const PassageTemplate& passTmpl = tmplIt->second;
@@ -165,7 +165,7 @@ inline PitchRange range_in_passage_before(const Locus& locus) {
   if (!pass) return r;
 
   const auto& sectionName = locus.piece->sections[locus.sectionIdx].name;
-  const auto& partTmpl = locus.pieceTemplate->parts[locus.partIdx];
+  const auto& partTmpl = locus.plan->parts[locus.partIdx];
   auto tmplIt = partTmpl.passages.find(sectionName);
   if (tmplIt == partTmpl.passages.end()) return r;
   const PassageTemplate& passTmpl = tmplIt->second;

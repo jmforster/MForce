@@ -4,17 +4,20 @@
 
 namespace mforce {
 
-// Locus — a structural coordinate. Carries references to the Piece being
-// built and the PieceTemplate driving the build, plus the index path to
-// the current (Section, Part, Passage, Phrase, Figure) position.
-//
-// pieceTemplate is non-const: the plan phase (Plan B) may mutate the
-// motif pool. Compose phase is read-only by contract, not by type.
+// Locus — a structural coordinate. Carries the Piece being built, the plan
+// (the working copy of the request that the strategies write to), the kit
+// of registered strategies and voicings, and the random source every
+// strategy draws from, plus the index path to the current (Section, Part,
+// Passage, Phrase, Figure) position.
 struct HarmonyTimeline;
+struct ComposeKit;
+struct Randomizer;
 
 struct Locus {
-  const Piece* piece;
-  PieceTemplate* pieceTemplate;
+  Piece* piece;
+  PieceTemplate* plan;
+  const ComposeKit* kit;
+  Randomizer* rng;
   int sectionIdx;
   int partIdx;
   int passageIdx{-1};

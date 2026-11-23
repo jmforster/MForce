@@ -1,5 +1,7 @@
 #include "mforce/music/basics.h"
-#include "mforce/music/classical_composer.h"
+#include "mforce/music/compose.h"
+#include "mforce/music/default_strategies.h"
+#include "mforce/music/register_builtin.h"
 #include "mforce/music/figure_transforms.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
@@ -60,6 +62,13 @@ int g_failed = 0;
     else         { std::cerr << " FAIL\n"; ++g_failed; }                      \
 } while (0)
 
+// Composes `tmpl` with every built-in strategy and voicing registered.
+static Composition compose_builtin(const PieceTemplate& tmpl) {
+    ComposeKit kit;
+    register_builtin(kit);
+    return compose(tmpl, kit);
+}
+
 // ----------------------------------------------------------------------------
 // Integration helper: run `figure` through the Composer via
 // WrapperPhraseStrategy and return the realized MelodicFigure. On any
@@ -105,9 +114,7 @@ ComposeResult compose_locked(const MelodicFigure& figure) {
     part.passages["Main"] = passage;
     tmpl.parts.push_back(part);
 
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
+    Piece piece = compose_builtin(tmpl).piece;
 
     if (piece.parts.size() != 1) return {false, {}};
     auto it = piece.parts[0].passages.find("Main");
@@ -186,9 +193,7 @@ int test_smoke_round_trip() {
     part.passages["Main"] = passage;
     tmpl.parts.push_back(part);
 
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
+    Piece piece = compose_builtin(tmpl).piece;
 
     EXPECT_EQ(piece.parts.size(), 1u, "piece.parts.size");
     auto passageIt = piece.parts[0].passages.find("Main");
@@ -744,9 +749,7 @@ int integ_pitch_realization() {
     part.passages["Main"] = passage;
     tmpl.parts.push_back(part);
 
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
+    Piece piece = compose_builtin(tmpl).piece;
 
     const auto& es = piece.parts[0].elementSequence;
     const int expected[] = {48, 50, 48, 48};
@@ -811,9 +814,7 @@ TwoFigureResult compose_two_figure(const TwoFigurePhraseConfig& cfg) {
     part.passages["Main"] = passage;
     tmpl.parts.push_back(part);
 
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
+    Piece piece = compose_builtin(tmpl).piece;
 
     if (piece.parts.size() != 1) return {false, {}, {}};
     auto it = piece.parts[0].passages.find("Main");
@@ -938,9 +939,7 @@ ElaboratedResult compose_elaborated(const ElaboratedPhraseConfig& cfg) {
     part.passages["Main"] = passage;
     tmpl.parts.push_back(part);
 
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
+    Piece piece = compose_builtin(tmpl).piece;
 
     if (piece.parts.size() != 1) return {false, {}, {}};
     auto it = piece.parts[0].passages.find("Main");
@@ -1155,9 +1154,7 @@ int run_render(int argc, char** argv) {
     part.passages["Main"] = passage;
     tmpl.parts.push_back(part);
 
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
+    Piece piece = compose_builtin(tmpl).piece;
 
     const Patch patch = load_patch(patchPath);
     auto instrument = build_instrument(patch);

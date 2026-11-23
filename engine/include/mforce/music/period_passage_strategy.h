@@ -1,13 +1,12 @@
 #pragma once
 #include "mforce/music/strategy.h"
-#include "mforce/music/strategy_registry.h"
+#include "mforce/music/compose.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/figures.h"
 #include "mforce/music/piece_utils.h"
 #include "mforce/music/default_strategies.h"
 #include "mforce/music/chord_walker.h"
-#include <iostream>
 
 namespace mforce {
 
@@ -16,12 +15,13 @@ namespace mforce {
 //
 // plan_passage: reads seed.periods[], resolves each period's variant into
 // concrete PhraseTemplates for antecedent + consequent, flattens into
-// seed.phrases[] in order. May mutate pieceTemplate's motif pool via
-// add_derived_motif for Modified-variant consequents (Task 10 completes
-// Modified + Contrasting; this task covers Parallel only).
+// seed.phrases[] in order. Adds motifs to the plan's motif pool: generated
+// antecedent figures, and add_derived_motif for Modified-variant
+// consequents.
 //
-// compose_passage: dispatches each flattened phrase via the registered
-// PhraseStrategy (default_phrase fallback), concatenates into a Passage.
+// compose_passage: dispatches each flattened phrase to the phrase strategy
+// it names (default_phrase when it names none), concatenates into a
+// Passage.
 //
 // Registered under name "period_passage".
 // ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
         auto& ft = phrase.figures[fi];
         if (ft.source != FigureSource::Generate) continue;
 
-        uint32_t figSeed = ::mforce::rng::next();
+        uint32_t figSeed = locus.rng->rng();
         FigureTemplate genTmpl = ft;
         genTmpl.seed = figSeed;
 
@@ -160,7 +160,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
         m.name = motifName;
         m.userProvided = false;
         m.content = fig;
-        locus.pieceTemplate->add_motif(std::move(m));
+        locus.plan->add_motif(std::move(m));
 
         ft.source = FigureSource::Reference;
         ft.motifName = motifName;
@@ -192,7 +192,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
         {0, 3, 5, 0},  // I-IV-vi-I
       };
       const int N = int(sizeof(PROGRESSIONS) / sizeof(PROGRESSIONS[0]));
-      Randomizer progRng(locus.pieceTemplate->masterSeed + uint32_t(pi) * 31u + 9001u);
+      Randomizer progRng(locus.plan->masterSeed + uint32_t(pi) * 31u + 9001u);
       const int* prog = PROGRESSIONS[progRng.int_range(0, N - 1)];
 
       const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
@@ -245,7 +245,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
       // Consequent figure references derive from antecedent's via the
       // period's consequentTransform. For each Reference-source figure
       // in the consequent, swap motifName for an auto-derived motif
-      // synthesized via pieceTemplate->add_derived_motif. For non-
+      // synthesized via plan->add_derived_motif. For non-
       // Reference figures (Literal, Locked, Generate), pass through.
       PhraseTemplate ante = p.antecedent;
       PhraseTemplate consq = p.antecedent;  // start from antecedent
@@ -253,7 +253,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
       if (p.consequentTransform) {
         for (auto& ft : consq.figures) {
           if (ft.source == FigureSource::Reference && !ft.motifName.empty()) {
-            std::string derivedName = locus.pieceTemplate->add_derived_motif(
+            std::string derivedName = locus.plan->add_derived_motif(
                 ft.motifName,
                 *p.consequentTransform,
                 p.consequentTransformParam);
@@ -291,7 +291,7 @@ inline Passage PeriodPassageStrategy::compose_passage(
 
   if (!pt.startingPitch) return passage;
 
-  const auto& sec = locus.piece->sections[locus.sectionIdx];
+  auto& sec = locus.piece->sections[locus.sectionIdx];
   const Scale& scale = sec.scale;
   PitchReader runningReader(scale);
   runningReader.set_pitch(*pt.startingPitch);
@@ -308,15 +308,7 @@ inline Passage PeriodPassageStrategy::compose_passage(
       runningReader.set_pitch(*localTmpl.startingPitch);
     }
 
-    std::string pn = localTmpl.strategy.empty()
-                     ? std::string("default_phrase")
-                     : localTmpl.strategy;
-    PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
-    if (!ps) {
-      std::cerr << "Unknown phrase strategy '" << pn
-                << "', falling back to default_phrase\n";
-      ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
-    }
+    PhraseStrategy* ps = &locus.kit->strategies.phrase(localTmpl.strategy);
     Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
 
     for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {
@@ -333,7 +325,7 @@ inline Passage PeriodPassageStrategy::compose_passage(
 
   // --- Phase 2: Generate harmony from composed melody ---
   const PieceTemplate::SectionTemplate* sd = nullptr;
-  for (const auto& s : locus.pieceTemplate->sections) {
+  for (const auto& s : locus.plan->sections) {
     if (s.name == sec.name) { sd = &s; break; }
   }
 
@@ -366,15 +358,15 @@ inline Passage PeriodPassageStrategy::compose_passage(
           anteEnd = cadence_chord(period.antecedent.cadenceType,
                                   period.antecedent.cadenceTarget);
           wc.endChord = anteEnd;
-          wc.cadenceBeat = compute_cadence_beat(period.antecedent, *locus.pieceTemplate);
+          wc.cadenceBeat = compute_cadence_beat(period.antecedent, *locus.plan);
         }
         wc.melodyProfile = build_melody_profile(
             passage, scale, beatOffset, beatOffset + anteBeats);
         wc.totalBeats = anteBeats;
         auto attacks = make_attacks(anteBeats);
         auto prog = ChordWalker::harmonize(style, wc, attacks,
-            locus.pieceTemplate->masterSeed + pi * 100);
-        const_cast<Section&>(sec).harmonyTimeline.set_segment(
+            locus.plan->masterSeed + pi * 100);
+        sec.harmonyTimeline.set_segment(
             beatOffset, beatOffset + anteBeats, prog, "period_passage");
         beatOffset += anteBeats;
       }
@@ -386,15 +378,15 @@ inline Passage PeriodPassageStrategy::compose_passage(
         if (period.consequent.cadenceType > 0) {
           wc.endChord = cadence_chord(period.consequent.cadenceType,
                                        period.consequent.cadenceTarget);
-          wc.cadenceBeat = compute_cadence_beat(period.consequent, *locus.pieceTemplate);
+          wc.cadenceBeat = compute_cadence_beat(period.consequent, *locus.plan);
         }
         wc.melodyProfile = build_melody_profile(
             passage, scale, beatOffset, beatOffset + consBeats);
         wc.totalBeats = consBeats;
         auto attacks = make_attacks(consBeats);
         auto prog = ChordWalker::harmonize(style, wc, attacks,
-            locus.pieceTemplate->masterSeed + pi * 100 + 50);
-        const_cast<Section&>(sec).harmonyTimeline.set_segment(
+            locus.plan->masterSeed + pi * 100 + 50);
+        sec.harmonyTimeline.set_segment(
             beatOffset, beatOffset + consBeats, prog, "period_passage");
         beatOffset += consBeats;
       }

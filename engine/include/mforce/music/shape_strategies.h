@@ -3,7 +3,6 @@
 #include "mforce/music/figures.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/rhythm_util.h"
-#include "mforce/music/rng.h"
 #include "mforce/core/randomizer.h"
 #include <algorithm>
 #include <cmath>
@@ -23,10 +22,9 @@ namespace mforce {
 // The three survivors below do real work: harmony-aware cadential
 // targeting, literal-scale-step walking for Alberti/Skipping patterns,
 // and motif rhythm/contour resolution. Their compose_figure bodies live
-// out-of-line in composer.h because they need the full Composer
-// definition to resolve motif references.
+// out-of-line in composer.h.
 //
-// Used via Composer's registry lookup by name:
+// The default figure strategy finds them in the kit by name:
 //   "shape_cadential_approach", "shape_skipping", "shape_stepping".
 // ---------------------------------------------------------------------------
 

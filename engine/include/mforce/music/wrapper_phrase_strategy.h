@@ -1,6 +1,6 @@
 #pragma once
 #include "mforce/music/strategy.h"
-#include "mforce/music/strategy_registry.h"
+#include "mforce/music/compose.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/piece_utils.h"
@@ -41,11 +41,7 @@ inline Phrase WrapperPhraseStrategy::compose_phrase(
               << phraseTmpl.figures.size() << " provided)\n";
   }
 
-  FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
-  if (!fs) {
-    std::cerr << "WrapperPhraseStrategy: default_figure strategy not registered\n";
-    return phrase;
-  }
+  FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
 
   Locus figLocus = locus.with_figure(0);
   MelodicFigure fig = fs->compose_figure(figLocus, phraseTmpl.figures[0]);

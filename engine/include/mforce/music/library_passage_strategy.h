@@ -14,7 +14,7 @@
 // Registered as "library_passage".
 
 #include "mforce/music/strategy.h"
-#include "mforce/music/strategy_registry.h"
+#include "mforce/music/compose.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/figures.h"
@@ -76,7 +76,7 @@ inline Passage LibraryPassageStrategy::compose_passage(
     // Resolve seed.
     uint32_t seed = cfg.seed != 0
         ? cfg.seed
-        : (locus.pieceTemplate->masterSeed
+        : (locus.plan->masterSeed
            ^ (uint32_t(locus.sectionIdx) * 1031u
               + uint32_t(locus.partIdx) * 17u));
 
@@ -142,7 +142,7 @@ inline Passage LibraryPassageStrategy::compose_passage(
     static constexpr float PULSE_HINTS[] = {1.0f, 1.5f, 2.0f};
     for (char s : slots) {
         std::string motifName = pattern->name + "_" + std::string(1, s);
-        if (locus.pieceTemplate->realizedMotifs.count(motifName)) continue;
+        if (locus.plan->realizedMotifs.count(motifName)) continue;
 
         uint32_t motifSeed = slotRng.rng();
         Randomizer perMotifRng(motifSeed);
@@ -171,7 +171,7 @@ inline Passage LibraryPassageStrategy::compose_passage(
         m.content = fig;
         m.origin = MotifOrigin::Generated;
         m.generationSeed = motifSeed;
-        locus.pieceTemplate->add_motif(std::move(m));
+        locus.plan->add_motif(std::move(m));
     }
 
     // Walk passage and build phrases.
@@ -229,12 +229,7 @@ inline Passage LibraryPassageStrategy::compose_passage(
 
         // Compose this phrase via default_phrase.
         Locus phraseLocus = locus.with_phrase(phraseIdx);
-        PhraseStrategy* ps =
-            StrategyRegistry::instance().resolve_phrase("default_phrase");
-        if (!ps) {
-            std::cerr << "LibraryPassageStrategy: default_phrase not registered\n";
-            return passage;
-        }
+        PhraseStrategy* ps = &locus.kit->strategies.phrase("default_phrase");
         Phrase ph = ps->compose_phrase(phraseLocus, phraseTmpl);
         passage.add_phrase(std::move(ph));
         ++phraseIdx;

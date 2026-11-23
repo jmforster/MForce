@@ -1,9 +1,7 @@
 #pragma once
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
-#include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace mforce {
@@ -51,26 +49,6 @@ struct RealizationStrategy {
   virtual std::string name() const = 0;
   virtual void realize(const RealizationRequest& req,
                        ElementSequence& out) = 0;
-};
-
-// ---------------------------------------------------------------------------
-// Registry — singleton, name-keyed.
-// ---------------------------------------------------------------------------
-class RealizationStrategyRegistry {
-public:
-  static RealizationStrategyRegistry& instance() {
-    static RealizationStrategyRegistry reg;
-    return reg;
-  }
-  void register_strategy(std::unique_ptr<RealizationStrategy> s) {
-    strategies_[s->name()] = std::move(s);
-  }
-  RealizationStrategy* resolve(const std::string& name) const {
-    auto it = strategies_.find(name);
-    return it == strategies_.end() ? nullptr : it->second.get();
-  }
-private:
-  std::unordered_map<std::string, std::unique_ptr<RealizationStrategy>> strategies_;
 };
 
 // ---------------------------------------------------------------------------
