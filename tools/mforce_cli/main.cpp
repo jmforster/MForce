@@ -13,7 +13,9 @@
 #include "mforce/perform/conductor.h"
 #include "mforce/compose/compose.h"
 #include "mforce/compose/register_builtin.h"
+#ifdef MFORCE_WITH_SHELVED
 #include "mforce/shelved/register_shelved.h"
+#endif
 #include "mforce/music/realize.h"
 #include "mforce/music/music_json.h"
 #include "mforce/music/parse_util.h"
@@ -505,7 +507,9 @@ static int run_compose(int argc, char** argv) {
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+#ifdef MFORCE_WITH_SHELVED
     register_shelved(kit, codecs);
+#endif
 
     // Load template from JSON if specified
     PieceTemplate baseTmpl;
@@ -880,7 +884,9 @@ static int run_lint_template(int argc, char** argv)
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+#ifdef MFORCE_WITH_SHELVED
     register_shelved(kit, codecs);
+#endif
     int files = 0, bad = 0;
     int nDrop = 0, nDef = 0, nForm = 0, nChg = 0;
     for (int a = 2; a < argc; ++a) {

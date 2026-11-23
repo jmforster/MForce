@@ -4,6 +4,12 @@ project(MForce LANGUAGES CXX)
 # The compile rules every MForce target takes (mforce_compile_rules).
 include(cmake/MforceModule.cmake)
 
+# An option is a cached on/off switch set at configure time:
+#   cmake -B build -DMFORCE_SHELVED=ON
+# Off, the shelved module, its tests and ppl_to_json are not configured, and
+# the command-line tool registers no shelved strategy.
+option(MFORCE_SHELVED "Build the shelved strategies, their tests and ppl_to_json" OFF)
+
 # Emit PDBs in Release so the crash-log SEH filter can resolve symbols.
 # /Zi adds debug info to .obj; /DEBUG tells the linker to write a .pdb;
 # /OPT:REF and /OPT:ICF restore Release optimizations that /DEBUG disables.
@@ -24,7 +30,9 @@ enable_testing()
 add_subdirectory(engine)
 add_subdirectory(tools/mforce_cli)
 add_subdirectory(tools/durn_converter)
-add_subdirectory(tools/shelved/ppl_to_json)
+if(MFORCE_SHELVED)
+  add_subdirectory(tools/shelved/ppl_to_json)
+endif()
 add_subdirectory(tools/alloc_gate)
 
 # The interpreter on PATH (where lizard is installed), not the newest one in the Windows registry.
