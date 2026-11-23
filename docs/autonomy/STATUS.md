@@ -171,8 +171,8 @@ architecture's five modules (`ui_model`, `ui_audio`, `ui_control`,
 in `patch/edit.h`, adds `LivePlayer::set_value` (the tweak-and-hear row Part
 5 left for it), links each library privately to one module, and lists six
 steps for slice 1. NEXT: ON HIS SIGNATURE, SLICE 1, as Parts 5, 6 and 8 ran.
-What the design was written from: short, for Matt
-to sign before any code (CLAUDE.md, "Scope right now": written fresh on the
+The design was written from CLAUDE.md, "Scope right now" (a short design
+Matt signs before any code; written fresh on the
 `patch` module; its structure limits fail the build from its first commit
 with no exemptions; its logic is operations on plain data with tests and
 the window is a thin layer; first slice open, play, tweak, hear, save).
