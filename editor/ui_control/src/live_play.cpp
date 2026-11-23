@@ -1,4 +1,5 @@
 #include "mforce/ui_control/live_play.h"
+#include <algorithm>
 #include <exception>
 #include <memory>
 #include "mforce/contract/performance.h"
@@ -46,19 +47,26 @@ void LivePlay::key_down(int key, int noteNumber, const Keyboard& how) {
   note.velocity = how.velocity;
   note.hold = sustaining_;
   const LivePlayer::NoteId id = player->note_on(note);
-  if (id != 0) down_[key] = id;
+  if (id != 0) down_[key] = Down{id, noteNumber};
 }
 
 void LivePlay::key_up(int key) {
   auto it = down_.find(key);
   if (it == down_.end()) return;
   if (sustaining_)
-    if (LivePlayer* player = audio_.player()) player->note_off(it->second);
+    if (LivePlayer* player = audio_.player()) player->note_off(it->second.id);
   down_.erase(it);
 }
 
 void LivePlay::all_keys_up() {
   while (!down_.empty()) key_up(down_.begin()->first);
+}
+
+std::vector<int> LivePlay::held_notes() const {
+  std::vector<int> notes;
+  for (const auto& [key, down] : down_) notes.push_back(down.noteNumber);
+  std::sort(notes.begin(), notes.end());
+  return notes;
 }
 
 }  // namespace mforce::ui

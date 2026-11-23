@@ -10,8 +10,9 @@ struct Session;
 // What a view asks for. None throws: a refusal's sentence goes to
 // session.status and nothing else changes. An edit that changes nothing
 // (the same value again) does not mark the patch unsaved and does not
-// rebuild the player. A rebuild that fails puts its sentence in status; the
-// patch keeps the edit.
+// rebuild the player. An edit that changes something clears status first,
+// so a refusal shows until the next change; a rebuild that fails then puts
+// its sentence there, and the patch keeps the edit.
 
 // A pin's constant: the sounding player follows it, or is rebuilt.
 void edit_value   (Session& s, std::string_view node, std::string_view pin, float v);

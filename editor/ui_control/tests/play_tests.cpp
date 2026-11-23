@@ -145,3 +145,18 @@ void run_control_keyboard_tests() {
   CHECK(output_peak(s) == 0.0f);
   CHECK(!sound_trouble(s).empty());                      // no device was opened
 }
+
+// The keys down, as note numbers; and every key let go at once, as when the
+// window loses the keyboard.
+void run_control_held_keys_tests() {
+  Session s;
+  open_file(s, kSustaining);
+  key_down(s, 1, 64);
+  key_down(s, 2, 60);
+  CHECK((held_notes(s) == std::vector<int>{60, 64}));
+  (void)loudest(s, 0.1f);
+  release_all_keys(s);
+  CHECK(held_notes(s).empty());
+  (void)loudest(s, 3.0f);
+  CHECK(sounding(s) == 0);
+}

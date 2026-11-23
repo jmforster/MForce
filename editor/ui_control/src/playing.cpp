@@ -15,6 +15,10 @@ void key_down(Session& s, int key, int noteNumber) { s.live.key_down(key, noteNu
 
 void key_up(Session& s, int key) { s.live.key_up(key); }
 
+void release_all_keys(Session& s) { s.live.all_keys_up(); }
+
+std::vector<int> held_notes(const Session& s) { return s.live.held_notes(); }
+
 void change_octave(Session& s, int by) {
   s.keyboard.octave = std::clamp(s.keyboard.octave + by, kLowestOctave, kHighestOctave);
 }

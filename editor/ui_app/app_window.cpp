@@ -1,6 +1,9 @@
 #include "app_window.h"
+#include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <vector>
+#include "screenshot.h"
 #include <GLFW/glfw3.h>   // also brings the system's OpenGL header (glClear, glViewport)
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -51,13 +54,25 @@ struct GlfwWindow {
   GlfwWindow& operator=(const GlfwWindow&) = delete;
 };
 
+// The font the program draws with, from the ImGui submodule, when it is
+// there; ImGui's own font otherwise.
+constexpr const char* kFont = "third_party/imgui/misc/fonts/Roboto-Medium.ttf";
+constexpr float kFontSize = 15.0f;
+
+// `ini` is ImGui's settings file, kept alive here as long as the context
+// reads it; empty: ImGui writes none.
 struct GuiContexts {
-  GuiContexts() {
+  std::string ini;
+  explicit GuiContexts(const std::string& iniFile) : ini(iniFile) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImNodes::CreateContext();
-    ImGui::GetIO().IniFilename = nullptr;   // ImGui writes no imgui.ini
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = ini.empty() ? nullptr : ini.c_str();
+    if (std::filesystem::exists(kFont)) io.Fonts->AddFontFromFileTTF(kFont, kFontSize);
     ImGui::StyleColorsDark();
+    // The canvas pans with Alt and a left drag, as well as with the middle button.
+    ImNodes::GetIO().EmulateThreeButtonMouse.Modifier = &io.KeyAlt;
   }
   ~GuiContexts() {
     ImNodes::DestroyContext();
@@ -94,26 +109,31 @@ struct AppWindow::Parts {
   GlfwWindow  window;
   GuiContexts gui;
   GuiBackends backends;
-  Parts(int width, int height, const std::string& title)
-      : window(width, height, title), backends(window.handle) {}
+  Parts(int width, int height, const std::string& title, const std::string& ini)
+      : window(width, height, title), gui(ini), backends(window.handle) {}
 };
 
-AppWindow::AppWindow(int width, int height, const std::string& title)
-    : parts_(std::make_unique<Parts>(width, height, title)) {}
+AppWindow::AppWindow(int width, int height, const std::string& title, const std::string& imguiIni)
+    : parts_(std::make_unique<Parts>(width, height, title, imguiIni)) {}
 
 // Defined here, where Parts is complete, so unique_ptr can destroy it.
 AppWindow::~AppWindow() = default;
 
-bool AppWindow::should_close() const { return glfwWindowShouldClose(parts_->window.handle) != 0; }
+void AppWindow::poll_events() { glfwPollEvents(); }
+
+bool AppWindow::close_requested() const { return glfwWindowShouldClose(parts_->window.handle) != 0; }
+
+void AppWindow::keep_open() { glfwSetWindowShouldClose(parts_->window.handle, GLFW_FALSE); }
+
+void AppWindow::set_title(const std::string& title) { glfwSetWindowTitle(parts_->window.handle, title.c_str()); }
 
 void AppWindow::begin_frame() {
-  glfwPollEvents();
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
 }
 
-void AppWindow::end_frame() {
+void AppWindow::end_frame(const std::string& shot) {
   ImGui::Render();
   int width = 0;
   int height = 0;
@@ -122,6 +142,12 @@ void AppWindow::end_frame() {
   glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  if (!shot.empty()) {
+    std::vector<unsigned char> rgb(size_t(width) * size_t(height) * 3);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);            // rows packed with no padding
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, rgb.data());
+    write_bmp(shot, width, height, rgb);
+  }
   glfwSwapBuffers(parts_->window.handle);
 }
 

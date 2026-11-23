@@ -1,6 +1,7 @@
 #pragma once
 #include <map>
 #include <string>
+#include <vector>
 #include <string_view>
 #include "mforce/patch/patch.h"
 #include "mforce/render/live_player.h"
@@ -34,11 +35,14 @@ public:
   void key_down(int key, int noteNumber, const Keyboard& how);
   void key_up(int key);
   void all_keys_up();
+  // The note numbers of the keys down, lowest first.
+  std::vector<int> held_notes() const;
 
 private:
+  struct Down { LivePlayer::NoteId id; int noteNumber; };
   AudioAdapter& audio_;
   bool sustaining_{false};                         // the current player's instrument sustains
-  std::map<int, LivePlayer::NoteId> down_;         // the keys down, and the note each began
+  std::map<int, Down> down_;                       // the keys down, and the note each began
 };
 
 }  // namespace mforce::ui

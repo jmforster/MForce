@@ -11,15 +11,21 @@ namespace mforce::ui {
 // before it are stopped again. The destructor stops them all, last first.
 class AppWindow {
 public:
-  AppWindow(int width, int height, const std::string& title);
+  // `imguiIni`: the file ImGui keeps its window settings in; empty for none.
+  AppWindow(int width, int height, const std::string& title, const std::string& imguiIni);
   ~AppWindow();
   // "= delete" removes the copy: there is one window and one owner of it.
   AppWindow(const AppWindow&) = delete;
   AppWindow& operator=(const AppWindow&) = delete;
 
-  bool should_close() const;   // the window's close button was pressed
-  void begin_frame();          // reads the input that arrived, starts an ImGui frame
-  void end_frame();            // draws the frame ImGui built and shows it
+  void poll_events();                // reads the input that arrived
+  bool close_requested() const;      // the window's close button was pressed
+  void keep_open();                  // forgets the request: the program decides when to close
+  void set_title(const std::string& title);
+  void begin_frame();                // starts an ImGui frame
+  // Draws the frame ImGui built and shows it; with a `shot` path, first
+  // writes what was drawn there as a 24-bit BMP.
+  void end_frame(const std::string& shot = {});
 
 private:
   // Declared here, defined in the .cpp: GLFW, OpenGL and ImGui stay out of

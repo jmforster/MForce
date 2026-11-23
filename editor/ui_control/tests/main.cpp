@@ -9,6 +9,8 @@ void run_control_rate_tests();
 void run_control_open_census_tests();
 void run_control_key_tests();
 void run_control_keyboard_tests();
+void run_control_status_tests();
+void run_control_held_keys_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -20,6 +22,8 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_control_open_census_tests", run_control_open_census_tests},
   {"run_control_key_tests", run_control_key_tests},
   {"run_control_keyboard_tests", run_control_keyboard_tests},
+  {"run_control_status_tests", run_control_status_tests},
+  {"run_control_held_keys_tests", run_control_held_keys_tests},
 };
 }  // namespace
 

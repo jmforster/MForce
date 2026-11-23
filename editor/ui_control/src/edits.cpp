@@ -41,13 +41,20 @@ void tell(Session& s, const std::string& trouble) {
   if (!trouble.empty()) s.status = trouble;
 }
 
+// An edit applied that changed something: the patch is unsaved, and the
+// status line no longer shows what an earlier edit was refused for.
+void changed(Session& s) {
+  s.open.dirty = true;
+  s.status.clear();
+}
+
 }  // namespace
 
 void edit_value(Session& s, std::string_view node, std::string_view pin, float v) {
   const Node* n = node_named(s.open.patch, node);
   const bool same = n && held(n->values, pin) == v;
   if (!applied(s, [&] { set_value(s.open.patch, node, pin, v); }) || same) return;
-  s.open.dirty = true;
+  changed(s);
   tell(s, s.live.value_changed(s.open.patch, node, pin, v));
 }
 
@@ -55,7 +62,7 @@ void edit_setting(Session& s, std::string_view node, std::string_view name, floa
   const Node* n = node_named(s.open.patch, node);
   const bool same = n && held(n->settings, name) == v;
   if (!applied(s, [&] { set_setting(s.open.patch, node, name, v); }) || same) return;
-  s.open.dirty = true;
+  changed(s);
   tell(s, s.live.rebuild(s.open.patch));
 }
 
@@ -63,20 +70,20 @@ void edit_string(Session& s, std::string_view node, std::string_view name, std::
   const Node* n = node_named(s.open.patch, node);
   const bool same = n && held(n->strings, name) == v;
   if (!applied(s, [&] { set_string(s.open.patch, node, name, std::move(v)); }) || same) return;
-  s.open.dirty = true;
+  changed(s);
   tell(s, s.live.rebuild(s.open.patch));
 }
 
 void edit_position(Session& s, std::string_view node, Vec2 pos) {
   const bool same = held(s.open.patch.layout.positions, node) == pos;
   if (!applied(s, [&] { move_node(s.open.patch, node, pos); }) || same) return;
-  s.open.dirty = true;
+  changed(s);
 }
 
 void edit_output_position(Session& s, Vec2 pos) {
   const bool same = s.open.patch.layout.outputPos == pos;
   if (!applied(s, [&] { move_output(s.open.patch, pos); }) || same) return;
-  s.open.dirty = true;
+  changed(s);
 }
 
 void pan_canvas(Session& s, Vec2 pos) {

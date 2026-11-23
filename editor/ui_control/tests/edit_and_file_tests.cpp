@@ -243,3 +243,19 @@ void run_control_rate_tests() {
   CHECK(s.status == "the file is at 22050 Hz and plays here at 48000 Hz, the output's rate; a render uses the "
                     "file's 22050 Hz");
 }
+
+// A refusal shows until the next edit that changes something; an edit that
+// changes nothing leaves it.
+void run_control_status_tests() {
+  Session s;
+  open_file(s, kOboe);
+  edit_value(s, "nope", "x", 1.0f);
+  CHECK(!s.status.empty());
+  edit_position(s, "Formant1", s.open.patch.layout.positions.at("Formant1"));   // the same: nothing changes
+  CHECK(!s.status.empty());
+  edit_position(s, "Formant1", Vec2{11, 12});
+  CHECK(s.status.empty());
+  edit_value(s, "nope", "x", 1.0f);
+  edit_value(s, "Formant1", "cutoffFreq", 1700.0f);
+  CHECK(s.status.empty());
+}
