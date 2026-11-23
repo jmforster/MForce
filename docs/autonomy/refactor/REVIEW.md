@@ -19,6 +19,27 @@ given.
 
 ## Awaiting
 
+**R25 — the new editor's design** (2026-11-23,
+`docs/architecture/editor.md`; no code exists). For your signature, as the
+designs of Parts 5, 6 and 8 were. It builds on the UI section of the target
+architecture you decided on 2026-10-05 and on the reset's rules.
+- **The idea in one line:** the patch record is the one truth, a view
+  changes nothing itself and calls an edit function, and every edit
+  function is plain code with tests that need no window.
+- **Slice 1 is your words: open, play, tweak, hear, save.** A pin's
+  constant follows the slider while the note sounds; any other edit
+  rebuilds the player and is heard from the next note. It plays
+  instruments; a plain sound gets its sound in a later slice. Groups and
+  note faces are kept in the file and drawn later.
+- **Nine rulings**, in its section 9. The three I would read first: the
+  same libraries as before (ImGui, imnodes, GLFW, RtAudio); where they
+  come from (git submodules pinned to the commits on your disk, which
+  means my fetching five repositories from GitHub, on your word only);
+  and the names `Session` and `mforce_editor`, each with alternatives.
+- **Yours to say, not needed to start:** the order of the slices after
+  the first (my read: build, see, generate, arrange, shape) and after
+  which one the freeze lifts for sound work (my read: the third).
+
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design
 `docs/architecture/part8-build.md`, signed 11-22; report

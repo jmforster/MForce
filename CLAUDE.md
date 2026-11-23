@@ -75,7 +75,8 @@ Replicate legacy functionality of node-based UI to:
     (1) the engine flip (every host on the `patch` module; the loader and the
     old editor deleted), DONE 11-21; (2) the render, music and build parts,
     in that order (render and music DONE 11-22; build DONE 11-23; the
-    editor's design is next); (3) the new
+    editor's design, `docs/architecture/editor.md`, is written and awaits
+    Matt's signature); (3) the new
     editor's design; (4) the editor in slices, the
     first being open, play, tweak, hear, save.
   + The freeze lifts for sound work once the editor's first slices are

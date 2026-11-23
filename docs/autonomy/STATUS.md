@@ -163,7 +163,15 @@ script, the review brief and the fix-wave brief are under
 `-G "Visual Studio 17 2022"`: the `cmake` on PATH is a MinGW build whose
 default generator is Ninja. Usage: weekly Fable 22 percent at the start of
 Part 8, 30 at the close;
-all-models 18 to 28. NEXT: THE NEW EDITOR'S DESIGN, short, for Matt
+all-models 18 to 28. THE NEW EDITOR'S DESIGN IS WRITTEN AND AWAITS MATT'S SIGNATURE
+(`docs/architecture/editor.md`, 2026-11-23, REVIEW R25; no code, no
+submodule added: adding the five is on his word only). It keeps the target
+architecture's five modules (`ui_model`, `ui_audio`, `ui_control`,
+`ui_views`, `ui_app`) under a new `editor/` folder, puts the edit functions
+in `patch/edit.h`, adds `LivePlayer::set_value` (the tweak-and-hear row Part
+5 left for it), links each library privately to one module, and lists six
+steps for slice 1. NEXT: ON HIS SIGNATURE, SLICE 1, as Parts 5, 6 and 8 ran.
+What the design was written from: short, for Matt
 to sign before any code (CLAUDE.md, "Scope right now": written fresh on the
 `patch` module; its structure limits fail the build from its first commit
 with no exemptions; its logic is operations on plain data with tests and
