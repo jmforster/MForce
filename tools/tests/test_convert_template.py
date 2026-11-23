@@ -96,6 +96,41 @@ class ProfileSelectorTests(unittest.TestCase):
             self.assertIn("dropped voicingProfileSelectorConfig", log[0])
 
 
+class BothFormsTests(unittest.TestCase):
+    """An object holding a new-form key and the old key it would be written
+    from is left alone, and the tool says which keys."""
+
+    def refused(self, passage):
+        text = json.dumps(template(passage))
+        with self.assertRaises(ct.Conflict) as e:
+            ct.convert_text(text, [])
+        return str(e.exception)
+
+    def test_strategy_object_with_an_old_settings_key(self):
+        msg = self.refused({"strategy": {"name": "pedal_buildup"}, "pedalBuildupConfig": {}})
+        self.assertIn("strategy", msg)
+        self.assertIn("pedalBuildupConfig", msg)
+
+    def test_realization_with_a_rhythm_pattern(self):
+        msg = self.refused({"realization": "block", "rhythmPattern": {"defaultPattern": [4]}})
+        self.assertIn("realization", msg)
+        self.assertIn("rhythmPattern", msg)
+
+    def test_profile_selector_object_with_its_old_config(self):
+        msg = self.refused({"voicingProfileSelector": {"name": "drift"},
+                            "voicingProfileSelectorConfig": {}})
+        self.assertIn("voicingProfileSelectorConfig", msg)
+
+    def test_the_file_is_left_as_it_is(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = pathlib.Path(tmp) / "both.json"
+            text = json.dumps(template({"realization": "block",
+                                        "rhythmPattern": {"defaultPattern": [4]}}))
+            p.write_text(text)
+            self.assertFalse(ct.convert_file(p))
+            self.assertEqual(p.read_text(), text)
+
+
 class FormTests(unittest.TestCase):
     def test_text_outside_the_keys_is_kept(self):
         text = ('{\n  "parts": [ {"name": "m", "role": "melody",\n'

@@ -1,6 +1,21 @@
 {
  "duplicate_blocks": [
   [
+   49,
+   [
+    [
+     "engine/shelved/include/mforce/shelved/pedal_buildup_strategy.h",
+     14,
+     62
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
+     14,
+     57
+    ]
+   ]
+  ],
+  [
    47,
    [
     [
@@ -81,32 +96,67 @@
    ]
   ],
   [
-   39,
+   42,
+   [
+    [
+     "engine/shelved/include/mforce/shelved/sequence_passage_strategy.h",
+     12,
+     53
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
+     12,
+     51
+    ]
+   ]
+  ],
+  [
+   41,
    [
     [
      "engine/include/mforce/source/filter/bw_highpass_filter.h",
-     10,
+     8,
      48
     ],
     [
      "engine/include/mforce/source/filter/bw_lowpass_filter.h",
-     10,
+     8,
      53
     ]
    ]
   ],
   [
-   32,
+   40,
    [
     [
-     "engine/include/mforce/music/drift_voicing_profile_selector.h",
-     6,
-     37
+     "engine/include/mforce/source/filter/bw_highpass_filter.h",
+     10,
+     49
     ],
     [
-     "engine/include/mforce/music/random_voicing_profile_selector.h",
-     4,
-     31
+     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
+     10,
+     54
+    ]
+   ]
+  ],
+  [
+   40,
+   [
+    [
+     "engine/shelved/include/mforce/shelved/pedal_buildup_strategy.h",
+     14,
+     53
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/sequence_passage_strategy.h",
+     14,
+     53
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
+     14,
+     51
     ]
    ]
   ],
@@ -151,6 +201,21 @@
    ]
   ],
   [
+   24,
+   [
+    [
+     "engine/shelved/include/mforce/shelved/pedal_buildup_strategy.h",
+     115,
+     138
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
+     103,
+     126
+    ]
+   ]
+  ],
+  [
    23,
    [
     [
@@ -170,18 +235,18 @@
    [
     [
      "tools/test_figures/main.cpp",
-     74,
-     95
+     89,
+     110
     ],
     [
      "tools/test_figures/main.cpp",
-     784,
-     805
+     793,
+     814
     ],
     [
      "tools/test_figures/main.cpp",
-     911,
-     932
+     918,
+     939
     ]
    ]
   ],
@@ -190,13 +255,13 @@
    [
     [
      "tools/test_figures/main.cpp",
-     784,
-     805
+     793,
+     814
     ],
     [
      "tools/test_figures/main.cpp",
-     911,
-     932
+     918,
+     939
     ]
    ]
   ],
@@ -335,33 +400,33 @@
    [
     [
      "tools/test_figures/main.cpp",
-     83,
-     101
+     98,
+     116
     ],
     [
      "tools/test_figures/main.cpp",
-     164,
-     182
+     177,
+     195
     ],
     [
      "tools/test_figures/main.cpp",
-     722,
-     740
+     733,
+     751
     ]
    ]
   ],
   [
-   17,
+   18,
    [
     [
-     "engine/include/mforce/music/elaborated_phrase_strategy.h",
-     28,
-     44
+     "engine/shelved/include/mforce/shelved/pedal_buildup_strategy.h",
+     121,
+     138
     ],
     [
-     "engine/include/mforce/music/two_figure_phrase_strategy.h",
-     19,
-     35
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
+     109,
+     126
     ]
    ]
   ],
@@ -394,14 +459,14 @@
    16,
    [
     [
-     "engine/include/mforce/music/composer.h",
-     1220,
-     1235
+     "engine/include/mforce/compose/default_figure_strategy.h",
+     187,
+     202
     ],
     [
-     "engine/include/mforce/music/composer.h",
-     1729,
-     1742
+     "engine/include/mforce/compose/default_phrase_strategy.h",
+     282,
+     295
     ]
    ]
   ],
@@ -425,13 +490,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5611,
-     5626
+     6373,
+     6388
     ],
     [
      "tools/engine_tests/main.cpp",
-     5905,
-     5920
+     6667,
+     6682
     ]
    ]
   ],
@@ -490,28 +555,13 @@
    [
     [
      "tools/test_figures/main.cpp",
-     808,
-     822
+     815,
+     829
     ],
     [
      "tools/test_figures/main.cpp",
-     935,
-     949
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     808,
-     822
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     935,
-     949
+     940,
+     954
     ]
    ]
   ],
@@ -532,36 +582,6 @@
      "engine/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
      3,
      24
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "engine/include/mforce/music/composer.h",
-     1124,
-     1136
-    ],
-    [
-     "engine/include/mforce/music/composer.h",
-     1162,
-     1172
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "engine/include/mforce/music/composer.h",
-     1148,
-     1160
-    ],
-    [
-     "engine/include/mforce/music/composer.h",
-     1172,
-     1192
     ]
    ]
   ],
@@ -595,23 +615,38 @@
    [
     [
      "tools/test_figures/main.cpp",
-     83,
-     95
+     98,
+     110
     ],
     [
      "tools/test_figures/main.cpp",
-     164,
-     176
+     177,
+     189
     ],
     [
      "tools/test_figures/main.cpp",
-     722,
-     734
+     733,
+     745
     ],
     [
      "tools/test_figures/main.cpp",
-     793,
-     805
+     802,
+     814
+    ]
+   ]
+  ],
+  [
+   13,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     817,
+     829
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     942,
+     954
     ]
    ]
   ],
@@ -692,36 +727,6 @@
      "tools/stk_ref/brass_ref.cpp",
      63,
      74
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/include/mforce/music/composer.h",
-     1888,
-     1898
-    ],
-    [
-     "engine/include/mforce/music/composer.h",
-     2054,
-     2064
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/include/mforce/music/period_passage_strategy.h",
-     234,
-     244
-    ],
-    [
-     "engine/include/mforce/music/period_passage_strategy.h",
-     265,
-     277
     ]
    ]
   ],
@@ -854,19 +859,14 @@
    11,
    [
     [
-     "tools/engine_tests/main.cpp",
-     5613,
-     5623
+     "engine/shelved/include/mforce/shelved/period_passage_strategy.h",
+     284,
+     294
     ],
     [
-     "tools/engine_tests/main.cpp",
-     5907,
-     5917
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     6434,
-     6444
+     "engine/shelved/include/mforce/shelved/period_passage_strategy.h",
+     315,
+     327
     ]
    ]
   ],
@@ -874,19 +874,19 @@
    11,
    [
     [
-     "tools/test_figures/main.cpp",
-     102,
-     112
+     "tools/engine_tests/main.cpp",
+     6375,
+     6385
     ],
     [
-     "tools/test_figures/main.cpp",
-     808,
-     818
+     "tools/engine_tests/main.cpp",
+     6669,
+     6679
     ],
     [
-     "tools/test_figures/main.cpp",
-     935,
-     945
+     "tools/engine_tests/main.cpp",
+     7196,
+     7206
     ]
    ]
   ],
@@ -894,12 +894,12 @@
    10,
    [
     [
-     "engine/include/mforce/music/figure_transforms.h",
+     "engine/include/mforce/compose/figure_transforms.h",
      252,
      261
     ],
     [
-     "engine/include/mforce/music/figure_transforms.h",
+     "engine/include/mforce/compose/figure_transforms.h",
      279,
      288
     ]
@@ -924,24 +924,14 @@
    10,
    [
     [
-     "tools/test_figures/main.cpp",
-     79,
-     88
+     "engine/src/compose/style_table_json.cpp",
+     21,
+     30
     ],
     [
-     "tools/test_figures/main.cpp",
-     789,
-     798
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     916,
-     925
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     1132,
-     1141
+     "engine/src/compose/style_table_json.cpp",
+     34,
+     43
     ]
    ]
   ],
@@ -950,18 +940,23 @@
    [
     [
      "tools/test_figures/main.cpp",
-     101,
-     110
+     94,
+     103
     ],
     [
      "tools/test_figures/main.cpp",
-     182,
-     191
+     798,
+     807
     ],
     [
      "tools/test_figures/main.cpp",
-     740,
-     749
+     923,
+     932
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     1137,
+     1146
     ]
    ]
   ],
@@ -969,54 +964,19 @@
    9,
    [
     [
-     "engine/include/mforce/music/chord_progression_builder.h",
+     "engine/include/mforce/compose/chord_progression_builder.h",
      56,
      64
     ],
     [
-     "engine/include/mforce/music/chord_progression_builder.h",
+     "engine/include/mforce/compose/chord_progression_builder.h",
      67,
      75
     ],
     [
-     "engine/include/mforce/music/chord_progression_builder.h",
+     "engine/include/mforce/compose/chord_progression_builder.h",
      78,
      86
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "engine/include/mforce/music/composer.h",
-     1113,
-     1121
-    ],
-    [
-     "engine/include/mforce/music/composer.h",
-     1151,
-     1160
-    ],
-    [
-     "engine/include/mforce/music/composer.h",
-     1175,
-     1192
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "engine/include/mforce/music/style_table.h",
-     161,
-     169
-    ],
-    [
-     "engine/include/mforce/music/style_table.h",
-     174,
-     182
     ]
    ]
   ],
@@ -1045,8 +1005,8 @@
     ],
     [
      "tools/engine_tests/main.cpp",
-     4211,
-     4219
+     4973,
+     4981
     ]
    ]
   ],
@@ -1055,13 +1015,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5575,
-     5583
+     6337,
+     6345
     ],
     [
      "tools/engine_tests/main.cpp",
-     6292,
-     6300
+     7054,
+     7062
     ]
    ]
   ],
@@ -1095,23 +1055,23 @@
    [
     [
      "tools/test_figures/main.cpp",
-     75,
-     83
+     90,
+     98
     ],
     [
      "tools/test_figures/main.cpp",
-     714,
-     722
+     725,
+     733
     ],
     [
      "tools/test_figures/main.cpp",
-     785,
-     793
+     794,
+     802
     ],
     [
      "tools/test_figures/main.cpp",
-     912,
-     920
+     919,
+     927
     ]
    ]
   ],
@@ -1120,38 +1080,18 @@
    [
     [
      "tools/test_figures/main.cpp",
-     102,
-     110
+     117,
+     125
     ],
     [
      "tools/test_figures/main.cpp",
-     183,
-     191
+     817,
+     825
     ],
     [
      "tools/test_figures/main.cpp",
-     741,
-     749
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     808,
-     816
-    ]
-   ]
-  ],
-  [
-   8,
-   [
-    [
-     "engine/include/mforce/music/passage_strategies.h",
-     344,
-     351
-    ],
-    [
-     "engine/include/mforce/music/passage_strategies.h",
-     676,
-     682
+     942,
+     950
     ]
    ]
   ],
@@ -1179,9 +1119,640 @@
      47
     ]
    ]
+  ],
+  [
+   8,
+   [
+    [
+     "engine/shelved/include/mforce/shelved/connective_passage_strategy_json.h",
+     12,
+     19
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/sequence_passage_strategy_json.h",
+     11,
+     18
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy_json.h",
+     12,
+     19
+    ]
+   ]
+  ],
+  [
+   8,
+   [
+    [
+     "engine/shelved/include/mforce/shelved/connective_passage_strategy_json.h",
+     21,
+     28
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/sequence_passage_strategy_json.h",
+     19,
+     26
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy_json.h",
+     20,
+     27
+    ]
+   ]
+  ],
+  [
+   8,
+   [
+    [
+     "tools/engine_tests/main.cpp",
+     2464,
+     2471
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     2535,
+     2542
+    ]
+   ]
   ]
  ],
  "files": {
+  "engine/include/mforce/compose/anchor_selector.h": {
+   "changelog_comments": 3,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 393,
+   "longest_function": [
+    299,
+    "mforce::select_anchors"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "NoteMeta",
+    "Breakdown",
+    "AnchorResult"
+   ]
+  },
+  "engine/include/mforce/compose/chord_progression_builder.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 109,
+   "longest_function": [
+    55,
+    "mforce::ChordProgressionBuilder::progressions"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "ChordProgressionBuilder"
+   ]
+  },
+  "engine/include/mforce/compose/chord_walk.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 60,
+   "longest_function": [
+    11,
+    "mforce::chord_walk::advance"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/chord_walker.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 335,
+   "longest_function": [
+    94,
+    "mforce::ChordWalker::harmonize"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "MelodySpan",
+    "WalkConstraint",
+    "ChordWalker"
+   ]
+  },
+  "engine/include/mforce/compose/compose.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 34,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "ComposeKit",
+    "Composition"
+   ]
+  },
+  "engine/include/mforce/compose/default_figure_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 274,
+   "longest_function": [
+    114,
+    "mforce::DefaultFigureStrategy::compose_figure"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "DefaultFigureStrategy"
+   ]
+  },
+  "engine/include/mforce/compose/default_passage_strategy.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 372,
+   "longest_function": [
+    316,
+    "mforce::DefaultPassageStrategy::compose_passage"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "DefaultPassageStrategy"
+   ]
+  },
+  "engine/include/mforce/compose/default_phrase_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 337,
+   "longest_function": [
+    131,
+    "mforce::DefaultPhraseStrategy::compose_phrase"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "DefaultPhraseStrategy"
+   ]
+  },
+  "engine/include/mforce/compose/default_strategy_shared.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 85,
+   "longest_function": [
+    55,
+    "mforce::choose_shape"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/figure_constraints.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 48,
+   "longest_function": [
+    10,
+    "mforce::to_string"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "Contour",
+    "Constraints"
+   ]
+  },
+  "engine/include/mforce/compose/figure_transforms.h": {
+   "changelog_comments": 2,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 576,
+   "longest_function": [
+    69,
+    "mforce::figure_transforms::apply"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "TransformOp"
+   ]
+  },
+  "engine/include/mforce/compose/grid_complete.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 60,
+   "longest_function": [
+    30,
+    "mforce::passage_anchors::grid_complete"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/locus.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 33,
+   "longest_function": [
+    1,
+    "mforce::Locus::with_phrase"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "Locus"
+   ]
+  },
+  "engine/include/mforce/compose/melody_profile.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 64,
+   "longest_function": [
+    7,
+    "mforce::TendencyRow::odds_per_100"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "TendencyRow",
+    "NctOdds",
+    "Placement",
+    "MelodyCritic",
+    "MelodySearch",
+    "MelodyProfile"
+   ]
+  },
+  "engine/include/mforce/compose/melody_profile_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 11,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/note_map.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 209,
+   "longest_function": [
+    81,
+    "mforce::evaluate_note_map"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "TrackNote",
+    "PitchEvent",
+    "ChordLookup",
+    "EventVerdict",
+    "NoteMapResult"
+   ]
+  },
+  "engine/include/mforce/compose/passage_melody.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 157,
+   "longest_function": [
+    75,
+    "mforce::phrases_from_passage"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/phrase_aware_figure_strategy.h": {
+   "changelog_comments": 4,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 294,
+   "longest_function": [
+    166,
+    "mforce::PhraseAwareFigureStrategy::compose_passage"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "PhraseAwareFigureStrategy"
+   ]
+  },
+  "engine/include/mforce/compose/phrase_critic.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 130,
+   "longest_function": [
+    69,
+    "mforce::score_phrase_critic"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "PhraseNote",
+    "CriticTerms",
+    "RankItem"
+   ]
+  },
+  "engine/include/mforce/compose/piece_utils.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 234,
+   "longest_function": [
+    57,
+    "mforce::piece_utils::pitch_before"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "PitchRange"
+   ]
+  },
+  "engine/include/mforce/compose/pool_figure_builder.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 74,
+   "longest_function": [
+    21,
+    "mforce::PoolFigureBuilder::select_"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "PoolAtom",
+    "PoolFigureBuilder"
+   ]
+  },
+  "engine/include/mforce/compose/pool_figure_builder_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 12,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/random_figure_builder.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 235,
+   "longest_function": [
+    34,
+    "mforce::RandomFigureBuilder::build"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "RandomFigureBuilder"
+   ]
+  },
+  "engine/include/mforce/compose/realization_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 126,
+   "longest_function": [
+    24,
+    "mforce::RhythmPatternRealizationStrategy::realize"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "RhythmPattern",
+    "RealizationContext",
+    "RealizationStrategy",
+    "BlockRealizationStrategy",
+    "RhythmPatternRealizationStrategy"
+   ]
+  },
+  "engine/include/mforce/compose/realization_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 42,
+   "longest_function": [
+    14,
+    "mforce::to_json"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/register_builtin.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 14,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/register_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 25,
+   "longest_function": [
+    4,
+    "mforce::register_strategy_holding_templates"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/rhythm_util.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 98,
+   "longest_function": [
+    44,
+    "mforce::generate_musical_rhythm"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/shape_figures.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 95,
+   "longest_function": [
+    13,
+    "mforce::shape_figures::zigzag"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/compose/shape_strategies.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 342,
+   "longest_function": [
+    162,
+    "mforce::ShapeCadentialApproachStrategy::compose_figure"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "ShapeCadentialApproachStrategy",
+    "ShapeSkippingStrategy",
+    "ShapeSteppingStrategy"
+   ]
+  },
+  "engine/include/mforce/compose/strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 46,
+   "longest_function": [
+    3,
+    "mforce::PassageStrategy::plan_passage"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "FigureStrategy",
+    "PhraseStrategy",
+    "StrategyScope",
+    "PassageStrategy"
+   ]
+  },
+  "engine/include/mforce/compose/strategy_choice.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 29,
+   "longest_function": [
+    7,
+    "mforce::settings_of"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "StrategyChoice"
+   ]
+  },
+  "engine/include/mforce/compose/strategy_registry.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 77,
+   "longest_function": [
+    11,
+    "mforce::StrategyRegistry::require"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "StrategyRegistry"
+   ]
+  },
+  "engine/include/mforce/compose/style_table.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 145,
+   "longest_function": [
+    59,
+    "mforce::ChordLabel::parse"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "ChordLabel",
+    "StyleTable"
+   ]
+  },
+  "engine/include/mforce/compose/templates.h": {
+   "changelog_comments": 6,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 596,
+   "longest_function": [
+    96,
+    "mforce::PieceTemplate::add_derived_motif"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "MelodicFunction",
+    "FigureShape",
+    "FigureDirection",
+    "StepMode",
+    "FigureSource",
+    "MotifRole",
+    "MotifOrigin",
+    "FigureTemplate",
+    "Motif",
+    "PhraseTemplate",
+    "ChordAccompanimentConfig",
+    "PassageTemplate",
+    "PartRole",
+    "PartTemplate",
+    "PieceTemplate"
+   ]
+  },
+  "engine/include/mforce/compose/templates_json.h": {
+   "changelog_comments": 3,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 1091,
+   "longest_function": [
+    77,
+    "mforce::read_passage_template"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "StrategyLevel",
+    "SettingsCodecs"
+   ]
+  },
+  "engine/include/mforce/compose/wrapper_phrase_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 57,
+   "longest_function": [
+    28,
+    "mforce::WrapperPhraseStrategy::compose_phrase"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "WrapperPhraseStrategy"
+   ]
+  },
   "engine/include/mforce/contract/instrument_class.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -1653,38 +2224,6 @@
     "SpscQueue"
    ]
   },
-  "engine/include/mforce/music/alternating_figure_strategy.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 34,
-   "longest_function": [
-    1,
-    "mforce::AlternatingFigureStrategy::name"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "AlternatingFigureStrategy"
-   ]
-  },
-  "engine/include/mforce/music/anchor_selector.h": {
-   "changelog_comments": 3,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 393,
-   "longest_function": [
-    299,
-    "mforce::select_anchors"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "NoteMeta",
-    "Breakdown",
-    "AnchorResult"
-   ]
-  },
   "engine/include/mforce/music/basics.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -1719,141 +2258,13 @@
     "ScaleChordSequence"
    ]
   },
-  "engine/include/mforce/music/chord_progression_builder.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 109,
-   "longest_function": [
-    55,
-    "mforce::ChordProgressionBuilder::progressions"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "ChordProgressionBuilder"
-   ]
-  },
-  "engine/include/mforce/music/chord_walker.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 335,
-   "longest_function": [
-    94,
-    "mforce::ChordWalker::harmonize"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "MelodySpan",
-    "WalkConstraint",
-    "ChordWalker"
-   ]
-  },
-  "engine/include/mforce/music/classical_composer.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 51,
-   "longest_function": [
-    6,
-    "mforce::ClassicalComposer::compose"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "ClassicalComposer"
-   ]
-  },
-  "engine/include/mforce/music/compose.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 53,
-   "longest_function": [
-    5,
-    "mforce::Genre::get_composer"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "IComposer",
-    "Genre"
-   ]
-  },
-  "engine/include/mforce/music/composer.h": {
-   "changelog_comments": 4,
-   "const_cast": 7,
-   "dynamic_cast": 2,
-   "lines": 2078,
-   "longest_function": [
-    320,
-    "mforce::DefaultPassageStrategy::compose_passage"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "Composer"
-   ]
-  },
-  "engine/include/mforce/music/conductor.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 557,
-   "longest_function": [
-    56,
-    "mforce::ChordPerformer::get_pitch_indices"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "NotePerformer",
-    "DrumPerformer",
-    "ChordPerformer",
-    "Conductor"
-   ]
-  },
-  "engine/include/mforce/music/default_strategies.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 432,
-   "longest_function": [
-    72,
-    "mforce::DefaultFigureStrategy::generate_figure"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "DefaultFigureStrategy",
-    "DefaultPassageStrategy",
-    "DefaultPhraseStrategy"
-   ]
-  },
-  "engine/include/mforce/music/drift_voicing_profile_selector.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 111,
-   "longest_function": [
-    27,
-    "mforce::DriftVoicingProfileSelector::profile_for_chord"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "DriftVoicingProfileSelector"
-   ]
-  },
   "engine/include/mforce/music/dun_parser.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 453,
+   "lines": 458,
    "longest_function": [
-    126,
+    127,
     "mforce::dun_to_piece"
    ],
    "module": "music",
@@ -1878,67 +2289,6 @@
    "mutable_vars": 0,
    "types": [
     "DynamicState"
-   ]
-  },
-  "engine/include/mforce/music/elaborated_phrase_strategy.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 149,
-   "longest_function": [
-    114,
-    "mforce::ElaboratedPhraseStrategy::compose_phrase"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "ElaboratedPhraseStrategy"
-   ]
-  },
-  "engine/include/mforce/music/embedded_score.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 25,
-   "longest_function": [
-    0,
-    ""
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "EmbeddedScore"
-   ]
-  },
-  "engine/include/mforce/music/figure_constraints.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 48,
-   "longest_function": [
-    10,
-    "mforce::to_string"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "Contour",
-    "Constraints"
-   ]
-  },
-  "engine/include/mforce/music/figure_transforms.h": {
-   "changelog_comments": 2,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 576,
-   "longest_function": [
-    69,
-    "mforce::figure_transforms::apply"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "TransformOp"
    ]
   },
   "engine/include/mforce/music/figures.h": {
@@ -1974,7 +2324,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 80,
+   "lines": 110,
    "longest_function": [
     19,
     "mforce::HarmonyTimeline::slice"
@@ -1984,56 +2334,6 @@
    "types": [
     "HarmonySegment",
     "HarmonyTimeline"
-   ]
-  },
-  "engine/include/mforce/music/library_passage_strategy.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 246,
-   "longest_function": [
-    186,
-    "mforce::LibraryPassageStrategy::compose_passage"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "LibraryPassageStrategy"
-   ]
-  },
-  "engine/include/mforce/music/locus.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 30,
-   "longest_function": [
-    1,
-    "mforce::Locus::with_phrase"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "Locus"
-   ]
-  },
-  "engine/include/mforce/music/melody_profile.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 123,
-   "longest_function": [
-    54,
-    "mforce::MelodyProfile::parse_json"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "TendencyRow",
-    "NctOdds",
-    "Placement",
-    "MelodyCritic",
-    "MelodySearch",
-    "MelodyProfile"
    ]
   },
   "engine/include/mforce/music/music_json.h": {
@@ -2048,25 +2348,6 @@
    "module": "music",
    "mutable_vars": 0,
    "types": []
-  },
-  "engine/include/mforce/music/note_map.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 209,
-   "longest_function": [
-    81,
-    "mforce::evaluate_note_map"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "TrackNote",
-    "PitchEvent",
-    "ChordLookup",
-    "EventVerdict",
-    "NoteMapResult"
-   ]
   },
   "engine/include/mforce/music/parse_util.h": {
    "changelog_comments": 2,
@@ -2084,150 +2365,6 @@
     "ParsedNote",
     "ParsedDrumPattern",
     "DrumToken"
-   ]
-  },
-  "engine/include/mforce/music/passage_melody.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 157,
-   "longest_function": [
-    75,
-    "mforce::phrases_from_passage"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/include/mforce/music/passage_strategies.h": {
-   "changelog_comments": 2,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 720,
-   "longest_function": [
-    105,
-    "mforce::PedalBuildupStrategy::compose_passage"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PedalBuildupStrategy",
-    "SequencePassageStrategy",
-    "ConnectivePassageStrategy",
-    "WanderingPassageStrategy"
-   ]
-  },
-  "engine/include/mforce/music/pattern_library.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 197,
-   "longest_function": [
-    19,
-    "mforce::pattern_library::load_libraries"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "CadenceMarker",
-    "FigureToken",
-    "PhraseDef",
-    "PassageStep",
-    "Pattern",
-    "PatternLibrary"
-   ]
-  },
-  "engine/include/mforce/music/period_passage_strategy.h": {
-   "changelog_comments": 0,
-   "const_cast": 2,
-   "dynamic_cast": 0,
-   "lines": 407,
-   "longest_function": [
-    166,
-    "mforce::PeriodPassageStrategy::plan_passage"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PeriodPassageStrategy"
-   ]
-  },
-  "engine/include/mforce/music/phrase_aware_figure_strategy.h": {
-   "changelog_comments": 2,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 114,
-   "longest_function": [
-    50,
-    "mforce::PhraseAwareFigureStrategy::partition_chords"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PhraseAwareFigureStrategy"
-   ]
-  },
-  "engine/include/mforce/music/phrase_critic.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 130,
-   "longest_function": [
-    69,
-    "mforce::score_phrase_critic"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PhraseNote",
-    "CriticTerms",
-    "RankItem"
-   ]
-  },
-  "engine/include/mforce/music/phrase_strategies.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 125,
-   "longest_function": [
-    52,
-    "mforce::PeriodPhraseStrategy::compose_phrase"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PeriodPhraseStrategy",
-    "SentencePhraseStrategy"
-   ]
-  },
-  "engine/include/mforce/music/piece_utils.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 234,
-   "longest_function": [
-    57,
-    "mforce::piece_utils::pitch_before"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PitchRange"
-   ]
-  },
-  "engine/include/mforce/music/pitch_gestures.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 79,
-   "longest_function": [
-    26,
-    "mforce::combine"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "SlideRunNote"
    ]
   },
   "engine/include/mforce/music/pitch_reader.h": {
@@ -2258,214 +2395,24 @@
    "mutable_vars": 0,
    "types": []
   },
-  "engine/include/mforce/music/pool_figure_builder.h": {
+  "engine/include/mforce/music/realize.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 88,
+   "lines": 14,
    "longest_function": [
-    21,
-    "mforce::PoolFigureBuilder::select_"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "PoolAtom",
-    "PoolFigureBuilder"
-   ]
-  },
-  "engine/include/mforce/music/random_figure_builder.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 235,
-   "longest_function": [
-    34,
-    "mforce::RandomFigureBuilder::build"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "RandomFigureBuilder"
-   ]
-  },
-  "engine/include/mforce/music/random_voicing_profile_selector.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 78,
-   "longest_function": [
-    25,
-    "mforce::RandomVoicingProfileSelector::configure_from_json"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "RandomVoicingProfileSelector"
-   ]
-  },
-  "engine/include/mforce/music/realization_strategy.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 125,
-   "longest_function": [
-    22,
-    "mforce::RhythmPatternRealizationStrategy::realize"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "RhythmPattern",
-    "RealizationRequest",
-    "RealizationStrategy",
-    "RealizationStrategyRegistry",
-    "BlockRealizationStrategy",
-    "RhythmPatternRealizationStrategy"
-   ]
-  },
-  "engine/include/mforce/music/rhythm_util.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 98,
-   "longest_function": [
-    44,
-    "mforce::generate_musical_rhythm"
+    0,
+    ""
    ],
    "module": "music",
    "mutable_vars": 0,
    "types": []
-  },
-  "engine/include/mforce/music/rng.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 32,
-   "longest_function": [
-    3,
-    "mforce::rng::Scope::Scope"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "Scope"
-   ]
-  },
-  "engine/include/mforce/music/scripted_voicing_profile_selector.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 61,
-   "longest_function": [
-    19,
-    "mforce::ScriptedVoicingProfileSelector::configure_from_json"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "ScriptedVoicingProfileSelector"
-   ]
-  },
-  "engine/include/mforce/music/shape_figures.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 95,
-   "longest_function": [
-    13,
-    "mforce::shape_figures::zigzag"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/include/mforce/music/shape_strategies.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 54,
-   "longest_function": [
-    1,
-    "mforce::ShapeSteppingStrategy::name"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "ShapeCadentialApproachStrategy",
-    "ShapeSkippingStrategy",
-    "ShapeSteppingStrategy"
-   ]
-  },
-  "engine/include/mforce/music/smooth_voicing_selector.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 225,
-   "longest_function": [
-    128,
-    "mforce::SmoothVoicingSelector::select"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "SmoothVoicingSelector"
-   ]
-  },
-  "engine/include/mforce/music/static_voicing_profile_selector.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 28,
-   "longest_function": [
-    5,
-    "mforce::StaticVoicingProfileSelector::profile_for_chord"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "StaticVoicingProfileSelector"
-   ]
-  },
-  "engine/include/mforce/music/strategy.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 68,
-   "longest_function": [
-    4,
-    "mforce::SectionStrategy::plan_section"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "SectionStrategy",
-    "FigureStrategy",
-    "PhraseStrategy",
-    "StrategyScope",
-    "PassageStrategy"
-   ]
-  },
-  "engine/include/mforce/music/strategy_registry.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 30,
-   "longest_function": [
-    4,
-    "mforce::StrategyRegistry::instance"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "StrategyRegistry"
-   ]
   },
   "engine/include/mforce/music/structure.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 300,
+   "lines": 303,
    "longest_function": [
     9,
     "mforce::Phrase::operator ="
@@ -2486,168 +2433,6 @@
     "Section",
     "Part",
     "Piece"
-   ]
-  },
-  "engine/include/mforce/music/style_table.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 190,
-   "longest_function": [
-    59,
-    "mforce::ChordLabel::parse"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "ChordLabel",
-    "StyleTable"
-   ]
-  },
-  "engine/include/mforce/music/templates.h": {
-   "changelog_comments": 7,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 813,
-   "longest_function": [
-    96,
-    "mforce::PieceTemplate::add_derived_motif"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "MelodicFunction",
-    "FigureShape",
-    "FigureDirection",
-    "StepMode",
-    "FigureSource",
-    "MotifRole",
-    "MotifOrigin",
-    "FigureTemplate",
-    "Motif",
-    "PeriodPhraseConfig",
-    "SentencePhraseConfig",
-    "TwoFigurePhraseConfig",
-    "ElaboratedPhraseConfig",
-    "PhraseTemplate",
-    "PeriodVariant",
-    "PeriodSpec",
-    "ChordAccompanimentConfig",
-    "LibraryPassageConfig",
-    "PedalBuildupConfig",
-    "SequencePassageConfig",
-    "ConnectivePassageConfig",
-    "WanderingPassageConfig",
-    "PassageTemplate",
-    "PartRole",
-    "PartTemplate",
-    "PieceTemplate"
-   ]
-  },
-  "engine/include/mforce/music/templates_json.h": {
-   "changelog_comments": 3,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 1291,
-   "longest_function": [
-    172,
-    "mforce::from_json"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/include/mforce/music/time_map.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 45,
-   "longest_function": [
-    8,
-    "mforce::TimeMap::TimeMap"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "TimeMap"
-   ]
-  },
-  "engine/include/mforce/music/two_figure_phrase_strategy.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 74,
-   "longest_function": [
-    48,
-    "mforce::TwoFigurePhraseStrategy::compose_phrase"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "TwoFigurePhraseStrategy"
-   ]
-  },
-  "engine/include/mforce/music/voicing_profile.h": {
-   "changelog_comments": 2,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 41,
-   "longest_function": [
-    0,
-    ""
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "VoicingProfile"
-   ]
-  },
-  "engine/include/mforce/music/voicing_profile_selector.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 65,
-   "longest_function": [
-    5,
-    "mforce::VoicingProfileSelectorRegistry::create"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "VoicingProfileSelector",
-    "VoicingProfileSelectorRegistry"
-   ]
-  },
-  "engine/include/mforce/music/voicing_selector.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 63,
-   "longest_function": [
-    4,
-    "mforce::VoicingSelectorRegistry::resolve"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "VoicingRequest",
-    "VoicingSelector",
-    "VoicingSelectorRegistry"
-   ]
-  },
-  "engine/include/mforce/music/wrapper_phrase_strategy.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 57,
-   "longest_function": [
-    31,
-    "mforce::WrapperPhraseStrategy::compose_phrase"
-   ],
-   "module": "music",
-   "mutable_vars": 0,
-   "types": [
-    "WrapperPhraseStrategy"
    ]
   },
   "engine/include/mforce/patch/build_graph.h": {
@@ -2858,11 +2643,74 @@
     "TypeDeclarations"
    ]
   },
+  "engine/include/mforce/perform/conductor.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 557,
+   "longest_function": [
+    56,
+    "mforce::ChordPerformer::get_pitch_indices"
+   ],
+   "module": "perform",
+   "mutable_vars": 0,
+   "types": [
+    "NotePerformer",
+    "DrumPerformer",
+    "ChordPerformer",
+    "Conductor"
+   ]
+  },
+  "engine/include/mforce/perform/embedded_score.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 25,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "perform",
+   "mutable_vars": 0,
+   "types": [
+    "EmbeddedScore"
+   ]
+  },
+  "engine/include/mforce/perform/pitch_gestures.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 79,
+   "longest_function": [
+    26,
+    "mforce::combine"
+   ],
+   "module": "perform",
+   "mutable_vars": 0,
+   "types": [
+    "SlideRunNote"
+   ]
+  },
+  "engine/include/mforce/perform/time_map.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 46,
+   "longest_function": [
+    8,
+    "mforce::TimeMap::TimeMap"
+   ],
+   "module": "perform",
+   "mutable_vars": 0,
+   "types": [
+    "TimeMap"
+   ]
+  },
   "engine/include/mforce/play/play.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 49,
+   "lines": 50,
    "longest_function": [
     0,
     ""
@@ -4558,11 +4406,557 @@
     "SignalStats"
    ]
   },
+  "engine/include/mforce/voicing/drift_voicing_profile_selector.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 98,
+   "longest_function": [
+    27,
+    "mforce::DriftVoicingProfileSelector::profile_for_chord"
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "DriftProfileSettings",
+    "DriftVoicingProfileSelector"
+   ]
+  },
+  "engine/include/mforce/voicing/no_settings.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 8,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "NoSettings"
+   ]
+  },
+  "engine/include/mforce/voicing/random_voicing_profile_selector.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 65,
+   "longest_function": [
+    15,
+    "mforce::RandomVoicingProfileSelector::profile_for_chord"
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "RandomProfileSettings",
+    "RandomVoicingProfileSelector"
+   ]
+  },
+  "engine/include/mforce/voicing/scripted_voicing_profile_selector.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 44,
+   "longest_function": [
+    8,
+    "mforce::ScriptedVoicingProfileSelector::profile_for_chord"
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "ScriptedProfileSettings",
+    "ScriptedVoicingProfileSelector"
+   ]
+  },
+  "engine/include/mforce/voicing/smooth_voicing_selector.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 225,
+   "longest_function": [
+    128,
+    "mforce::SmoothVoicingSelector::select"
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "SmoothVoicingSelector"
+   ]
+  },
+  "engine/include/mforce/voicing/static_voicing_profile_selector.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 32,
+   "longest_function": [
+    5,
+    "mforce::StaticVoicingProfileSelector::profile_for_chord"
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "StaticVoicingProfileSelector"
+   ]
+  },
+  "engine/include/mforce/voicing/voicing_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 120,
+   "longest_function": [
+    19,
+    "mforce::from_json"
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/voicing/voicing_profile.h": {
+   "changelog_comments": 2,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 41,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "VoicingProfile"
+   ]
+  },
+  "engine/include/mforce/voicing/voicing_profile_selector.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 34,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "VoicingProfileSelector"
+   ]
+  },
+  "engine/include/mforce/voicing/voicing_registry.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 66,
+   "longest_function": [
+    11,
+    "mforce::VoicingRegistry::make_profile_selector"
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "VoicingRegistry"
+   ]
+  },
+  "engine/include/mforce/voicing/voicing_selector.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 36,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "voicing",
+   "mutable_vars": 0,
+   "types": [
+    "VoicingRequest",
+    "VoicingSelector"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/alternating_figure_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 108,
+   "longest_function": [
+    61,
+    "mforce::AlternatingFigureStrategy::compose_passage"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "AlternatingFigureStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/connective_passage_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 142,
+   "longest_function": [
+    94,
+    "mforce::ConnectivePassageStrategy::compose_passage"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "ConnectivePassageSettings",
+    "ConnectivePassageStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/connective_passage_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 28,
+   "longest_function": [
+    10,
+    "mforce::from_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/elaborated_phrase_strategy.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 178,
+   "longest_function": [
+    112,
+    "mforce::ElaboratedPhraseStrategy::compose_phrase"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "ElaboratedPhraseSettings",
+    "ElaboratedPhraseStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/elaborated_phrase_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 71,
+   "longest_function": [
+    14,
+    "mforce::from_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/library_passage_strategy.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 261,
+   "longest_function": [
+    179,
+    "mforce::LibraryPassageStrategy::compose_passage"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "LibraryPassageSettings",
+    "LibraryPassageStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/library_passage_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 26,
+   "longest_function": [
+    6,
+    "mforce::to_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/passage_anchors.h": {
+   "changelog_comments": 2,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 218,
+   "longest_function": [
+    25,
+    "mforce::passage_anchors::prior_passage_tail"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/pattern_library.h": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 109,
+   "longest_function": [
+    12,
+    "mforce::pattern_library::pick_pattern_by_length"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "CadenceMarker",
+    "FigureToken",
+    "PhraseDef",
+    "PassageStep",
+    "Pattern",
+    "PatternLibrary"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/pedal_buildup_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 150,
+   "longest_function": [
+    104,
+    "mforce::PedalBuildupStrategy::compose_passage"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "PedalBuildupSettings",
+    "PedalBuildupStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/pedal_buildup_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 27,
+   "longest_function": [
+    9,
+    "mforce::from_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/period_passage_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 452,
+   "longest_function": [
+    172,
+    "mforce::PeriodPassageStrategy::plan_passage"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "PeriodVariant",
+    "PeriodSpec",
+    "PeriodPassageSettings",
+    "PeriodPassageStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/period_passage_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 109,
+   "longest_function": [
+    46,
+    "mforce::from_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/period_phrase_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 95,
+   "longest_function": [
+    51,
+    "mforce::PeriodPhraseStrategy::compose_phrase"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "PeriodPhraseSettings",
+    "PeriodPhraseStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/period_phrase_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 26,
+   "longest_function": [
+    6,
+    "mforce::to_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/register_shelved.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 13,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/sentence_phrase_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 77,
+   "longest_function": [
+    34,
+    "mforce::SentencePhraseStrategy::compose_phrase"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "SentencePhraseSettings",
+    "SentencePhraseStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/sentence_phrase_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 24,
+   "longest_function": [
+    5,
+    "mforce::to_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/sequence_passage_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 118,
+   "longest_function": [
+    72,
+    "mforce::SequencePassageStrategy::compose_passage"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "SequencePassageSettings",
+    "SequencePassageStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/sequence_passage_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 26,
+   "longest_function": [
+    9,
+    "mforce::from_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/two_figure_phrase_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 95,
+   "longest_function": [
+    46,
+    "mforce::TwoFigurePhraseStrategy::compose_phrase"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "TwoFigurePhraseSettings",
+    "TwoFigurePhraseStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/two_figure_phrase_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 40,
+   "longest_function": [
+    13,
+    "mforce::to_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 140,
+   "longest_function": [
+    96,
+    "mforce::WanderingPassageStrategy::compose_passage"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": [
+    "WanderingPassageSettings",
+    "WanderingPassageStrategy"
+   ]
+  },
+  "engine/shelved/include/mforce/shelved/wandering_passage_strategy_json.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 27,
+   "longest_function": [
+    9,
+    "mforce::from_json"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/src/pattern_library_json.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 105,
+   "longest_function": [
+    19,
+    "mforce::pattern_library::load_libraries"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/src/register_shelved.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 33,
+   "longest_function": [
+    14,
+    "mforce::register_shelved"
+   ],
+   "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/src/chord.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 282,
+   "lines": 291,
    "longest_function": [
     80,
     "mforce::ChordDictionary::init_all"
@@ -4584,6 +4978,73 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/src/compose/compose.cpp": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 583,
+   "longest_function": [
+    87,
+    "mforce::realize_motifs"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": [
+    "Composer"
+   ]
+  },
+  "engine/src/compose/melody_profile_json.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 72,
+   "longest_function": [
+    54,
+    "mforce::parse_melody_profile"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/compose/pool_figure_builder_json.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 34,
+   "longest_function": [
+    16,
+    "mforce::pool_from_json"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/compose/register_builtin.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 72,
+   "longest_function": [
+    26,
+    "mforce::register_builtin"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/compose/style_table_json.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 64,
+   "longest_function": [
+    34,
+    "mforce::parse_json"
+   ],
+   "module": "compose",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/src/music.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -4597,20 +5058,18 @@
    "mutable_vars": 5,
    "types": []
   },
-  "engine/src/music/embedded_score.cpp": {
+  "engine/src/music/realize.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 140,
+   "dynamic_cast": 1,
+   "lines": 161,
    "longest_function": [
-    39,
-    "mforce::perform_notes"
+    90,
+    "mforce::realize_phrase"
    ],
    "module": "music",
    "mutable_vars": 0,
-   "types": [
-    "ScoreWarnings"
-   ]
+   "types": []
   },
   "engine/src/patch/build_graph.cpp": {
    "changelog_comments": 0,
@@ -4715,11 +5174,26 @@
     "Table"
    ]
   },
+  "engine/src/perform/embedded_score.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 140,
+   "longest_function": [
+    39,
+    "mforce::perform_notes"
+   ],
+   "module": "perform",
+   "mutable_vars": 0,
+   "types": [
+    "ScoreWarnings"
+   ]
+  },
   "engine/src/play/play.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 135,
+   "lines": 139,
    "longest_function": [
     33,
     "mforce::play"
@@ -5101,7 +5575,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 39,
-   "lines": 15619,
+   "lines": 16399,
    "longest_function": [
     327,
     "run_envelope_table_tests"
@@ -5118,6 +5592,7 @@
     "LoadedInstrument",
     "RecordingInstrument",
     "ScratchPatch",
+    "TemplateFootprint",
     "PinProbe",
     "Doubler",
     "UnitRamp",
@@ -5201,7 +5676,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 951,
+   "lines": 962,
    "longest_function": [
     74,
     "run_chords"
@@ -5227,7 +5702,7 @@
     "FileInstrument"
    ]
   },
-  "tools/ppl_to_json/main.cpp": {
+  "tools/shelved/ppl_to_json/main.cpp": {
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
@@ -5365,9 +5840,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 5,
-   "lines": 1199,
+   "lines": 1202,
    "longest_function": [
-    111,
+    109,
     "run_render"
    ],
    "module": "tests",
@@ -5392,55 +5867,18 @@
    "types": []
   }
  },
- "include_violations": [
-  {
-   "file": "engine/include/mforce/music/melody_profile.h",
-   "include": "nlohmann/json.hpp",
-   "module": "music",
-   "target": "json"
-  },
-  {
-   "file": "engine/include/mforce/music/pattern_library.h",
-   "include": "nlohmann/json.hpp",
-   "module": "music",
-   "target": "json"
-  },
-  {
-   "file": "engine/include/mforce/music/pool_figure_builder.h",
-   "include": "nlohmann/json.hpp",
-   "module": "music",
-   "target": "json"
-  },
-  {
-   "file": "engine/include/mforce/music/style_table.h",
-   "include": "nlohmann/json.hpp",
-   "module": "music",
-   "target": "json"
-  },
-  {
-   "file": "engine/include/mforce/music/templates.h",
-   "include": "nlohmann/json.hpp",
-   "module": "music",
-   "target": "json"
-  },
-  {
-   "file": "engine/include/mforce/music/voicing_profile_selector.h",
-   "include": "nlohmann/json.hpp",
-   "module": "music",
-   "target": "json"
-  }
- ],
+ "include_violations": [],
  "summary": {
-  "changelog_comments": 78,
-  "const_cast": 10,
-  "duplicate_blocks": 124,
-  "dynamic_cast": 55,
+  "changelog_comments": 77,
+  "const_cast": 1,
+  "duplicate_blocks": 122,
+  "dynamic_cast": 54,
   "file_level_mutable_vars": 24,
-  "files": 270,
-  "files_over_limit": 13,
-  "functions_over_limit": 56,
-  "include_violations": 6,
-  "lines": 55612,
+  "files": 306,
+  "files_over_limit": 10,
+  "functions_over_limit": 52,
+  "include_violations": 0,
+  "lines": 56973,
   "unmapped_files": 0
  }
 }

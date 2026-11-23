@@ -42,11 +42,11 @@ public:
   using Settings = TwoFigurePhraseSettings;
 
   std::string name() const override { return kName; }
-  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) const override;
 };
 
 inline Phrase TwoFigurePhraseStrategy::compose_phrase(
-    Locus locus, const PhraseTemplate& phraseTmpl) {
+    Locus locus, const PhraseTemplate& phraseTmpl) const {
   Phrase phrase;
 
   if (phraseTmpl.startingPitch) {

@@ -32,12 +32,11 @@ PATCH = REPO / "patches/library/keys/acoustic_piano/piano_default.json"  # comp 
 OUTROOT = "renders/engine_passage_strategies"
 
 
-def melody_part(strategy, config_key, config, section="Main"):
+def melody_part(strategy, config, section="Main"):
     return {"name": "melody", "role": "melody",
             "passages": {section: {
                 "startingPitch": {"octave": 4, "pitch": "C"},
-                "strategy": strategy,
-                config_key: config,
+                "strategy": {"name": strategy, "settings": config},
                 "phrases": []}}}
 
 
@@ -71,7 +70,7 @@ def base_template(parts, *, beats, bpm, seed, motifs=()):
 def pedal_buildup(seed, bpm, *, levels=0, climb=2, cell=3.0):
     cfg = {"levels": levels, "climbStep": climb, "cellBeats": cell,
            "holdBeats": 2.0, "rangeCap": 19, "maxTries": 8, "seed": seed}
-    parts = [melody_part("pedal_buildup", "pedalBuildupConfig", cfg),
+    parts = [melody_part("pedal_buildup", cfg),
              pedal_part(reps=10)]
     motifs = [("PED", {"units": [{"duration": 4.0, "step": 0}]})]
     return base_template(parts, beats=48, bpm=bpm, seed=seed, motifs=motifs)
@@ -80,7 +79,7 @@ def pedal_buildup(seed, bpm, *, levels=0, climb=2, cell=3.0):
 def sequence_passage(seed, bpm, *, entries=8, step_a=-4, step_b=3, cell=1.5):
     cfg = {"entries": entries, "stepA": step_a, "stepB": step_b,
            "cellBeats": cell, "rangeCap": 19, "maxTries": 8, "seed": seed}
-    parts = [melody_part("sequence_passage", "sequenceConfig", cfg)]
+    parts = [melody_part("sequence_passage", cfg)]
     return base_template(parts, beats=48, bpm=bpm, seed=seed)
 
 
@@ -95,11 +94,11 @@ def connective(seed, bpm, *, entries=3, target=-2, tail=3, lead="sequence"):
                 "maxTries": 8, "seed": seed + 1}
     part = {"name": "melody", "role": "melody", "passages": {
         "Main": {"startingPitch": {"octave": 4, "pitch": "C"},
-                 "strategy": "sequence_passage", "sequenceConfig": lead_cfg,
+                 "strategy": {"name": "sequence_passage", "settings": lead_cfg},
                  "phrases": []},
         "Bridge": {"startingPitch": {"octave": 4, "pitch": "C"},
-                   "strategy": "connective_passage",
-                   "connectiveConfig": conn_cfg, "phrases": []}}}
+                   "strategy": {"name": "connective_passage",
+                                "settings": conn_cfg}, "phrases": []}}}
     t = base_template([part], beats=32, bpm=bpm, seed=seed)
     t["sections"] = [{"name": "Main", "beats": 32},
                      {"name": "Bridge", "beats": 24}]
@@ -112,26 +111,23 @@ def suite(seed, bpm):
     between the sequence and the buildup so it has a real tail to harvest."""
     part = {"name": "melody", "role": "melody", "passages": {
         "S0_sequence": {"startingPitch": {"octave": 4, "pitch": "C"},
-                        "strategy": "sequence_passage",
-                        "sequenceConfig": {"entries": 8, "stepA": -4,
+                        "strategy": {"name": "sequence_passage", "settings": {"entries": 8, "stepA": -4,
                                            "stepB": 3, "cellBeats": 1.5,
                                            "rangeCap": 19, "maxTries": 8,
-                                           "seed": seed},
+                                           "seed": seed}},
                         "phrases": []},
         "S1_bridge": {"startingPitch": {"octave": 4, "pitch": "C"},
-                      "strategy": "connective_passage",
-                      "connectiveConfig": {"entries": 3, "targetDegree": 2,
+                      "strategy": {"name": "connective_passage", "settings": {"entries": 3, "targetDegree": 2,
                                            "tailUnits": 3, "finalAugment": 1.5,
                                            "cellBeats": 2.0, "rangeCap": 19,
-                                           "maxTries": 8, "seed": seed + 1},
+                                           "maxTries": 8, "seed": seed + 1}},
                       "phrases": []},
         "S2_buildup": {"startingPitch": {"octave": 4, "pitch": "C"},
-                       "strategy": "pedal_buildup",
-                       "pedalBuildupConfig": {"levels": 3, "climbStep": 2,
+                       "strategy": {"name": "pedal_buildup", "settings": {"levels": 3, "climbStep": 2,
                                               "cellBeats": 3.0,
                                               "holdBeats": 2.0,
                                               "rangeCap": 19, "maxTries": 8,
-                                              "seed": seed + 2},
+                                              "seed": seed + 2}},
                        "phrases": []}}}
     ped = {"name": "pedal", "role": "melody", "passages": {
         "S2_buildup": {"startingPitch": {"octave": 3, "pitch": "G"},
@@ -155,7 +151,7 @@ def wandering(seed, bpm, *, entries=0, pull_threshold=5, cell=2.0):
     cfg = {"entries": entries, "pullThreshold": pull_threshold,
            "pullAmount": 2, "cellBeats": cell, "rangeCap": 19,
            "maxTries": 8, "seed": seed}
-    parts = [melody_part("wandering_passage", "wanderingConfig", cfg)]
+    parts = [melody_part("wandering_passage", cfg)]
     return base_template(parts, beats=48, bpm=bpm, seed=seed)
 
 

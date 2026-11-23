@@ -1,5 +1,8 @@
 #pragma once
 #include "mforce/compose/strategy.h"
+#include "mforce/compose/compose.h"
+#include "mforce/compose/piece_utils.h"
+#include "mforce/compose/default_strategy_shared.h"
 #include "mforce/compose/strategy_registry.h"
 #include "mforce/music/figures.h"
 #include "mforce/compose/figure_transforms.h"
@@ -43,8 +46,7 @@ public:
 
   std::string name() const override { return kName; }
 
-  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
-  static int degree_in_scale(const Pitch& pitch, const Scale& scale);
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) const override;
 
   // Cadential approach helpers (apply_cadence v2). Pure; unit-tested in test_figures.
   static int nearest_degree_index(int fromIdx, int targetDeg, int len);
@@ -72,17 +74,6 @@ public:
                             const Scale& scale);
 };
 
-// -- degree_in_scale: verbatim from classical_composer.h:167-175 -------------
-inline int DefaultPhraseStrategy::degree_in_scale(const Pitch& pitch,
-                                                  const Scale& scale) {
-    float rel = std::fmod(float(pitch.pitchDef->offset - scale.offset()) + 12.0f, 12.0f);
-    float accum = 0;
-    for (int d = 0; d < scale.length(); ++d) {
-      if (std::abs(accum - rel) < 0.5f) return d;
-      accum += scale.ascending_step(d);
-    }
-    return 0; // fallback to root
-}
 
 // -- apply_cadence: role-aware. Skips trailing Connective / PostCadential
 //    figures when locating the "cadence target" figure, because those are
@@ -205,16 +196,6 @@ inline void DefaultPhraseStrategy::rebuild_cadential_tail(
     }
 }
 
-} // namespace mforce
-
-// default_figure_strategy.h and this header include each other: each
-// includes the other after its own class, so whichever comes first, both
-// classes are declared before either body that names the other.
-#include "mforce/compose/default_figure_strategy.h"
-#include "mforce/compose/compose.h"
-#include "mforce/compose/piece_utils.h"
-
-namespace mforce {
 
 // ============================================================================
 // Out-of-line definition of DefaultPhraseStrategy::compose_phrase. It looks
@@ -222,7 +203,8 @@ namespace mforce {
 // ============================================================================
 
 inline Phrase DefaultPhraseStrategy::compose_phrase(
-    Locus locus, const PhraseTemplate& phraseTmpl) {
+    Locus locus, const PhraseTemplate& phraseTmpl) const {
+  (void)settings_of<Settings>(phraseTmpl.strategy);  // refuses settings of another type
   Phrase phrase;
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
@@ -275,7 +257,7 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
     if (phraseTmpl.function != MelodicFunction::Free
         && figTmpl.source == FigureSource::Generate
         && figTmpl.shape == FigureShape::Free) {
-      figTmpl.shape = DefaultFigureStrategy::choose_shape(
+      figTmpl.shape = choose_shape(
           phraseTmpl.function, i, numFigs, locus.rng->rng(),
           phraseTmpl.cadentialArrival == "approach");
     }
@@ -289,13 +271,13 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
     // advanced by the figures before it. Other sources do not read the
     // cursor and go to the default figure strategy.
     Locus figLocus = locus.with_figure(i);
-    FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
+    const FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
     MelodicFigure fig;
     if (figTmpl.source == FigureSource::Literal) {
       // Inline cursor-aware Literal realization using the runningReader.
       const Pitch cursorPitch = runningReader.get_pitch();
       auto absoluteDeg = [&](const Pitch& p) {
-        int d = DefaultPhraseStrategy::degree_in_scale(p, scale);
+        int d = degree_in_scale(p, scale);
         return p.octave * scale.length() + d;
       };
       int prevDeg = absoluteDeg(cursorPitch);

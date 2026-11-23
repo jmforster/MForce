@@ -33,7 +33,7 @@ public:
   using Settings = PeriodPhraseSettings;
 
   std::string name() const override { return kName; }
-  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) const override;
 };
 
 // ============================================================================
@@ -41,7 +41,7 @@ public:
 // ============================================================================
 
 inline Phrase PeriodPhraseStrategy::compose_phrase(
-    Locus locus, const PhraseTemplate& phraseTmpl) {
+    Locus locus, const PhraseTemplate& phraseTmpl) const {
   Phrase phrase;
 
   if (!phraseTmpl.strategy.settings.has_value()) {
@@ -62,7 +62,7 @@ inline Phrase PeriodPhraseStrategy::compose_phrase(
 
   // Half-cadence adjustment on the antecedent (figures 0 and 1)
   {
-    int startDeg = DefaultPhraseStrategy::degree_in_scale(phrase.startingPitch, scale);
+    int startDeg = degree_in_scale(phrase.startingPitch, scale);
     int len = scale.length();
     int netSteps = 0;
     for (int f = 0; f < 2; ++f) {

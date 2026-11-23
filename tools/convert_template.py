@@ -22,7 +22,12 @@ This tool rewrites the keys of the form before that, and changes nothing else:
 - `voicingProfileSelectorConfig` becomes the settings of the
   `voicingProfileSelector` the passage names;
 - a settings key whose strategy is not the one the object names is dropped,
-  since nothing read it. Each drop is printed.
+  since nothing read it. Each drop is printed;
+- an object that holds BOTH a new-form key and the old key it would be
+  written from (an object `strategy` with an old settings key, `realization`
+  with `rhythmPattern`, an object `voicingProfileSelector` with
+  `voicingProfileSelectorConfig`) is not rewritten: the tool names the file
+  and the keys and leaves the file as it is, so it never writes a key twice.
 
 The rewrite splices text, so a file keeps its formatting: only the converted
 keys change. A converted file converts to itself. A folder is walked for
@@ -160,6 +165,16 @@ class Reader:
 # Finding the first old key, innermost first, and the edit that converts it.
 # --------------------------------------------------------------------------
 
+class Conflict(Exception):
+    """An object holds a new-form key and the old key it would be written from."""
+
+
+def refuse_both(obj, new_key, old_key, path, new_is_object_only=False):
+    m = obj.member(new_key)
+    if m is None or (new_is_object_only and m.node.kind != "object"):
+        return
+    raise Conflict("%s holds both %s and %s" % (path, new_key, old_key))
+
 def strategy_name(obj):
     m = obj.member("strategy")
     if m is None:
@@ -189,15 +204,13 @@ def wrap(name, settings_text):
 def convert_choice(text, obj, old_key, strategy, choice_key, path, log):
     """Edits that move `old_key`'s value into the choice under `choice_key`
     when that choice names `strategy`; else drops it."""
+    refuse_both(obj, choice_key, old_key, path, new_is_object_only=True)
     m = obj.member(old_key)
     value = text[m.node.start:m.node.end]
     if old_key == "periods":
         value = '{"periods": %s}' % value
     choice = obj.member(choice_key)
-    named = choice is not None and (
-        (choice.node.kind == "string" and choice.node.value == strategy) or
-        (choice.node.kind == "object" and strategy_name_of(choice.node) == strategy
-         and choice.node.member("settings") is None))
+    named = choice is not None and choice.node.kind == "string" and choice.node.value == strategy
     if not named:
         log.append("dropped %s at %s: %s is %r, not %r"
                    % (old_key, path, choice_key, choice_text(choice), strategy))
@@ -226,6 +239,7 @@ def passage_edits(text, obj, path, log):
     rp = obj.member("rhythmPattern")
     rs = obj.member("realizationStrategy")
     if rp is not None:
+        refuse_both(obj, "realization", "rhythmPattern", path)
         edits = [((rp.key_start, rp.node.end),
                   '"realization": ' + wrap("rhythm_pattern", text[rp.node.start:rp.node.end]))]
         if rs is not None:
@@ -239,6 +253,8 @@ def passage_edits(text, obj, path, log):
         return [(deletion(text, obj, rs), "")]
     cfg = obj.member("voicingProfileSelectorConfig")
     if cfg is not None:
+        refuse_both(obj, "voicingProfileSelector", "voicingProfileSelectorConfig", path,
+                    new_is_object_only=True)
         sel = obj.member("voicingProfileSelector")
         name = choice_text(sel)
         if sel is not None and sel.node.kind == "string" and name in PROFILE_SELECTORS_WITH_SETTINGS:
@@ -308,7 +324,11 @@ def convert_file(path):
         print("%s: not JSON, skipped" % path)
         return False
     log = []
-    new, count = convert_text(text, log)
+    try:
+        new, count = convert_text(text, log)
+    except Conflict as e:
+        print("%s: not converted: %s" % (path, e))
+        return False
     for line in log:
         print("%s: %s" % (path, line))
     if count == 0:

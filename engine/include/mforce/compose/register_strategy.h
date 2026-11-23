@@ -14,4 +14,12 @@ void register_strategy(ComposeKit& kit, SettingsCodecs& codecs) {
   codecs.add<Strategy>();
 }
 
+// The same, for a strategy whose settings hold templates and so are read and
+// written with the codecs (SettingsCodecs::add_holding_templates).
+template <class Strategy>
+void register_strategy_holding_templates(ComposeKit& kit, SettingsCodecs& codecs) {
+  kit.strategies.add(std::make_unique<Strategy>());
+  codecs.add_holding_templates<Strategy>();
+}
+
 } // namespace mforce

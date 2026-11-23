@@ -59,7 +59,7 @@ public:
     std::string name() const override { return kName; }
     StrategyScope scope() const override { return StrategyScope::Melody; }
 
-    Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
+    Passage compose_passage(Locus locus, const PassageTemplate& pt) const override;
 };
 
 namespace library_passage_detail {
@@ -79,7 +79,7 @@ inline std::vector<pattern_library::PatternLibrary>& cached_libraries() {
 } // namespace library_passage_detail
 
 inline Passage LibraryPassageStrategy::compose_passage(
-    Locus locus, const PassageTemplate& passTmpl) {
+    Locus locus, const PassageTemplate& passTmpl) const {
     Passage passage;
 
     if (!passTmpl.strategy.settings.has_value()) {
@@ -249,7 +249,7 @@ inline Passage LibraryPassageStrategy::compose_passage(
 
         // Compose this phrase via default_phrase.
         Locus phraseLocus = locus.with_phrase(phraseIdx);
-        PhraseStrategy* ps = &locus.kit->strategies.phrase("default_phrase");
+        const PhraseStrategy* ps = &locus.kit->strategies.phrase("default_phrase");
         Phrase ph = ps->compose_phrase(phraseLocus, phraseTmpl);
         passage.add_phrase(std::move(ph));
         ++phraseIdx;

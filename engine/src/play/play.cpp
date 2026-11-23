@@ -81,8 +81,7 @@ PlayResult play(const Piece& piece, const Ensemble& ensemble, Conductor& conduct
   for (const auto& part : piece.parts) {
     if (part.elementSequence.empty() && !part.passages.empty())
       r.warnings.push_back("part '" + part.name +
-                           "' has passages and no events: it plays nothing "
-                           "(realize_events writes its events)");
+                           "' has passages and no events: it plays nothing");
   }
   r.sampleRate = instruments.front()->render_context().sampleRate;
   const float totalBeats = section_start_beat(piece.sections, piece.sections.size());

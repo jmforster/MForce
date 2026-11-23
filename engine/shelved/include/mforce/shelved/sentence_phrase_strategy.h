@@ -32,7 +32,7 @@ public:
   using Settings = SentencePhraseSettings;
 
   std::string name() const override { return kName; }
-  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) const override;
 };
 
 // ============================================================================
@@ -40,7 +40,7 @@ public:
 // ============================================================================
 
 inline Phrase SentencePhraseStrategy::compose_phrase(
-    Locus locus, const PhraseTemplate& phraseTmpl) {
+    Locus locus, const PhraseTemplate& phraseTmpl) const {
   Phrase phrase;
 
   if (!phraseTmpl.strategy.settings.has_value()) {

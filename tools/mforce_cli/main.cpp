@@ -235,6 +235,7 @@ static Piece melody_piece(int variation) {
     part.instrumentType = "pluck";
     part.passages["Main"] = std::move(passage);
     piece.add_part(std::move(part));
+    realize_events(piece);
     return piece;
 }
 

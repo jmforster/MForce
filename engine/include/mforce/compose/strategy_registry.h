@@ -24,23 +24,23 @@ public:
   void add(std::unique_ptr<PassageStrategy> s)     { put(passages_, std::move(s)); }
   void add(std::unique_ptr<RealizationStrategy> s) { put(realizations_, std::move(s)); }
 
-  FigureStrategy& figure(std::string_view name) const {
+  const FigureStrategy& figure(std::string_view name) const {
     return require(figures_, "figure", name, "default_figure");
   }
-  PhraseStrategy& phrase(std::string_view name) const {
+  const PhraseStrategy& phrase(std::string_view name) const {
     return require(phrases_, "phrase", name, "default_phrase");
   }
-  PassageStrategy& passage(std::string_view name) const {
+  const PassageStrategy& passage(std::string_view name) const {
     return require(passages_, "passage", name, "default_passage");
   }
-  RealizationStrategy& realization(std::string_view name) const {
+  const RealizationStrategy& realization(std::string_view name) const {
     return require(realizations_, "realization", name, "block");
   }
 
   // The figure strategy of that name, or null when none is registered. For
   // the default figure strategy's shape dispatch, where a shape without a
   // registered strategy falls back to the generic generator.
-  FigureStrategy* find_figure(std::string_view name) const {
+  const FigureStrategy* find_figure(std::string_view name) const {
     auto it = figures_.find(std::string(name));
     return it == figures_.end() ? nullptr : it->second.get();
   }
@@ -56,7 +56,7 @@ private:
   }
 
   template <class T>
-  static T& require(const Table<T>& table, const char* level,
+  static const T& require(const Table<T>& table, const char* level,
                     std::string_view name, const char* defaultName) {
     const std::string key = name.empty() ? std::string(defaultName)
                                          : std::string(name);

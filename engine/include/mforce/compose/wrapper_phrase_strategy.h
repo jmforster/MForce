@@ -22,11 +22,12 @@ public:
   using Settings = NoSettings;
 
   std::string name() const override { return kName; }
-  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) const override;
 };
 
 inline Phrase WrapperPhraseStrategy::compose_phrase(
-    Locus locus, const PhraseTemplate& phraseTmpl) {
+    Locus locus, const PhraseTemplate& phraseTmpl) const {
+  (void)settings_of<Settings>(phraseTmpl.strategy);  // refuses settings of another type
   Phrase phrase;
 
   if (phraseTmpl.startingPitch) {
@@ -44,7 +45,7 @@ inline Phrase WrapperPhraseStrategy::compose_phrase(
               << phraseTmpl.figures.size() << " provided)\n";
   }
 
-  FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
+  const FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
 
   Locus figLocus = locus.with_figure(0);
   MelodicFigure fig = fs->compose_figure(figLocus, phraseTmpl.figures[0]);

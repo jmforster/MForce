@@ -34,7 +34,7 @@ public:
 
   std::string name() const override { return kName; }
 
-  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
+  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) const override;
 };
 
 // ---------------------------------------------------------------------------
@@ -44,7 +44,8 @@ public:
 // ComposeKit complete.
 // ---------------------------------------------------------------------------
 inline Passage AlternatingFigureStrategy::compose_passage(
-    Locus locus, const PassageTemplate& pt) {
+    Locus locus, const PassageTemplate& pt) const {
+  (void)settings_of<Settings>(pt.strategy);  // refuses settings of another type
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   const ChordProgression chordProg =
@@ -70,7 +71,7 @@ inline Passage AlternatingFigureStrategy::compose_passage(
   PitchReader runningReader(scale);
   runningReader.set_pitch(phrase.startingPitch);
 
-  FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
+  const FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
 
   for (int ci = 0; ci < chordProg.count(); ++ci) {
     bool isA = (ci % 2 == 0);

@@ -36,7 +36,7 @@ public:
     profileFactories_[name] = std::move(factory);
   }
 
-  VoicingSelector& selector(std::string_view name) const {
+  const VoicingSelector& selector(std::string_view name) const {
     auto it = selectors_.find(std::string(name));
     if (it == selectors_.end()) {
       throw std::runtime_error("no voicing selector named '" +

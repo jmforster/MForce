@@ -29,6 +29,8 @@ void add_profile_selector(ComposeKit& kit, SettingsCodecs& codecs) {
           -> std::unique_ptr<VoicingProfileSelector> {
         using S = typename Selector::Settings;
         if constexpr (std::is_same_v<S, NoSettings>) {
+          // Settings of another type given to it in code throw here.
+          (void)settings_of<S>(StrategyChoice{Selector::kName, settings});
           return std::make_unique<Selector>(baseline);
         } else {
           return std::make_unique<Selector>(

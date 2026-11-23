@@ -41,7 +41,7 @@ public:
 
   std::string name() const override { return kName; }
 
-  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
+  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) const override;
 
   // Partition `chordCount` chords into one contiguous span per phrase.
   // Returns span boundaries: out[p] = first chord index of phrase p, with a
@@ -125,7 +125,8 @@ inline std::vector<int> PhraseAwareFigureStrategy::partition_chords(
 // boundaries. See docs/superpowers/specs/2026-08-10-phrase-aware-cadence-design.md.
 // ---------------------------------------------------------------------------
 inline Passage PhraseAwareFigureStrategy::compose_passage(
-    Locus locus, const PassageTemplate& pt) {
+    Locus locus, const PassageTemplate& pt) const {
+  (void)settings_of<Settings>(pt.strategy);  // refuses settings of another type
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
 
@@ -176,7 +177,7 @@ inline Passage PhraseAwareFigureStrategy::compose_passage(
 
   Passage passage;
 
-  FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
+  const FigureStrategy* fs = &locus.kit->strategies.figure("default_figure");
 
   // Passage-level running cursor. Carried across phrases so a non-parallel
   // phrase continues where the previous one stopped — the same continuity
@@ -234,7 +235,7 @@ inline Passage PhraseAwareFigureStrategy::compose_passage(
       // which a ChordFigure does not), so we hand it the real answer.
       const Pitch preFigurePitch = runningReader.get_pitch();
       const int preFigureDeg =
-          DefaultPhraseStrategy::degree_in_scale(preFigurePitch, scale);
+          degree_in_scale(preFigurePitch, scale);
 
       MelodicFigure rawFig =
           fs->compose_figure(locus.with_phrase(p).with_figure(j), adjusted);

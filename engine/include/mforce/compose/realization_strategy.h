@@ -52,7 +52,7 @@ class RealizationStrategy {
 public:
   virtual ~RealizationStrategy() = default;
   virtual std::string name() const = 0;
-  virtual void realize(const RealizationContext& ctx, ElementSequence& out) = 0;
+  virtual void realize(const RealizationContext& ctx, ElementSequence& out) const = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,8 @@ public:
   using Settings = NoSettings;
 
   std::string name() const override { return kName; }
-  void realize(const RealizationContext& ctx, ElementSequence& out) override {
+  void realize(const RealizationContext& ctx, ElementSequence& out) const override {
+    (void)settings_of<Settings>(ctx.choice);  // refuses settings of another type
     for (const auto& seg : ctx.harmony.segments) {
       float b = seg.startBeat;
       for (int ci = 0; ci < seg.progression.count(); ++ci) {
@@ -96,7 +97,7 @@ public:
   using Settings = RhythmPattern;
 
   std::string name() const override { return kName; }
-  void realize(const RealizationContext& ctx, ElementSequence& out) override {
+  void realize(const RealizationContext& ctx, ElementSequence& out) const override {
     const RhythmPattern rp = settings_of<Settings>(ctx.choice);
     const float beatsPerBar = float(ctx.section.meter.beats_per_bar());
     const int totalBars = int(ctx.section.beats / beatsPerBar);

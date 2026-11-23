@@ -75,8 +75,8 @@ public:
   std::string name() const override { return kName; }
   StrategyScope scope() const override { return StrategyScope::MelodyAndHarmony; }
 
-  PassageTemplate plan_passage(Locus locus, PassageTemplate seed) override;
-  Passage         compose_passage(Locus locus, const PassageTemplate& pt) override;
+  PassageTemplate plan_passage(Locus locus, PassageTemplate seed) const override;
+  Passage         compose_passage(Locus locus, const PassageTemplate& pt) const override;
 
 private:
   // Compute the beat offset (relative to phrase start) where the cadence
@@ -125,7 +125,7 @@ private:
     for (int pi = 0; pi < passage.phrase_count(); ++pi) {
       const Phrase& phrase = passage.phrases[pi];
       // Compute starting degree from phrase's startingPitch
-      int degree = DefaultPhraseStrategy::degree_in_scale(
+      int degree = degree_in_scale(
           phrase.startingPitch, scale);
       const int len = scale.length();
 
@@ -164,7 +164,7 @@ private:
 // --- Out-of-line definitions -------------------------------------------------
 
 inline PassageTemplate PeriodPassageStrategy::plan_passage(
-    Locus locus, PassageTemplate seed) {
+    Locus locus, PassageTemplate seed) const {
 
   // The periods are planned in a copy of the settings, which the planned
   // template carries back: compose_passage reads the planned periods.
@@ -198,7 +198,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
         genTmpl.seed = figSeed;
 
         if (genTmpl.shape == FigureShape::Free && func != MelodicFunction::Free) {
-          genTmpl.shape = DefaultFigureStrategy::choose_shape(
+          genTmpl.shape = choose_shape(
               func, fi, numFigs, figSeed, phrase.cadentialArrival == "approach");
         }
 
@@ -337,7 +337,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
 }
 
 inline Passage PeriodPassageStrategy::compose_passage(
-    Locus locus, const PassageTemplate& pt) {
+    Locus locus, const PassageTemplate& pt) const {
   Passage passage;
 
   if (!pt.startingPitch) return passage;
@@ -359,7 +359,7 @@ inline Passage PeriodPassageStrategy::compose_passage(
       runningReader.set_pitch(*localTmpl.startingPitch);
     }
 
-    PhraseStrategy* ps = &locus.kit->strategies.phrase(localTmpl.strategy.name);
+    const PhraseStrategy* ps = &locus.kit->strategies.phrase(localTmpl.strategy.name);
     Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
 
     for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {

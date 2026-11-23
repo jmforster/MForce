@@ -108,16 +108,12 @@ struct ElementSequence {
 };
 
 // ===========================================================================
-// Phrase / Passage — Composer-internal scratch space.
+// Phrase / Passage — a part's music as figures, before it is events.
 //
-// Built by strategies during compose(), or by dun_to_piece; walked by
-// realize_events to populate Part.elementSequence. NOT consumed by Conductor or any
-// downstream code — the authoritative score is Part.elementSequence.
-//
-// These types are kept in structure.h for now (rather than moved to a
-// composer_internal.h) because strategy headers and the DUN parser still
-// reference them by inclusion. If the dependency graph ever cleans up,
-// they should move.
+// Built by the strategies during compose(), and by dun_to_piece; walked by
+// realize_events to write Part.elementSequence, the events the Conductor
+// performs. play reads only whether a part has passages, to warn when it
+// has passages and no events.
 // ===========================================================================
 
 // Phrase — a musical sentence. Collection of Figures.

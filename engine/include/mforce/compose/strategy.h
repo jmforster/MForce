@@ -19,14 +19,14 @@ class FigureStrategy {
 public:
   virtual ~FigureStrategy() = default;
   virtual std::string name() const = 0;
-  virtual MelodicFigure compose_figure(Locus, const FigureTemplate&) = 0;
+  virtual MelodicFigure compose_figure(Locus, const FigureTemplate&) const = 0;
 };
 
 class PhraseStrategy {
 public:
   virtual ~PhraseStrategy() = default;
   virtual std::string name() const = 0;
-  virtual Phrase compose_phrase(Locus, const PhraseTemplate&) = 0;
+  virtual Phrase compose_phrase(Locus, const PhraseTemplate&) const = 0;
 };
 
 enum class StrategyScope { Melody, MelodyAndHarmony };
@@ -37,10 +37,10 @@ public:
   virtual std::string name() const = 0;
   virtual StrategyScope scope() const { return StrategyScope::Melody; }
 
-  virtual PassageTemplate plan_passage(Locus /*locus*/, PassageTemplate seed) {
+  virtual PassageTemplate plan_passage(Locus /*locus*/, PassageTemplate seed) const {
     return seed;
   }
-  virtual Passage compose_passage(Locus, const PassageTemplate&) = 0;
+  virtual Passage compose_passage(Locus, const PassageTemplate&) const = 0;
 };
 
 } // namespace mforce

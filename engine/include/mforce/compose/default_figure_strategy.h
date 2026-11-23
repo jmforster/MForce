@@ -1,5 +1,8 @@
 #pragma once
 #include "mforce/compose/strategy.h"
+#include "mforce/compose/compose.h"
+#include "mforce/compose/piece_utils.h"
+#include "mforce/compose/default_strategy_shared.h"
 #include "mforce/compose/strategy_registry.h"
 #include "mforce/music/figures.h"
 #include "mforce/compose/figure_transforms.h"
@@ -51,26 +54,17 @@ public:
   // MFORCE_FIGURE_RANDOM) to force the procedural path always.
   inline static bool usePool = true;
 
-  // compose_figure is DECLARED here and DEFINED at the end of this file,
-  // after default_phrase_strategy.h, whose degree_in_scale it calls.
-  MelodicFigure compose_figure(Locus locus, const FigureTemplate& figTmpl) override;
+  // compose_figure is DECLARED here and DEFINED at the end of this file.
+  MelodicFigure compose_figure(Locus locus, const FigureTemplate& figTmpl) const override;
 
   // PUBLIC so realize_motifs can call generate_figure
   // directly, bypassing compose_figure's switch. The pre-refactor
   // ClassicalComposer::realize_motifs called the private generate_figure
   // directly, so preserving that call shape is required for bit-identical
   // output against the golden render.
-  MelodicFigure generate_figure(const FigureTemplate& figTmpl, uint32_t seed);
+  MelodicFigure generate_figure(const FigureTemplate& figTmpl, uint32_t seed) const;
   MelodicFigure apply_transform(const MelodicFigure& base, TransformOp op,
-                                int param, uint32_t seed);
-
-  // Static — called directly by DefaultPhraseStrategy (Task 6) to select a
-  // shape under a MelodicFunction.
-  // approachArrival: comp #9 knob, from PhraseTemplate::cadentialArrival.
-  // false (default) keeps the standing HeldNote arrival.
-  static FigureShape choose_shape(MelodicFunction func, int posInPhrase,
-                                  int totalFigures, uint32_t seed,
-                                  bool approachArrival = false);
+                                int param, uint32_t seed) const;
 };
 
 // ============================================================================
@@ -78,7 +72,7 @@ public:
 // ============================================================================
 
 inline MelodicFigure DefaultFigureStrategy::generate_figure(
-    const FigureTemplate& figTmpl, uint32_t seed) {
+    const FigureTemplate& figTmpl, uint32_t seed) const {
     // Pool-first: draw an idiomatic Markov atom matching the template's beat/note
     // budget. On no-match (or pool unavailable, or override), fall through to the
     // procedural generator below. Contour is left unspecified for now.
@@ -151,76 +145,11 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
 }
 
 inline MelodicFigure DefaultFigureStrategy::apply_transform(
-    const MelodicFigure& base, TransformOp op, int param, uint32_t seed) {
+    const MelodicFigure& base, TransformOp op, int param, uint32_t seed) const {
     return figure_transforms::apply(base, op, param, seed);
 }
 
-inline FigureShape DefaultFigureStrategy::choose_shape(
-    MelodicFunction func, int posInPhrase, int totalFigures, uint32_t seed,
-    bool approachArrival) {
-    Randomizer r(seed);
-    bool isLast = (posInPhrase == totalFigures - 1);
-    bool isFirst = (posInPhrase == 0);
 
-    switch (func) {
-      case MelodicFunction::Statement: {
-        // Opening motif: clear, memorable shapes
-        static const FigureShape opts[] = {
-          FigureShape::RepeatedNote, FigureShape::TriadicOutline,
-          FigureShape::ScalarRun, FigureShape::NeighborTone,
-          FigureShape::Fanfare
-        };
-        if (isLast) return FigureShape::HeldNote;
-        return opts[r.int_range(0, 4)];
-      }
-
-      case MelodicFunction::Development: {
-        // Extension/variation: more complex shapes
-        static const FigureShape opts[] = {
-          FigureShape::Zigzag, FigureShape::ScalarReturn,
-          FigureShape::LeapAndFill, FigureShape::Cambiata,
-          FigureShape::ScalarRun
-        };
-        if (isLast) return FigureShape::ScalarRun;
-        return opts[r.int_range(0, 4)];
-      }
-
-      case MelodicFunction::Transition: {
-        static const FigureShape opts[] = {
-          FigureShape::ScalarRun, FigureShape::LeapAndFill,
-          FigureShape::Zigzag, FigureShape::ScalarReturn
-        };
-        return opts[r.int_range(0, 3)];
-      }
-
-      case MelodicFunction::Cadential: {
-        if (isFirst || !isLast)
-          return FigureShape::CadentialApproach;
-        // comp #9. HeldNote leaves apply_cadence a single unit, so
-        // build_approach_steps takes its far branch and leaps onto the
-        // target — sustained, but unapproached. "approach" hands it a real
-        // figure to reshape instead. Default unchanged; see
-        // PhraseTemplate::cadentialArrival.
-        return approachArrival ? FigureShape::CadentialApproach
-                               : FigureShape::HeldNote;
-      }
-
-      case MelodicFunction::Free:
-      default:
-        return FigureShape::Free;
-    }
-}
-
-} // namespace mforce
-
-// default_phrase_strategy.h and this header include each other: each
-// includes the other after its own class, so whichever comes first, both
-// classes are declared before either body that names the other.
-#include "mforce/compose/default_phrase_strategy.h"
-#include "mforce/compose/compose.h"
-#include "mforce/compose/piece_utils.h"
-
-namespace mforce {
 
 // ============================================================================
 // Out-of-line definition of DefaultFigureStrategy::compose_figure. It looks
@@ -228,7 +157,7 @@ namespace mforce {
 // ============================================================================
 
 inline MelodicFigure DefaultFigureStrategy::compose_figure(
-    Locus locus, const FigureTemplate& figTmpl) {
+    Locus locus, const FigureTemplate& figTmpl) const {
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   // Use the figure's seed for reproducibility
   uint32_t figSeed = figTmpl.seed ? figTmpl.seed : locus.rng->rng();
@@ -251,7 +180,7 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
       if (figTmpl.literalNotes.empty()) return fig;
 
       auto absoluteDeg = [&](const Pitch& p) {
-        int d = DefaultPhraseStrategy::degree_in_scale(p, scale);
+        int d = degree_in_scale(p, scale);
         return p.octave * scale.length() + d;
       };
 
@@ -306,7 +235,7 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
           default:                             shapeName = nullptr; break;
         }
         if (shapeName) {
-          FigureStrategy* s = locus.kit->strategies.find_figure(shapeName);
+          const FigureStrategy* s = locus.kit->strategies.find_figure(shapeName);
           if (s) {
             FigureTemplate shapeArg = figTmpl;
             shapeArg.seed = figSeed;

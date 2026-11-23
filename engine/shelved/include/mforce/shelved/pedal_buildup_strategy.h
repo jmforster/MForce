@@ -39,11 +39,11 @@ public:
   std::string name() const override { return kName; }
   StrategyScope scope() const override { return StrategyScope::Melody; }
 
-  Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
+  Passage compose_passage(Locus locus, const PassageTemplate& pt) const override;
 };
 
 inline Passage PedalBuildupStrategy::compose_passage(
-    Locus locus, const PassageTemplate& pt) {
+    Locus locus, const PassageTemplate& pt) const {
   Passage passage;
   const Settings cfg = settings_of<Settings>(pt.strategy);
 

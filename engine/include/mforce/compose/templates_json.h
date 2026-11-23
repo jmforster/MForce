@@ -550,58 +550,62 @@ inline const char* level_label(StrategyLevel level) {
     return "strategy";
 }
 
-class SettingsCodecs;
-
-// A settings type's JSON functions: to_json / from_json found by ADL, or,
-// for a type that holds templates, the forms that take the codecs.
-template <class S>
-void read_settings(const json& j, S& s, const SettingsCodecs& codecs) {
-    if constexpr (requires { from_json(j, s, codecs); }) from_json(j, s, codecs);
-    else from_json(j, s);
-}
-
-template <class S>
-json write_settings(const S& s, const SettingsCodecs& codecs) {
-    json j;
-    if constexpr (requires { to_json(j, s, codecs); }) to_json(j, s, codecs);
-    else to_json(j, s);
-    return j;
-}
-
 class SettingsCodecs {
 public:
-    // Registers Strategy::kName at Strategy's level, with the JSON
-    // functions of Strategy::Settings (none for NoSettings).
+    // Registers Strategy::kName at Strategy's level, with the ordinary JSON
+    // pair of Strategy::Settings: to_json(json&, const S&) and
+    // from_json(const json&, S&) (none for NoSettings).
     template <class Strategy> void add() {
         using S = typename Strategy::Settings;
         Entry e;
         if constexpr (!std::is_same_v<S, NoSettings>) {
-            e.read = [](const json& j, const SettingsCodecs& c) -> std::any {
+            e.read = [](const json& j, const SettingsCodecs&) -> std::any {
                 S s{};
-                read_settings(j, s, c);
+                from_json(j, s);
                 return s;
             };
-            e.write = [](const std::any& a, const SettingsCodecs& c) -> json {
-                const S* s = std::any_cast<S>(&a);
-                if (!s) {
-                    throw std::runtime_error(std::string("strategy '") + Strategy::kName +
-                        "' holds settings of type " + a.type().name() +
-                        " where it writes " + typeid(S).name());
-                }
-                return write_settings(*s, c);
+            e.write = [](const std::any& a, const SettingsCodecs&) -> json {
+                json j;
+                to_json(j, held_settings<Strategy>(a));
+                return j;
             };
         }
         table_[level_of<Strategy>()][Strategy::kName] = std::move(e);
     }
 
+    // Registers Strategy::kName for settings that hold templates, whose JSON
+    // functions take the codecs: to_json(json&, const S&, const
+    // SettingsCodecs&) and from_json(const json&, S&, const SettingsCodecs&).
+    template <class Strategy> void add_holding_templates() {
+        using S = typename Strategy::Settings;
+        Entry e;
+        e.read = [](const json& j, const SettingsCodecs& c) -> std::any {
+            S s{};
+            from_json(j, s, c);
+            return s;
+        };
+        e.write = [](const std::any& a, const SettingsCodecs& c) -> json {
+            json j;
+            to_json(j, held_settings<Strategy>(a), c);
+            return j;
+        };
+        table_[level_of<Strategy>()][Strategy::kName] = std::move(e);
+    }
+
     // A choice in either file form: a bare name, or {name, settings}.
-    // Refuses a name not registered at that level, and settings for a
-    // strategy that takes none.
+    // Refuses a name not registered at that level, settings for a strategy
+    // that takes none, and any member of the object form but those two.
     StrategyChoice read(const json& j, StrategyLevel level) const {
         StrategyChoice c;
         if (j.is_string()) {
             c.name = j.get<std::string>();
         } else if (j.is_object()) {
+            for (const auto& [key, value] : j.items()) {
+                if (key != "name" && key != "settings")
+                    throw std::runtime_error(std::string("a ") + level_label(level) +
+                                             " choice holds 'name' and 'settings' only, not '" +
+                                             key + "'");
+            }
             c.name = j.at("name").get<std::string>();
         } else {
             throw std::runtime_error(std::string("a ") + level_label(level) +
@@ -636,6 +640,20 @@ public:
     }
 
 private:
+    // The settings `a` holds, as Strategy::Settings; throws naming the
+    // strategy and both types when it holds another.
+    template <class Strategy>
+    static const typename Strategy::Settings& held_settings(const std::any& a) {
+        using S = typename Strategy::Settings;
+        const S* s = std::any_cast<S>(&a);
+        if (!s) {
+            throw std::runtime_error(std::string("strategy '") + Strategy::kName +
+                "' holds settings of type " + a.type().name() +
+                " where it writes " + typeid(S).name());
+        }
+        return *s;
+    }
+
     struct Entry {
         std::function<std::any(const json&, const SettingsCodecs&)> read;
         std::function<json(const std::any&, const SettingsCodecs&)> write;

@@ -30,7 +30,7 @@ class VoicingSelector {
  public:
   virtual ~VoicingSelector() = default;
   virtual std::string name() const = 0;
-  virtual Chord select(const VoicingRequest& req) = 0;
+  virtual Chord select(const VoicingRequest& req) const = 0;
 };
 
 }  // namespace mforce

@@ -149,8 +149,8 @@ struct Composer {
     realize_events(piece);
   }
 
-  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) {
-    PassageStrategy* s = &locus.kit->strategies.passage(passTmpl.strategy.name);
+  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) const {
+    const PassageStrategy* s = &locus.kit->strategies.passage(passTmpl.strategy.name);
     // Plan phase — strategy refines the template (may mutate motif pool).
     PassageTemplate planned = s->plan_passage(locus, passTmpl);
     // Persist the planned template to the plan for regeneration / lock semantics.
@@ -174,6 +174,40 @@ private:
   const ComposeKit& kit_;
 
   // ---- Builds the piece's sections and parts, and realizes the motifs ----
+  // A section's key: its tonic and scale type, and the scale they make.
+  // The section's keyName names its tonic ("G", type from scaleOverride or
+  // the piece's scaleName) or tonic and type ("G Minor"); with neither
+  // keyName nor scaleOverride the section takes the piece's scale.
+  struct SectionKey {
+    bool hasSectionKey;
+    std::string tonic;
+    std::string type;
+    Scale scale;
+  };
+
+  static SectionKey section_key_(const PieceTemplate& tmpl,
+                                 const PieceTemplate::SectionTemplate& sd,
+                                 const Scale& pieceScale) {
+    const bool hasSectionKey = !sd.keyName.empty();
+    std::string secTonic = tmpl.keyName;
+    std::string secType  = sd.scaleOverride.empty() ? tmpl.scaleName
+                                                    : sd.scaleOverride;
+    if (hasSectionKey) {
+      // "G" (type from scaleOverride/scaleName) or "G Minor" (type stated).
+      auto sp = sd.keyName.find(' ');
+      if (sp == std::string::npos) {
+        secTonic = sd.keyName;
+      } else {
+        secTonic = sd.keyName.substr(0, sp);
+        secType  = sd.keyName.substr(sp + 1);
+      }
+    }
+    Scale secScale = (!hasSectionKey && sd.scaleOverride.empty())
+      ? pieceScale
+      : Scale::get(secTonic, secType);
+    return {hasSectionKey, secTonic, secType, secScale};
+  }
+
   void setup_piece_(Piece& piece, PieceTemplate& tmpl) {
     // Key
     piece.key = Key::get(tmpl.keyName + " " +
@@ -182,28 +216,11 @@ private:
     // Sections
     piece.sections.clear();
     for (auto& sd : tmpl.sections) {
-      // Section key (#13). `keyName` was accepted by no struct field and
-      // dropped without a word; it now names the section's TONIC. The old
-      // line realized scaleOverride at the PIECE tonic, so a section could
-      // change its scale type but never its tonic — generalizing the tonic
-      // here is a textual no-op when keyName is empty.
-      const bool hasSectionKey = !sd.keyName.empty();
-      std::string secTonic = tmpl.keyName;
-      std::string secType  = sd.scaleOverride.empty() ? tmpl.scaleName
-                                                      : sd.scaleOverride;
-      if (hasSectionKey) {
-        // "G" (type from scaleOverride/scaleName) or "G Minor" (type stated).
-        auto sp = sd.keyName.find(' ');
-        if (sp == std::string::npos) {
-          secTonic = sd.keyName;
-        } else {
-          secTonic = sd.keyName.substr(0, sp);
-          secType  = sd.keyName.substr(sp + 1);
-        }
-      }
-      Scale secScale = (!hasSectionKey && sd.scaleOverride.empty())
-        ? piece.key.scale
-        : Scale::get(secTonic, secType);
+      const SectionKey key = section_key_(tmpl, sd, piece.key.scale);
+      const bool hasSectionKey = key.hasSectionKey;
+      const std::string& secTonic = key.tonic;
+      const std::string& secType = key.type;
+      const Scale& secScale = key.scale;
       piece.add_section(Section(sd.name, sd.beats, tmpl.bpm, tmpl.meter, secScale));
 
       // Wire harmony
@@ -269,7 +286,7 @@ private:
   struct ChordVoicing {
     const PassageTemplate* passTmpl{nullptr};
     ChordAccompanimentConfig cfg;
-    VoicingSelector* selector{nullptr};
+    const VoicingSelector* selector{nullptr};
     std::unique_ptr<VoicingProfileSelector> profileSelector;
     float sectionStart{0.0f};
     float beatsPerBar{4.0f};
@@ -328,7 +345,7 @@ private:
     // bar and samples the harmony at each strike.
     const StrategyChoice noChoice;
     const StrategyChoice& choice = passTmpl ? passTmpl->realization : noChoice;
-    RealizationStrategy& strategy = kit_.strategies.realization(choice.name);
+    const RealizationStrategy& strategy = kit_.strategies.realization(choice.name);
     RealizationContext ctx{*timeline, sec, beatOffset, choice,
         [&](const ScaleChord& sc, float pos, float dur) {
           return voice_chord_(v, sec, sc, pos, dur);
@@ -429,8 +446,9 @@ private:
   }
 
   // ---- The passage composed for a section the part's template omits ------
-  Passage generate_default_passage_(Piece& piece, PieceTemplate& tmpl,
-                                    const Scale& scale) {
+  // It is composed at its own place: `locus` names that part and section,
+  // so its planned template is recorded in the plan there.
+  Passage generate_default_passage_(Locus locus, const Scale& scale) {
     PitchReader reader(scale);
     reader.set_pitch(5, 0);
     Pitch startPitch = reader.get_pitch();
@@ -475,7 +493,6 @@ private:
     PassageTemplate passTmpl;
     passTmpl.phrases = {ante, cons};
 
-    Locus locus{&piece, &tmpl, &kit_, &rng_, 0, 0};
     return this->compose_passage(locus, passTmpl);
   }
 
@@ -500,29 +517,30 @@ private:
       if (s.name == sectionName) { section = &s; break; }
     }
 
+    // A Locus that names this passage's position.
+    int sectionIdx = -1;
+    for (int i = 0; i < (int)piece.sections.size(); ++i) {
+      if (piece.sections[i].name == sectionName) { sectionIdx = i; break; }
+    }
+    int partIdx = -1;
+    for (int i = 0; i < (int)piece.parts.size(); ++i) {
+      if (piece.parts[i].name == partTmpl.name) { partIdx = i; break; }
+    }
+    Locus locus{&piece, &tmpl, &kit_, &rng_, sectionIdx, partIdx};
+    if (section) {
+      locus.harmony = &section->harmonyTimeline;
+    }
+
     Passage passage;
     if (passIt != partTmpl.passages.end()) {
-      // Template-driven: dispatch through the registry. Build a Locus that
-      // names this passage's position.
-      int sectionIdx = -1;
-      for (int i = 0; i < (int)piece.sections.size(); ++i) {
-        if (piece.sections[i].name == sectionName) { sectionIdx = i; break; }
-      }
-      int partIdx = -1;
-      for (int i = 0; i < (int)piece.parts.size(); ++i) {
-        if (piece.parts[i].name == partTmpl.name) { partIdx = i; break; }
-      }
-      Locus locus{&piece, &tmpl, &kit_, &rng_, sectionIdx, partIdx};
-      if (section) {
-        locus.harmony = &section->harmonyTimeline;
-      }
+      // Template-driven: dispatch through the registry.
 
       // If strategy is Melody-only and no harmony exists yet, generate via ChordWalker.
       const PieceTemplate::SectionTemplate* sd = nullptr;
       for (const auto& s : tmpl.sections) {
         if (s.name == sectionName) { sd = &s; break; }
       }
-      PassageStrategy* strat = &kit_.strategies.passage(passIt->second.strategy.name);
+      const PassageStrategy* strat = &kit_.strategies.passage(passIt->second.strategy.name);
       if (strat->scope() == StrategyScope::Melody
           && section && section->harmonyTimeline.empty()
           && sd && !sd->styleName.empty()) {
@@ -545,7 +563,7 @@ private:
       }
     } else {
       // No template for this section — fallback.
-      passage = generate_default_passage_(piece, tmpl, scale);
+      passage = generate_default_passage_(locus, scale);
     }
 
     part->passages[sectionName] = std::move(passage);

@@ -22,7 +22,7 @@ void register_shelved(ComposeKit& kit, SettingsCodecs& codecs) {
   register_strategy<ElaboratedPhraseStrategy>(kit, codecs);
 
   register_strategy<AlternatingFigureStrategy>(kit, codecs);
-  register_strategy<PeriodPassageStrategy>(kit, codecs);
+  register_strategy_holding_templates<PeriodPassageStrategy>(kit, codecs);
   register_strategy<LibraryPassageStrategy>(kit, codecs);
   register_strategy<PedalBuildupStrategy>(kit, codecs);
   register_strategy<SequencePassageStrategy>(kit, codecs);

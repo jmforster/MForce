@@ -37,7 +37,7 @@ public:
   using Settings = NoSettings;
 
   std::string name() const override { return kName; }
-  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) const override;
 };
 
 // ====== ShapeSkippingStrategy ===============================================
@@ -47,7 +47,7 @@ public:
   using Settings = NoSettings;
 
   std::string name() const override { return kName; }
-  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) const override;
 };
 
 // ====== ShapeSteppingStrategy ===============================================
@@ -57,7 +57,7 @@ public:
   using Settings = NoSettings;
 
   std::string name() const override { return kName; }
-  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) const override;
 };
 
 // ============================================================================
@@ -115,7 +115,7 @@ inline StepSequence resolve_contour(const FigureTemplate& ft, Locus locus,
 } // namespace detail
 
 inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
-    Locus locus, const FigureTemplate& ft) {
+    Locus locus, const FigureTemplate& ft) const {
   uint32_t seed = ft.seed ? ft.seed : locus.rng->rng();
   Randomizer rng(seed);
 
@@ -278,7 +278,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
 }
 
 inline MelodicFigure ShapeSkippingStrategy::compose_figure(
-    Locus locus, const FigureTemplate& ft) {
+    Locus locus, const FigureTemplate& ft) const {
   uint32_t seed = ft.seed ? ft.seed : locus.rng->rng();
   Randomizer rng(seed);
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
@@ -317,7 +317,7 @@ inline MelodicFigure ShapeSkippingStrategy::compose_figure(
 }
 
 inline MelodicFigure ShapeSteppingStrategy::compose_figure(
-    Locus locus, const FigureTemplate& ft) {
+    Locus locus, const FigureTemplate& ft) const {
   uint32_t seed = ft.seed ? ft.seed : locus.rng->rng();
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;

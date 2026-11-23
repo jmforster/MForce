@@ -28,7 +28,7 @@ class SmoothVoicingSelector : public VoicingSelector {
  public:
   std::string name() const override { return "smooth"; }
 
-  Chord select(const VoicingRequest& req) override {
+  Chord select(const VoicingRequest& req) const override {
     if (!req.scale) {
       return req.scaleChord.resolve(Scale{}, req.rootOctave, req.durationBeats, 0, 0);
     }

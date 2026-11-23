@@ -209,7 +209,7 @@ inline Phrase compose_anchored_phrase(
   }
   pt.connectors = conns;
 
-  PhraseStrategy* ps = &locus.kit->strategies.phrase("default_phrase");
+  const PhraseStrategy* ps = &locus.kit->strategies.phrase("default_phrase");
   return ps->compose_phrase(locus.with_phrase(0), pt);
 }
 

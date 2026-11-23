@@ -44,7 +44,7 @@ public:
 
   std::string name() const override { return kName; }
 
-  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
+  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) const override;
 };
 
 // ============================================================================
@@ -53,7 +53,8 @@ public:
 // ============================================================================
 
 inline Passage DefaultPassageStrategy::compose_passage(
-    Locus locus, const PassageTemplate& passTmpl) {
+    Locus locus, const PassageTemplate& passTmpl) const {
+  (void)settings_of<Settings>(passTmpl.strategy);  // refuses settings of another type
   // The comment that used to sit here said "should not happen — loader
   // refuses templates without startingPitch" and returned an EMPTY passage.
   // The loader does not refuse them: patches/template_shaped_test.json has
@@ -317,7 +318,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
 
       Locus phraseLocus = locus.with_phrase(i);
 
-      PhraseStrategy* ps = &locus.kit->strategies.phrase(phraseTmpl.strategy.name);
+      const PhraseStrategy* ps = &locus.kit->strategies.phrase(phraseTmpl.strategy.name);
       Phrase phrase = ps->compose_phrase(phraseLocus, localTmpl);
 
       for (const auto& figPtr : phrase.figures)
