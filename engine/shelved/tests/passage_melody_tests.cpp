@@ -102,7 +102,7 @@ void run_passage_melody_tests() {
     CHECK(threw);
 
     // Schema + apply: template with a melodyPassageFile gets its phrases
-    // derived; the two new fields round-trip; a missing file throws.
+    // derived; melodyPassageFile and melodyOctave round-trip; a missing file throws.
     {
         // Write a scratch .psg next to the test's CWD-independent temp dir.
         const std::string psgPath = "renders/scratch/_pm_test.psg";

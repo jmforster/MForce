@@ -18,7 +18,7 @@ struct WanderingPassageSettings {
 };
 
 // ===========================================================================
-// WanderingPassageStrategy — "wandering_passage"  (stage 4)
+// WanderingPassageStrategy — "wandering_passage"
 // ===========================================================================
 //
 // The discursive passage: every entry is a DISTINCT figure, the cursor runs
@@ -28,7 +28,7 @@ struct WanderingPassageSettings {
 //
 // It sits at the bottom of the repetition screen on purpose (the prototype
 // measured selfsim 0.27, the lowest of the four). Whether "discursive" should
-// still return to something is a taste question, queued rather than tuned.
+// still return to something is a taste question, left untuned.
 class WanderingPassageStrategy : public PassageStrategy {
 public:
   static constexpr const char* kName = "wandering_passage";

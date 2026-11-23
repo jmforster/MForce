@@ -41,8 +41,8 @@ struct BowedStringEvolution final : WaveEvolution {
   // inter-harmonic noise floor AT/ABOVE harmonic energy >2 kHz (headphone
   // "sizzle") — both injected bow noise and the model's own low-note chaos
   // need frequency-dependent decay to die out. 1.0 = filter bypassed
-  // entirely, byte-identical to the pre-brightness node (the discovery
-  // patch's sound is locked to that). Applied per line write, so the loop
+  // entirely (the patches that rely on the unfiltered loop keep 1.0).
+  // Applied per line write, so the loop
   // sees it twice per round trip.
   Setting<float> brightness {this, "brightness",  1.0f,   0.05f, 1.0f};
 

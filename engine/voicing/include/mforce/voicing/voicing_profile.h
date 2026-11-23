@@ -16,15 +16,14 @@ struct VoicingProfile {
   std::vector<int> allowedSpreads;     // empty = any
   float priority{0.0f};                 // [0,1] — 0 = pure VL, 1 = pure CT
 
-  // --- comp #8, the three musical open items from the 2026-04-20 voicing
-  // work. All three default to OFF, so a profile that does not set them
-  // scores exactly as before.
+  // --- Three refinements. All default to OFF, so a profile that does not
+  // set them scores by distance and common tones alone.
 
-  // NOTE: there is deliberately no register/drift term here. Two were
-  // written and both were measured worse than nothing — see comp backlog #8.
-  // The symptom that motivated one ("voicings trend into the stratosphere")
-  // does not reproduce at HEAD: on test_jazz_turnaround_smooth the top voice
-  // drifts 0 semitones over 16 chords, span 3. Re-observe before re-writing.
+  // NOTE: there is deliberately no register/drift term here: both forms
+  // tried measured worse than none, and the symptom one aimed at
+  // ("voicings trend into the stratosphere") is not observed — on
+  // test_jazz_turnaround_smooth the top voice drifts 0 semitones over 16
+  // chords, span 3.
 
   // Penalty weight on choosing the same voicing as the previous chord.
   // A repeated chord makes voice-leading distance 0 for the identical
@@ -33,8 +32,8 @@ struct VoicingProfile {
   float repeatPenalty{0.0f};
 
   // This chord is a cadential arrival: restrict it to root position, so a
-  // resolution lands stable instead of merely smooth. The melody side has
-  // had a Cadential function since the start; chord Parts had no equivalent.
+  // resolution lands stable instead of merely smooth: the chord Parts'
+  // counterpart of the melody's Cadential function.
   bool cadential{false};
 };
 

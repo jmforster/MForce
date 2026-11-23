@@ -66,8 +66,9 @@ float AdditiveSource::wave() {
 
   // One virtual call per sample; the per-partial loop lives inside Partials so
   // it can inline and hoist. Partials past CUTOFF are gated individually
-  // there (a jittering partial near cutoff must not kill everything above it —
-  // the old `break` assumed static ascending frequencies and chattered).
+  // there: a jittering partial near cutoff must not kill everything above it,
+  // as a `break` at the first one past cutoff would (it assumes static
+  // ascending frequencies, and chatters).
   float val = parts->sum_partials(0.0f, currAmpl_, currFreq_, phaseDiff,
                                   fmt, fmtWt, fmtFloor);
 
@@ -88,7 +89,7 @@ float AdditiveSource::wave() {
     }
   }
 
-  // Legacy normalization
+  // Normalization, as the C# AdditiveSource has it
   float out = val / 5.0f;
 
   // NoiseBed: white noise -> single 2nd-order bandpass, scaled by

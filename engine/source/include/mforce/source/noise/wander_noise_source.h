@@ -7,7 +7,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# MForce.Sound.Source.WanderNoiseSource
+// Follows the C# MForce.Sound.Source.WanderNoiseSource
 // Random walk with slope-based momentum. Output in [-1, 1].
 // Internal state works in [0,1]; boundary hits bounce slope/direction.
 //   speed:      overall rate of change (scaled by 1/sampleRate)
@@ -47,7 +47,7 @@ struct WanderNoiseSource final : Generator {
 
     slope_ += delta * direction_;
 
-    // Legacy: works in [0,1] internal space
+    // Works in [0,1] internal space, as the C# does
     // localVal = (lastVal+1)/2 + speed/Rate * slope
     float localVal = (lastVal_ + 1.0f) * 0.5f + sp / float(sample_rate()) * slope_;
 
@@ -73,7 +73,7 @@ private:
   Randomizer rng_;
   float slope_{0.0f};
   float direction_{1.0f};
-  float lastVal_{0.5f};   // legacy init
+  float lastVal_{0.5f};   // the C#'s initial value
 };
 
 } // namespace mforce

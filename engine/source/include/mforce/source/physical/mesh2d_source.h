@@ -8,7 +8,7 @@
 
 namespace mforce {
 
-// Rectilinear two-dimensional digital waveguide mesh — port of STK's Mesh2D
+// Rectilinear two-dimensional digital waveguide mesh — follows STK's Mesh2D
 // (Van Duyne & Smith, "Physical Modeling with the 2-D Digital Waveguide
 // Mesh", ICMC 1993; STK implementation by Julius Smith 2000-2002, revised by
 // Gary Scavone 2002).  State layout, scattering order, alternating-buffer
@@ -28,10 +28,9 @@ namespace mforce {
 // model is scale-free: N = SR * len / c (Chafe eq. 1) maps a physical plate
 // onto a mesh, and holding N fixed while changing SR simply rescales every
 // modal frequency.  The two edge-filter constants (pole 0.05, gain = decay)
-// are per-hop, i.e. normalized-frequency, quantities — they do not need the
-// re-realization the rate-discipline lesson demands of STK's fixed-Hz
-// coefficients (STK_PORT_NOTES.md, "THE 48k BASELINE BUG").  Validated at
-// 48000 against STK, which is also Chafe's own rate.
+// are per-hop, i.e. normalized-frequency, quantities — unlike STK's fixed-Hz
+// coefficients, they need no re-design for the rate.  Validated at 48000
+// against STK, which is also Chafe's own rate.
 //
 // DEVIATIONS FROM STK, both additive (corner output + decay 0.99 reproduce
 // STK bit-for-bit):
@@ -44,7 +43,7 @@ namespace mforce {
 // NOT a deviation, and deliberately not "fixed": STK truncates the position
 // factors to integer junctions (xInput = (unsigned short)(xFactor*(NX-1))),
 // so a swept position steps rather than glides.  Interpolated (Chafe-style
-// moving) taps are an extension, not part of this port.
+// moving) taps are an extension STK does not have.
 //
 // EDGE MODES (the extension hook).  The edge filters are the one place the
 // model's material character lives; they are the two `edge_x`/`edge_y` calls
@@ -54,7 +53,7 @@ namespace mforce {
 // the filter input, so `decay` keeps its meaning as the per-hop edge loss.
 //
 //   0 "stk"   — STK's OnePole, pole 0.05, gain = decay.  DEFAULT, and
-//               byte-identical to the validated port.
+//               bit-for-bit STK.
 //   1 "chafe" — Chafe's 2nd-order allpass (ICSV26 2019, "Extensions to the
 //               2D Waveguide Mesh for Modeling Thin Plate Vibrations"):
 //                   H(z) = (a2 + a1 z^-1 + z^-2) / (1 + a1 z^-1 + a2 z^-2)
@@ -71,8 +70,7 @@ namespace mforce {
 //               switched by the sign of its own internal state: `coefNeg`
 //               while that state is negative, `coefPos` while it is >= 0.
 //               Equal coefficients = a linear allpass; the distance between
-//               them is the nonlinearity.  See core/dsp/pierce_allpass.h and
-//               docs/research/stk_port/PIERCE_PASSIVE_NOTES.md.
+//               them is the nonlinearity.  See core/dsp/pierce_allpass.h.
 //
 //               The reason this mode exists: mode 1's signal-dependent R (the
 //               APPROXIMATION note below) is a TIME-VARYING allpass, which is

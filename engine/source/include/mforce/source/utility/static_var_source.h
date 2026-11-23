@@ -8,7 +8,7 @@
 
 namespace mforce {
 
-// Ported from C# StaticVarSource — random value drawn once per note, at start().
+// Follows the C# StaticVarSource — random value drawn once per note, at start().
 // value = baseValue * (1 + random * varPct), optionally biased.
 struct StaticVarSource final : Generator {
   Setting<float> baseValue{this, "baseValue", 1.0f, -10000.0f, 10000.0f};

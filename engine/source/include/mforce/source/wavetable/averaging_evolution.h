@@ -9,7 +9,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# MForce.Sound.Source.AveragingEvolution
+// Follows the C# MForce.Sound.Source.AveragingEvolution
 // Configurable averaging with decay factor, leading/trailing direction.
 // ---------------------------------------------------------------------------
 struct AveragingEvolution final : WaveEvolution {

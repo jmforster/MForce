@@ -24,10 +24,10 @@ namespace mforce {
 // consumer in Partials draws from its own seeded stream — per (note, partial)
 // for the layers with per-partial state, per note for the single-stream
 // layers — so no draw depends on how many draws any other consumer made.
-// Previously one shared rng_ served all layers in (sample, partial) draw
-// order; a partial flickering across the 16 kHz cutoff (early return before
-// its bandwidth draw) then shifted every downstream draw and re-rolled all
-// noise in the render (measured ±3 dB note-contour changes).
+// With one shared stream, a partial flickering across the 16 kHz cutoff
+// (an early return before its bandwidth draw) would shift every downstream
+// draw and re-roll all noise in the render (measured ±3 dB note-contour
+// changes).
 enum PartialsRngLayer : uint32_t {
   kRngBandwidth     = 1,  // per-partial
   kRngMotionShared  = 2,  // single
@@ -42,7 +42,7 @@ enum PartialsRngLayer : uint32_t {
 
 // ---------------------------------------------------------------------------
 // Partials — abstract base class implementing the per-partial rendering
-// engine. Ported faithfully from legacy Partials.cs GetPartialValue().
+// engine. Follows Partials.cs GetPartialValue() of the C# MForce.
 //
 // Owns eight envelope pins, the rolloff/detune and layer settings, the expand
 // rule, the layout (the partial arrays) and the six layers. Subclasses only
@@ -150,9 +150,8 @@ struct Partials : PartialSet {
     // Per-note stream base: baseSeed_ hashed with a note counter. Every rng
     // stream below reseeds from this, so a note's randomness depends only on
     // (baseSeed, note ordinal, partial, layer) — never on how many draws any
-    // earlier code path happened to make. The note counter preserves the old
-    // per-note variety (the shared stream used to just continue across
-    // note-ons); without it every note would replay identical noise.
+    // earlier code path happened to make. The note counter gives each note
+    // its own noise; without it every note would replay identical noise.
     noteBase_ = uint32_t(splitmix64((uint64_t(baseSeed_) << 32) ^ uint64_t(noteSeq_)));
     ++noteSeq_;
 
@@ -239,8 +238,8 @@ struct Partials : PartialSet {
     return int(layout_.mult1.size());
   }
 
-  // Port of legacy Partials.cs GetPartialValue — the authoritative per-partial
-  // math. Kept as the single-partial entry point; the
+  // The per-partial math, following Partials.cs GetPartialValue of the C#
+  // MForce. The single-partial entry point; the
   // render path goes through sum_partials() below, which hoists everything
   // that is invariant across partials out of the loop.
   float get_partial_value(float amplitude, float frequency, float phaseDiff,
@@ -252,8 +251,8 @@ struct Partials : PartialSet {
                               formant, fmtWt, fmtFloor);
   }
 
-  // Batched per-sample sum. Same math, same accumulation order as the loop
-  // the additive source used to run — renders are byte-identical.
+  // Batched per-sample sum: the same math and the same accumulation order as
+  // summing get_partial_value over the partials one by one.
   float sum_partials(float acc, float amplitude, float frequency,
                      float phaseDiff, Formant* formant, float fmtWt,
                      float fmtFloor) override
@@ -294,16 +293,11 @@ private:
       if (sMd_ != 0.0f) {
         float cents = sMd_ * motion_.value(index);
         if (motionScale.value != 0.0f) cents *= moScaleCache_[index];
-        // fast_exp2, not std::exp2: this is a CRT call executed once per
-        // partial per sample, and it measured at 65.6% of viola_default's
-        // entire loop cost (tools/ablate_layers.py). The replacement is
-        // accurate to 0.88 float32 eps — see core/fast_math.h.
-        // std::exp2, not fast_exp2: the last-bit difference flips borderline
-        // cutoff comparisons, which used to re-deal the shared rng stream and
-        // audibly re-roll high-note bandwidth patches (run-14 A/B, Matt
-        // verdict: revert). Per-partial rng streams have since made noise
-        // order-independent, so a cutoff flip now only gates that one partial
-        // — fast_exp2 is reinstatable, but the swap is its own A/B decision.
+        // std::exp2, not fast_exp2 (core/fast_math.h, accurate to 0.88
+        // float32 eps): the last-bit difference flips borderline cutoff
+        // comparisons. With the per-partial rng streams a flip gates only that
+        // one partial, but it still changes renders. The CRT call costs: it
+        // measured at 65.6% of viola_default's loop (tools/ablate_layers.py).
         pfreq *= std::exp2(cents * (1.0f / 1200.0f));
       }
     }
@@ -311,28 +305,26 @@ private:
     // Past cutoff -> NaN signal to caller
     if (pfreq > CUTOFF) return std::numeric_limits<float>::quiet_NaN();
 
-    // Advance partial position (legacy Partials.cs lines 197-200).
+    // Advance partial position (Partials.cs lines 197-200 of the C# MForce).
     // fmod(x, 1) == x - trunc(x) exactly for the |x| < 2 range this sees
     // (pfreq/rate <= 1/3, phaseDiff and the po delta are small).
     //
-    // truncf was expected to be a single instruction; it is not. Under the
+    // Not truncf: under the
     // engine's Release flags (/O2, SSE2 baseline, no /arch) MSVC emits a CRT
     // CALL for std::truncf — roundss is SSE4.1 and therefore off the table —
-    // so this cost a function call per partial per sample. The int round-trip
+    // so truncf costs a function call per partial per sample. The int round-trip
     // is one cvttss2si + one cvtsi2ss and is BIT-IDENTICAL to truncf for every
     // |x| < 2^31, which this is by many orders of magnitude (pfreq is capped
     // at CUTOFF just above, so pfreq/rate <= 1/3).
     // Measured in isolation on synthetic arrays, 1.4-1.5x on the whole loop
     // body: research/additive_perf/simd_proto.cpp, rung "sc+cast".
     {
-      // ANTI-RESULT (run 14, don't retry): replacing this divide with a
-      // multiply by a cached 1/rate_ is a WASH-TO-SLOWER in the engine —
-      // marginal 25.0 -> 29.6 ns/sample/partial on the 32/200 ladder, 0.89x
-      // at 200 partials — even though the same substitution measured 1.10x in
-      // the isolated prototype. The divide is not on the critical path here;
-      // the cached reciprocal costs a load the immediate didn't. It also
-      // costs bit-exactness (1/48000 is not representable), so it was
-      // rejected on both counts.
+      // A divide, not a multiply by a cached 1/rate_: the multiply measured
+      // slower in the engine (25.0 -> 29.6 ns/sample/partial on the 32/200
+      // ladder, 0.89x at 200 partials, though 1.10x in an isolated
+      // prototype; the divide is not on the critical path and the cached
+      // reciprocal costs a load), and it is not bit-exact (1/48000 is not
+      // representable).
       float x = partialPos_[index] + pfreq / rate_ + phaseDiff
               + (ppo - partialLPO_[index]);
       x = x - float(int(x));
@@ -341,7 +333,7 @@ private:
     }
     partialLPO_[index] = ppo;
 
-    // Amplitude with rolloff (legacy lines 206-216) — cached on (multE, roE).
+    // Amplitude with rolloff (Partials.cs lines 206-216) — cached on (multE, roE).
     float rolloff = rolloffCache_[index];
 
     // Formant factor — additive boost with an out-of-band floor:
@@ -360,7 +352,7 @@ private:
     float fmtFactor = 1.0f;
     if (formant) fmtFactor = fmtFloor + fmtWt * formant->gain(pfreq);
 
-    // Fade out partials near cutoff (within 1000 Hz) — legacy line 216
+    // Fade out partials near cutoff (within 1000 Hz), as Partials.cs line 216
     float fade = (pfreq < CUTOFF - 1000.0f) ? 1.0f : (CUTOFF - pfreq) / 1000.0f;
 
     float pampl = amplitude *
@@ -381,8 +373,8 @@ private:
 
     // Amplitude shimmer: slow per-partial gain wander (coherence-mixed walk).
     // shimmerFloor clamps the gain from below so high depths can't visit
-    // near-silence (measured 14.6 dB mid-note dips at depth ~1.09); the
-    // default 0 reproduces the old max(0, g) exactly.
+    // near-silence (measured 14.6 dB mid-note dips at depth ~1.09); at the
+    // default 0 the gain is max(0, g).
     if (shimmerActive_) {
       float g = 1.0f + sSd_ * shimmer_.value(index);
       pampl *= (g < shimmerFloor.value ? shimmerFloor.value : g);
@@ -497,7 +489,7 @@ protected:
     int n = int(layout_.mult1.size());
     dtVals_.resize(n);
     for (int i = 0; i < n; ++i) {
-      // Legacy: sign < 0 -> range(-0.5, 0), else -> range(0, 1)
+      // As the C# Partials: sign < 0 -> range(-0.5, 0), else -> range(0, 1)
       dtVals_[i] = (dtRng.sign() < 0) ? dtRng.range(-0.5f, 0.0f) : dtRng.range(0.0f, 1.0f);
     }
   }

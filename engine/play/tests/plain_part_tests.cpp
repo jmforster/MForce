@@ -36,7 +36,7 @@ static std::unique_ptr<Mixer> built_mixer(const std::string& text) {
 }
 }  // namespace plain_parts
 
-// The twin: each plain sound renders the base's bytes.
+// Each plain sound renders the same bytes as the base patch.
 void run_plain_part_twin_tests() {
     using namespace plain_parts;
     std::printf("the plain-sound build: each sound against the base's render\n");

@@ -14,9 +14,9 @@ using namespace mforce;
 
 
 // A source wired to two pins is the same object on both pins: no wrapper, no
-// advancer, no wiring order. A consumer the file lists before the advancer
-// used to read a wrapper a sample late; it reads this sample's value now, so
-// the shared patch renders exactly as the same patch with the envelope
+// advancer, no wiring order. A consumer the file lists first reads this
+// sample's value, not one a sample late, so the shared patch renders exactly
+// as the same patch with the envelope
 // duplicated, however the file orders the consumers.
 static std::string shared_env_patch_json(bool duplicated) {
     using nlohmann::json;

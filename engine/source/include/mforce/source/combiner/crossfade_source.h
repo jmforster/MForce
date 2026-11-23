@@ -7,7 +7,7 @@
 
 namespace mforce {
 
-// Ported from C# CrossfadeSource — plays source1, then crossfades into source2.
+// Follows the C# CrossfadeSource — plays source1, then crossfades into source2.
 // ratio: fraction of total time for source1 (0.7 = 70% source1, 30% source2)
 // overlap: fraction of the shorter segment that overlaps during transition
 //

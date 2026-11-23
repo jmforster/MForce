@@ -172,8 +172,8 @@ static std::shared_ptr<Vibrato> make_vibrato(float speed) {
     return v;
 }
 
-// A Vibrato builds its LFO once and resets it per note, which has to be the
-// chain a note used to get by building it fresh.
+// A Vibrato builds its LFO once and resets it per note, which has to give
+// the chain a freshly built LFO gives.
 void run_vibrato_split_tests() {
     constexpr int kNote = 24000;
     {

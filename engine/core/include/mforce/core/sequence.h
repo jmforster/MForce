@@ -5,7 +5,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# ISequence / SimpleSequence / CompositeSequence
+// Follows the C# ISequence / SimpleSequence / CompositeSequence
 // ---------------------------------------------------------------------------
 
 struct Sequence {

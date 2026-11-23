@@ -26,18 +26,14 @@ namespace mforce {
 // ctx.composer->compose_figure(...), and applies end-of-phrase cadence
 // adjustment.
 //
-// Mirrors pre-refactor ClassicalComposer::compose_phrase
-// (classical_composer.h:181-224) with edits:
-//   - rng.rng() becomes ctx.rng->rng()
-//   - inlined compose_figure call becomes ctx.composer->compose_figure(...)
-//   - choose_shape resolves through DefaultFigureStrategy::choose_shape
+// It draws from ctx.rng (which points at Composer::rng_), dispatches each
+// figure through ctx.composer->compose_figure(...), and resolves a shape
+// through DefaultFigureStrategy::choose_shape.
 //
-// RNG call order MUST be preserved. The pre-refactor path called rng.rng()
-// inside the figure loop exactly once per figure that needed a shape
-// auto-selected (inside the if (function != Free && source == Generate &&
-// shape == Free) block). The new path does the same, via ctx.rng->rng(),
-// and ctx.rng points at Composer::rng_ (set up in Task 7), so the sequence
-// of rng() calls hits the same underlying generator in the same order.
+// RNG call order is part of the output: ctx.rng->rng() is called inside the
+// figure loop exactly once per figure that needs a shape auto-selected
+// (function != Free && source == Generate && shape == Free), and nowhere
+// else.
 // ---------------------------------------------------------------------------
 class DefaultPhraseStrategy : public PhraseStrategy {
 public:
@@ -187,7 +183,7 @@ inline void DefaultPhraseStrategy::rebuild_cadential_tail(
     int A = int(newDurs.size());
     std::vector<int> appSteps = build_approach_steps(headEndDeg, targetDeg, A, len);
 
-    cf.units.resize(head);                       // keep the head, drop the old tail
+    cf.units.resize(head);                       // keep the head, drop the tail being replaced
     for (int i = 0; i < A; ++i) {
         FigureUnit u;
         u.duration = newDurs[i];
@@ -310,8 +306,8 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
 
     // Advance running cursor by the FC's leadStep (used by the Literal-
     // figure path's pitch_before queries) and then by the figure's net
-    // step. Under the new model, fig.units[0].step is 0 by convention, so
-    // fig.net_step() no longer absorbs leadStep — we add it explicitly.
+    // step. fig.units[0].step is 0 by convention, so fig.net_step() does
+    // not include leadStep — we add it explicitly.
     runningReader.step(fc.leadStep);
     runningReader.step(fig.net_step());
 

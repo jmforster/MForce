@@ -4,7 +4,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.SineSource
+// Follows the C# MForce.Sound.Source.SineSource
 // ComputeWaveValue: sin(CurrPos * 2 * PI)
 struct SineSource final : WaveSource {
   const char* type_name() const override { return "SineSource"; }

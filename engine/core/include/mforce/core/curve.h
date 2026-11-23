@@ -10,17 +10,13 @@
 
 namespace mforce {
 
-// Shared piecewise-curve math (docs/superpowers/specs/2026-09-05-curve-
-// morph-design.md §2). A curve is breakpoints + an interpolation policy;
+// Shared piecewise-curve math. A curve is breakpoints + an interpolation policy;
 // hosts keep their own storage and quirks (CurveNode expressions mode,
 // SegmentSource deltas) and delegate evaluation here. UI copy says
 // "points", never "knots".
 //
-// Parity note: the old CurveNode Linear path had no w > 0 guard — a curve
-// with duplicate knot x's divided by zero; eval_core returns the right
-// endpoint instead. No shipped patch has duplicate x's (null gate
-// arbitrates). The Linear-domain body otherwise carries ParamSlot::vmap
-// semantics forward verbatim; LogX/LogLog carry ParamSlot::map.
+// Duplicate knot x's: a zero-width segment returns its right endpoint
+// (the w > 0 guard), not a division by zero.
 struct Curve {
   enum class Domain : uint8_t { Linear, LogX, LogLog };
 

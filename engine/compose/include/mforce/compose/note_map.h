@@ -1,5 +1,5 @@
 #pragma once
-// Genre note map (walk3 spec 2026-09-22 §1). Merges a melody track into
+// Genre note map. Merges a melody track into
 // pitch EVENTS (repeats = one held pitch), classifies each event against the
 // chord(s) it sounds over, and scores it with the profile's odds:
 //   chord tones with a tendency row -> odds of the departure motion taken
@@ -19,7 +19,6 @@
 namespace mforce {
 
 // Inverse of scale_grid_index: diatonic grid index -> note number.
-// (Moved from anchor_selector.h, unchanged.)
 inline float note_number_of_grid(int gridIdx, const Scale& scale) {
     const int len = scale.length();
     const int oct = gridIdx >= 0 ? gridIdx / len
@@ -93,8 +92,8 @@ struct NoteMapResult {
 // Same format as ChordLabel::to_string, but keyed on ChordDef::shortName:
 // ChordLabel::to_string compares quality->name against "7"/"M7"/"m7" while
 // the ChordDef table's names are "Dominant 7th" etc., so it labels G7 as
-// "V". Left untouched there (chord_walker depends on it); fixed here so the
-// spec's "V7:7" rows match.
+// "V". That labeling stays (chord_walker depends on it); this one gives
+// "V7", so the profile's "V7:7" rows match.
 inline std::string tendency_chord_label(const ScaleChord& sc) {
     static const char* romans[] = {"I", "II", "III", "IV", "V", "VI", "VII"};
     static const char* romansLower[] = {"i", "ii", "iii", "iv", "v", "vi", "vii"};

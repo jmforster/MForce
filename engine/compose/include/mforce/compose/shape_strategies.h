@@ -15,13 +15,10 @@ namespace mforce {
 // Shape strategies — FigureStrategy subclasses for shape-specific logic that
 // can't be expressed as a pure ordinal template.
 //
-// The 13 wrapper strategies that used to live here (ShapeScalarRunStrategy,
-// ShapeRepeatedNoteStrategy, etc.) were deleted in the FigureBuilder
-// redesign — their bodies were thin wrappers around FigureBuilder atoms
-// and are now better expressed via shape_figures:: templates called
-// directly (or via RandomFigureBuilder's weighted dispatcher).
+// A shape that is only an ordinal template is a shape_figures:: template,
+// called directly (or via RandomFigureBuilder's weighted dispatcher).
 //
-// The three survivors below do real work: harmony-aware cadential
+// The three below do real work: harmony-aware cadential
 // targeting, literal-scale-step walking for Alberti/Skipping patterns,
 // and motif rhythm/contour resolution. Their compose_figure bodies follow
 // the classes, below.
@@ -175,7 +172,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
     // A full cadence descends to I — if we're near V, that's ~4 steps down;
     // if we're near the upper tonic, ~7 steps down.
     //
-    // For now, keep it simple and direct:
+    // Simple and direct:
     int targetDegree = (ft.figureCadenceType == 1) ? 4 : 0;  // V or I
 
     // Calculate how many scale steps from the cursor's approximate degree
@@ -209,7 +206,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
   }
 
   if (!targetDerived) {
-    // Legacy fallback: use targetNet or shapeParam
+    // Fallback: use targetNet or shapeParam
     int approachDir = (ft.shapeDirection < 0) ? -1 : 1;
     targetSteps = (ft.targetNet != 0) ? ft.targetNet :
                   ((ft.shapeParam > 0) ? -ft.shapeParam * approachDir : -3 * approachDir);

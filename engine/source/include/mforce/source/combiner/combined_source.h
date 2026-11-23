@@ -7,7 +7,7 @@
 
 namespace mforce {
 
-// Ported from C# CombinedSource — combines two sources via Add, Multiply,
+// Follows the C# CombinedSource — combines two sources via Add, Multiply,
 // Fade, or Sum. Add averages (v1+v2)/2 to preserve headroom; Sum is a
 // no-halving variant that's correct when callers want raw addition
 // (e.g. modulator layering where amplitudes are chosen to stay bounded).

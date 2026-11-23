@@ -15,7 +15,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// PhraseAwareFigureStrategy — Passage-level strategy. Comp backlog #7.
+// PhraseAwareFigureStrategy — Passage-level strategy.
 //
 // The chord-driven counterpart to AlternatingFigureStrategy that respects
 // PHRASE BOUNDARIES. AFS alternates A/B strictly per chord across the whole
@@ -29,8 +29,6 @@ namespace mforce {
 // alternates A/B on the position WITHIN the phrase, and gives the last chord
 // of each phrase a melodic cadence figure driven by that phrase's own
 // cadenceType. DefaultPhraseStrategy::apply_cadence then runs per phrase.
-//
-// See docs/superpowers/specs/2026-08-10-phrase-aware-cadence-design.md.
 //
 // NOTE: compose_passage body is defined out-of-line below.
 // ---------------------------------------------------------------------------
@@ -120,9 +118,6 @@ inline std::vector<int> PhraseAwareFigureStrategy::partition_chords(
 
 // ---------------------------------------------------------------------------
 // Out-of-line definition of PhraseAwareFigureStrategy::compose_passage.
-//
-// Comp backlog #7 — the chord-driven strategy that respects phrase
-// boundaries. See docs/superpowers/specs/2026-08-10-phrase-aware-cadence-design.md.
 // ---------------------------------------------------------------------------
 inline Passage PhraseAwareFigureStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) const {

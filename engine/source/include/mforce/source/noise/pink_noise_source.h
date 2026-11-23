@@ -7,7 +7,7 @@
 namespace mforce {
 
 // Voss-McCartney pink noise generator.
-// Ported from C# MForce.Math.PinkNoiseSource.
+// Follows the C# MForce.Math.PinkNoiseSource.
 //
 // Maintains N rows of random values. Each step, the row whose index
 // matches the number of trailing zeros in a counter gets replaced.

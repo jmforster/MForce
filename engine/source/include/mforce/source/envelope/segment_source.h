@@ -8,7 +8,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.SegmentSource
+// Follows the C# MForce.Sound.Source.SegmentSource
 // Generates a segmented waveform: a sequence of value/width pairs with
 // smoothed transitions. Good for sound effects (footsteps, impacts).
 //
@@ -30,10 +30,9 @@ struct SegmentSource final : Generator {
   Param widthVarPct{this, "widthVarPct", 0.0f, 0.0f,  1.0f,  "0-1"};
   Param valVarPct  {this, "valVarPct",   0.0f, 0.0f,  1.0f,  "0-1"};
   Setting<bool> oneShot{this, "oneShot", false, false, true};
-  // timeMode (shape_editor_design.md): explicit units for the widths.
-  // "auto" keeps the legacy first-width inference (values[0] < 1 =>
-  // seconds) so patches without the setting are byte-identical; the
-  // shape editor always writes samples/seconds explicitly.
+  // timeMode: explicit units for the widths. "auto" infers them from the
+  // first width (values[0] < 1 => seconds), for patches without the
+  // setting; the shape editor always writes samples/seconds explicitly.
   Setting<int> timeMode{this, "timeMode", 0, 0, 2, kTimeModeLabels};
   // values[] is the [width0, val0, width1, val1, ...] segment table. The
   // patch loader's generic set_array path uses this to wire arbitrary
@@ -66,8 +65,8 @@ struct SegmentSource final : Generator {
     // Deferred to the first compute(): update_segments() reads the
     // width/var/gap pins via current(), and at start() time a wired
     // chain (e.g. Note→Curve→width) still holds the PREVIOUS note's value
-    // on a reused voice — Matt heard it as nondeterministic clicks/thumps
-    // per keypress. The first compute() runs after the pins advance for
+    // on a reused voice, heard as nondeterministic clicks/thumps per
+    // keypress. The first compute() runs after the pins advance for
     // THIS note.
     pendingInit_ = true;
   }
@@ -77,8 +76,8 @@ struct SegmentSource final : Generator {
 
     if (pendingInit_) { pendingInit_ = false; update_segments(); }
 
-    // Empty shape (a node fresh from the menu, or values cleared) used to
-    // index currVals_[0] out of bounds on the first sample.
+    // Empty shape (a node fresh from the menu, or values cleared): no
+    // segment to index, so the node outputs 0.
     if (done_ || currVals_.size() < 2) return 0.0f;
 
     if (currSegCount_ >= int(currVals_[currSeg_ * 2])) {
@@ -109,7 +108,7 @@ private:
   void refresh_units_() {
     if (timeMode.value == 1)      widthIsSecs_ = false;
     else if (timeMode.value == 2) widthIsSecs_ = true;
-    else widthIsSecs_ = !values.values.empty() && values.values[0] < 1.0f;  // legacy auto
+    else widthIsSecs_ = !values.values.empty() && values.values[0] < 1.0f;  // auto: from the first width
   }
 
   void update_segments() {
@@ -128,7 +127,7 @@ private:
 
     currVals_.clear();   // within the capacity on_prepare reserved
     if (wscale == 1.0f) {
-      // Exact legacy path — byte-identical at the default width.
+      // The default width: each width rounded on its own.
       for (int i = 0; i < pairCount; ++i) {
         currVals_.push_back(std::round(rng_.range(
             shape[i * 2] * (1.0f - wvp), shape[i * 2] * (1.0f + wvp)) * rate));
@@ -136,13 +135,13 @@ private:
             shape[i * 2 + 1] * (1.0f - vvp), shape[i * 2 + 1] * (1.0f + vvp)));
       }
     } else {
-      // Error-diffused width scaling (2026-08-30): per-segment rounding
-      // floored every segment at 1 sample (the stepping consumes >=1 per
-      // segment), so wscale<1 was inaudible on unit-width sampled shapes.
-      // Diffusion drops segments whose scaled width rounds to zero — a
-      // width-1 texture at 0.5 emits every other point (decimation).
-      // Draw count per pair matches the legacy path, so varPct streams
-      // stay aligned across width changes.
+      // Error-diffused width scaling: per-segment rounding would floor every
+      // segment at 1 sample (the stepping consumes >=1 per segment), so
+      // wscale<1 would be inaudible on unit-width sampled shapes. Diffusion
+      // drops segments whose scaled width rounds to zero — a width-1 texture
+      // at 0.5 emits every other point (decimation). The draw count per pair
+      // matches the default-width path, so varPct streams stay aligned
+      // across width changes.
       float accExact = 0.0f;
       long long emitted = 0;
       for (int i = 0; i < pairCount; ++i) {

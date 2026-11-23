@@ -15,8 +15,8 @@ using namespace mforce;
 
 
 // start() and next() never throw. An invalid runtime value
-// is clamped to the narrowest value that makes the old throw's condition
-// false and the node reports a fault bit; the host reads the bits after a
+// is clamped to the narrowest valid value and the node reports a fault
+// bit; the host reads the bits after a
 // render. prepare() may throw, and does on a host error.
 void run_no_throw_tests() {
     TestHost h;

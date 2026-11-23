@@ -5,8 +5,6 @@
 //   ppl_to_json <input.ppl> <output.json>     — single file
 //   ppl_to_json <input_dir> <output_dir>      — batch all *.ppl in dir
 //   ppl_to_json                               — scan lib/ppl, emit to lib/json
-//
-// Spec: docs/superpowers/specs/2026-04-27-pattern-library-design.md
 
 #include <nlohmann/json.hpp>
 #include <filesystem>

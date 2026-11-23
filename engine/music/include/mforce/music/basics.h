@@ -254,9 +254,9 @@ struct Interval {
 };
 
 // ===== EqualTemperament =====
-// Already have note_to_freq() in equal_temperament.h, but adding the class form
-// for compatibility: freq = 13.75 * 2^((noteNumber - 9) / 12)
-// (Legacy uses A0 = 13.75 Hz as base, which is equivalent to A4 = 440 Hz)
+// The class form of note_to_freq() (equal_temperament.h), as the C# has it:
+// freq = 13.75 * 2^((noteNumber - 9) / 12), with A0 = 13.75 Hz as base,
+// which is equivalent to A4 = 440 Hz.
 
 // ===== Meter =====
 

@@ -1,24 +1,22 @@
 #pragma once
 //
-// Anchor-driven passage strategies — backlog #6 (GOALS Wolfie G2), stage 1.
+// Anchor-driven passage strategies, following a Python prototype that was
+// rendered and measured: corpus/mtd_seg/passage_strategies.py
 //
-// Spec: docs/superpowers/specs/2026-07-31-passage-strategy-expansion-design.md
-// Python prototype (rendered + measured first): corpus/mtd_seg/passage_strategies.py
-//
-// The prototype's central finding is that these passages are naturally
+// These passages are naturally
 // authored as ANCHORS — "entry i starts on scale-degree a_i" — and that the
 // FC.leadStep connectors the engine actually consumes are a mechanical
 // derivation from that list. connectors_for() below is that derivation, and
-// it is the piece both strategies here (and the stage-2/4 ones) share.
+// it is the piece the anchor-driven strategies share.
 //
 // Second shared piece: a passage-level RANGE GUARD. Anchor-driven passages
-// walk further than phrases do, and without a guard both of these produced
-// 23-24 semitone spans in the prototype. predicted_span() runs the same
+// walk further than phrases do (without a guard, 23-24 semitone spans in
+// the prototype). predicted_span() runs the same
 // cursor math the engine runs, so the guard can reject a candidate before
 // anything is composed.
 //
-// Stage 1 covers PedalBuildupStrategy + SequencePassageStrategy. The pedal
-// itself stays a template-authored part: a PassageStrategy is passage-scoped
+// Here: PedalBuildupStrategy + SequencePassageStrategy. The pedal itself
+// stays a template-authored part: a PassageStrategy is passage-scoped
 // and cannot add parts to the piece, so this emits the melody only.
 //
 // Registered as "pedal_buildup" and "sequence_passage".
@@ -159,8 +157,7 @@ inline void put_motif(Locus& locus, const std::string& name,
 // previous section's passage for THIS part, or nullopt if there is no prior
 // passage to harvest.
 //
-// Spec asked whether Locus needs a new "what came before" carrier. It does
-// not: Composer::compose walks `for each part { for each section in order }`
+// Locus needs no "what came before" carrier: Composer::compose walks `for each part { for each section in order }`
 // and assigns part->passages[sectionName] after composing, so by the time
 // section i composes, sections 0..i-1 are already realized on the same Part
 // and reachable through the Piece pointer Locus already holds.

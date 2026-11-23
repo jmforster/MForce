@@ -8,7 +8,7 @@
 
 namespace mforce {
 
-// Ported from C# StaticRangeSource — random value in [min,max] drawn once per note, at start().
+// Follows the C# StaticRangeSource — random value in [min,max] drawn once per note, at start().
 struct StaticRangeSource final : Generator {
   Setting<float> min {this, "min",  0.0f, -10000.0f, 10000.0f};
   Setting<float> max {this, "max",  1.0f, -10000.0f, 10000.0f};

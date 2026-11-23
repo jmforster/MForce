@@ -76,7 +76,7 @@ ComposeResult compose_locked(const MelodicFigure& figure) {
 }  // namespace
 
 // ----------------------------------------------------------------------------
-// Smoke test (preserved from step 1) — round-trips a locked figure through
+// Smoke test — round-trips a locked figure through
 // the WrapperPhraseStrategy-driven Composer pipeline and verifies the realized
 // figure matches the input unit-for-unit.
 // ----------------------------------------------------------------------------

@@ -59,7 +59,7 @@ class SmoothVoicingSelector : public VoicingSelector {
       float vl;
       int common;
       float melody;
-      bool sameAsPrev; // identical voicing to the previous chord (comp #8, repeat)
+      bool sameAsPrev; // identical voicing to the previous chord (the repeat penalty)
     };
     std::vector<Candidate> cands;
 
@@ -73,7 +73,7 @@ class SmoothVoicingSelector : public VoicingSelector {
 
     const auto& inversionAllow = req.profile.allowedInversions;
     const auto& spreadAllow    = req.profile.allowedSpreads;
-    // comp #8: a cadential arrival lands in root position. This is a
+    // A cadential arrival lands in root position. This is a
     // restriction on top of any allow-list, not a replacement for it — an
     // author who has already pinned inversions keeps them.
     auto invAllowed = [&](int v) {
@@ -142,8 +142,8 @@ class SmoothVoicingSelector : public VoicingSelector {
       float ctNorm = (ctMax > ctMin)
                    ? 1.0f - float(c.common - ctMin) / float(ctMax - ctMin)
                    : 0.0f;
-      // comp #8: repeatPenalty defaults to 0, so a profile that does not
-      // ask for it leaves the score bit-for-bit as it was.
+      // repeatPenalty defaults to 0, so a profile that does not ask for it
+      // adds nothing to the score.
       float score = (1.0f - p) * vlNorm
                   + p * ctNorm
                   + kTiebreakVL * vlNorm
@@ -183,7 +183,7 @@ class SmoothVoicingSelector : public VoicingSelector {
   }
 
   // Same pitch set, same size — i.e. re-emitting the previous voicing
-  // unchanged. Used by the repeat penalty (comp #8).
+  // unchanged. Used by the repeat penalty.
   static bool same_voicing(const Chord& prev, const Chord& cand) {
     if (prev.pitches.size() != cand.pitches.size()) return false;
     for (size_t i = 0; i < prev.pitches.size(); ++i) {

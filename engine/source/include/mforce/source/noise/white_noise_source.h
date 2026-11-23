@@ -6,25 +6,23 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.WhiteNoiseSource
+// Follows the C# MForce.Sound.Source.WhiteNoiseSource
 // Simple per-sample random noise (not a WaveSource — no phase accumulator needed).
 //
-// The legacy C# node carried four connectable inputs — Amplitude, Density,
+// The C# node it follows has four connectable inputs — Amplitude, Density,
 // Boost, Continuity — used every sample:
 //   if (Rand.Decide(Density)) {
 //     Value = Rand.Range(Boost, 1) * Rand.Sign();
 //     if (Continuity != 0) Value = Rand.Range(LastVal, Value, min(Continuity, 0.999));
 //   } else Value = 0;
 //   Value *= Amplitude;
-// The C++ port originally shipped `amplitude` only (backlog 21). This restores
-// density/boost/continuity and adds `zeroCrossTendency` (new — legacy WhiteNoise
-// had none; modelled on RedNoiseSource's sign logic), all as ValueSource pins.
+// Here all four are ValueSource pins, with a fifth, `zeroCrossTendency`, that
+// the C# WhiteNoise does not have (modelled on RedNoiseSource's sign logic).
 //
-// BYTE-IDENTICAL DEFAULTS: at density=1, boost=0, continuity=0, zeroCrossTendency=0
-// the node reproduces the historical single-draw output `valuePN() * amplitude`
-// EXACTLY — same rng_ draw, same sequence — so every existing patch (none set
-// these keys) renders bit-for-bit unchanged. The shaping logic only engages when
-// a param leaves its inert default, which changes the draw structure by design.
+// INERT DEFAULTS: at density=1, boost=0, continuity=0, zeroCrossTendency=0 the
+// node outputs one draw per sample, `valuePN() * amplitude`. The shaping logic
+// only engages when a param leaves its inert default, which changes the draw
+// structure by design.
 struct WhiteNoiseSource final : Generator {
   Param amplitude        {this, "amplitude",         1.0f, 0.0f, 10.0f, "0-1"};
   Param density          {this, "density",           1.0f, 0.0f, 1.0f,  "0-1"};
@@ -52,7 +50,7 @@ struct WhiteNoiseSource final : Generator {
       return out;
     }
 
-    // Legacy-shaped path.
+    // The shaped path, as the C# node draws.
     float v;
     if (rng_.decide(dens)) {
       v = shaped_draw(rng_, zct, bst, cont, lastVal_, lastSign_);
@@ -70,7 +68,7 @@ private:
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   float lastVal_{0.0f};
-  float lastSign_{-1.0f};   // legacy starts non-zero to "get going"
+  float lastSign_{-1.0f};   // starts non-zero to "get going", as the C# does
 };
 
 } // namespace mforce

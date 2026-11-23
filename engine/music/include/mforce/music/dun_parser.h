@@ -320,8 +320,8 @@ inline DunParseResult load_dun(const std::string& path) {
 //
 // Strategy: the first token of each figure carries the inter-figure movement
 // (step) in DUN. For fi>0, that step is absorbed directly into the first
-// unit's step field (previously it was passed as a FigureConnector, which
-// is no longer used). The first token of phrase-figure 0 is Xn (no movement),
+// unit's step field; no FigureConnector carries it. The first token of
+// phrase-figure 0 is Xn (no movement),
 // so the startingPitch carries over from the previous phrase.
 //
 // The returned piece's events are realized from its passages, so it plays
@@ -419,7 +419,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
 
         FigureUnit u;
         u.duration = figDun[0].duration;
-        u.step = connStep;  // absorbed: was formerly passed as FigureConnector
+        u.step = connStep;  // the inter-figure step, absorbed into the first unit
         u.rest = figDun[0].rest;
         u.accidental = figDun[0].accidental;
         u.ornament = figDun[0].ornament;
@@ -440,7 +440,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         if (!figDun[ti].rest) reader.step(figDun[ti].step);
       }
 
-      phrase.add_melodic_figure(std::move(fig));  // single-arg: connector no longer used
+      phrase.add_melodic_figure(std::move(fig));  // single-arg: no connector
     }
 
     passage.add_phrase(std::move(phrase));

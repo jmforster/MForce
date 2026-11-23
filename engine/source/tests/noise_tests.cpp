@@ -205,8 +205,8 @@ void run_noise_layered_tests() {
     CHECK(sum > 0.0f);
 }
 
-// The shaped-noise draw white and red share: two verbatim copies of the
-// deleted call-site blocks against the helper, bit-for-bit over a grid, on
+// The shaped-noise draw white and red share: two reference blocks written
+// out here against the helper, bit-for-bit over a grid, on
 // three identically seeded Randomizers (same seed, same draws).
 void run_shaped_draw_twin_tests() {
     auto white_block = [](Randomizer& rng_, float zct, float bst, float cont,

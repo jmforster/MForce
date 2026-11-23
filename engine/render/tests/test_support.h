@@ -169,7 +169,7 @@ inline std::shared_ptr<FormantPeaks> make_one_peak(float hz, float width = 500.0
 
 // The split is exact when a node that is prepared once and started per note
 // renders the same bytes as one that is prepared and started before every
-// note (what the old prepare(ctx, frames) did). Both arms throw or neither;
+// note. Both arms throw or neither;
 // a comparison of silence proves nothing, so the result says whether the
 // render had any signal in it.
 struct SplitResult { bool equal; bool threw; bool nonzero; };

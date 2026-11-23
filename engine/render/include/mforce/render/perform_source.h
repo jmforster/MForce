@@ -8,7 +8,7 @@
 
 namespace mforce {
 
-// Per-instrument performance state (docs/perform_source_design.md §2.1):
+// Per-instrument performance state:
 // the instrument as played — one physical wheel, one channel-pressure
 // stream — outliving every note. UI/MIDI thread stores, audio thread reads
 // (in PerformSource::tick), hence atomics.
@@ -17,34 +17,31 @@ struct InstrumentState {
   std::atomic<float> pressure{0.0f};   // channel pressure, 0..1
 };
 
-// Per-voice performance backing store (docs/perform_source_design.md §2.1).
+// Per-voice performance backing store.
 // NOT a ValueSource — its outputs (PerformOut adapters) are. One write per
 // note at Realization/Setup; everything downstream pulls. Heap-owned via
 // shared_ptr so adapters stay valid when voicePool vectors reallocate.
 struct NoteState {
-  float frequency{440.0f};   // Hz, base (bend articulates on top — P3)
+  float frequency{440.0f};   // Hz, base (a bend articulates on top)
   float velocity{0.8f};      // 0..1
   int   durSamples{0};       // actual (Piece) or nominal (Live)
-  // Seconds view of durSamples, set at note-on (backlog 64 Tier 1:
-  // duration-aware articulation — curves/dynamicPins key on this like
-  // frequency). Score playback = the note's actual length; live play =
-  // the caller's nominal (the UI's fixed-duration header setting).
+  // Seconds view of durSamples, set at note-on (duration-aware
+  // articulation: curves/dynamicPins key on this like frequency). Score
+  // playback = the note's actual length; live play = the caller's nominal.
   float durSeconds{0.0f};
-  // Interned onset name (spec 2026-09-20-note-onsets-v2 §1/§8):
+  // Interned onset name:
   // 0 = none/unknown; ids 1.. index the instrument's onsets[]
   // vocabulary in declaration order (stable, so ordinal use in a Curve
   // is dependable). Held for the whole note, like velocity.
   float onsetId{0.0f};
 };
 
-// P3 liveness: the voice owns an explicit per-sample clock. tick() advances
+// Liveness: the voice owns an explicit per-sample clock. tick() advances
 // the bend envelope and the wheel/pressure smoothers EXACTLY once per
 // sample, called by the render drivers (the loops that already call
-// source->next() once per voice per sample). The graft this replaces
-// (PitchBendSource) advanced its envelope inside consumer pulls, which
-// under sharing stepped it once PER CONSUMER — the P2a stateless-adapter
-// lesson, applied to time. PerformOut stays an idempotent view over the
-// post-tick values.
+// source->next() once per voice per sample). An envelope advanced inside
+// consumer pulls would, under sharing, step once PER CONSUMER. PerformOut
+// stays an idempotent view over the post-tick values.
 class PerformSource {
 public:
   void set_note(float freqHz, float velocity, int durSamples,
@@ -82,8 +79,8 @@ public:
 
   const NoteState& note() const { return note_; }
   // Articulated: base * 2^(bend(t)/12) under a bend; the UNTOUCHED base
-  // when there is none — no multiply, so unbent renders stay bit-identical
-  // to the P1 constant (the null-gate contract).
+  // when there is none — no multiply, so an unbent note's frequency is
+  // exactly the base.
   float frequency() const {
     return bend_ ? note_.frequency * std::exp2(bendSemis_ / 12.0f)
                  : note_.frequency;

@@ -790,13 +790,11 @@ static int run_check(int argc, char** argv)
 // a PieceTemplate and written straight back out; anything the author wrote
 // that does not survive the round trip was ignored without a word. That class
 // of bug is invisible by construction — the piece still renders, just not the
-// piece that was authored. (Found this way: the section-level chordProgression
-// could not be re-read after being written, and the flat authoring form
-// dropped `alteration` entirely.)
+// piece that was authored (a field that cannot be re-read after being
+// written, say, or one an authoring form drops).
 //
 // Reports four kinds of finding, separated because they need different
-// responses — the dsp linter's first run cried wolf on 3 of 62 and the fix was
-// classification, not a shorter list:
+// responses: one undivided list mostly flags what is harmless.
 //   DROPPED   key absent from the re-serialized form, authored value is NOT a
 //             default. Always suspicious.
 //   DEFAULTED key absent, but the authored value equals the type's default

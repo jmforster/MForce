@@ -144,21 +144,6 @@
    42,
    [
     [
-     "engine/shelved/include/mforce/shelved/sequence_passage_strategy.h",
-     12,
-     53
-    ],
-    [
-     "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
-     12,
-     51
-    ]
-   ]
-  ],
-  [
-   42,
-   [
-    [
      "engine/source/include/mforce/source/filter/bw_highpass_filter.h",
      7,
      48
@@ -167,6 +152,21 @@
      "engine/source/include/mforce/source/filter/bw_lowpass_filter.h",
      7,
      53
+    ]
+   ]
+  ],
+  [
+   41,
+   [
+    [
+     "engine/shelved/include/mforce/shelved/sequence_passage_strategy.h",
+     12,
+     52
+    ],
+    [
+     "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
+     12,
+     51
     ]
    ]
   ],
@@ -181,7 +181,7 @@
     [
      "engine/shelved/include/mforce/shelved/sequence_passage_strategy.h",
      14,
-     53
+     52
     ],
     [
      "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
@@ -375,8 +375,8 @@
     ],
     [
      "tools/stk_ref/bowed_ref.cpp",
-     12,
-     37
+     11,
+     36
     ],
     [
      "tools/stk_ref/brass_ref.cpp",
@@ -566,37 +566,12 @@
     [
      "engine/source/include/mforce/source/filter/reverb.h",
      9,
-     22
+     21
     ],
     [
      "engine/source/include/mforce/source/filter/shaper_source.h",
      9,
      22
-    ]
-   ]
-  ],
-  [
-   19,
-   [
-    [
-     "engine/source/include/mforce/source/filter/limiter.h",
-     7,
-     25
-    ],
-    [
-     "engine/source/include/mforce/source/filter/reverb.h",
-     7,
-     21
-    ],
-    [
-     "engine/source/include/mforce/source/filter/shaper_source.h",
-     7,
-     19
-    ],
-    [
-     "engine/source/include/mforce/source/oscillator/fm_source.h",
-     6,
-     24
     ]
    ]
   ],
@@ -640,8 +615,8 @@
     ],
     [
      "tools/stk_ref/bowed_ref.cpp",
-     42,
-     60
+     41,
+     59
     ],
     [
      "tools/stk_ref/brass_ref.cpp",
@@ -724,6 +699,31 @@
    17,
    [
     [
+     "engine/source/include/mforce/source/filter/limiter.h",
+     7,
+     23
+    ],
+    [
+     "engine/source/include/mforce/source/filter/reverb.h",
+     7,
+     20
+    ],
+    [
+     "engine/source/include/mforce/source/filter/shaper_source.h",
+     7,
+     19
+    ],
+    [
+     "engine/source/include/mforce/source/oscillator/fm_source.h",
+     6,
+     24
+    ]
+   ]
+  ],
+  [
+   17,
+   [
+    [
      "tools/stk_ref/bandedwg_ref.cpp",
      37,
      53
@@ -735,8 +735,8 @@
     ],
     [
      "tools/stk_ref/bowed_ref.cpp",
-     42,
-     58
+     41,
+     57
     ],
     [
      "tools/stk_ref/brass_ref.cpp",
@@ -750,13 +750,13 @@
    [
     [
      "engine/compose/include/mforce/compose/default_figure_strategy.h",
-     187,
-     202
+     182,
+     197
     ],
     [
      "engine/compose/include/mforce/compose/default_phrase_strategy.h",
-     282,
-     295
+     278,
+     291
     ]
    ]
   ],
@@ -805,8 +805,8 @@
     ],
     [
      "tools/stk_ref/bowed_ref.cpp",
-     12,
-     27
+     11,
+     26
     ],
     [
      "tools/stk_ref/brass_ref.cpp",
@@ -995,13 +995,13 @@
    [
     [
      "engine/music/include/mforce/music/figures.h",
-     579,
-     590
+     580,
+     591
     ],
     [
      "engine/music/include/mforce/music/figures.h",
-     613,
-     624
+     614,
+     625
     ]
    ]
   ],
@@ -1026,7 +1026,7 @@
     [
      "engine/source/include/mforce/source/physical/ks_string.h",
      8,
-     62
+     60
     ]
    ]
   ],
@@ -1060,8 +1060,8 @@
     ],
     [
      "tools/stk_ref/bowed_ref.cpp",
-     80,
-     91
+     79,
+     90
     ],
     [
      "tools/stk_ref/brass_ref.cpp",
@@ -1090,8 +1090,8 @@
    [
     [
      "tools/stk_ref/bowed_ref.cpp",
-     80,
-     91
+     79,
+     90
     ],
     [
      "tools/stk_ref/brass_ref.cpp",
@@ -1168,10 +1168,10 @@
  ],
  "files": {
   "engine/compose/include/mforce/compose/anchor_selector.h": {
-   "changelog_comments": 3,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 393,
+   "lines": 390,
    "longest_function": [
     299,
     "mforce::select_anchors"
@@ -1185,10 +1185,10 @@
    ]
   },
   "engine/compose/include/mforce/compose/chord_progression_builder.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 109,
+   "lines": 106,
    "longest_function": [
     55,
     "mforce::ChordProgressionBuilder::progressions"
@@ -1203,7 +1203,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 60,
+   "lines": 48,
    "longest_function": [
     11,
     "mforce::chord_walk::advance"
@@ -1249,7 +1249,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 274,
+   "lines": 269,
    "longest_function": [
     114,
     "mforce::DefaultFigureStrategy::compose_figure"
@@ -1261,12 +1261,12 @@
    ]
   },
   "engine/compose/include/mforce/compose/default_passage_strategy.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 372,
+   "lines": 365,
    "longest_function": [
-    316,
+    311,
     "mforce::DefaultPassageStrategy::compose_passage"
    ],
    "module": "compose",
@@ -1279,7 +1279,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 337,
+   "lines": 333,
    "longest_function": [
     131,
     "mforce::DefaultPhraseStrategy::compose_phrase"
@@ -1333,12 +1333,12 @@
    ]
   },
   "engine/compose/include/mforce/compose/figure_transforms.h": {
-   "changelog_comments": 2,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 576,
+   "lines": 572,
    "longest_function": [
-    69,
+    68,
     "mforce::figure_transforms::apply"
    ],
    "module": "compose",
@@ -1351,7 +1351,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 60,
+   "lines": 57,
    "longest_function": [
     30,
     "mforce::passage_anchors::grid_complete"
@@ -1376,7 +1376,7 @@
    ]
   },
   "engine/compose/include/mforce/compose/melody_profile.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 64,
@@ -1409,10 +1409,10 @@
    "types": []
   },
   "engine/compose/include/mforce/compose/note_map.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 209,
+   "lines": 208,
    "longest_function": [
     81,
     "mforce::evaluate_note_map"
@@ -1428,10 +1428,10 @@
    ]
   },
   "engine/compose/include/mforce/compose/passage_melody.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 157,
+   "lines": 156,
    "longest_function": [
     75,
     "mforce::phrases_from_passage"
@@ -1441,10 +1441,10 @@
    "types": []
   },
   "engine/compose/include/mforce/compose/phrase_aware_figure_strategy.h": {
-   "changelog_comments": 4,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 294,
+   "lines": 289,
    "longest_function": [
     166,
     "mforce::PhraseAwareFigureStrategy::compose_passage"
@@ -1456,7 +1456,7 @@
    ]
   },
   "engine/compose/include/mforce/compose/phrase_critic.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 130,
@@ -1619,7 +1619,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 342,
+   "lines": 339,
    "longest_function": [
     162,
     "mforce::ShapeCadentialApproachStrategy::compose_figure"
@@ -1697,12 +1697,12 @@
    ]
   },
   "engine/compose/include/mforce/compose/templates.h": {
-   "changelog_comments": 6,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 596,
+   "lines": 589,
    "longest_function": [
-    96,
+    95,
     "mforce::PieceTemplate::add_derived_motif"
    ],
    "module": "compose",
@@ -1726,7 +1726,7 @@
    ]
   },
   "engine/compose/include/mforce/compose/templates_json.h": {
-   "changelog_comments": 3,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 1091,
@@ -1757,7 +1757,7 @@
    ]
   },
   "engine/compose/src/compose.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 583,
@@ -1938,10 +1938,10 @@
    ]
   },
   "engine/core/include/mforce/core/curve.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 90,
+   "lines": 86,
    "longest_function": [
     22,
     "mforce::Curve::eval_core"
@@ -1953,7 +1953,7 @@
    ]
   },
   "engine/core/include/mforce/core/denormals.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 21,
@@ -2104,7 +2104,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 94,
+   "lines": 91,
    "longest_function": [
     13,
     "mforce::dsp::PierceAllpass::tick"
@@ -2169,7 +2169,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 70,
+   "lines": 68,
    "longest_function": [
     29,
     "mforce::WaveSource::compute"
@@ -2194,10 +2194,10 @@
    "types": []
   },
   "engine/core/include/mforce/core/fast_math.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 117,
+   "lines": 118,
    "longest_function": [
     32,
     "mforce::fast_exp2"
@@ -2234,10 +2234,10 @@
    ]
   },
   "engine/core/include/mforce/core/ramp.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 63,
+   "lines": 62,
    "longest_function": [
     41,
     "mforce::Ramp::value"
@@ -2250,7 +2250,7 @@
    ]
   },
   "engine/core/include/mforce/core/randomizer.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 105,
@@ -2496,9 +2496,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 20,
+   "lines": 19,
    "longest_function": [
-    13,
+    12,
     "run_ramp_hold_tests"
    ],
    "module": "tests",
@@ -2628,7 +2628,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 764,
+   "lines": 765,
    "longest_function": [
     127,
     "mforce::StepGenerator::random_sequence"
@@ -2683,10 +2683,10 @@
    "types": []
   },
   "engine/music/include/mforce/music/parse_util.h": {
-   "changelog_comments": 2,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 461,
+   "lines": 459,
    "longest_function": [
     90,
     "mforce::parse_chord_string"
@@ -3265,7 +3265,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 86,
+   "lines": 87,
    "longest_function": [
     21,
     "run_dsp_blep_tests"
@@ -3306,7 +3306,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 76,
+   "lines": 75,
    "longest_function": [
     59,
     "run_envelope_form_tests"
@@ -3949,10 +3949,10 @@
    ]
   },
   "engine/render/include/mforce/render/perform_source.h": {
-   "changelog_comments": 2,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 138,
+   "lines": 135,
    "longest_function": [
     12,
     "mforce::PerformSource::set_note"
@@ -4381,12 +4381,12 @@
    "types": []
   },
   "engine/render/tests/note_delivery_tests.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 8,
-   "lines": 355,
+   "lines": 354,
    "longest_function": [
-    157,
+    156,
     "run_hold_delivery_tests"
    ],
    "module": "tests",
@@ -4420,7 +4420,7 @@
    "types": []
   },
   "engine/render/tests/performer_tests.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 63,
@@ -4627,7 +4627,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 142,
+   "lines": 141,
    "longest_function": [
     94,
     "mforce::ConnectivePassageStrategy::compose_passage"
@@ -4653,10 +4653,10 @@
    "types": []
   },
   "engine/shelved/include/mforce/shelved/elaborated_phrase_strategy.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 178,
+   "lines": 176,
    "longest_function": [
     112,
     "mforce::ElaboratedPhraseStrategy::compose_phrase"
@@ -4682,10 +4682,10 @@
    "types": []
   },
   "engine/shelved/include/mforce/shelved/library_passage_strategy.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 261,
+   "lines": 260,
    "longest_function": [
     179,
     "mforce::LibraryPassageStrategy::compose_passage"
@@ -4711,10 +4711,10 @@
    "types": []
   },
   "engine/shelved/include/mforce/shelved/passage_anchors.h": {
-   "changelog_comments": 2,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 218,
+   "lines": 215,
    "longest_function": [
     25,
     "mforce::passage_anchors::prior_passage_tail"
@@ -4724,10 +4724,10 @@
    "types": []
   },
   "engine/shelved/include/mforce/shelved/pattern_library.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 109,
+   "lines": 107,
    "longest_function": [
     12,
     "mforce::pattern_library::pick_pattern_by_length"
@@ -4878,7 +4878,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 118,
+   "lines": 117,
    "longest_function": [
     72,
     "mforce::SequencePassageStrategy::compose_passage"
@@ -5128,7 +5128,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 67,
+   "lines": 66,
    "longest_function": [
     1,
     "mforce::AdditiveSource::type_name"
@@ -5368,7 +5368,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 48,
+   "lines": 47,
    "longest_function": [
     12,
     "mforce::PartialSet::sum_partials"
@@ -5383,9 +5383,9 @@
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 0,
-   "lines": 579,
+   "lines": 571,
    "longest_function": [
-    131,
+    124,
     "mforce::Partials::partial_value_impl"
    ],
    "module": "source",
@@ -5472,10 +5472,10 @@
    ]
   },
   "engine/source/include/mforce/source/envelope/envelope.h": {
-   "changelog_comments": 10,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 658,
+   "lines": 652,
    "longest_function": [
     70,
     "mforce::Envelope::on_start"
@@ -5502,10 +5502,10 @@
    ]
   },
   "engine/source/include/mforce/source/envelope/segment_source.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 190,
+   "lines": 189,
    "longest_function": [
     62,
     "mforce::SegmentSource::update_segments"
@@ -5532,10 +5532,10 @@
    ]
   },
   "engine/source/include/mforce/source/filter/biquad_source.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 95,
+   "lines": 94,
    "longest_function": [
     20,
     "mforce::BiquadSource::compute"
@@ -5577,7 +5577,7 @@
    ]
   },
   "engine/source/include/mforce/source/filter/bw_lowpass_filter.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 58,
@@ -5637,10 +5637,10 @@
    ]
   },
   "engine/source/include/mforce/source/filter/limiter.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 86,
+   "lines": 84,
    "longest_function": [
     29,
     "mforce::Limiter::compute"
@@ -5652,10 +5652,10 @@
    ]
   },
   "engine/source/include/mforce/source/filter/reverb.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 115,
+   "lines": 114,
    "longest_function": [
     35,
     "mforce::Reverb::compute"
@@ -5682,10 +5682,10 @@
    ]
   },
   "engine/source/include/mforce/source/filter/svf_source.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 155,
+   "lines": 153,
    "longest_function": [
     42,
     "mforce::SVFSource::compute"
@@ -5700,7 +5700,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 189,
+   "lines": 188,
    "longest_function": [
     22,
     "mforce::CurveNode::map_expr"
@@ -5712,7 +5712,7 @@
    ]
   },
   "engine/source/include/mforce/source/modulator/name_gate.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 43,
@@ -5980,10 +5980,10 @@
    ]
   },
   "engine/source/include/mforce/source/noise/white_noise_source.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 76,
+   "lines": 74,
    "longest_function": [
     27,
     "mforce::WhiteNoiseSource::compute"
@@ -6115,7 +6115,7 @@
    ]
   },
   "engine/source/include/mforce/source/physical/bow_table_source.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 34,
@@ -6130,10 +6130,10 @@
    ]
   },
   "engine/source/include/mforce/source/physical/delay_line_source.h": {
-   "changelog_comments": 2,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 142,
+   "lines": 141,
    "longest_function": [
     28,
     "mforce::DelayLineSource::compute"
@@ -6145,12 +6145,12 @@
    ]
   },
   "engine/source/include/mforce/source/physical/ks_string.h": {
-   "changelog_comments": 6,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 519,
+   "lines": 515,
    "longest_function": [
-    142,
+    141,
     "mforce::KSString::compute"
    ],
    "module": "source",
@@ -6163,7 +6163,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 318,
+   "lines": 316,
    "longest_function": [
     41,
     "mforce::Mesh2DSource::compute"
@@ -6178,7 +6178,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 54,
+   "lines": 53,
    "longest_function": [
     4,
     "mforce::PierceFilterSource::on_start"
@@ -6233,10 +6233,10 @@
    ]
   },
   "engine/source/include/mforce/source/utility/wormhole_source.h": {
-   "changelog_comments": 2,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 25,
+   "lines": 23,
    "longest_function": [
     1,
     "mforce::WormholeSource::type_name"
@@ -6491,9 +6491,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 109,
+   "lines": 110,
    "longest_function": [
-    61,
+    62,
     "mforce::AdditiveSource::wave"
    ],
    "module": "source",
@@ -6514,7 +6514,7 @@
    "types": []
   },
   "engine/source/src/source_registrations.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 484,
@@ -6647,7 +6647,7 @@
    "types": []
   },
   "engine/source/tests/envelope_retrigger_tests.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 72,
@@ -6967,10 +6967,10 @@
    ]
   },
   "engine/source/tests/shaper_tests.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 200,
+   "lines": 199,
    "longest_function": [
     42,
     "run_shaper_tests"
@@ -7218,10 +7218,10 @@
    "types": []
   },
   "engine/voicing/include/mforce/voicing/voicing_profile.h": {
-   "changelog_comments": 2,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 41,
+   "lines": 40,
    "longest_function": [
     0,
     ""
@@ -7456,7 +7456,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 962,
+   "lines": 966,
    "longest_function": [
     74,
     "run_chords"
@@ -7483,10 +7483,10 @@
    ]
   },
   "tools/shelved/ppl_to_json/main.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 407,
+   "lines": 405,
    "longest_function": [
     62,
     "parse_phrase_defs"
@@ -7526,10 +7526,10 @@
    ]
   },
   "tools/stk_ref/bowed_ref.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 133,
+   "lines": 132,
    "longest_function": [
     51,
     "main"
@@ -7632,7 +7632,7 @@
  },
  "include_violations": [],
  "summary": {
-  "changelog_comments": 77,
+  "changelog_comments": 0,
   "const_cast": 1,
   "duplicate_blocks": 140,
   "dynamic_cast": 54,
@@ -7641,7 +7641,7 @@
   "files_over_limit": 8,
   "functions_over_limit": 51,
   "include_violations": 0,
-  "lines": 59248,
+  "lines": 59129,
   "unmapped_files": 0
  }
 }

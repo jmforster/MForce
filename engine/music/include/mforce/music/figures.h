@@ -496,7 +496,8 @@ struct PulseGenerator {
 
 // ---------------------------------------------------------------------------
 // FigureUnit ??? a single element within a MelodicFigure.
-// Replaces parallel arrays of durations, steps, articulations, ornaments.
+// One record per note in place of parallel arrays of durations, steps,
+// articulations, ornaments.
 // ---------------------------------------------------------------------------
 struct FigureUnit {
   float duration;  // beats
@@ -593,7 +594,7 @@ struct MelodicFigure : Figure {
   }
 
   // Build a MelodicFigure from a StepSequence with uniform pulse duration.
-  // Replaces FigureBuilder::build(StepSequence, pulse). The first unit's
+  // The first unit's
   // step is honored from ss[0] ??? caller is responsible for the step[0]=0
   // convention (the bible rule) if needed.
   static MelodicFigure from_steps(const StepSequence& ss, float pulse) {
@@ -659,8 +660,8 @@ struct FigureConnector {
   int leadStep{0};       // step to place the following figure's first note
                          // from the (post-elide/adjust) cursor. Applied
                          // additively to the figure's authored first-unit
-                         // step at realization time. Default 0 matches
-                         // legacy behavior (no placement offset).
+                         // step at realization time. Default 0: no
+                         // placement offset.
 };
 
 // ---------------------------------------------------------------------------

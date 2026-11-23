@@ -14,11 +14,9 @@ namespace mforce {
 // 5 ms lookahead so reductions kick in before the loud sample reaches
 // the output (transparent transients).
 //
-// Distinct from engine/include/mforce/render/limiter.h::soft_clip which is
+// Distinct from soft_clip in mforce/render/limiter.h, which is
 // a fixed safety belt at the render layer; this is a configurable node
 // the user places anywhere in the patch graph.
-//
-// Spec: docs/superpowers/specs/2026-05-06-reverb-limiter-effects-design.md
 // ---------------------------------------------------------------------------
 struct Limiter final : Processor {
   Param threshold{this, "threshold", 0.95f, 0.0f,   1.0f, "0-1"};

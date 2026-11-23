@@ -12,10 +12,8 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// KSString — Karplus-Strong-family string block (dsp run 24, port of Balazs
-// Gyutai's Alpha Forever piano description; renamed from KSPianoString
-// 2026-08-24 when it grew a bow mode — the registry keeps the old name as a
-// loading alias for stored patches).
+// KSString — Karplus-Strong-family string block, following Balazs Gyutai's
+// Alpha Forever piano description, with a bow mode.
 //
 // One node encapsulates everything in the description that forms feedback
 // loops — the ValueSource graph is acyclic, so the loops must live INSIDE a
@@ -105,8 +103,8 @@ struct KSString final : Processor {
 
   const char* type_name() const override { return "KSString"; }
   // Frequency is read once in init_note() (comb lengths are per-note state);
-  // a bend articulated onto it moves a number nobody reads — backlog 26a.
-  // The loader warns at load via this flag (plan_perform_source_p3.md T2).
+  // a bend articulated onto it moves a number nobody reads. The graph build
+  // reads this flag and warns when a bend reaches the frequency pin.
   bool tracks_frequency_live() const override { return false; }
 
   // Most settings are clamped to their declared ranges (t60 only has a
@@ -155,11 +153,10 @@ struct KSString final : Processor {
 
     if (!initialized_) init_note();
 
-    // In-loop damper, now a continuous input (0 = open, 1 = fully damped).
-    // d scales the loop gain toward releaseFb — at 1 identical to the old
-    // post-note-off choke, in between it's a partially lifted damper
-    // (half-pedaling). Driven by a damper-preset Envelope whose final
-    // stage IS the note's release phase (note-contained sound, 2026-08-13).
+    // In-loop damper, a continuous input (0 = open, 1 = fully damped).
+    // d scales the loop gain toward releaseFb — at 1 a full post-note-off
+    // choke, in between a partially lifted damper (half-pedaling). Driven by
+    // a damper-preset Envelope whose final stage IS the note's release phase.
     float d = std::clamp(damper.current(), 0.0f, 1.0f);
     float damp = 1.0f - d * (1.0f - releaseFb.value);
     // Damper-contact noise: each time the felt LANDS (rising threshold
@@ -172,9 +169,9 @@ struct KSString final : Processor {
     if (damperNoise.value > 0.0001f) {
       if (d >= 0.05f && lastD_ < 0.05f) dnAmp_ = damperNoise.value * envFollow_;
       // Contact noise exists only while the felt is touching the string —
-      // without the d-gate, a burst not yet decayed out kept injecting
+      // without the d-gate, a burst not yet decayed out would keep injecting
       // into the RE-OPENED string after the damper env ended (live
-      // staccato: seconds of noise-driven ring, 2026-08-13).
+      // staccato: seconds of noise-driven ring).
       if (dnAmp_ > 1e-6f && d > 0.02f) {
         dnoise = dnRng_.valuePN() * dnAmp_;
         dnAmp_ *= 0.9995f;   // -60 dB over ~0.29 s at 48 kHz
@@ -366,12 +363,12 @@ private:
     // Phase delay of the loop filters at f0:
     // 2 biquads = 4 first-order sections at pole `dispersion`
     float apDelay = dispActive_ ? 4.0f * ap1_phase_delay(dispEff_, w0) : 0.0f;
-    // Comb-floor guard (2026-08-13): at the top of the keyboard the
-    // dispersion chain's phase delay (~10 samples at a=0.5) can exceed
-    // what the period leaves for the comb (B8 period = 12.15 at 48 kHz),
-    // so len used to clamp at the floor — up to -40 cents mistuning,
-    // per-note ring/dead chaos across octave 8, and a self-oscillating
-    // B8. Instead of clamping, SHED dispersion per note: bisect the
+    // Comb-floor guard: at the top of the keyboard the dispersion chain's
+    // phase delay (~10 samples at a=0.5) can exceed what the period leaves
+    // for the comb (B8 period = 12.15 at 48 kHz). Clamping len at the floor
+    // would give up to -40 cents mistuning, per-note ring/dead chaos across
+    // octave 8, and a self-oscillating B8. Instead of clamping, SHED
+    // dispersion per note: bisect the
     // largest pole whose phase delay still leaves kMinCombLen samples of
     // comb at the highest-detuned comb. Physically honest — top-octave
     // strings are effectively dispersion-free (stretched partials sit
@@ -401,8 +398,8 @@ private:
 
     // Unison detune offsets (cents): the flanging mechanism of the
     // description — detuning detunes the comb lengths together.
-    // Even spread from -1 to +1 — for N=2 (-1,+1) and N=3 (-1,0,+1) this
-    // is bit-exact with the old hardcoded layouts; N=1 stays centered.
+    // Even spread from -1 to +1 — N=2 gives (-1,+1), N=3 (-1,0,+1); N=1
+    // stays centered.
     float off[kMaxCombs] = {};
     if (numCombs.value > 1)
       for (int i = 0; i < numCombs.value; ++i)
@@ -446,17 +443,16 @@ private:
       comb_[i].len = std::clamp(len, 2.0f, float(kBufLen - 4));
       // Loop gain for t60 seconds of 60 dB decay at the fundamental
       comb_[i].gain = std::pow(10.0f, -3.0f * comb_[i].len / (sr * t60.value));
-      // Fractional-delay realization (2026-08-13): the linear-interp read
-      // attenuates by |1-frac+frac*e^{-jw0}| per period — negligible low,
-      // but at short delays the frac-dependent loss swamps t60 (measured
-      // E7: -40 dB/s vs t60's -11) and made octave 7's sustain alternate
-      // ring/dead note to note purely on where frac landed. Gain
-      // compensation is NOT viable (a gain > 1 destabilizes the comb's
-      // low resonances where the interp is lossless — measured, blew up
-      // everything above C7). Correct fix: ALLPASS fractional delay
-      // (Jaffe-Smith), unity magnitude at every frequency. Applied only
-      // where linear loss is material (w0 >= kApReadW0 ~ 764 Hz) so the
-      // approved low/mid keyboard stays bit-identical.
+      // Fractional-delay realization: the linear-interp read attenuates by
+      // |1-frac+frac*e^{-jw0}| per period — negligible low, but at short
+      // delays the frac-dependent loss swamps t60 (measured E7: -40 dB/s vs
+      // t60's -11) and makes octave 7's sustain alternate ring/dead note to
+      // note purely on where frac lands. Gain compensation is NOT viable (a
+      // gain > 1 destabilizes the comb's low resonances where the interp is
+      // lossless — measured, it blew up everything above C7). So: ALLPASS
+      // fractional delay (Jaffe-Smith), unity magnitude at every frequency,
+      // only where linear loss is material (w0 >= kApReadW0 ~ 764 Hz); the
+      // low/mid keyboard keeps the linear read.
       if (w0 >= kApReadW0) {
         int M = int(std::floor(comb_[i].len));
         float frac = comb_[i].len - float(M);

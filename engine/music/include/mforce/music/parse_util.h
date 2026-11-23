@@ -71,7 +71,7 @@ inline Chord parse_chord_token(const std::string& token, int octave,
 }
 
 // ---------------------------------------------------------------------------
-// Parse a full chord string (legacy format from SoundController)
+// Parse a full chord string (the C# SoundController's format)
 // Format: "Em7_d F#7#9_g6_q. O+ Cmu_hh O-"
 // ---------------------------------------------------------------------------
 inline std::vector<ParsedChord> parse_chord_string(const std::string& input, int startOctave,
@@ -228,10 +228,9 @@ inline constexpr float kRestNote = -1.0f;
 struct ParsedNote {
     float noteNumber;
     float durationSeconds;
-    // Phrase delivery (spec 2026-09-19-note-transitions §2): true on the
-    // first note of each phrase. Defaults true so aggregate-init callers
-    // and rests (which never read it) stay valid; a `|`-free passage is
-    // all one-note phrases = exactly the pre-phrase behavior.
+    // Phrase delivery: true on the first note of each phrase. Defaults true
+    // so aggregate-init callers and rests (which never read it) stay valid;
+    // a `|`-free passage is all one-note phrases.
     bool phraseStart{true};
 };
 
@@ -262,12 +261,11 @@ inline std::vector<ParsedNote> parse_passage(const char* str, int octave, float 
     std::istringstream iss(str);
     std::string token;
     int tokenNum = 0;
-    // Phrase grouping (spec 2026-09-19-note-transitions §2): `|` marks a
-    // boundary; notes between boundaries (or a boundary and the string's
-    // ends) form one phrase, and rests also end the current phrase (v1
-    // rule). Grouping activates only when the string contains a `|` at
-    // all — a bar-free passage is every-note-its-own-phrase, which is
-    // exactly the pre-phrase behavior (a one-note phrase IS a note).
+    // Phrase grouping: `|` marks a boundary; notes between boundaries (or a
+    // boundary and the string's ends) form one phrase, and rests also end
+    // the current phrase. Grouping activates only when the string contains
+    // a `|` at all — a bar-free passage is every-note-its-own-phrase (a
+    // one-note phrase IS a note).
     // The `|` check sits BEFORE the size guard — `|` is one char.
     const bool grouping = std::string_view(str).find('|') != std::string_view::npos;
     bool nextIsPhraseStart = true;

@@ -92,8 +92,8 @@ inline uint64_t render(ValueSource& n, int frames, int notes = 1) {
     }
     return fnv(out);
 }
-// The old constructors' answers, one per case, recorded from a build of the
-// old headers.
+// The recorded answers, one per case: the hash each case rendered when the
+// nodes took these values through their constructors.
 static const std::pair<const char*, uint64_t> kBase[] = {
     {"bw lp s1 fixed", 0x7DA6617F2EF07EEDull},
     {"bw lp s1 moving", 0x1CF748556F117F90ull},

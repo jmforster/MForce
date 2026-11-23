@@ -1,19 +1,16 @@
 #pragma once
-// Harmonic anchor selection (comp walk). Specs:
-//   docs/superpowers/specs/2026-09-21-comp-walk1-design.md §3
-//   docs/superpowers/specs/2026-09-21-comp-walk2-design.md §3
-//   docs/superpowers/specs/2026-09-22-comp-walk3-design.md §1-3
+// Harmonic anchor selection.
 //
 // Given a phrase's figures (contents already realized) and the section's
 // chord timeline, choose the phrase's starting pitch and its dense
 // connector chain by ENUMERATING legal (start, leadSteps...) tuples —
-// never sample-and-reject — under Matt's hard rules:
+// never sample-and-reject — under these hard rules:
 //   R1  phrase-opening downbeat is a chord tone (no member weighting)
 //   R2  a phrase's last note is a chord tone
 //   R3  the PASSAGE's last note is scale degree 1, period
 //   R4  the passage's last note is a PITCH THE MELODY HAS ALREADY VISITED
 //
-// Every legal chain is scored from the genre profile (walk3): note map
+// Every legal chain is scored from the genre profile: note map
 // (tendency odds + NCT licenses, note_map.h) + chord-tone placement +
 // phrase critic (phrase_critic.h). Choice is a seeded roulette with weight
 // exp(score), restricted to chains within the departure budget when any

@@ -55,7 +55,7 @@ void run_curve_expr_tests() {
     CHECK_NEAR(kt.map(440.0f),  3520.0f,  1e-2f);
     CHECK_NEAR(kt.map(5000.0f), 40000.0f, 1e-1f);
 
-    // Matt's 3-point example: flat 0.1 low, 0.1 - x/50000 high, smooth
+    // A 3-point example: flat 0.1 low, 0.1 - x/50000 high, smooth
     // morph between; equal formulas on the top knots pin the formula exactly
     // over [3200,16000] and keep extrapolating above.
     CurveNode m; m.mode.value = 1;

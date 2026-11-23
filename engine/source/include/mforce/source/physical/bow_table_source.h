@@ -6,8 +6,8 @@
 
 namespace mforce {
 
-// Smith (1986) memoryless bow friction curve, verbatim from STK BowTable
-// (docs/superpowers/specs/2026-09-13-stk-bowed-port-design.md). Input is
+// Smith (1986) memoryless bow friction curve, as STK's BowTable computes it.
+// Input is
 // the differential velocity dv (bow minus string); output is the injected
 // new velocity dv * rc(dv), with
 //   rc(dv) = clamp( (|(dv + offset) * slope| + 0.75)^-4, min, max ).

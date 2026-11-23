@@ -47,7 +47,7 @@ void run_coherent_walk_twin_tests() {
             for (float evolve : {0.0f, 0.3f})
                 for (uint32_t noteBase : {0x1234u, 0xBEEFu}) {
                     const float rate = rh.first, hz = rh.second;
-                    // the deleted block, as Partials::start and next ran it
+                    // the reference block, as Partials::start and next run it
                     int moLen = std::max(1, int(rate / std::max(0.01f, hz)));
                     Randomizer moSharedRng(stream_seed(noteBase, 0, kRngMotionShared));
                     partials_twin::W moShared;
@@ -108,8 +108,8 @@ void run_pair_trade_twin_tests() {
     CHECK(rows == 3 * (1 + 1 + 4 + 12) * 2 * 300);
 }
 
-// The bandwidth noise, the onset gate and the decay law against the blocks
-// they replaced: each block retyped here as Partials ran it, both sides on
+// The bandwidth noise, the onset gate and the decay law against reference
+// blocks: each written out here as Partials runs it, both sides on
 // identically seeded streams, every output compared bit for bit (a layer's
 // state is private and is read through its outputs) — the onset rows with
 // t <= 0 included, where an assignment and a
@@ -235,8 +235,8 @@ void run_decay_law_twin_tests() {
     CHECK(rows == 2 * 4 * 4 * 2000 * 4);
 }
 
-// The expansion against the deleted apply_expand_rule: the block retyped here
-// over six local arrays as Partials ran it, the layout on the same originals
+// The expansion against a reference apply_expand_rule: the block written out
+// here over six local arrays as Partials runs it, the layout on the same originals
 // and an identically seeded stream, all six arrays compared bit for bit; a
 // restore after an expansion gives the snapshot back; a reserved layout
 // expands without allocating.
@@ -269,7 +269,7 @@ void run_partial_layout_twin_tests() {
                     std::vector<float> exM1_, exM2_, exA1_, exA2_, exP1_, exP2_;
                     Randomizer expandRng_(seed), layoutRng(seed);
                     for (int r = 0; r <= er.recurse; ++r) {
-                        // the deleted block, verbatim over the local arrays
+                        // the reference block, over the local arrays
                         int origN = int(mult1_.size());
                         int newN = origN * (er.count * 2 + 1);
                         auto& m1 = exM1_; auto& m2 = exM2_; auto& a1 = exA1_;

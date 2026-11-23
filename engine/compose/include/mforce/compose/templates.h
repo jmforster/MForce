@@ -39,7 +39,7 @@ enum class MelodicFunction {
 // ===========================================================================
 
 enum class FigureShape {
-    Free,              // composer uses random_sequence (legacy)
+    Free,              // composer uses random_sequence
     ScalarRun,         // consecutive steps in one direction
     RepeatedNote,      // same pitch repeated N times
     HeldNote,          // single long note
@@ -84,8 +84,8 @@ enum class FigureSource {
     Literal,     // user-authored note list (pitch + duration per note)
 };
 
-// TransformOp lives in mforce/music/figure_transforms.h (moved there with
-// figure_transforms::apply). Included transitively via figure_transforms.h.
+// TransformOp lives in figure_transforms.h, beside figure_transforms::apply.
+// Included transitively via figure_transforms.h.
 
 // Declared here (above FigureTemplate) because FigureTemplate::role
 // is std::optional<MotifRole>. Motif (further down) also uses these.
@@ -176,8 +176,8 @@ struct FigureTemplate {
 // Motifs — raw thematic material, stored at Piece level
 // ===========================================================================
 
-// MotifRole / MotifOrigin declarations moved above FigureTemplate so
-// FigureTemplate::role (std::optional<MotifRole>) compiles.
+// MotifRole / MotifOrigin are declared above FigureTemplate, which holds a
+// std::optional<MotifRole>.
 
 struct Motif {
     std::string name;              // "main_theme", "hook", "bridge_motif"
@@ -189,7 +189,7 @@ struct Motif {
     uint32_t generationSeed{0};    // for reproducibility if generated
     std::optional<FigureTemplate> constraints;  // generation constraints when !userProvided
 
-    // --- New metadata (2026-04-15 umbrella spec) ---
+    // --- Roles and derivation ---
     std::set<MotifRole> roles;                     // multi-tag; empty default
     MotifOrigin origin{MotifOrigin::User};
     std::optional<std::string> derivedFrom;        // parent motif name (walk for root)
@@ -221,8 +221,7 @@ struct PhraseTemplate {
     // INTO figures[i], so element 0 is a dummy (author it null). Empty
     // vector means "no connectors anywhere" (pure append).
     //   JSON:  "figures": [A, B, C],  "connectors": [null, 1, -1]
-    // REPEAT-OFFENDER WARNING (bit the 2026-09-21 structural-Mary round):
-    // this is NOT an N-1 "between figures" list. Authoring [1, -1] for
+    // WARNING, an easy mistake: this is NOT an N-1 "between figures" list. Authoring [1, -1] for
     // three figures shifts figure 0 by +1 — realize_events applies
     // connectors[f].leadStep to figure f's FIRST note.
     std::vector<std::optional<FigureConnector>> connectors;
@@ -232,13 +231,12 @@ struct PhraseTemplate {
     int cadenceType{0};                        // 0=none, 1=half, 2=full
     int cadenceTarget{-1};                     // target scale degree (-1 = composer decides)
 
-    // How a Cadential phrase's ARRIVAL figure is shaped (comp #9).
+    // How a Cadential phrase's ARRIVAL figure is shaped.
     // "held"     — the arrival is one long note. apply_cadence then has a
     //              single unit to work with, so build_approach_steps takes
     //              its far branch and LEAPS straight onto the target: the
-    //              tonic is sustained but nothing approaches it. This is the
-    //              standing workaround from 2026-04, kept as the default
-    //              because replacing it is a taste question.
+    //              tonic is sustained but nothing approaches it. It is the
+    //              default because replacing it is a taste question.
     // "approach" — the arrival is a CadentialApproach figure, so
     //              rebuild_cadential_tail can do what it was written for:
     //              step into the target and settle on a final note of at
@@ -294,11 +292,10 @@ struct PassageTemplate {
     StrategyChoice strategy;
 
     // Quantize the passage's total length to this grid, in beats, by adjusting
-    // the LAST note (comp #18 — 17 of 23 passage renders ended mid-beat).
+    // the LAST note, so a passage does not end mid-beat.
     // 1.0 = integer beat (default), 4.0 = a 4/4 barline, 0 = leave it alone.
-    // Rounds to the NEAREST multiple, not up: run 17 measured ceiling-to-the-
-    // next-barline as the dominant term in the phrase path's ending overshoot.
-    // See docs/superpowers/specs/2026-08-06-passage-end-grid-design.md.
+    // Rounds to the NEAREST multiple, not up: ceiling to the next barline is
+    // the dominant term in an ending's overshoot.
     float endGrid{1.0f};
 
     // State
@@ -321,8 +318,8 @@ struct PassageTemplate {
     // strategy and its settings. Empty name = "block".
     StrategyChoice realization;
 
-    // Name of a registered VoicingSelector. Empty = legacy behavior
-    // (use ChordAccompanimentConfig.inversion/spread uniformly per chord).
+    // Name of a registered VoicingSelector. Empty = no selector: use
+    // ChordAccompanimentConfig.inversion/spread uniformly per chord.
     // Consumed by Composer::realize_chord_parts_ for Harmony-role parts.
     std::string voicingSelector;
 
@@ -342,15 +339,14 @@ struct PassageTemplate {
     // "Guitar-Bar-6", etc. pull wider/idiomatic voicings from the registry.
     std::string voicingDictionary;
 
-    // Comp crawl (spec 2026-09-21): melody authored as a passage string in
+    // A melody authored as a passage string in
     // a .psg file ('|' = structural phrase boundary). When set,
     // apply_passage_melodies() derives phrases from it, replacing phrases[].
     std::string melodyPassageFile;
     int melodyOctave{5};   // house octave anchor for octave-less note names
 
-    // Comp walk (spec 2026-09-21-comp-walk1 §3): ""/"authored" = phrase
-    // startingPitch + connectors are template data (default, byte-identical
-    // behavior); "harmonic" = anchor_selector.h derives them per phrase
+    // Anchor mode: ""/"authored" = phrase startingPitch + connectors are
+    // template data (default); "harmonic" = anchor_selector.h derives them per phrase
     // from the section chord timeline (rules R1-R3 + weighted chord-tone
     // preference). Under harmonic mode the authored startingPitch anchors
     // only the REGISTER window, not the pitch.
@@ -410,8 +406,7 @@ struct PieceTemplate {
         // Section TONIC. Empty = inherit the piece key. Accepts a bare tonic
         // ("G") or a full key name ("G Minor"); with a bare tonic the type
         // comes from scaleOverride, else from the piece's scaleName.
-        // Desugars at compose time into a beat-0 KeyContext — see
-        // docs/superpowers/specs/2026-08-06-section-key-design.md.
+        // Desugars at compose time into a beat-0 KeyContext.
         std::string keyName;
         std::string scaleOverride;   // scale TYPE; empty = piece scaleName
 
@@ -443,8 +438,8 @@ struct PieceTemplate {
         return nullptr;
     }
 
-    // Helpers — realized-content lookup. Names match Composer's legacy
-    // accessors so migration is a textual substitution.
+    // Helpers — realized-content lookup, under the names Composer's
+    // accessors have.
     const std::unordered_map<std::string, MelodicFigure>& realized_motifs() const {
         return realizedMotifs;
     }
@@ -485,8 +480,7 @@ struct PieceTemplate {
     // names the new motif (auto-generated as parent+"'" or explicitly
     // provided), stores it via add_motif, returns the chosen name.
     //
-    // This skeletal version (Plan B Task 7) handles Invert + Reverse; Task 10
-    // extends coverage to RhythmTail / VarySteps / VaryRhythm. Other
+    // It handles Invert, Reverse, VarySteps, VaryRhythm and RhythmTail. Other
     // TransformOps throw runtime_error.
     std::string add_derived_motif(
             const std::string& parentName,
@@ -531,8 +525,7 @@ inline std::string PieceTemplate::add_derived_motif(
         }
     }
 
-    // Synthesize content per transform. Task 7's skeletal coverage: Invert,
-    // Reverse only. Other transforms throw; Task 10 extends.
+    // Synthesize content per transform. Other transforms throw.
     Motif derived;
     derived.name = chosenName;
     derived.origin = MotifOrigin::Derived;

@@ -141,7 +141,7 @@ void run_physical_advance_order_tests() {
     order(pierce, {"source", "coefNeg", "coefPos"});
 }
 
-// Settings the old set_setting clamped are still clamped; the others are not.
+// The settings KSString clamps to their declared ranges are clamped; the others are not.
 void run_physical_setting_hook_tests() {
     KSString ks;
     ks.set_setting("numCombs", 40.0f);   CHECK_NEAR(ks.get_setting("numCombs"), 10.0f, 1e-6f);

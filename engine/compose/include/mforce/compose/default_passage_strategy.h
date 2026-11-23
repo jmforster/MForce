@@ -28,12 +28,10 @@ namespace mforce {
 // DefaultPassageStrategy
 //
 // Walks the phrase list of a PassageTemplate and realizes each phrase via
-// the Composer's phrase dispatcher. Mirrors pre-refactor
-// ClassicalComposer::compose_passage (classical_composer.h:143-159) with
-// the PitchReader still constructed locally — Phase 1a preserves the exact
-// fallback semantics: reset to (octave 5, degree 0) for every phrase that
-// doesn't provide its own startingPitch, because that's what the
-// pre-refactor compose_phrase did at classical_composer.h:188-190.
+// the Composer's phrase dispatcher. A phrase without its own startingPitch
+// starts where the phrases before it in this passage ended, walked from the
+// passage's start with a local PitchReader; a parallel phrase restarts at
+// the passage's start.
 //
 // Body is DECLARED in the class and DEFINED below it.
 // ---------------------------------------------------------------------------
@@ -55,13 +53,10 @@ public:
 inline Passage DefaultPassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& passTmpl) const {
   (void)settings_of<Settings>(passTmpl.strategy);  // refuses settings of another type
-  // The comment that used to sit here said "should not happen — loader
-  // refuses templates without startingPitch" and returned an EMPTY passage.
-  // The loader does not refuse them: patches/template_shaped_test.json has
-  // no passage startingPitch and has therefore been rendering SILENCE, with
-  // no diagnostic, for as long as it has existed (comp #9 harness found it).
-  // The information is usually present one level down, so use it; and when
-  // it genuinely is not, refuse by name rather than emit nothing.
+  // The loader does not refuse a passage without a startingPitch (one with
+  // none would render SILENCE with no diagnostic). The information is
+  // usually present one level down, so use it; and when it genuinely is
+  // not, refuse by name rather than emit nothing.
   std::optional<Pitch> passageStart = passTmpl.startingPitch;
   if (!passageStart) {
     for (const auto& ph : passTmpl.phrases) {
@@ -74,8 +69,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
         "' has no startingPitch and no phrase supplies one");
   }
 
-  // Harmonic anchor mode (walk specs 2026-09-21 §3, 2026-09-22 walk3):
-  // requires a genre profile; the old in-code constants are gone.
+  // Harmonic anchor mode: requires a genre profile.
   const bool harmonicMode = passTmpl.anchorMode == "harmonic";
   const bool wantAnchorLog =
       harmonicMode && environment_variable_is_set("MFORCE_ANCHOR_LOG");
@@ -88,7 +82,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
     melodyProfile = MelodyProfile::load_by_name(passTmpl.melodyProfile);
   }
 
-  // Walk3 best-of-N rerolls derived motifs and commits the winners, so it
+  // The best-of-N search rerolls derived motifs and commits the winners, so it
   // WRITES the plan's realized motif pool (the same pool realize_motifs
   // fills at setup). Phrases composed later —
   // in this passage and any other — read the committed derivations.
@@ -118,7 +112,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
   };
 
   // One full pass over the phrases. The non-harmonic path runs this exactly
-  // once with no extra draws (byte-identical to the pre-walk3 loop).
+  // once with no extra draws.
   auto run_attempt = [&](PassageAttempt& A) {
     Passage& passage = A.passage;
     float phraseBeatCursor = 0.0f;          // section beat at phrase start
@@ -142,9 +136,8 @@ inline Passage DefaultPassageStrategy::compose_passage(
       if (!localTmpl.startingPitch && localTmpl.parallel) {
         // Parallel phrase: restart where the passage started (i.e. where the
         // first phrase began) instead of continuing from the running pitch.
-        // Structural fix for period parallelism — previously a parallel
-        // consequent depended on the running pitch happening to land back on
-        // the antecedent's opening pitch.
+        // A parallel consequent so starts on the antecedent's opening pitch
+        // whatever the running pitch.
         localTmpl.startingPitch = passageStart;
       }
       if (!localTmpl.startingPitch) {
@@ -168,7 +161,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
       // connectors from the chord timeline instead of the authored values.
       // The authored pitch anchors only the REGISTER; a parallel phrase
       // reuses the previous phrase's CHOSEN start (intent outranks R1).
-      // Walk3 §3 phrase level: N candidates, each rerolling the derived
+      // Phrase level of the search: N candidates, each rerolling the derived
       // motifs this phrase references FIRST, each running the chain level;
       // top-k dice among the ranked candidates; the winner's derivations
       // are committed for every later reference.
@@ -338,7 +331,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
     return std::move(A.passage);
   }
 
-  // ---- Walk3 §3 passage level: M whole passages, ranked, top-k dice. ----
+  // ---- Passage level of the search: M whole passages, ranked, top-k dice. ----
   MotifPool& realized = *realizedPool;
   const MotifPool snapshot = realized;
   Randomizer passRng(locus.rng->rng());

@@ -121,7 +121,7 @@ void run_wire_rejection_tests() {
 }
 
 // A string where a pin takes a value fails the load naming the node, the pin
-// and the string; the wavetable's old string-typed evolution also names the
+// and the string; a string-typed evolution on the wavetable also names the
 // tool that rewrites it as a node, and the node form of the same patch loads.
 void run_string_pin_refusal_tests() {
     const char* evo = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"wt","nodes":[

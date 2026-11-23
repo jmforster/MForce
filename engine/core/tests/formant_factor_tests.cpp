@@ -8,8 +8,8 @@
 using namespace mforce;
 
 
-// The consumer's factor `floor + weight × gain` against the gated form it
-// replaces, `contains ? floor + weight × gain : floor`, over floor in
+// The consumer's factor `floor + weight × gain` against the gated form
+// `contains ? floor + weight × gain : floor`, over floor in
 // {+0, −0, 0.2, 1}, weight in {0, 0.5, 1}, and (gain, contains) in {(0, in),
 // (0.3, in), (1, in), (0, out)}: identical except the (−0, out-of-band) rows,
 // one per weight, which differ in the sign of the zero only — the one

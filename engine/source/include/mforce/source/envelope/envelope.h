@@ -11,7 +11,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# StagedValueSource + MEnvelope + preset subclasses.
+// Follows the C# StagedValueSource + MEnvelope + preset subclasses.
 // A multi-stage envelope where each stage is a Ramp with timing controls.
 // ---------------------------------------------------------------------------
 struct Envelope : Generator {
@@ -21,7 +21,7 @@ struct Envelope : Generator {
     float percent{0.0f};  // fraction of total duration; 0 = expand to fill
     float minSec{0.0f};
     float maxSec{0.0f};
-    // Live-mode stage length in seconds (perform_source_design.md §2.4):
+    // Live-mode stage length in seconds:
     // when gated AND nominal > 0, the stage lays out as `nominal` seconds
     // (then the ordinary minSec/maxSec clamp applies) instead of resolving
     // percent against the caller's nominal note duration — live envelope
@@ -30,7 +30,7 @@ struct Envelope : Generator {
     float nominal{0.0f};
   };
 
-  // Output range mapping (perform_source_design.md §2.4): the returned value
+  // Output range mapping: the returned value
   // is lo + (hi - lo) * raw, raw being the stage value, whether or not
   // anything is wired. Unwired, the pins read 0 and 1, and 0 + (1 - 0) * raw
   // is raw: a product with 1 and a sum with 0 are exact in float, so the
@@ -48,8 +48,8 @@ struct Envelope : Generator {
   // neither prepares nor advances it.
   Param trigger{this, "trigger", 0.0f, 0.0f, 1.0f, nullptr, Pull::Manual};
 
-  // Per-instance decorrelation knobs (multiplex / sound-design). Defaults
-  // reproduce pre-2026-05-06 behavior.
+  // Per-instance decorrelation knobs (multiplex / sound-design). At the
+  // defaults (1.0) they do nothing.
   // stage_accuracy: 1.0 = exact stage durations; <1.0 = each non-expand
   //   stage's duration is scaled by a random factor in [stage_accuracy, 1].
   // ramp_accuracy:  1.0 = unmodulated; <1.0 = output multiplied by
@@ -94,8 +94,7 @@ struct Envelope : Generator {
   // Engine-wide reflection allowance: envelopes lay their stages out over
   // (frames - allowance) so bounded internal-reflection dispersal (piano
   // body reflections are 1-5 ms; Haas fusion ends ~30 ms) can finish
-  // INSIDE the note. Flipped 0 -> 10 ms 2026-08-13 after the corpus null
-  // test passed at 0 — an intentional corpus-wide 10 ms layout shift.
+  // INSIDE the note.
   static constexpr float kReflectionAllowanceSec = 0.010f;
 
   void set_gated(bool g) { gated_ = g; }
@@ -109,15 +108,15 @@ struct Envelope : Generator {
   // voice's lifetime. Safe on the audio thread under the audio mutex — no
   // allocation.
   //
-  // Release re-layout (spec 2026-09-20-note-onsets-v2 §5): the release
-  // stage's sample count was computed at voice birth, against the FIRST
-  // note's duration — so a line opening on a quarter and ending on a half
-  // released at the quarter's scale. Pass `releaseRefFrames` >= 0 to
+  // Release re-layout: the release stage's sample count is computed at
+  // voice birth, against the FIRST note's duration, so a line opening on a
+  // quarter and ending on a half would release at the quarter's scale. Pass
+  // `releaseRefFrames` >= 0 to
   // re-resolve the release stage (and any stage after it — the damper-
   // choke class) against that reference instead, same percent/minSec/
   // maxSec math. Seconds-mode (absolute_time) stages keep their literal
-  // length. The default -1 = no re-layout = today's behavior bit for bit,
-  // which is what the live path passes.
+  // length. The default -1 = no re-layout, which is what the live path
+  // passes.
   int gate_release(int releaseRefFrames = -1) {
     if (stages_.empty() || stageCounts_.empty()) return 0;
     int last = int(stages_.size()) - 1;
@@ -125,9 +124,8 @@ struct Envelope : Generator {
     // AS shapes) there is nothing to release INTO: report 0 so the
     // voice's post-key-up lifetime is set by envelopes that do have a
     // release phase (the damper), not by the held expand's nominal
-    // remainder — which made a live staccato voice outlive its sound by
-    // seconds while the thud rang the re-opened string (the 2026-08-13
-    // QWERTY vibrating-tail bug). Earlier stages still complete
+    // remainder, which would let a live staccato voice outlive its sound by
+    // seconds while the thud rings the re-opened string. Earlier stages still complete
     // naturally (a hammer strike released mid-attack finishes its burst).
     if (expandIdx_ == last) return 0;
     int relStage = (expandIdx_ >= 0 && expandIdx_ < last) ? expandIdx_ + 1
@@ -160,8 +158,8 @@ struct Envelope : Generator {
     return rem;
   }
 
-  // Re-enter stage 0 NOW, anchored to the current output (click-free) —
-  // the onset-gesture restart (spec 2026-09-20-note-onsets-v2 §6).
+  // Re-enter stage 0 at once, anchored to the current output (click-free):
+  // the onset-gesture restart.
   // Called at note Setup by the instrument's trigger bindings when this
   // envelope's `trigger` input is nonzero. Reuses the gate-anchor
   // machinery: the jumped-to stage interpolates from gateFrom_. The
@@ -236,8 +234,8 @@ struct Envelope : Generator {
       timeScale.clamp();
     else if (name == "sustainLevel" && has_adsr_shape_()) {
       // No [0,1] clamp: sustain is a ramp amplitude and legitimately
-      // exceeds 1 in test envelopes (_envacc_test holds 2.6); the old
-      // clamp corrupted them the moment anything pushed the value back.
+      // exceeds 1 in test envelopes (_envacc_test holds 2.6), which a
+      // clamp would corrupt the moment anything pushed the value back.
       // Four cells in place, the same four rows: the rebuild allocates
       // nothing (this runs at the note start of a per-note push).
       const float value = sustainLevel.value;
@@ -317,7 +315,7 @@ struct Envelope : Generator {
 
   void on_start(int frames) override {
     totalFrames_ = frames;
-    // Note-contained sound (2026-08-13): stages lay out over the layout
+    // Note-contained sound: stages lay out over the layout
     // window; the trailing allowance stays programmatically silent so
     // bounded reflection dispersal can finish inside the note.
     const int allowFrames = int(kReflectionAllowanceSec * float(sample_rate()));
@@ -463,13 +461,10 @@ struct Envelope : Generator {
   }
 
   // Attack → Decay → Sustain (expand) → Release
-  // Min floors removed 2026-09-01 (Matt: a 50 ms attack "is audibly not
-  // instantaneous"): the old attackMin 0.05 / decayMin 0.025 defaults
-  // silently stretched short stages — falsifying attack-0 pluck baselines
-  // and holding feedback loops below oscillation threshold at note-on
-  // (the run-22 piano chuff, third strike). Explicit *Min JSON keys still
-  // clamp for patches that want it; max caps unchanged (backlog 36 owns
-  // any further dialect cleanup).
+  // No minimum stage floors: a floor (an attack of at least 50 ms, say) is
+  // audibly not instantaneous, stretches short stages silently, and can hold
+  // a feedback loop below its oscillation threshold at note-on. The *Min
+  // arguments (default 0) clamp only when a patch sets them.
   static std::shared_ptr<Envelope> make_adsr(
                             float attackPct, float decayPct, float sustainLevel, float releasePct,
                             float attackMin = 0.0f, float attackMax = 1.0f,
@@ -485,9 +480,9 @@ struct Envelope : Generator {
 
   // Attack → Decay → Sustain (expand) → Release with LITERAL-SECONDS stage
   // times (timeMode "seconds"; JSON: preset "adsr" + "timeMode":"seconds").
-  // No min/max stage clamps — the fractional preset's 0.05 s attack floor is
-  // what smeared the piano's locked 8 ms attack into a 50 ms chuff and made
-  // knock decay vary with note duration (dsp run 22 diagnosis). A 0-second
+  // No min/max stage clamps: a 0.05 s attack floor would smear a locked 8 ms
+  // attack into a 50 ms chuff and make a knock's decay vary with note
+  // duration. A 0-second
   // stage renders as 0 frames (percent == 0 keeps its expand meaning, so
   // decay 0 simply vanishes and sustain expands; release 0 keeps the
   // documented "release fills the sustain region" quirk).
@@ -540,13 +535,12 @@ struct Envelope : Generator {
     return env;
   }
 
-  // NOTE (2026-08-13): a piano damper envelope is a plain 3-stage Envelope
+  // NOTE: a piano damper envelope is a plain 3-stage Envelope
   // authored in stage-list form — hold-open (expand at 0), fast 0->1 drop
   // (the felt lands in ~40 ms; min=max pins it), hold-closed choke window
   // (the string physics kills the ring; standard pct+max triple). It has
-  // NO preset on purpose: presets are UI conveniences, and inventing one
-  // for a single patch duplicated dispatch across both loaders (the exact
-  // drift bug class the patch linter exists for). See gen_v6m.py.
+  // NO preset on purpose: presets are UI conveniences, and one for a single
+  // patch would be a preset no other patch uses.
 
 private:
   // The stage table: one row per stage, one column per field. The columns
@@ -633,7 +627,7 @@ private:
   int stageEnd_{0};
   float raw_{0.0f};      // raw 0..1-domain stage value (gate anchor domain)
   std::vector<Stage> stages_;   // derived from the columns: rebuild_stages_()
-  // Note-contained sound (2026-08-13 spec):
+  // Note-contained sound:
   // gated_: live-note mode — the expand stage holds until gate_release().
   // endHold_: past the last stage, hold its endVal instead of emitting 0.
   // gateActive_/gateFrom_: final stage re-anchored to the value at

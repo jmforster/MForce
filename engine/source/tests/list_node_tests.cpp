@@ -123,9 +123,9 @@ static uint64_t render_prepared(ValueSource& n, int frames, int notes) {
     }
     return fnv(out);
 }
-// The old fill's answers (add with a weight and a delay, add_stage, the
-// struct handed to set_expand_rule), one per case, recorded from a build of
-// the old headers.
+// The recorded answers, one per case: the hash each case rendered when filled
+// through add with a weight and a delay, add_stage and the struct handed to
+// set_expand_rule.
 static const std::pair<const char*, uint64_t> kBase[] = {
     {"multi one", 0x5A7D7C04F2769CA5ull},
     {"multi two all", 0x88045BDA2BF5BDE7ull},

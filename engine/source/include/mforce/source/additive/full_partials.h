@@ -9,7 +9,7 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // FullPartials — integer harmonics 1..N with even/odd weight control.
-// Ported from legacy FullPartials.cs InitArrays.
+// Follows FullPartials.cs InitArrays of the C# MForce.
 // ---------------------------------------------------------------------------
 struct FullPartials final : Partials {
   // Every setting here shapes the partial arrays: structural, rebuilt at prepare.
@@ -45,7 +45,7 @@ protected:
       float m = float(minMult.value + i);
       layout_.mult1[i] = m;
 
-      // Even/odd amplitude weights (fundamental always 1) — legacy FullPartials.cs
+      // Even/odd amplitude weights (fundamental always 1), as FullPartials.cs has them
       if (int(std::trunc(m)) % 2 == 0) {
         layout_.ampl1[i] = evenWeight1.value;
         layout_.ampl2[i] = evenWeight2.value;

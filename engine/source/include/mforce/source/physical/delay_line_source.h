@@ -6,12 +6,12 @@
 
 namespace mforce {
 
-// Pitch-tracked delay line — the resonator backbone for feedback loops
-// (feedback_loop_design.md §3.4). No internal feedback; `amplitude` is a
+// Pitch-tracked delay line — the resonator backbone for feedback loops.
+// No internal feedback; `amplitude` is a
 // read-side loop-gain control (the KS loss factor — decays without the
 // pitch bend cutoff modulation causes). Length = sample rate / frequency *
 // ratio samples, fractional read (linear interp), modulatable per sample
-// (mild artifacts accepted in v1). Buffer sized in prepare(ctx) for a 20 Hz
+// (mild artifacts accepted). Buffer sized in prepare(ctx) for a 20 Hz
 // floor — no heap in the render loop; frequencies below floor clamp.
 struct DelayLineSource final : Processor {
   Param frequency{this, "frequency", 440.0f, 20.0f, 20000.0f, "hz"};
@@ -92,8 +92,8 @@ struct DelayLineSource final : Processor {
 
 private:
   static constexpr int kMaxWalk = 64;
-  // 8 proved too small the moment a loop grew a valve chain (backlog 66b:
-  // Damp_lpf silently evicted, −85¢). 16 costs 64 bytes per delay.
+  // 8 is too small for a loop with a valve chain (a member evicted, the loop
+  // −85¢ flat). 16 costs 64 bytes per delay.
   static constexpr int kMaxMembers = 16;
 
   // DFS from a pin toward the tap that closes the cycle back to this node.
@@ -103,13 +103,12 @@ private:
   // tap that reads this node closes the loop, and any other tap is walked
   // through to the node it reads.
   //
-  // The walk follows INPUT pins only (backlog 66, 2026-09-08). Signal flows
-  // through inputs; params (drive, morph, amplitude, cutoff…) are control.
-  // A control chain that happens to read the loop — valve2's
-  // Junction.drive → valve → sum → tap — delays no signal, but the old walk
-  // recorded its nodes as members, compensating phase that isn't in the
-  // cycle (r090 +300¢ sharp) and overflowing the member cap until real
-  // members were silently evicted (r100 −85¢ flat, Damp_lpf dropped).
+  // The walk follows INPUT pins only. Signal flows through inputs; params
+  // (drive, morph, amplitude, cutoff…) are control. A control chain that
+  // happens to read the loop — Junction.drive → valve → sum → tap — delays no
+  // signal; walking it would record its nodes as members, compensating phase
+  // that isn't in the cycle (+300¢ sharp) and overflowing the member cap
+  // until real members are evicted (−85¢ flat).
   bool walk_to_tap(const std::shared_ptr<ValueSource>& sp,
                    ValueSource** visited, int& nVisited) {
     ValueSource* n = sp.get();

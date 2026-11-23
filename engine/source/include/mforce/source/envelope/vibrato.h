@@ -9,7 +9,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Envelope.Vibrato
+// Follows the C# MForce.Sound.Envelope.Vibrato
 // Modulates a frequency value with a RedNoise LFO whose speed and depth
 // ramp up over the attack and then HOLD for the rest of the note.
 //
@@ -23,8 +23,8 @@ namespace mforce {
 //   threshold:          minimum note duration (s) below which vibrato is off
 //   speedVar:           per-half-cycle rate jitter (0=metronomic, →RedNoise rampVariation)
 //   depthVar:           per-half-cycle depth jitter (0=constant, →RedNoise boost=1-depthVar)
-//   zeroCrossTendency:  1=strict alternation (regular wobble, legacy default),
-//                       0=organic sign wander. Legacy Vibrato hardcoded 1.0.
+//   zeroCrossTendency:  1=strict alternation (regular wobble, the C# default),
+//                       0=organic sign wander. The C# Vibrato has 1.0 fixed.
 struct Vibrato final : Generator {
   Param frequency{this, "frequency", 440.0f, 0.01f, 20000.0f, "hz"};
   Setting<float> speed            {this, "speed",             5.0f,  0.01f, 20.0f};

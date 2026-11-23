@@ -237,7 +237,7 @@ inline void to_json(json& j, const Chord& c) {
   if (c.spread != 0) j["spread"] = c.spread;
   if (c.figureName) j["figureName"] = *c.figureName;
   // Explicit voicing. root/type/inversion/spread cannot reconstruct every
-  // chord the composer can now emit (a VoicingPin's topTone DOUBLES a chord
+  // chord the composer can emit (a VoicingPin's topTone DOUBLES a chord
   // tone above the top voice), so the actual pitches are part of the record —
   // they are what sounded, and what a voice-motion check reads.
   json jp = json::array();
@@ -585,7 +585,7 @@ inline void from_json(const json& j, Part& p) {
       p.passages[key] = std::move(pass);
     }
   }
-  // totalBeats is now derived from elementSequence; only override if explicitly set
+  // totalBeats is derived from elementSequence; only override if explicitly set
   // and elementSequence didn't compute a larger value.
   if (j.contains("totalBeats")) {
     float tb = j.at("totalBeats").get<float>();

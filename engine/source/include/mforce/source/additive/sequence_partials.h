@@ -9,7 +9,7 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // SequencePartials — linear multiplier sequences with evolving spacing.
-// Ported from legacy SequencePartials.cs InitArrays.
+// Follows SequencePartials.cs InitArrays of the C# MForce.
 // ---------------------------------------------------------------------------
 struct SequencePartials final : Partials {
   // Every setting here shapes the partial arrays: structural, rebuilt at prepare.

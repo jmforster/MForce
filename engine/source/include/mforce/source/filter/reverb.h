@@ -14,7 +14,6 @@ namespace mforce {
 // (Jezar at Dreampoint, public domain), scaled to the running sample rate.
 //
 // Mono output. The ValueSource graph's pan/mix happens at SoundChannel.
-// Spec: docs/superpowers/specs/2026-05-06-reverb-limiter-effects-design.md
 // ---------------------------------------------------------------------------
 struct Reverb final : Processor {
   Param roomSize{this, "roomSize", 0.5f,  0.0f, 1.0f, "0-1"};

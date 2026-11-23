@@ -126,7 +126,7 @@ void run_dsp_butterworth_tests() {
             }
         }
     }
-    // The two-section filters on white noise, against a cascade of the old sections.
+    // The two-section filters on white noise, against a cascade of reference sections.
     for (bool hp : {false, true}) {
         RenderContext ctx{48000};
         auto white = std::make_shared<WhiteNoiseSource>(0xB0B1u);

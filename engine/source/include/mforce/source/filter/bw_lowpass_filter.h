@@ -37,7 +37,7 @@ struct BWLowpassFilter final : Processor {
 
     // Coefficients only when the cutoff moves — update() runs a tan() per
     // section, and doing that per sample made each BW node ~10x costlier
-    // than its actual filtering (2026-08-12 live-voice CPU audit).
+    // than its actual filtering (measured on live voices).
     if (cutoff != lastCutoff_) {
       for (auto& s : sections_) s.update(cutoff);
       lastCutoff_ = cutoff;

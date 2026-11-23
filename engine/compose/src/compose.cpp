@@ -84,7 +84,7 @@ void realize_motifs(PieceTemplate& tmpl, Randomizer& rng) {
     }
   }
 
-  // Phase 2 — synthesize DERIVED figure motifs (walk spec 2026-09-21 §2):
+  // Phase 2 — synthesize DERIVED figure motifs:
   // a content-less motif with derivedFrom resolves through
   // figure_transforms::apply once its parent is realized. Chains resolve
   // over iterations; anything left standing (missing parent, cycle)
@@ -162,9 +162,9 @@ struct Composer {
     // Compose phase — self-contained realization from the planned template.
     Passage passage = s->compose_passage(locus, planned);
 
-    // Quantize the ending (#18). Central rather than repeated inside each
-    // strategy: every passage returns through here, so a strategy written
-    // tomorrow gets it for free and cannot forget it. endGrid=0 opts out.
+    // Quantize the ending. Central rather than repeated inside each
+    // strategy: every passage returns through here, so no strategy can
+    // forget it. endGrid=0 opts out.
     passage_anchors::grid_complete(passage, planned.endGrid);
     return passage;
   }
@@ -393,7 +393,7 @@ private:
     int bar = int(beatInPassage / v.beatsPerBar);
     // Chords follow the section's key contexts, as melody realization does.
     // Without them active_scale_at returns the section scale; with them, one
-    // authored progression walks through keys (Matt's Bruckner pedal).
+    // authored progression walks through keys (a pedal under a modulation).
     Scale activeScale = sec.active_scale_at(beatInPassage);
     Chord chord;
     if (sc.pin) {

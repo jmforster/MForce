@@ -6,8 +6,6 @@
 // structural recipe (phrase definitions, deployment sequence, cadence
 // markers). Loaded from lib/json/*.json — never directly from .ppl files;
 // the standalone tools/shelved/ppl_to_json tool handles .ppl parsing offline.
-//
-// Spec: docs/superpowers/specs/2026-04-27-pattern-library-design.md
 
 #include "mforce/core/randomizer.h"
 #include <string>
@@ -20,7 +18,7 @@ enum class CadenceMarker { None, Half, Full };
 struct FigureToken {
     char slot{'A'};            // 'A'..'Z'
     bool newAnchor{false};     // ~ marker → random leadStep at compose time
-    int  modifiedDepth{0};     // 0 = unchanged, 1 = ', 2 = '' (Phase 1: warned + treated as newAnchor)
+    int  modifiedDepth{0};     // 0 = unchanged, 1 = ', 2 = '' (warned once, treated as newAnchor)
     int  elideAfter{0};        // dash count → FC.elideCount on the connector AFTER this figure
 };
 
@@ -37,7 +35,7 @@ struct PassageStep {
 struct Pattern {
     std::string                 name;
     int                         bars{0};
-    std::vector<std::string>    roles;     // Phase 1: ignored
+    std::vector<std::string>    roles;     // read, not used
     std::vector<PhraseDef>      phrases;
     std::vector<PassageStep>    passage;
 
@@ -69,8 +67,8 @@ struct Pattern {
 
 struct PatternLibrary {
     std::string                 name;
-    std::vector<std::string>    genres;    // Phase 1: ignored
-    std::vector<std::string>    roles;     // Phase 1: ignored
+    std::vector<std::string>    genres;    // read, not used
+    std::vector<std::string>    roles;     // read, not used
     std::vector<Pattern>        patterns;
 };
 

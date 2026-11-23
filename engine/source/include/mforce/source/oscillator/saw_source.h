@@ -6,7 +6,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.SawSource
+// Follows the C# MForce.Sound.Source.SawSource
 // Band-limited sawtooth via polynomial BLEP.
 struct SawSource final : WaveSource {
   const char* type_name() const override { return "SawSource"; }

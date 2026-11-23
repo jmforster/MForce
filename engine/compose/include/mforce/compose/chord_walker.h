@@ -59,7 +59,7 @@ struct ChordWalker {
     while (remaining > 0.01f) {
       float chordBeats = pick_duration(style, constraint, remaining, rng);
 
-      // If no cadenceBeat, use old "last chord = endChord" logic
+      // If no cadenceBeat: the last chord is endChord
       if (!constraint.cadenceBeat && constraint.endChord) {
         float afterThis = remaining - chordBeats;
         if (afterThis < constraint.minChordBeats) {

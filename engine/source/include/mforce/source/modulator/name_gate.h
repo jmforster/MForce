@@ -6,7 +6,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// NameGate (spec 2026-09-20-note-onsets-v2 §6): the visible home of an
+// NameGate: the visible home of an
 // onset-name match. Input = the Note node's `onset` pin (the
 // note's interned id, a held level); `name` = a declared string setting,
 // resolved to `targetId` against the instrument's onsets[] vocabulary

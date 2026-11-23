@@ -79,7 +79,7 @@ struct LayeredRedNoiseSource final : Generator {
     }
 
 private:
-    // Per-layer hardcoded RedNoise params (matches spec #5 resolution).
+    // Per-layer fixed RedNoise params.
     static constexpr float LAYER_DENSITY          = 1.0f;
     static constexpr float LAYER_SMOOTHNESS       = 1.0f;
     static constexpr float LAYER_RAMP_VARIATION   = 0.5f;

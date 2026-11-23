@@ -4,13 +4,11 @@
 
 namespace mforce {
 
-// The phase-accumulating oscillator base (ported from the C# WaveSource).
+// The phase-accumulating oscillator base (follows the C# WaveSource).
 // The base owns the three pins and the accumulator; a subclass supplies
 // wave(), its value at the current position.
 struct WaveSource : Generator {
-  // Declared in the order the old next() advanced them: amplitude,
-  // frequency, phase. Declaration order is the advance order until the
-  // per-tick memo lands.
+  // Declared amplitude, frequency, phase: the order the base advances them.
   Param amplitude{this, "amplitude", 1.0f,   0.0f,  10.0f,    "0-1"};
   Param frequency{this, "frequency", 440.0f, 0.01f, 20000.0f, "hz"};
   Param phase    {this, "phase",     0.0f,  -1.0f,  1.0f,     "cycles"};
@@ -25,7 +23,7 @@ struct WaveSource : Generator {
 
   Range range() const override { return Range::Bipolar; }
 
-  // Mirror legacy: ptr starts at -1, the first compute() increments to 0.
+  // As the C#: ptr starts at -1, the first compute() increments to 0.
   void on_start(int) override { ptr_ = -1; }
 
   float compute() override {
@@ -35,7 +33,7 @@ struct WaveSource : Generator {
     if (f <= 0.0f) { f = frequency.min; fault(Fault::FrequencyClamped); }   // never a throw on a render path
 
     if (ptr_ == 0) {
-      currPos_   = phase.current();   // legacy: init pos = phase (cycles)
+      currPos_   = phase.current();   // as the C#: init pos = phase (cycles)
       lastPhase_ = phase.current();
     }
 
@@ -47,7 +45,7 @@ struct WaveSource : Generator {
 
     const float out = wave() * currAmpl_;
 
-    // legacy:
+    // As the C#:
     // CurrPos = (CurrPos + CurrPhaseIncr + (CurrPhase - LastPhase)) % 1;
     const float phaseDelta = (currPhase_ - lastPhase_);
     lastPhase_ = currPhase_;

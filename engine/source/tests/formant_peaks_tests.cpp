@@ -37,7 +37,7 @@ void run_formant_peaks_twin_tests() {
             const float og = old_spectrum_gain(set, freq);
             inBand += oc;
             if (!same_bits(peaks.gain(freq), og)) ++bad;
-            if (!same_bits(peaks.gain(freq), oc ? og : 0.0f)) ++bad;          // 0 outside every row: the old gate is implied
+            if (!same_bits(peaks.gain(freq), oc ? og : 0.0f)) ++bad;          // 0 outside every row: the reference's gate is implied
         }
     }
     CHECK(bad == 0);

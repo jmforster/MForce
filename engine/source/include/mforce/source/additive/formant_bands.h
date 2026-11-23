@@ -8,7 +8,7 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // FormantBands — a gain table over equal frequency bands from startFreq in
 // steps of freqIncrement, interpolated between adjacent gains and 0 outside
-// the span. Ported from C# BandSpectrum.
+// the span. Follows the C# BandSpectrum.
 // ---------------------------------------------------------------------------
 struct FormantBands final : Formant {
   // The owner drives both pins through the base; they are Manual.

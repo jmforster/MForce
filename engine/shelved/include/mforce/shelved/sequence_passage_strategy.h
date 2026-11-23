@@ -27,10 +27,9 @@ struct SequencePassageSettings {
 // sequences, which is the point of generalizing it rather than hard-coding
 // the fifths walk.
 //
-// NOTE: this is a DIATONIC sequence, not a modulating one. Section
-// keyContexts are inert in melody realization today (probed in run 12:
-// Section::active_scale_at has zero callers), so a real modulating trip is
-// stage 3 of the port, not something this class can express.
+// NOTE: this is a DIATONIC sequence, not a modulating one: it steps within
+// the section's scale and writes no key context, so the trip never changes
+// key.
 class SequencePassageStrategy : public PassageStrategy {
 public:
   static constexpr const char* kName = "sequence_passage";

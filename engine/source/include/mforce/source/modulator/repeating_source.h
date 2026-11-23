@@ -6,7 +6,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.RepeatingSource
+// Follows the C# MForce.Sound.Source.RepeatingSource
 // Repeats a source with variable duration and gaps between repetitions.
 // Good for sound effects (footsteps, dripping, rhythmic textures).
 //

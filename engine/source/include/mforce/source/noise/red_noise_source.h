@@ -6,7 +6,7 @@
 namespace mforce {
 
 struct RedNoiseSource final : WaveSource {
-  // Declared after WaveSource's three, in the order the old wave() advanced them.
+  // Declared after WaveSource's three, in the order wave() reads them.
   Param density          {this, "density",           0.5f, 0.0f, 1.0f, "0-1"};
   Param smoothness       {this, "smoothness",        0.5f, 0.0f, 1.0f, "0-1"};
   Param rampVariation    {this, "rampVariation",     0.0f, 0.0f, 1.0f, "0-1"};
@@ -32,7 +32,7 @@ private:
   int   rampSize_{1};
   int   sampleCount_{0};
   float lastValue_{0.0f};
-  float lastSign_{-1.0f};     // legacy starts non-zero to “get going”
+  float lastSign_{-1.0f};     // starts non-zero to “get going”, as the C# does
   float nextValue_{0.0f};
   bool  zeroRamp_{false};
 

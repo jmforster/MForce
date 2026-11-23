@@ -10,7 +10,7 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // ExplicitPartials — user-specified multiplier and amplitude arrays.
-// Ported from legacy ExplicitPartials.cs InitArrays.
+// Follows ExplicitPartials.cs InitArrays of the C# MForce.
 // ---------------------------------------------------------------------------
 struct ExplicitPartials final : Partials {
   Setting<int>   maxPartials{this, "maxPartials", 16, 1, 200};

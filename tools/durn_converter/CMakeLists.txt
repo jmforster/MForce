@@ -1,4 +1,4 @@
 add_executable(durn_converter main.cpp)
 
-# Header-only — no library dependency needed (uses research parsers directly)
+# Links no engine library: its parsers (parsers/) are header-only and use no engine header.
 mforce_compile_rules(durn_converter)

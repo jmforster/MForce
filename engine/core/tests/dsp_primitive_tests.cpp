@@ -38,13 +38,13 @@ void run_dsp_scaffold_tests() {
 void run_dsp_dc_blocker_tests() {
     for (float sr : {44100.0f, 48000.0f, 96000.0f}) {
         auto sig = twin_signal(0xDC0u + uint32_t(sr), 10000);
-        float dcR = 1.0f - 2.0f * 3.14159265f * 20.0f / sr;   // the deleted line, 20 Hz
+        float dcR = 1.0f - 2.0f * 3.14159265f * 20.0f / sr;   // the reference formula, 20 Hz
         float dcX = 0.0f, dcY = 0.0f;
         dsp::DcBlocker dc;
         dc.set(20.0f, sr);
         int bad = 0;
         for (float exc : sig) {
-            float x = dcR * dcY + exc - dcX;                   // the deleted line
+            float x = dcR * dcY + exc - dcX;                   // the reference formula
             dcX = exc; dcY = x;
             if (!same_bits(dc.process(exc), x)) ++bad;
         }
@@ -72,7 +72,7 @@ void run_dsp_tuning_allpass_tests() {
         ap.set_coefficient(C);
         int bad = 0;
         for (float x : sig) {
-            float y = C * x + prevIn - C * state;    // the deleted line
+            float y = C * x + prevIn - C * state;    // the reference formula
             prevIn = x;
             state = y;
             if (!same_bits(ap.process(x), y)) ++bad;
@@ -113,7 +113,7 @@ void run_dsp_tuning_allpass_boundary_tests() {
             float y = C * sig[i] + prevIn - C * state; prevIn = sig[i]; state = y;
             ap.process(sig[i]);
         }
-        state = 0.0f;                              // EKS's old adjust(): y1 only
+        state = 0.0f;                              // a reset of y1 only
         ap.reset();                                // both
         float lastDiff = 0.0f;
         bool firstDiffers = false;
@@ -141,7 +141,7 @@ void run_dsp_one_pole_tests() {
         dsp::OnePole pole;
         int bad = 0;
         for (float v : sig) {
-            lp += c * (v - lp);                    // the deleted line
+            lp += c * (v - lp);                    // the reference formula
             if (!same_bits(pole.process(v, c), lp)) ++bad;
             if (!same_bits(pole.value(), lp)) ++bad;
         }
@@ -311,7 +311,7 @@ void run_dsp_reset_tests() {
         CHECK(reset_mismatches(a, b, sig) == 0);
         dsp::DcBlocker c;
         c.set(60.0f, 44100.0f);
-        const float r = 1.0f - 2.0f * 3.14159265f * 60.0f / 44100.0f;   // the deleted line at another corner
+        const float r = 1.0f - 2.0f * 3.14159265f * 60.0f / 44100.0f;   // the reference formula at another corner
         c.process(1.0f);
         CHECK(same_bits(c.process(0.0f), r * 1.0f + 0.0f - 1.0f));
     }

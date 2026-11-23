@@ -7,10 +7,9 @@
 namespace mforce {
 
 // Raw-coefficient biquad section: y = b0 x + b1 x1 + b2 x2 - a1 y1 - a2 y2
-// (Direct Form I; a0 normalized to 1). The port vehicle for fitted filter
-// sections from reference models — first use: STK Bowed's one-pole string
-// loss (b1=b2=a2=0) and the six Maestre violin-body sections
-// (docs/superpowers/specs/2026-09-13-stk-bowed-port-design.md).
+// (Direct Form I; a0 normalized to 1). It carries fitted filter sections
+// from reference models: STK Bowed's one-pole string loss (b1=b2=a2=0) and
+// the six Maestre violin-body sections.
 // Coefficients are settings, not pins: fitted constants, no legal
 // interpolation between two fitted filters coefficient-by-coefficient.
 // Resonance mode (STK BiQuad::setResonance, used by Brass's lip filter):

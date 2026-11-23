@@ -10,7 +10,6 @@
 //    leadStep) and dash-elision (`-`) markers, applies cadence per the
 //    step's marker, composes the phrase via default_phrase, appends.
 //
-// Spec: docs/superpowers/specs/2026-04-27-pattern-library-design.md
 // Registered as "library_passage".
 
 #include "mforce/compose/strategy.h"
@@ -224,7 +223,7 @@ inline Passage LibraryPassageStrategy::compose_passage(
             phraseTmpl.figures.push_back(ft);
 
             // Connector i is the connector AT figure i (the join INTO it).
-            // - newAnchor or modifiedDepth>0 (Phase 1: same effect): random leadStep.
+            // - newAnchor or modifiedDepth>0 (the same effect): random leadStep.
             // - elideAfter on the PREVIOUS figure → this connector elides the
             //   previous figure's last `elideAfter` units.
             FigureConnector fc;

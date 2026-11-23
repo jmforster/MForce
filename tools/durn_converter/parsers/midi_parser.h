@@ -1,5 +1,5 @@
 #pragma once
-// midi_parser.h — Header-only Standard MIDI File parser (C++17)
+// midi_parser.h — Header-only Standard MIDI File parser
 // Self-contained: no engine dependencies. Reads the file through std::ifstream.
 
 #ifndef MIDI_PARSER_H

@@ -10,14 +10,14 @@
 using namespace mforce;
 
 
-// The performer's wheel and pressure smoothers, against the lines they replaced.
+// The performer's wheel and pressure smoothers, against the reference formula.
 void run_dsp_performer_smoother_tests() {
     RenderContext ctx{48000};
     PerformSource ps;
     auto is = std::make_shared<InstrumentState>();
     ps.set_instrument_state(is);
     ps.prepare(ctx);
-    const float a = 1.0f - std::exp(-1.0f / (0.010f * 48000.0f));   // the deleted coefficient line
+    const float a = 1.0f - std::exp(-1.0f / (0.010f * 48000.0f));   // the reference coefficient
     float wheel = 0.0f, press = 0.0f;
     auto sig = twin_signal(0x5E00u, 300);
     int bad = 0;
@@ -26,7 +26,7 @@ void run_dsp_performer_smoother_tests() {
         is->wheel.store(w);
         is->pressure.store(pr);
         ps.tick();
-        wheel += a * (w - wheel);          // the deleted lines
+        wheel += a * (w - wheel);          // the reference smoothers
         press += a * (pr - press);
         if (!same_bits(ps.wheel(), wheel) || !same_bits(ps.pressure(), press)) ++bad;
     }
@@ -47,7 +47,7 @@ void run_perform_source_tests() {
     f.next(); v.next(); d.next();
     CHECK_NEAR(f.current(), 440.0f, 1e-6f);
     CHECK_NEAR(v.current(), 0.5f, 1e-6f);
-    CHECK_NEAR(d.current(), 0.5f, 1e-6f);   // backlog 64 Tier 1
+    CHECK_NEAR(d.current(), 0.5f, 1e-6f);   // the duration in seconds
     CHECK(ps->note().durSamples == 24000);
 
     // Chain: PerformOut freq -> LogX CurveNode, re-evaluates on re-strike

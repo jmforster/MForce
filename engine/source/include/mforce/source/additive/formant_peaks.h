@@ -17,7 +17,7 @@ namespace mforce {
 // peak is a power ramp from its band's lower edge up to its centre and down
 // to the upper edge, and 0 outside. The band edges are derived from the rows
 // at prepare and whenever an array changes, so the per-sample read is the
-// cached edges and the row's values — no pin. Ported from C# FormantSpectrum
+// cached edges and the row's values — no pin. Follows the C# FormantSpectrum
 // and Formant, the peaks as rows.
 // ---------------------------------------------------------------------------
 struct FormantPeaks final : Formant {

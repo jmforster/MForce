@@ -14,17 +14,15 @@ namespace mforce {
 // selectable Lowpass / Highpass / Bandpass tap, resonance as a modulatable
 // param, optional output normalization by the resonance ("divide by res").
 //
-// Built for the AFNoding-031 piano rebuild (docs/research/afpiano_scratch/
-// RECIPE.md): that patch uses SVFs in four roles our Butterworth filters
-// cannot express — a resonant excitation lowpass whose resonance IS the
-// "brightness" control (output divided by res so brightness changes color,
-// not level), a post-string highpass, and a velocity-tracked resonant
+// It serves a piano model (AFNoding-031) that uses SVFs in roles the
+// Butterworth filters cannot express — a resonant excitation lowpass whose
+// resonance IS the "brightness" control (output divided by res so
+// brightness changes color, not level), a post-string highpass, and a velocity-tracked resonant
 // lowpass. One node, one selected tap; a patch needing LP and HP of the
-// same signal instantiates two nodes, exactly as his graphs do.
+// same signal instantiates two nodes, as AFNoding's graphs do.
 //
 // Real-time safe: no allocation in next(); tan() only re-runs when cutoff
-// or resonance actually move (same guard as BWLowpassFilter, 2026-08-12
-// CPU-audit convention).
+// or resonance actually move (the same guard as BWLowpassFilter).
 // ---------------------------------------------------------------------------
 struct SVFSource final : Processor {
   enum Mode { kLowpass = 0, kHighpass = 1, kBandpass = 2, kLowpass1P = 3, kHighpass1P = 4 };

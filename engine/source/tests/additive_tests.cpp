@@ -175,7 +175,7 @@ void run_additive_smoke_tests() {
 }
 
 // The pins the additive source drives through the partials and formant
-// interfaces are Manual: prepared where the old code prepared them, advanced
+// interfaces are Manual: prepared by the source's own prepare, advanced
 // once per call, in declaration order, and not at all by next() on the part.
 void run_additive_manual_pin_tests() {
     RenderContext ctx{48000};

@@ -21,12 +21,11 @@ enum class TransformOp {
     TransformGeneral, // do *something* — composer decides the operation
     RhythmTail,       // derive a PulseSequence from a MelodicFigure by
                       // taking the rhythm tail (skip first N pulses).
-                      // param = N. Plan B uses this for figures like
-                      // K467's A_rhythm_tail.
+                      // param = N. For figures like K467's
+                      // A_rhythm_tail.
     Complexify,       // elaborate via split/neighbor/turn to a TARGET NOTE
                       // COUNT (param; 0 = one extra unit). Length
-                      // preserved. Matt 2026-09-21: elaboration "reined in
-                      // via note count" — the walk-stage rep3_b op.
+                      // preserved: elaboration reined in by note count.
 };
 
 } // namespace mforce
@@ -101,7 +100,7 @@ inline MelodicFigure invert(const MelodicFigure& fig) {
 
 // retrograde_steps(fig): reverse pitch sequence in time. Pulses DO NOT
 // reverse (hence the _steps suffix). Algorithm: new units[0].step=0;
-// for i>=1, new step[i] = -(old step[count-i]). Pulses keep order.
+// for i>=1, step'[i] = -(step[count-i]). Pulses keep order.
 // Example: [0,+1,+1,-2] -> [0,+2,-1,-1].
 inline MelodicFigure retrograde_steps(const MelodicFigure& fig) {
   MelodicFigure out;
@@ -299,7 +298,6 @@ inline MelodicFigure add_turn(const MelodicFigure& fig, int addAt,
 // --- Randomized (Randomizer& passed in) ---
 
 // vary_rhythm(fig, rng): probability-weighted pulse split or dot.
-// Legacy behavior from FigureBuilder::vary_rhythm.
 inline MelodicFigure vary_rhythm(const MelodicFigure& fig, Randomizer& rng) {
   MelodicFigure out = fig;
   for (int x = 0; x < out.note_count() - 1; ++x) {
@@ -328,9 +326,8 @@ inline MelodicFigure vary_rhythm(const MelodicFigure& fig, Randomizer& rng) {
 
 // vary_steps(fig, rng, variations): perturb `variations` steps. Any step
 // but step[0] (the dummy by convention; the connector carries the entry)
-// may move, including the final one (walk3 spec §4: the interior-only
-// restriction was unexplained legacy). Each perturbation adds a random int
-// in [-2,+2] (guaranteed non-zero). Legacy from FigureBuilder::vary_steps.
+// may move, including the final one. Each perturbation adds a random int
+// in [-2,+2] (guaranteed non-zero).
 inline MelodicFigure vary_steps(const MelodicFigure& fig, Randomizer& rng,
                                 int variations = 1) {
   MelodicFigure out = fig;
@@ -404,9 +401,9 @@ inline MelodicFigure embellish(const MelodicFigure& fig, Randomizer& rng,
 }
 
 // ---------------------------------------------------------------------------
-// split_moving_ — 2-way split where the SECOND piece moves (walk2 spec §2:
-// sub-beat repeated pitches are never emitted; "repeated note in a fast run
-// = computer did it"). The inserted motion is passing when the following
+// split_moving_ — 2-way split where the SECOND piece moves (sub-beat
+// repeated pitches are never emitted: a repeated note in a fast run sounds
+// mechanical). The inserted motion is passing when the following
 // unit already moves (toward it), else a neighbor; the following unit's
 // step is compensated so every later absolute pitch is preserved. A split
 // at the figure's last unit uses a neighbor and changes the figure's net —
@@ -434,9 +431,9 @@ inline MelodicFigure split_moving_(const MelodicFigure& fig, int at,
 }
 
 // ---------------------------------------------------------------------------
-// elaborate(fig, rng, targetCount) — walk2's Complexify (spec 2026-09-21
-// walk2 §2, from Matt's annotation ladder). Ladder-ordered, late-bar-
-// weighted, strictly additive:
+// elaborate(fig, rng, targetCount) — Complexify, following an annotated
+// ladder of elaborations. Ladder-ordered, late-bar-weighted, strictly
+// additive:
 //   * while any unit >= 2 beats exists, split IT evenly first (h -> q q,
 //     Mary's own move; repeats are fine at quarter length);
 //   * further splits pick positions weighted toward the figure's END —
@@ -500,8 +497,8 @@ inline MelodicFigure elaborate(const MelodicFigure& fig, Randomizer& rng,
 // ---------------------------------------------------------------------------
 // apply(base, op, param, seed) — TransformOp dispatch.
 // Shared by DefaultFigureStrategy::apply_transform and TwoFigurePhraseStrategy.
-// Behavior must stay bit-identical to the pre-refactor body — any change here
-// changes Composer output for every FigureTemplate with source=Transform.
+// Any change here changes Composer output for every FigureTemplate with
+// source=Transform.
 // ---------------------------------------------------------------------------
 inline MelodicFigure apply(const MelodicFigure& base, TransformOp op,
                            int param, uint32_t seed) {
@@ -561,8 +558,7 @@ inline MelodicFigure apply(const MelodicFigure& base, TransformOp op,
       return base;
 
     case TransformOp::Complexify: {
-      // walk2 (spec §2): ladder-ordered late-bar elaboration replaces the
-      // uniform-random complexify — param = target note count.
+      // Ladder-ordered late-bar elaboration — param = target note count.
       const int target = param > 0 ? param : base.note_count() + 1;
       return elaborate(base, rng, target);
     }

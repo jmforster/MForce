@@ -9,9 +9,9 @@ namespace mforce {
 // fast_sin_turns(x) == sin(2*pi*x) for x in [0,1), the phase convention every
 // oscillator in the engine already uses (partialPos_, WaveSource phase, ...).
 //
-// Why: the additive hot loop spends ~40% of its remaining time inside sinf
-// (measured 2026-07-31 by rendering the profiling ladder with the sin call
-// removed entirely: 2.15x vs 1.30x for the surrounding optimizations alone).
+// Why: the additive hot loop spends ~40% of its time inside sinf
+// (measured by rendering the profiling ladder with the sin call removed
+// entirely: 2.15x vs 1.30x for the surrounding optimizations alone).
 // sinf is a libm call that does its own range reduction — reduction we do not
 // need, because the argument is already a normalized phase.
 //
@@ -53,16 +53,17 @@ inline float fast_sin_turns(float x) {
 }
 
 // ---------------------------------------------------------------------------
-// fast_exp2(x) == exp2(x), for the frequency-motion layer in the additive
-// partial loop.
+// fast_exp2(x) == exp2(x), written for the frequency-motion layer in the
+// additive partial loop. Nothing calls it: the motion layer keeps std::exp2,
+// whose last bit decides borderline cutoff comparisons (see Partials).
 //
-// Why: `std::exp2` is a CRT call, and the motion layer calls it once per
-// partial per sample. Measured with tools/ablate_layers.py on
+// Why it exists: `std::exp2` is a CRT call, and the motion layer calls it
+// once per partial per sample. Measured with tools/ablate_layers.py on
 // patches/viola_default.json (96 partials, motion + shimmer + onset +
 // bandwidth all on): zeroing the motion depth alone cut the pre-render from
 // 1387 ms to 478 ms — the motion path was 65.6% of the whole loop, and
-// essentially all of it was this one libm call. Same class of finding as the
-// truncf-is-a-CRT-call one a commit earlier.
+// essentially all of it was this one libm call (as truncf is a CRT call:
+// see Partials).
 //
 // Method: split x = k + f with k integer and |f| <= 0.5, evaluate 2^f with a
 // degree-6 minimax polynomial, then apply 2^k exactly by building the power of
@@ -86,8 +87,8 @@ inline float fast_exp2(float x) {
   else if (x < -126.0f) x = -126.0f;
 
   // Nearest integer via a biased truncation — round-half-away-from-zero, which
-  // keeps |f| <= 0.5. float(int(...)) rather than std::floor/roundf for the
-  // same reason truncf was replaced: those are CRT calls under SSE2 baseline.
+  // keeps |f| <= 0.5. float(int(...)) rather than std::floor/roundf: those
+  // are CRT calls under the SSE2 baseline.
   const int   k  = int(x + (x >= 0.0f ? 0.5f : -0.5f));
   const float f  = x - float(k);
 

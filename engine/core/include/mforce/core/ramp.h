@@ -3,13 +3,12 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Utility.RampType. Hold added 2026-09-05 (curve-morph
-// spec): value pinned at startVal for the whole segment/stage — replaces the
-// removed per-stage holdPct field (never nonzero in any patch, never in UI).
+// Follows the C# MForce.Utility.RampType, plus Hold: the value pinned at
+// startVal for the whole segment/stage.
 enum class RampType { Linear, Expo, InverseExpo, Sine, Hold };
 
 // ---------------------------------------------------------------------------
-// Ported from C# MForce.Utility.Ramp
+// Follows the C# MForce.Utility.Ramp
 // Moves from startVal to endVal over normalized position [0,1].
 // ---------------------------------------------------------------------------
 struct Ramp {
@@ -19,8 +18,8 @@ struct Ramp {
 
   float value(float pos) const {
     if (type == RampType::Hold) return startVal;
-    // Preserves the old holdPct==0 boundary for every type: without this,
-    // Expo with power 0 returns endVal at exactly pos 0 (pow(0,0)==1).
+    // Every type starts at startVal: without this, Expo with power 0
+    // returns endVal at exactly pos 0 (pow(0,0)==1).
     if (pos <= 0.0f) return startVal;
 
     float t = pos;

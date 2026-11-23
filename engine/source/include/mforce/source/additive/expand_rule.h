@@ -5,7 +5,7 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // ExpandRule — controls generation of "sub-partials" around each primary
-// partial. Ported from legacy PartialsExpandRule.cs.
+// partial. Follows PartialsExpandRule.cs of the C# MForce.
 // ---------------------------------------------------------------------------
 struct ExpandRule {
   int count{2};          // sub-partials per side

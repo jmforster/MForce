@@ -9,7 +9,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.WavetableSource
+// Follows the C# MForce.Sound.Source.WavetableSource
 // On first sample: fills a table (Rate/CurrFreq entries) from an input source.
 // Each sample: reads from table; if an evolution is wired, it modifies the
 // table in-place. With PluckEvolution this implements Karplus-Strong plucked

@@ -247,7 +247,7 @@ void integ_elab_all_generate() {
     REQUIRE(r.connectors.size() == 3u);
 
     // Each generated figure should be non-empty with units[0].step = 0 (RFB
-    // convention). Phase 1 does not constrain RFB-generated figures to exact
+    // convention). The strategy does not constrain RFB-generated figures to exact
     // anchor duration — the leadStep bridging math accounts for any drift.
     for (size_t i = 0; i < 3; ++i) {
         const auto& fig = r.figures[i];

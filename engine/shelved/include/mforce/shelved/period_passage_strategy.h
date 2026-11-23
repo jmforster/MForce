@@ -132,8 +132,8 @@ private:
       for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {
         const auto& fig = phrase.figures[fi];
         // FC.leadStep advances the cursor before walking this figure's
-        // units (post-foundation-refactor: leadStep is no longer baked into
-        // figure data; it lives on phrase.connectors[fi]).
+        // units (leadStep is not in the figure data; it lives on
+        // phrase.connectors[fi]).
         if (fi < (int)phrase.connectors.size()) {
           degree = ((degree + phrase.connectors[fi].leadStep) % len + len) % len;
         }
@@ -224,7 +224,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
   for (int pi = 0; pi < (int)periods.size(); ++pi) {
     PeriodSpec& p = periods[pi];
 
-    // --- Random harmonic skeleton (audition issue #1) ---
+    // --- Random harmonic skeleton ---
     // When cadences are unspecified, randomly choose the period's harmonic
     // frame as start/end scale-degrees of the two phrases [s1,e1,s2,e2], then
     // map them onto each phrase's startingPitch (degree->pitch) and

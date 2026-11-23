@@ -26,7 +26,7 @@ void HybridKSSource::on_prepare(const RenderContext& ctx) {
   inputSource.prepare(ctx);
   size_targets();
   // The table is reserved here for the floor frequency, so a note fills it
-  // within capacity (Part 2 section 4).
+  // within capacity.
   maxLen_ = int(std::ceil(float(sample_rate()) / kMinTableHz)) + 1;
   table_.reserve(size_t(maxLen_));
 }

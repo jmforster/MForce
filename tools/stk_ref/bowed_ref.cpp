@@ -1,7 +1,6 @@
 // STK Bowed reference renderer — ground truth for the MForce port.
-// Steal-first campaign (steering meeting 2026-09-13): render the proven
-// model's output deterministically so the port can be verified against
-// measured criteria instead of ears.
+// Renders the proven model's output deterministically, so the port can be
+// verified against measured criteria instead of ears.
 //
 // Output format matches the campaign render convention: 5 notes C3..C7,
 // 2 s each, mono 16-bit 48 kHz, one WAV per feature variant.

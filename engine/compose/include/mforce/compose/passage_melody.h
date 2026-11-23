@@ -1,6 +1,5 @@
 #pragma once
-// Passage-string -> template melody derivation (comp crawl, spec
-// docs/superpowers/specs/2026-09-21-comp-crawl-mary-design.md §4).
+// Passage-string -> template melody derivation.
 // A comp-purpose passage string ('|' = structural phrase boundary) becomes
 // PhraseTemplates of Locked figures: step[0]=0 inside a figure, the bridge
 // between figures rides FigureConnector.leadStep.

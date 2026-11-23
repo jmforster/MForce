@@ -5,7 +5,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.PulseSource
+// Follows the C# MForce.Sound.Source.PulseSource
 // Band-limited pulse wave via polynomial BLEP.
 // dutyCycle: fraction of period spent "high" (0..1)
 // bend: 0 = square wave, 1 = sawtooth-like slope on top

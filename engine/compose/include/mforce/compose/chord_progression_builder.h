@@ -19,14 +19,11 @@ namespace mforce {
 // modulations). Solves exactly one problem: "stop making every patch
 // hand-author a 4-chord array in JSON."
 //
-// When/if we want pluggable context-aware progression generation, promote
-// to a ChordProgressionStrategy with plan_* / compose_* pattern. For now,
-// this is sufficient for melody-only openings like K467 bars 1-12.
-//
-// Renamed from HarmonyComposer (2026-04-15): original name over-promoted
-// ("Composer" already means the orchestrator class) and "Harmony" is
-// ambiguous (contrapuntal coincidence, voicing, inversions — none of
-// which this type handles).
+// It is sufficient for melody-only openings like K467 bars 1-12; a
+// pluggable, context-aware progression would be a ChordProgressionStrategy
+// with the plan_* / compose_* pattern. "Builder", not "Composer" (the
+// orchestrator class) nor "Harmony" (contrapuntal coincidence, voicing and
+// inversions, none of which this type handles).
 // ---------------------------------------------------------------------------
 struct ChordProgressionBuilder {
 

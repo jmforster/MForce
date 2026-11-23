@@ -14,9 +14,9 @@
 using namespace mforce;
 
 
-// Checkpoint 2.1: WaveSource under Generator with its three pins declared
-// once, in the order the old next() advanced them (amplitude, frequency,
-// phase); an unwired pin reads its constant and has no source.
+// WaveSource under Generator with its three pins declared once, in the
+// order the base advances them (amplitude, frequency, phase); an unwired
+// pin reads its constant and has no source.
 void run_wave_source_tests() {
     SineSource s;
     auto pd = s.param_descriptors();

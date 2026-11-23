@@ -37,8 +37,8 @@ void run_envelope_retrigger_tests() {
     CHECK_NEAR(v, 1.0f, 1e-3f);
 }
 
-// Release re-layout (spec 2026-09-20-note-onsets-v2 §5): the release
-// stage's sample count was computed at voice birth against note 1's
+// Release re-layout: the release stage's sample count is computed at
+// voice birth against note 1's
 // duration; at gate_release the caller may re-reference it to the
 // RELEASING note's duration.
 void run_release_relayout_tests() {
@@ -55,7 +55,7 @@ void run_release_relayout_tests() {
     // Release re-referenced to a HALF note: 25% of 0.8 s = 0.2 s.
     int rem = env.gate_release(int(0.8f * sr));
     CHECK(std::abs(rem - int(0.25f * 0.8f * sr)) <= 2);
-    // Default arg keeps old behavior: fresh envelope, no ref. The
+    // Default arg: fresh envelope, no ref. The
     // prepare-time layout resolves percent against the LAYOUT window,
     // i.e. the note minus the engine-wide reflection allowance — that
     // 10 ms is why the expectation is not a flat 25% of 0.4 s.

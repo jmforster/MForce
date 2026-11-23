@@ -12,9 +12,8 @@ using namespace mforce;
 
 
 // The six preset forms, stage by stage, at their defaults and with every
-// knob off its default. The defaults are the deleted classes' own, but one:
-// a bare adsr form releases over 0.0 where the class released over 0.1 (the
-// migration writes the key).
+// knob off its default. A bare adsr form releases over 0.0 (a patch that
+// wants another release writes the key).
 void run_envelope_form_tests() {
     const RampType L = RampType::Linear, E = RampType::Expo, I = RampType::InverseExpo, S = RampType::Sine;
     using J = nlohmann::json;

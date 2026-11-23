@@ -28,7 +28,8 @@ float blep_reference(float pos, float phaseIncr) {
     }
     return 0.0f;
 }
-// The old SawSource::wave and PulseSource::wave (duty 0.5, bend 0: the defaults).
+// Saw and pulse written out with the band-limited step inline, as references
+// for SawSource::wave and PulseSource::wave (duty 0.5, bend 0: the defaults).
 float saw_reference(float pos, float incr) {
     float val = 2.0f * pos - 1.0f;
     float blep = 0.0f;

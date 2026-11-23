@@ -19,7 +19,7 @@
 using namespace mforce;
 
 
-// Per-note delivery with hold (spec 2026-09-20-note-onsets-v2 §4/§5/§7).
+// Per-note delivery with hold.
 void run_hold_delivery_tests() {
     const int sr = 48000;
     auto rms_of = [](const std::vector<float>& b, float fromSec, float toSec) {
@@ -74,7 +74,7 @@ void run_hold_delivery_tests() {
         CHECK(rms_of(b, 1.10f, 1.40f) < 0.01f * sustain);  // and released
     }
 
-    // (c) Release re-layout end to end (§5): quarter {hold:true} + half
+    // (c) Release re-layout end to end: quarter {hold:true} + half
     //     {hold:false}. The release is 25% of the HALF note (0.2 s), not
     //     of the quarter that prepared the voice (which would be 0.1 s).
     {
@@ -94,7 +94,7 @@ void run_hold_delivery_tests() {
         CHECK(lastSec > 1.34f && lastSec < 1.46f);    // 1.2 s + ~0.2 s
     }
 
-    // (d) Glide (§4.1): C4 {hold:true} then G4 {hold:false} with
+    // (d) Glide: C4 {hold:true} then G4 {hold:false} with
     //     glideMs 15. The pitch ARRIVES at G4 within the glide, and the
     //     boundary's per-sample step is smaller than an instant retarget's.
     {
@@ -142,7 +142,7 @@ void run_hold_delivery_tests() {
         CHECK(maxStep(bg) < maxStep(bn));
     }
 
-    // (e) A line left open when the part's notes end (§4.3) is released,
+    // (e) A line left open when the part's notes end is released,
     //     not leaked — the output decays away.
     {
         const int N = int(2.0f * sr);
@@ -156,9 +156,8 @@ void run_hold_delivery_tests() {
         CHECK(rms_of(b, 1.20f, 1.60f) < 0.001f * peak);   // < -60 dBFS
     }
 
-    // (f) Mid-line retune still re-drives the living voice: the second
-    //     half of a C4 -> G4 line oscillates ~1.5x faster (the v1
-    //     assertion, re-expressed per note).
+    // (f) Mid-line retune re-drives the living voice: the second half of
+    //     a C4 -> G4 line oscillates ~1.5x faster.
     {
         const int N = int(1.6f * sr);
         auto c = load_scoreless("patches/baselines/BaselineSIN.json");

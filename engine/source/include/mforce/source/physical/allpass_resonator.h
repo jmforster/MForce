@@ -12,8 +12,8 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // AllpassResonator — the four-knob shape Alpha Forever later packaged their
-// KS piano variant into (per Sound On Sound's coverage of the 22/01 update,
-// see docs/research/alpha_forever.md): a Karplus-Strong loop where
+// KS piano variant into (per Sound On Sound's coverage of the 22/01
+// update): a Karplus-Strong loop where
 //
 //   * the DELAY LINE is replaced by an allpass DIFFUSER — a Schroeder
 //     allpass whose internal delay is set by the note pitch and whose

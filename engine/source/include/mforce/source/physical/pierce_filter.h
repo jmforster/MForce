@@ -8,8 +8,7 @@ namespace mforce {
 // PierceFilter — the Pierce/Van Duyne passive nonlinear allpass as a graph
 // node, so the same filter that terminates the 2D mesh boundary (Mesh2D
 // edgeMode 2) can terminate a 1D delay loop.  All the theory, provenance and
-// the passivity numbers live in core/dsp/pierce_allpass.h and
-// docs/research/stk_port/PIERCE_PASSIVE_NOTES.md.
+// the passivity numbers live in core/dsp/pierce_allpass.h.
 //
 // Why a node of its own rather than a mode on Shaper or pins on Biquad:
 // Shaper is a memoryless drawn-curve transfer (plus one bit of stick/slip

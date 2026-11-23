@@ -15,7 +15,7 @@ struct BiquadState {
 //   y = b0·x + b1·x1 + b2·x2 − a1·y1 − a2·y2,
 // kept apart from its state so that one coefficient set can drive many
 // sections (the mesh runs one per edge node with coefficients shared per
-// sample). The named recipes are the formulas the nodes used to carry.
+// sample). The named recipes are the formulas the nodes compute with.
 struct BiquadCoefficients {
   void set_raw(float b0, float b1, float b2, float a1, float a2) {
     b0_ = b0; b1_ = b1; b2_ = b2; a1_ = a1; a2_ = a2;

@@ -45,7 +45,7 @@ void run_init_pitches_tests() {
     }
     CHECK(all);
 
-    // Note numbers captured from the code before the doubling rule, root C4.
+    // The note numbers each type, inversion and spread voices, root C4.
     struct Pin { const char* type; int inv, spread; std::vector<float> nns; };
     const Pin pins[] = {
         {"Major", 0, 0, {48, 52, 55}}, {"Major", 0, 1, {48, 55, 64}}, {"Major", 0, 2, {48, 64, 79}},

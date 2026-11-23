@@ -7,8 +7,8 @@
 
 namespace mforce {
 
-// FM synthesis source — modeled after the pattern used by the legacy FM
-// instruments (FMBell1 etc.), NOT the legacy FMSource class which has a
+// FM synthesis source — modeled after the pattern the C# FM instruments use
+// (FMBell1 etc.), NOT the C# FMSource class, which has a
 // CombinedSource doubling quirk the instruments bypass.
 //
 // Signal flow:
@@ -17,7 +17,7 @@ namespace mforce {
 //   carrierFreq = baseFreq * carrierRatio * (1 + modVal * depth)
 //   output      = sin(carrierPhase) * amplitude  (carrier oscillator)
 //
-// Both carrier and modulator are sine oscillators (matching legacy practice).
+// Both carrier and modulator are sine oscillators (as in the C# instruments).
 // depth may be a constant or an envelope for time-varying timbre.
 struct FMSource final : WaveSource {
   Param carrierRatio{this, "carrierRatio", 1.0f, 0.01f, 32.0f,  "ratio"};
@@ -59,7 +59,7 @@ protected:
     // currPos_ = phase_current + sum(incr), i.e. phase is an OFFSET, not an
     // integrated delta. Offset only; never added into carrierPhase_, which
     // would integrate the modulator twice and turn PM back into FM. Constant
-    // 0.0f (the default) is exact, so unwired patches stay bit-identical.
+    // 0.0f (the default) is exact: an unwired pin adds nothing.
     const float phOffset = currPhase_;
 
     constexpr double TAU_D = 2.0 * 3.14159265358979323846;
@@ -74,13 +74,13 @@ protected:
     // spacy-FM family depends on it).
     float val = 0.0f;
     for (int i = 0; i < M; ++i) {
-      // Modulator (double-precision sin matches legacy System.Math.Sin;
-      // float phase accumulator preserves the legacy precision-wall behavior —
+      // Modulator (double-precision sin, as C#'s System.Math.Sin; the float
+      // phase accumulator keeps the C# precision-wall behavior —
       // the float-mantissa exhaustion at ~8s is part of the spacy character)
       float modVal = float(std::sin(double(modPhase_) * TAU_D));
       modPhase_ += modFreq / subRate;
       if (unboundedPos.value) {
-        if (modPhase_ > 1.0f) modPhase_ -= 1.0f;  // legacy: single-step, no neg wrap, accumulates
+        if (modPhase_ > 1.0f) modPhase_ -= 1.0f;  // as the C#: single-step, no neg wrap, accumulates
       } else {
         modPhase_ -= std::floor(modPhase_);
       }

@@ -34,7 +34,7 @@ using namespace mforce;
 void run_walk3_tests() {
     using namespace mforce;
     // --- vary_steps reaches Mary's exact head_a from head ([0,-1,-1,+1] ->
-    //     [0,0,+1,-1]) once the final step is perturbable (spec §4).
+    //     [0,0,+1,-1]): the final step is perturbable.
     {
         MelodicFigure head;
         head.units.push_back({1.0f, 0});
@@ -84,7 +84,7 @@ void run_walk3_tests() {
         CHECK(back.melodyProfile == "nursery_v1");
     }
 
-    // --- note_map: classification cases from Matt's annotations.
+    // --- note_map: classification cases from annotated melodies.
     {
         Scale c = Scale::get("C", "Major");
         MelodyProfile prof = MelodyProfile::load_by_name("nursery_v1");
@@ -134,7 +134,7 @@ void run_walk3_tests() {
             CHECK(kinds(r).size() >= 1 && kinds(r)[0] == "passing");
             CHECK(std::fabs(r.logScore) < 1e-9);
         }
-        // Suspension (walk1 s101): F F F F over G7 | F E over C -> F held into C,
+        // Suspension: F F F F over G7 | F E over C -> F held into C,
         // resolves down by step = suspension; F G instead = unresolved (departure).
         {
             HarmonyTimeline tl = timeline({{g7, 4.0f}, {cI, 4.0f}});
@@ -159,7 +159,7 @@ void run_walk3_tests() {
             CHECK(std::fabs((down.logScore - up.logScore) - std::log(24.0)) < 1e-6);
             CHECK(up.departures == 1 && down.departures == 0);
         }
-        // Leading tone B over G7 leaping down to F (walk2 s101): tendency
+        // Leading tone B over G7 leaping down to F: tendency
         // "other" (1/100) -> departure.
         {
             HarmonyTimeline tl = timeline({{g7, 4.0f}, {cI, 4.0f}});
@@ -234,7 +234,7 @@ void run_walk3_tests() {
         CHECK(pick_top_k(none, 1, r1) == 0);
     }
 
-    // --- select_anchors: the 7th of V7 now resolves down ~24:1 (was ~400:1),
+    // --- select_anchors: the 7th of V7 resolves down ~24:1,
     //     measured end to end on a 2-figure phrase over G7 -> C.
     {
         Scale c = Scale::get("C", "Major");

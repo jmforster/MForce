@@ -7,19 +7,16 @@ namespace mforce {
 namespace passage_anchors {
 
 // grid_complete(passage, grid) — quantize the passage's TOTAL length to the
-// grid by adjusting the last note, and return the delta applied (comp #18).
+// grid by adjusting the last note, and return the delta applied.
 //
-// The phrase path has done this since run 13 — "a phrase stops at a barline,
-// not mid-beat" — and the passage path never got the equivalent, so 17 of 23
-// engine passage renders ended at things like 9.38 and 37.25. The cause is
-// upstream and deliberate: sample_cell DRAWS its pulse per candidate (without
-// that draw every take rendered byte-identical), and nothing downstream
-// reconciled the accumulated total with the beat grid.
+// A passage, like a phrase, stops at a barline, not mid-beat: without this a
+// passage ends at things like 9.38 or 37.25 beats. The cause is upstream and
+// deliberate: sample_cell DRAWS its pulse per candidate (without that draw
+// every take would render the same), and nothing else reconciles the
+// accumulated total with the beat grid.
 //
-// NEAREST, not ceiling. Run 17 decomposed the phrase path's ending overshoot
-// and found grid completion ceiling every phrase onto the NEXT barline was the
-// dominant term, worth +0.25 beats at the median on top of an already-correct
-// draw; `calib` fixed it by rounding to the nearest barline.
+// NEAREST, not ceiling: ceiling every phrase onto the NEXT barline adds
+// +0.25 beats at the median on top of an already-correct draw.
 //
 // Safe to mutate: Phrase's copy ctor deep-clones through Figure::clone(), so a
 // composed Passage's units are its own and cannot reach realizedMotifs. The

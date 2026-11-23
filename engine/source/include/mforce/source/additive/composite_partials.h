@@ -9,7 +9,7 @@ namespace mforce {
 // CompositePartials — combines several partial sets into one.
 // Concatenates partial arrays from all children. Used to mix, e.g.,
 // SequencePartials + ExplicitPartials in a single AdditiveSource.
-// Ported from legacy CompositePartials.cs.
+// Follows CompositePartials.cs of the C# MForce.
 // ---------------------------------------------------------------------------
 struct CompositePartials final : PartialSet {
   // The sets it concatenates, in wiring order.

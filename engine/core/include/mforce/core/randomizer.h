@@ -34,9 +34,9 @@ struct Randomizer {
     : seed_(seed), rng(seed), uni01(0.0f, 1.0f) {}
 
   // Re-anchor the draw stream to the construction seed (per-note
-  // determinism, onsets-v2 addendum 2026-09-20): an in-line note's Setup
-  // re-anchors so each note's realization is pinned the way a fresh
-  // voice's always was. Distribution reset for strict determinism.
+  // determinism): an in-line note's Setup re-anchors so each note's
+  // realization is pinned as a fresh voice's is. The distribution resets
+  // too, for strict determinism.
   void reanchor() { rng.seed(seed_); uni01.reset(); }
   uint32_t seed_;
 

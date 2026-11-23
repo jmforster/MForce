@@ -11,9 +11,6 @@ namespace mforce::dsp {
 // facilitates physics-based sound synthesis of highly nonlinear musical
 // instruments", JASA 101(2) 1120-1126 (1997); structure recovered from US
 // Patent 5,703,313 A and from JOS's Faust `fi.apnl`, which cites the paper.
-// Full derivation, provenance and the measured numbers:
-// docs/research/stk_port/PIERCE_PASSIVE_NOTES.md.
-//
 // A first-order allpass whose coefficient is a SPRING STIFFNESS seen through
 // a waveguide of impedance R0, a = (k - alpha*R0)/(k + alpha*R0), so a runs
 // -1 (free) to +1 (rigid).  The nonlinearity is asymmetry: one stiffness while

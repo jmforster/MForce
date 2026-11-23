@@ -42,7 +42,7 @@ inline const char* fault_name(Fault f) {
 // ---------------------------------------------------------------------------
 
 struct ValueSource : Component {
-  // The two host calls (Part 2 §4-5). Neither is virtual: the base owns the
+  // The two host calls. Neither is virtual: the base owns the
   // sweep, a node writes the hooks, the same shape as next()/compute().
   //
   // prepare(ctx): once per build, from the host, never per note and never on
@@ -139,7 +139,7 @@ struct ValueSource : Component {
   // The value this node held at the end of the previous tick: cur_ until the
   // node claims this tick, the value cur_ replaced from then on — the same
   // number whether the asker comes before, during or after this node's
-  // compute. What the tap edge reads (feedback_loop_design.md): a tap is one
+  // compute. What the tap edge reads: a tap is one
   // sample late wherever it sits. With no host clock there is no "this
   // tick" and the read is cur_, as every pull computes. Not virtual: a
   // stateless view's live current() has no previous value but the one it
@@ -158,8 +158,8 @@ struct ValueSource : Component {
   unsigned char take_faults() { return faults_.exchange(0, std::memory_order_relaxed); }
 
   // False when this node reads its `frequency` pin ONCE at note start and
-  // never again (KSPianoString: init_note), so an articulated/bent frequency
-  // is silently inert on it. The loader uses this to warn by name at load.
+  // never again (KSString: init_note), so an articulated/bent frequency
+  // is silently inert on it. The graph build uses this to warn by name.
   // Default true: ordinary pulled-per-sample consumption tracks a moving
   // frequency.
   virtual bool tracks_frequency_live() const { return true; }
@@ -167,7 +167,7 @@ struct ValueSource : Component {
   // Phase delay, in samples, that this node's processing imposes on a signal
   // at `hz` passing THROUGH it, from its current parameter state. DelayLine
   // sums this over its loop members to keep a tap-closed feedback loop on
-  // pitch while in-loop filters move (feedback_loop_design.md §5).
+  // pitch while in-loop filters move.
   // Memoryless nodes (shapers, gains, combiners) and generators keep the
   // default 0; only stateful in-loop processors override. Negative = phase
   // lead (highpass/bandpass below cutoff). Non-const so overrides may cache
@@ -268,7 +268,7 @@ private:
   float v_{0.0f};
 };
 
-// The tap edge (feedback_loop_design.md): a guarded read of another node's
+// The tap edge: a guarded read of another node's
 // memo, never a pull. The source is advanced by its own consumers (or by the
 // voice's tail list when only taps reach it), so a tap can close a feedback
 // cycle that a pull could not. A tap is one sample late by rule: it reads
@@ -293,7 +293,7 @@ struct TapSource final : ValueSource {
   // last rendered tick, so a never-pulled tap answers live — what the coming
   // tick delivers — while a tap pulled in that tick still answers with its
   // memo, one sample older; a step() through such a tap reads the same
-  // memo. Part 3's pins own the exact Setup-time read.
+  // memo.
   float current() const override {
     return claimed_tick() ? cur_ : guard_(source ? source->current() : 0.0f);
   }

@@ -70,8 +70,8 @@ void ChordDictionary::init_all() {
   // Canonic dictionary — smallest-interval close-voicings for every quality.
   // Serves as the voice-leading reference form and the fallback source of
   // truth for chord qualities missing from instrument-specific dictionaries.
-  // Registered under both "Canonic" (canonical name) and "Default" (legacy
-  // back-compat alias).
+  // Registered under both "Canonic" (canonical name) and "Default" (an
+  // alias).
   ChordDictionary canonic;
   canonic.shortName = "Canonic";
   canonic.name = "Canonical Chord Voicings";

@@ -9,7 +9,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# MForce.Sound.Source.PluckEvolution
+// Follows the C# MForce.Sound.Source.PluckEvolution
 // Modified Karplus-Strong: frequency-dependent averaging window + speed.
 // ---------------------------------------------------------------------------
 struct PluckEvolution final : WaveEvolution {
@@ -42,7 +42,7 @@ struct PluckEvolution final : WaveEvolution {
     }
 
     if (speed_ < 1.0f) {
-      speed_ *= 1.001f;  // legacy: slowly accelerate sub-1 speeds
+      speed_ *= 1.001f;  // as the C#: slowly accelerate sub-1 speeds
     }
   }
 

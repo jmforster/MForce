@@ -8,7 +8,7 @@
 
 namespace mforce {
 
-// Ported from C# DistortedSource — waveshaping distortion.
+// Follows the C# DistortedSource — waveshaping distortion.
 // Shifts, amplifies, and clips the input. Density controls probability of effect.
 struct DistortedSource final : Processor {
   // After the inherited `source`, in the order they are advanced.

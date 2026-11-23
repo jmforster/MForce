@@ -21,9 +21,9 @@
 using namespace mforce;
 
 
-// The review's gaps in a load: a refused slot wire says what the slot
-// takes; the deleted branch's alias key is refused by name; a part in every
-// signal position fails the load with its path's message.
+// Load refusals: a refused slot wire says what the slot takes; an alias key
+// no reader takes is refused by name; a part in every signal position fails
+// the load with its path's message.
 void run_review_gap_tests() {
     std::printf("the review's gaps: messages, the alias, the output positions\n");
     // a signal into a slot: the refusal names what the slot takes
@@ -37,7 +37,7 @@ void run_review_gap_tests() {
       {"id":"as2","type":"AdditiveSource2","params":{"frequency":220.0}}]}})";
     CHECK(load_fails_naming(deletedType, "Unknown node type: AdditiveSource2"));
     CHECK(load_fails_naming(deletedType, "author an AdditiveSource"));
-    // a FormantSequence keyed "formants" (the alias the deleted branch read) is refused by name
+    // a FormantSequence keyed "formants" (an alias no reader takes) is refused by name
     const char* seqAlias = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
       {"id":"spec","type":"FormantPeaks","params":{"frequency":[500.0],"gain":[1.0],"width":[500.0],"power":[2.0]}},
@@ -70,7 +70,7 @@ void run_review_gap_tests() {
         "node 'ch1' (SoundChannel): 'source' reads 'nowhere', which names no node"));
 }
 
-// The review's gaps, the lifecycle's: parts nested three deep are prepared and
+// Lifecycle: parts nested three deep are prepared and
 // started through their owners; the live note-on's reseed reaches a signal.
 void run_review_gap_lifecycle_tests() {
     std::printf("the review's gaps: nesting, the live reseed\n");

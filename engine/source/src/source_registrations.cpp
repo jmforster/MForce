@@ -416,7 +416,7 @@ void register_all_sources() {
     // Modulators, the Experimental shelf
     // -----------------------------------------------------------------------
 
-    // Transition-name match (spec 2026-09-19-note-transitions §5). The
+    // Transition-name match. The
     // `name` is a string setting; the builder resolves it against the
     // instrument's vocabulary.
     reg.register_type("NameGate", {.family = Family::Modulator, .shelf = Shelf::Experimental},

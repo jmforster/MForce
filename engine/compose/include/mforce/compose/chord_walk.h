@@ -11,32 +11,20 @@ namespace mforce {
 //
 // A ChordFigure's steps are chord-TONE indices, not scale degrees, so the
 // running cursor cannot simply be stepped: it has to be re-seated on the
-// chord's resolved tones. Both strategies had a verbatim copy of this;
-// factored out when the phrase_aware norm-breaker arm (32 chords) crashed
-// with "Unknown PitchDef offset: -3" — AFS crashes identically on the same
-// progression, so this is a pre-existing hole, not a new one. The walk is an
-// unbounded random walk in register: nothing stopped it descending past note
-// number 0, where Pitch::from_note_number does `n % 12` on a negative and
-// hands PitchDef::get an offset that does not exist.
+// chord's resolved tones. The walk is a random walk in register, so it must
+// walk exactly what realization walks, or the cursor a strategy computes a
+// cadential approach from is not the pitch the listener hears (and the
+// approach lands on the wrong degree), and a descending bias can run the
+// cursor below note number 0, where Pitch::from_note_number does `n % 12` on
+// a negative and hands PitchDef::get an offset that does not exist
+// ("Unknown PitchDef offset: -3"). So, as realization does, it:
 //
-// The old walk did not agree with realization, and that is what made the
-// crash possible AND made chord-driven cadences land on the wrong degree:
-//
-//   * it applied the figure's NET step in ONE step_chord_tone-style hop,
-//     where realize_events applies EVERY unit's step in turn.
-//     pitch_walker.h says in as many words that step_chord_tone is not
-//     linear over walks, so one hop of n is not n hops of one;
-//   * it resolved the chord at the RUNNING octave, where realization
-//     resolves at kBaseOctave. Resolving at the running octave makes the
-//     candidate window follow the cursor, so a descending bias compounds
-//     instead of being re-anchored — that is the runaway that reached
-//     note number -3.
-//
-// So the cursor the strategy used to compute a cadential approach was not
-// the pitch the listener would hear, and the approach was therefore
-// computed from the wrong degree. This walks exactly what realization
-// walks. It changes AFS output too; that is a fix, not a regression, and
-// the cadence hit-rate measurement is the evidence.
+//   * applies EVERY unit's step in turn, not the figure's NET step in one
+//     step_chord_tone-style hop (pitch_walker.h: step_chord_tone is not
+//     linear over walks, so one hop of n is not n hops of one);
+//   * resolves the chord at kBaseOctave, not the RUNNING octave, which would
+//     make the candidate window follow the cursor, so a descending bias
+//     compounds instead of being re-anchored.
 // ---------------------------------------------------------------------------
 namespace chord_walk {
 

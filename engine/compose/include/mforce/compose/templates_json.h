@@ -159,7 +159,7 @@ inline void from_json(const json& j, TransformOp& t) {
     else t = TransformOp::None;
 }
 
-// MotifRole and MotifOrigin enum JSON helpers (2026-04-15 umbrella spec).
+// MotifRole and MotifOrigin enum JSON helpers.
 inline void to_json(json& j, MotifRole r) {
     switch (r) {
         case MotifRole::Thematic:      j = "Thematic"; break;
@@ -516,7 +516,7 @@ inline void from_json(const json& j, Motif& m) {
         m.constraints = std::move(ft);
     }
 
-    // New metadata (2026-04-15). Defaults: empty roles, User origin, no derivation.
+    // Roles and derivation. Defaults: empty roles, User origin, no derivation.
     if (j.contains("roles") && j.at("roles").is_array()) {
         for (const auto& r : j.at("roles")) {
             m.roles.insert(r.get<MotifRole>());
@@ -713,7 +713,7 @@ inline void write_choice(json& j, const char* key, const StrategyChoice& c,
 // Connectors: DENSE array, same length as figures — connectors[i] is
 // the bridge INTO figures[i], so element 0 is a dummy (write null).
 // NOT an N-1 "between figures" list: [1,-1] for three figures shifts
-// figure 0 by +1 (bit the 2026-09-21 structural-Mary round).
+// figure 0 by +1.
 // Each entry accepts null (dummy/default), an integer (bare leadStep
 // shorthand), or a full object with elide/adjust/leadStep fields.
 inline std::vector<std::optional<FigureConnector>> read_connectors(const json& arr) {

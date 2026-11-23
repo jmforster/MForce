@@ -39,7 +39,7 @@ struct ElaboratedPhraseSettings {
 };
 
 // ---------------------------------------------------------------------------
-// ElaboratedPhraseStrategy — Phase 1 of recursive elaboration.
+// ElaboratedPhraseStrategy — one level of recursive elaboration.
 //
 // Builds a skeleton MelodicFigure (via RFB unless config supplies a literal),
 // walks each anchor, and per anchor randomly chooses Leave (single-note
@@ -50,8 +50,6 @@ struct ElaboratedPhraseSettings {
 //
 // Figures are NEVER mutated. The cursor advance happens at realize time via
 // the FC.leadStep field carried on phrase.connectors.
-//
-// Spec: docs/superpowers/specs/2026-04-24-elaborated-phrase-strategy-design.md
 // ---------------------------------------------------------------------------
 class ElaboratedPhraseStrategy : public PhraseStrategy {
 public:

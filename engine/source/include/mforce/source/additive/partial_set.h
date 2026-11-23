@@ -28,9 +28,8 @@ struct PartialSet : DrivenPart {
   // order as one flat loop over all partials. Float addition is not
   // associative: subtotalling would change the last bits of the output.
   //
-  // The default body is the exact loop the additive source used to run
-  // (NaN = past cutoff, gate that partial only), so an implementer that
-  // doesn't override keeps identical behaviour.
+  // The default body sums get_partial_value over the partials in index
+  // order, skipping a NaN (past cutoff: that partial only).
   virtual float sum_partials(float acc, float amplitude, float frequency,
                              float phaseDiff, Formant* formant,
                              float formantWeight, float formantFloor) {

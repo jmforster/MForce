@@ -22,7 +22,7 @@ using namespace mforce;
 
 using CurveRows = std::vector<CurveNode::ExprKnot>;
 
-// The curves of the Curve's twin test, each under one interp in one mode, and
+// The curves the table tests read, each under one interp in one mode, and
 // the grid of x it is read over: below the first knot, at each knot, between,
 // above the last, 0 and a negative x.
 struct CurveCase {
@@ -136,7 +136,7 @@ void run_curve_table_tests() {
         return true;
     };
 
-    // (1) The twin for the knot lookup: the setters and set_array give the
+    // (1) The knot lookup: the setters and set_array give the
     // recorded map(x), bit for bit, and next() through a wired constant agrees.
     const auto cases = curve_cases();
     CHECK(cases.size() == std::size(kCurveBaseMap));

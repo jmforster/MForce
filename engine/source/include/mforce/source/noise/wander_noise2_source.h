@@ -7,7 +7,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# MForce.Sound.Source.WanderNoise2Source
+// Follows the C# MForce.Sound.Source.WanderNoise2Source
 // Step-based random walk with probabilistic direction reversal and retrace.
 //   minSpeed/maxSpeed: step size range per sample
 //   reverseProb:       probability of flipping direction each sample

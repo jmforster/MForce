@@ -5,7 +5,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.TriangleSource
+// Follows the C# MForce.Sound.Source.TriangleSource
 // Bias controls the peak position (0..1); 0.5 = symmetric triangle.
 //
 // `power` warps the two straight legs into curves, modelled on RampSource's
@@ -13,7 +13,7 @@ namespace mforce {
 //   |power| <= 1 : linear — the historical triangle, byte-for-byte.
 //   power  >  1  : CONCAVE sides — legs pinch inward (spiky), exponent `power`.
 //   power  < -1  : CONVEX  sides — legs bow outward (domed), exponent |power|.
-// Default 1.0 keeps every existing patch bit-identical (none set `power`).
+// Default 1.0: straight legs.
 //
 // By default both sides bend the SAME way: the falling leg is the mirror of the
 // rising leg about the peak, so the waveform stays symmetric. Setting the
@@ -40,8 +40,8 @@ protected:
     const float b = bias.current();
     const float p = power.current();
 
-    // Neutral band: reproduce the legacy arithmetic exactly (byte-identical),
-    // identical in both symmetric and asymmetric modes.
+    // Neutral band: the C# arithmetic, the same in both symmetric and
+    // asymmetric modes.
     if (std::fabs(p) <= 1.0f) {
       if (currPos_ <= b) {
         return -1.0f + currPos_ * (4.0f / b) / 2.0f;

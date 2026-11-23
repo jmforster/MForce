@@ -88,11 +88,11 @@ void run_formant_bands_twin_tests() {
     CHECK(same_bits(empty.gain(0.0f), 0.0f) && same_bits(empty.gain(100.0f), 0.0f));
 }
 
-// FormantSequence against the crossfade it was: fPtr and fWeight as the old
-// next() computed them, each neighbour gated by its own old contains(), over
+// FormantSequence against a reference crossfade: fPtr and fWeight computed
+// in the test, each neighbour gated by its own contains(), over
 // children of two kinds and blends 0, 0.37, 0.5, 1 (two children) and
 // 0.25, 0.5, 0.75, 1 (three); where only one neighbour contains, the other
-// contributes the 0 the old gate gave it.
+// contributes the 0 the reference's gate gives it.
 void run_formant_sequence_twin_tests() {
     using formant_peaks_twin::Row;
     std::printf("formant sequence twin: the crossfade over gated children\n");

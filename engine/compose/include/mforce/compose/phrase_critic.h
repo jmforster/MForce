@@ -1,9 +1,9 @@
 #pragma once
-// Phrase critic (walk3 spec 2026-09-22 §2) + passage range + the top-k pick
-// shared by the phrase and passage levels (§3). Whole-phrase judgments that
-// no single note choice owns. The gap-fill, leap-timing, final-note
-// regression and penultimate terms are the walk2 anchor_selector formulas,
-// unchanged, with their constants read from the profile.
+// Phrase critic + passage range + the top-k pick shared by the phrase and
+// passage levels. Whole-phrase judgments that no single note choice owns.
+// The gap-fill, leap-timing, final-note regression and penultimate terms
+// follow the anchor_selector formulas, with their constants read from the
+// profile.
 #include "mforce/compose/note_map.h"
 #include "mforce/compose/melody_profile.h"
 #include "mforce/core/randomizer.h"

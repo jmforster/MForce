@@ -10,7 +10,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.PhasedValueSource
+// Follows the C# MForce.Sound.Source.PhasedValueSource
 // Composite source with overlapping stages and crossfade transitions.
 // Used for granular synthesis — stages play sequentially with configurable
 // overlap where adjacent stages crossfade.

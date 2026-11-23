@@ -1,5 +1,5 @@
 #pragma once
-// Genre melody profile (walk3 spec 2026-09-22 §1-3): the note map, the
+// Genre melody profile: the note map, the
 // phrase critic's weights and the best-of-N search sizes, read from the
 // "melody" block of styles/<name>.json. Strict: every key is required and a
 // missing one throws by name. The file IS the ruleset; there are no

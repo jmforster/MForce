@@ -7,12 +7,12 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# MForce.Sound.Source.WanderNoise3Source
+// Follows the C# MForce.Sound.Source.WanderNoise3Source
 // Second-order slope control, fully deterministic (no random per sample).
 // Same params as v1 but slope change is deltaSpeed/Rate (not random).
 // Output: (value*2-1) * amplitude, mapping internal [0,1] to [-1,1].
-// Fix: legacy had value starting at -1 with [0,1] mapping, causing -3 output.
-// Corrected to start at 0 and clamp at 0 (not -1).
+// The value starts at 0 and clamps at 0, not -1 as in the C#, where the
+// [0,1] mapping then gave -3.
 // ---------------------------------------------------------------------------
 struct WanderNoise3Source final : Generator {
   Param amplitude {this, "amplitude",  1.0f, 0.0f, 10.0f};
@@ -49,7 +49,7 @@ struct WanderNoise3Source final : Generator {
 
     value_ = lastVal + sp / float(sample_rate()) * slope_;
 
-    // Boundary clamp with state reset (legacy behavior)
+    // Boundary clamp with state reset, as the C# does
     if (value_ > 1.0f) {
       value_ = 1.0f;
       slope_ = 0.0f;
@@ -61,7 +61,7 @@ struct WanderNoise3Source final : Generator {
       slopeChgDir_ = 1.0f;
     }
 
-    // Legacy output mapping: (value*2-1)*amplitude
+    // Output mapping, as the C#: (value*2-1)*amplitude
     return (value_ * 2.0f - 1.0f) * amp;
   }
 

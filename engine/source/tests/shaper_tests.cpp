@@ -33,7 +33,7 @@ void run_shaper_tests() {
     CHECK_NEAR(sh->next(), 0.8f, 1e-3f);
 
     // A drawn dead-zone curve: flat 0 across [-0.5, 0.5], ramps outside.
-    // smoothness 0.5 = linear segments (0 = hold-v1 step, 1 = sine).
+    // smoothness 0.5 = linear segments (0 = hold step, 1 = sine).
     auto dz = std::make_shared<ShaperSource>();
     dz->set_array("values", {-1.0f, -1.0f, -0.5f, 0.0f, 0.5f, 0.0f, 1.0f, 1.0f});
     dz->set_param("smoothness", std::make_shared<ConstantSource>(0.5f));
@@ -55,7 +55,7 @@ void run_shaper_tests() {
     CHECK(back.size() == 8 && back[2] == -0.5f);
 }
 
-// Shaper per-segment overrides (curve-morph plan Task 5). "segs" array:
+// Shaper per-segment overrides. "segs" array:
 // flat [typeIdx, power] per segment; typeIdx 0 = default (smoothness),
 // else 1 + int(RampType).
 void run_shaper_seg_tests() {
@@ -111,7 +111,7 @@ void run_wormhole_tests() {
     CHECK_NEAR(bare.next(), 0.0f, 1e-9f);
 }
 
-// Shaper morph pin (curve-morph plan Task 8): point-space A/B blend.
+// Shaper morph pin: point-space A/B blend.
 void run_shaper_morph_tests() {
     RenderContext ctx{48000};
     ShaperSource sh;
@@ -154,10 +154,9 @@ void run_shaper_morph_tests() {
     CHECK_NEAR(plain.map(0.3f), 0.3f, 1e-7f);
 }
 
-// Shared Curve evaluator parity (2026-09-05 curve-morph plan Task 2):
-// Curve::eval must reproduce CurveNode::map (all three domains, smoothness
-// 0.5 == exact lerp) and ShaperSource::map (SmoothnessInterpolator path)
-// before either host delegates to it.
+// Shared Curve evaluator parity: Curve::eval gives CurveNode::map (all three
+// domains, smoothness 0.5 == exact lerp) and ShaperSource::map
+// (SmoothnessInterpolator path).
 void run_curve_shared_tests() {
     RenderContext ctx{48000};
 

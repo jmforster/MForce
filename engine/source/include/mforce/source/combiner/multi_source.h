@@ -5,7 +5,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.MultiSource
+// Follows the C# MForce.Sound.Source.MultiSource
 // Weighted sum of ValueSources with optional per-source sample delay.
 // Used for polyphony (overlapping notes) and composite instruments (WTString).
 //

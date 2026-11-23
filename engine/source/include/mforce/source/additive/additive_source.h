@@ -9,7 +9,7 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // AdditiveSource — thin source that sums partials through a PartialSet.
-// Ported from legacy AdditiveSource.cs (the thin loop over Partials).
+// Follows AdditiveSource.cs of the C# MForce (the thin loop over Partials).
 //
 // All per-partial rendering (envelopes, rolloff, detune, expand) lives in
 // the Partials object. This source just owns frequency/amplitude/phase,
@@ -50,11 +50,10 @@ protected:
 
 private:
   // --- NoiseBed (clarinet-analysis breath bed; inert at noiseBedLevel 0) ---
-  // v1 simplification of the report's "formant-shaped" bed: the measured
-  // residual IS band-passed hiss (centroid ~2.9 kHz, band ~1.5-4 kHz), so a
-  // single 2nd-order bandpass at (noiseBedFreq, Q = freq/width) stands in for
-  // sharing the formant path. Deviation is deliberate; revisit
-  // if the bed should track a patch's formant stack.
+  // The bed is one 2nd-order bandpass at (noiseBedFreq, Q = freq/width), not
+  // the formant path: the measured clarinet residual is band-passed hiss
+  // (centroid ~2.9 kHz, band ~1.5-4 kHz). It does not track a patch's
+  // formant stack.
   Randomizer noiseRng_;  // seeded from the AdditiveSource seed (reproducible)
 
   // Per-note state (set in start)

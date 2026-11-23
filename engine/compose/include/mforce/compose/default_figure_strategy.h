@@ -22,10 +22,8 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // DefaultFigureStrategy
 //
-// Wraps the pre-refactor ClassicalComposer::compose_figure /
-// generate_figure / generate_shaped_figure / choose_shape / apply_transform
-// code paths, so that a FigureTemplate routed through Composer::compose_figure
-// produces byte-identical output compared to pre-refactor ClassicalComposer.
+// The figure paths of the classical composer: compose_figure,
+// generate_figure, generate_shaped_figure, choose_shape and apply_transform.
 // ---------------------------------------------------------------------------
 // Cached Markov atom pool, loaded once from lib/figures/markov_pool.json.
 // Returns nullptr if the file is absent/unparseable, so callers fall back to
@@ -57,11 +55,8 @@ public:
   // compose_figure is DECLARED here and DEFINED at the end of this file.
   MelodicFigure compose_figure(Locus locus, const FigureTemplate& figTmpl) const override;
 
-  // PUBLIC so realize_motifs can call generate_figure
-  // directly, bypassing compose_figure's switch. The pre-refactor
-  // ClassicalComposer::realize_motifs called the private generate_figure
-  // directly, so preserving that call shape is required for bit-identical
-  // output against the golden render.
+  // PUBLIC so realize_motifs can call generate_figure directly, bypassing
+  // compose_figure's switch: a motif is generated without the switch's draws.
   MelodicFigure generate_figure(const FigureTemplate& figTmpl, uint32_t seed) const;
   MelodicFigure apply_transform(const MelodicFigure& base, TransformOp op,
                                 int param, uint32_t seed) const;
@@ -75,7 +70,7 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
     const FigureTemplate& figTmpl, uint32_t seed) const {
     // Pool-first: draw an idiomatic Markov atom matching the template's beat/note
     // budget. On no-match (or pool unavailable, or override), fall through to the
-    // procedural generator below. Contour is left unspecified for now.
+    // procedural generator below. Contour is left unspecified.
     if (usePool && !environment_variable_is_set("MFORCE_FIGURE_RANDOM")) {
         if (PoolFigureBuilder* pool = markov_pool_singleton()) {
             Constraints pc;
@@ -127,7 +122,7 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
       if (!fig.units.empty()) fig.units[0].step = 0;
 
       Randomizer varyRng(seed + 2);
-      if (varyRng.decide(1.0f)) {  // TEMP: 1.0f forces vary_rhythm always (was 0.4f) — calibration test
+      if (varyRng.decide(1.0f)) {  // 1.0f: vary_rhythm always runs; decide() still draws from varyRng
         fig = figure_transforms::vary_rhythm(fig, varyRng);
       }
       return fig;
@@ -248,7 +243,7 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
         fig = generate_figure(figTmpl, figSeed);
       }
 
-      // Phase 2 composition quality: proportional scaling to enforce totalBeats.
+      // Proportional scaling to enforce totalBeats.
       // Applies only to Generate-path figures. Locked/Reference/Transform/Literal
       // paths take durations verbatim from the user.
       // Shapes that generate exact musical rhythms (Skipping, Stepping,

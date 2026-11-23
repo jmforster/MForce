@@ -16,7 +16,7 @@ using SourceFactory = std::function<std::shared_ptr<Component>(
     std::optional<uint32_t> seed)>;
 
 // The one classification of a node type, declared where the type is
-// registered: its family (the families table in docs/architecture/part3-nodes.md),
+// registered: its family,
 // the label the editor's menus show (derived from the type name unless given)
 // and the shelf it sits on — Main for the create menu's family menus,
 // Experimental for the parked and the unclassified, None for a registered

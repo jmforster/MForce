@@ -13,8 +13,8 @@ using namespace mforce;
 
 
 // The one classification, declared where a type is registered: every type's
-// family, label and shelf (the families table in docs/architecture/part3-nodes.md;
-// the shelf is today's menu — everything not in a main family menu is Experimental,
+// family, label and shelf (the shelf is the menu: everything not in a main
+// family menu is Experimental,
 // and a type the host makes by an item of its own is on no shelf), the label
 // derived from the type name where today's menu had none, the loading alias
 // still building its type, and labels unique within a family and shelf.
@@ -170,8 +170,8 @@ void run_registry_family_tests() {
 }
 
 // The menu's content is the registry's: for each family and shelf, the types
-// in the order the menu lists them — today's menu order, which registration
-// order now carries. This is what both the create menu and the Replace-with
+// in the order the menu lists them, which is registration order. This is
+// what both the create menu and the Replace-with
 // menu draw.
 struct MenuRow { Family family; Shelf shelf; std::vector<const char*> names; };
 static const MenuRow kMenuTable[] = {

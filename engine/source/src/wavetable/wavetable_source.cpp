@@ -77,8 +77,8 @@ float WavetableSource::compute_raw() {
   // Fractional read head — advance by currFreq_/baseFreq_ so pitch bends on
   // `frequency` bend the output. The loop itself runs at base pitch (above);
   // this is a resample on read. rateScale==1 (no bend) lands on integer
-  // positions, so linear-interp collapses to values_[idx] and output matches
-  // legacy behavior exactly.
+  // positions, so linear-interp collapses to values_[idx], the table value
+  // itself.
   float rateScale = (baseFreq_ > 0.0f) ? currFreq_ / baseFreq_ : 1.0f;
   readPos_ += rateScale;
   while (readPos_ >= float(len)) readPos_ -= float(len);

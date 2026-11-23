@@ -9,7 +9,7 @@
 namespace mforce {
 
 // Per-sample drawn-curve transfer: y = curve(drive * x) — the junction
-// nonlinearity for feedback loops (feedback_loop_design.md §3.5), and a
+// nonlinearity for feedback loops, and a
 // free waveshaper open-loop. values[] holds ABSOLUTE (x, y) breakpoints
 // ascending in x (NOT the SegmentSource delta form); evaluation is
 // piecewise between breakpoints through SmoothnessInterpolator, clamped
@@ -18,26 +18,26 @@ struct ShaperSource final : Processor {
   Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio"};
   Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1"};
   // Point-space blend toward curve B (values2/segs2); 0 = pure curve A, the
-  // single-curve shaper. Curve-morph spec §5.
+  // single-curve shaper.
   Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1"};
-  // Hysteresis thresholds, in post-drive curve-x units (hysteresis spec §2).
+  // Hysteresis thresholds, in post-drive curve-x units.
   // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture.
   // compute() reads them only in hysteresis mode; the base pulls them every
   // sample regardless, so a modulator wired here runs from the note's start.
   Param breakaway {this, "breakaway",  0.6f, 0.0f, 2.0f,  "curve-x"};
   Param capture   {this, "capture",    0.0f, 0.0f, 2.0f,  "curve-x"};
-  // Stick/slip junction mode (hysteresis spec §3): curve A = stick, curve B
+  // Stick/slip junction mode: curve A = stick, curve B
   // = slip, one bit of state. Mutually exclusive with morph (morph is
   // ignored while on).
   Setting<bool> hysteresis{this, "hysteresis", false, false, true};
   Array values {this, "values",  nullptr, 0.0f, -2.0f, 2.0f};
-  // Per-segment overrides (curve-morph spec §3): flat [typeIdx, power]
+  // Per-segment overrides: flat [typeIdx, power]
   // per segment; typeIdx 0 = default (smoothness pin), else
   // 1 + int(RampType) (1 Linear, 2 Expo, 3 InverseExpo, 4 Sine,
-  // 5 Hold). Empty = all default (existing patches untouched).
+  // 5 Hold). Empty = all default.
   Array segs   {this, "segs",    nullptr, 0.0f, 0.0f,  40.0f};
-  // Morph curve B (spec §5): same shapes as values/segs; empty =
-  // single-curve Shaper. Inert until the morph pin lands.
+  // Morph curve B: same shapes as values/segs; empty = single-curve
+  // Shaper, and the morph pin then has no effect.
   Array values2{this, "values2", nullptr, 0.0f, -2.0f, 2.0f};
   Array segs2  {this, "segs2",   nullptr, 0.0f, 0.0f,  40.0f};
 

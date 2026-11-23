@@ -9,7 +9,7 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // FormantSequence — a crossfade between formants over time, driven by a
 // blend signal: 0 is the first, 1 the last, and the values between morph
-// through the list evenly. Any Formant may be a member. Ported from C#
+// through the list evenly. Any Formant may be a member. Follows the C#
 // FormantSequence.
 // ---------------------------------------------------------------------------
 struct FormantSequence final : Formant {

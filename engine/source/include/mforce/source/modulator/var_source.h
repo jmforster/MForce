@@ -3,7 +3,7 @@
 
 namespace mforce {
 
-// Ported from C# MForce.Sound.Source.VarSource
+// Follows the C# MForce.Sound.Source.VarSource
 // Varies around a center value by a percentage, driven by a modulator.
 //   Absolute mode:  value = val * (1 + var * varPct)
 //   Relative mode:  value = lastVal + delta * (1 + var * varPct)

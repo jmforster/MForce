@@ -8,7 +8,7 @@ namespace mforce {
 
 RedNoiseSource::RedNoiseSource(uint32_t seed)
 : rng_(seed), interp_(0.0f, false) {
-  // Phase is meaningless; legacy passes phase=0 via base(ampl,freq,0).
+  // Phase is meaningless; the C# passes phase=0 via base(ampl,freq,0).
 }
 
 void RedNoiseSource::reset() {
@@ -29,7 +29,7 @@ float RedNoiseSource::wave() {
   if (sampleCount_ >= rampSize_ || float(rampSize_) > float(sample_rate()) / currFreq_) {
 
     // Set up for next ramp
-    // Legacy has a weird SampleCount > -RampSize branch; SampleCount is never negative in practice.
+    // The C# has a SampleCount > -RampSize branch; SampleCount is never negative, so it is not here.
     lastValue_ = nextValue_;
 
     const float rv = rampVariation.current();

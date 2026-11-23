@@ -20,13 +20,12 @@ struct ConnectivePassageSettings {
 };
 
 // ===========================================================================
-// ConnectivePassageStrategy — "connective_passage"  (stage 2)
+// ConnectivePassageStrategy — "connective_passage"
 // ===========================================================================
 //
 // The bridge between two thematic passages. Musically it is not new material:
 // it takes the TAIL of what just finished, sequences it toward a destination,
-// and broadens on arrival. The prototype's measurable claim was that it lands
-// exactly on the requested degree (3/3 takes), and that is preserved here by
+// and broadens on arrival. It lands exactly on the requested degree, by
 // backing the last anchor off by the cell's own net motion:
 //     anchors.back() = targetDegree - net_step(finalCell)
 // so anchors.back() + net_step(finalCell) == targetDegree by construction.

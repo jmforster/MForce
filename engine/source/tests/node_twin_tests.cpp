@@ -179,7 +179,7 @@ void run_static_pair_twin_tests() {
             sr.set_setting("bias", q[2]);
             CHECK(static_hash(sr) == base("staticrange" + at));
         }
-    // The default seeds are the old ones.
+    // The default seeds are the recorded ones.
     StaticVarSource dv;
     dv.set_setting("baseValue", 2.0f);
     dv.set_setting("varPct", 0.5f);

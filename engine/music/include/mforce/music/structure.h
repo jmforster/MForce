@@ -87,7 +87,7 @@ struct ElementSequence {
     if      (e.is_note())  endBeat += e.note().durationBeats;
     else if (e.is_hit())   endBeat += e.hit().durationBeats;
     else if (e.is_rest())  endBeat += e.rest().durationBeats;
-    else if (e.is_chord()) endBeat += e.chord().dur;  // remove with stage 9
+    else if (e.is_chord()) endBeat += e.chord().dur;
     if (endBeat > totalBeats) totalBeats = endBeat;
   }
 
@@ -235,7 +235,7 @@ struct Part {
   // by direct-build helpers below.
   ElementSequence elementSequence;
 
-  // Backwards-compat read accessor (was a field; now read from elementSequence)
+  // Read from elementSequence.
   float totalBeats() const { return elementSequence.totalBeats; }
 
   // --- Direct event building (for testing, simple progressions) ---

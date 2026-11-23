@@ -155,7 +155,7 @@ void run_envelope_table_tests() {
         return render_samples(e, n);
     };
 
-    // (1) The twin for the stage layout: add_stage and set_array lay out the
+    // (1) The stage layout: add_stage and set_array lay out the
     // same stages and render the same samples.
     std::vector<std::pair<std::vector<Stage>, float>> lists;
     for (float a : {0.0f, 0.15f, 0.4f})

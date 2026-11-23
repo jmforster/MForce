@@ -23,9 +23,9 @@ inline int degree_in_scale(const Pitch& pitch, const Scale& scale) {
 }
 
 // The shape a Generate figure takes at `posInPhrase` of `totalFigures` in a
-// phrase of function `func`, drawn from `seed`. approachArrival: comp #9
-// knob, from PhraseTemplate::cadentialArrival; false (default) keeps the
-// standing HeldNote arrival.
+// phrase of function `func`, drawn from `seed`. approachArrival: from
+// PhraseTemplate::cadentialArrival; false (default) keeps the HeldNote
+// arrival.
 inline FigureShape choose_shape(
     MelodicFunction func, int posInPhrase, int totalFigures, uint32_t seed,
     bool approachArrival = false) {
@@ -67,10 +67,10 @@ inline FigureShape choose_shape(
       case MelodicFunction::Cadential: {
         if (isFirst || !isLast)
           return FigureShape::CadentialApproach;
-        // comp #9. HeldNote leaves apply_cadence a single unit, so
+        // HeldNote leaves apply_cadence a single unit, so
         // build_approach_steps takes its far branch and leaps onto the
         // target — sustained, but unapproached. "approach" hands it a real
-        // figure to reshape instead. Default unchanged; see
+        // figure to reshape instead. The default is HeldNote; see
         // PhraseTemplate::cadentialArrival.
         return approachArrival ? FigureShape::CadentialApproach
                                : FigureShape::HeldNote;
