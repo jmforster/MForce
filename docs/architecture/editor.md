@@ -587,3 +587,14 @@ reversible; say so if you want any another way.
 
 10. **RtMidi is pinned to the tag `6.0.0`**: the copy on your disk had no
     git history to take a commit from.
+
+11. **An Envelope's `trigger` constant is not followed live** (4.2, found
+    by step 3's census of every node type and pin that holds a constant
+    in the library and baselines: 88 pairs, 87 followed sample for
+    sample). A voice reads that one number when it is built, to decide
+    which envelopes are on its trigger list (`voice.cpp`), so writing it
+    later would not equal a rebuild. `set_value` is false for it and the
+    player is rebuilt, as for a constant inside a Multiplex template.
+    The other way, putting every Envelope on the trigger list, changes
+    nothing a render plays but changes what the voice reports about
+    itself; it is in CLEANUP as a suggestion for after the refactor.
