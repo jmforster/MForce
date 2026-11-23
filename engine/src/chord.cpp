@@ -181,8 +181,11 @@ void Chord::init_pitches() {
   // and spread semantics.
   //   inversion (0..N-1, clamped): bass = tones[inversion] — list rotation
   //   spread (>= 0): each successive voice steps forward (spread + 1)
-  //     positions in the cycle; if that position's pitch class is already
-  //     voiced, keep advancing until a new pitch class appears.
+  //     positions in the cycle; while a pitch class of the chord is still
+  //     unvoiced and that position's pitch class is already voiced, keep
+  //     advancing until a new pitch class appears. Once every pitch class
+  //     is voiced (a chord with fewer pitch classes than tones), the
+  //     position is taken as it stands and the chord doubles a tone.
   auto posToSemis = [&](int p) {
     return tones[p % N] + float(p / N) * 12.0f;
   };
@@ -194,6 +197,10 @@ void Chord::init_pitches() {
   if (bass < 0) bass = 0;          // negative inversion deprecated
   if (bass >= N) bass = N - 1;
 
+  std::set<int> chordPCs;
+  for (int p = 0; p < N; ++p) chordPCs.insert(pcAtPos(p));
+  const std::size_t distinctPCs = chordPCs.size();
+
   std::vector<int> positions;
   positions.reserve(N);
   std::set<int> voicedPCs;
@@ -203,7 +210,9 @@ void Chord::init_pitches() {
 
   while ((int)positions.size() < N) {
     int p = positions.back() + (spread + 1);
-    while (voicedPCs.count(pcAtPos(p))) ++p;
+    if (voicedPCs.size() < distinctPCs) {
+      while (voicedPCs.count(pcAtPos(p))) ++p;
+    }
     positions.push_back(p);
     voicedPCs.insert(pcAtPos(p));
   }

@@ -3846,6 +3846,194 @@ static void run_compose_kit_tests() {
     CHECK(compose_throws_naming(template_from(melodyOnly), small, "period_passage"));
 }
 
+#include "mforce/music/dun_parser.h"
+#include "mforce/music/realize.h"
+
+// A one-section piece (C major, 8 beats at 120) whose part `name` holds one
+// passage of one phrase from C4: figure 1 steps 0, +1 (one beat each);
+// figure 2 enters by a connector of +2 and steps 0, -1 (two beats, one).
+static Piece realize_probe_piece(const std::string& name) {
+    Piece piece;
+    piece.add_section(Section("Main", 8.0f, 120.0f, Meter::M_4_4, Scale::get("C", "Major")));
+    MelodicFigure a;
+    a.units.push_back({1.0f, 0});
+    a.units.push_back({1.0f, 1});
+    MelodicFigure b;
+    b.units.push_back({2.0f, 0});
+    b.units.push_back({1.0f, -1});
+    FigureConnector lead{};
+    lead.leadStep = 2;
+    Phrase phrase;
+    phrase.startingPitch = Pitch::from_name("C", 4);
+    phrase.add_melodic_figure_with_connector(std::move(a), FigureConnector{});
+    phrase.add_melodic_figure_with_connector(std::move(b), lead);
+    Passage passage;
+    passage.add_phrase(std::move(phrase));
+    Part part;
+    part.name = name;
+    part.instrumentType = name;
+    part.passages["Main"] = std::move(passage);
+    piece.add_part(std::move(part));
+    return piece;
+}
+
+static void run_realize_events_tests() {
+    std::printf("realize_events: a hand-built piece plays; a part with events is left alone\n");
+    Piece piece = realize_probe_piece("melody");
+    const float c4 = Pitch::from_name("C", 4).note_number();
+    realize_events(piece);
+    const auto& els = piece.parts[0].elementSequence.elements;
+    CHECK(els.size() == 4);
+    if (els.size() == 4) {
+        const float starts[] = {0.0f, 1.0f, 2.0f, 4.0f};
+        const float durs[]   = {1.0f, 1.0f, 2.0f, 1.0f};
+        const float semis[]  = {0.0f, 2.0f, 5.0f, 4.0f};   // C D F E
+        bool same = true;
+        for (int k = 0; k < 4; ++k) {
+            same = same && els[k].is_note() && els[k].startBeats == starts[k]
+                && els[k].note().durationBeats == durs[k]
+                && els[k].note().noteNumber == c4 + semis[k];
+        }
+        CHECK(same);
+    }
+
+    Piece held = realize_probe_piece("melody");
+    held.parts[0].add_note(0.0f, 72.0f, 0.8f, 3.0f);
+    realize_events(held);
+    CHECK(held.parts[0].elementSequence.elements.size() == 1);
+}
+
+static void run_dun_realize_tests() {
+    std::printf("dun_to_piece plays; a truncated section pulls the next one earlier\n");
+    const Piece four = dun_to_piece(parse_dun(
+        "key:C scale:Major meter:4/4 bpm:120 start:0:4\nqn qu1 qu1 qd2\n"));
+    const auto& e4 = four.parts[0].elementSequence.elements;
+    CHECK(e4.size() == 4);
+    CHECK(!e4.empty() && e4.back().startBeats + e4.back().note().durationBeats
+                         == four.sections[0].beats);
+
+    // Section 1 is composed 5 beats long (1 + 1 + 3) and plays 3; its third
+    // note starts at 2 and is cut to end at 3, where section 2 starts.
+    const Piece cut = dun_to_piece(parse_dun(
+        "key:C scale:Major meter:4/4 bpm:120 start:0:4\n"
+        "qn qu1 h.u1 truncate:2 //\nqn qu1\n"));
+    CHECK(cut.sections.size() == 2);
+    if (cut.sections.size() != 2) return;
+    CHECK(cut.sections[0].beats == 5.0f && played_beats(cut.sections[0]) == 3.0f);
+    CHECK(section_start_beat(cut.sections, 1) == 3.0f);
+    CHECK(TimeMap(cut.sections).seconds_at(3.0f) == 1.5f);
+    CHECK(TimeMap(cut.sections).bpm_at(3.0f) == 120.0f);
+    const auto& ec = cut.parts[0].elementSequence.elements;
+    CHECK(ec.size() == 5);
+    if (ec.size() == 5) {
+        CHECK(ec[2].startBeats == 2.0f && ec[2].note().durationBeats == 1.0f);
+        CHECK(ec[3].startBeats == 3.0f && ec[4].startBeats == 4.0f);
+    }
+}
+
+static void run_harmony_timeline_tests() {
+    std::printf("the harmony timeline: the whole progression; the chord at a beat or the last\n");
+    const ChordDef* major = &ChordDef::get("Major");
+    ChordProgression first;
+    first.add(ScaleChord{0, 0, major}, 2.0f);
+    first.add(ScaleChord{4, 0, major}, 2.0f);
+    ChordProgression second;
+    second.add(ScaleChord{5, 0, major}, 4.0f);
+
+    HarmonyTimeline one;
+    one.set_segment(0.0f, 4.0f, first, "test");
+    const ChordProgression whole1 = one.progression();
+    CHECK(whole1.count() == 2 && whole1.chords.get(1).degree == 4
+          && whole1.pulses.get(0) == 2.0f && whole1.pulses.get(1) == 2.0f);
+    CHECK(one.chord_at_or_last(1.0f)->degree == 0);
+    CHECK(one.chord_at_or_last(2.0f)->degree == 4);    // the boundary: the later chord
+    CHECK(one.chord_at_or_last(10.0f)->degree == 4);   // past the end: the last chord
+    CHECK(one.chord_at(10.0f) == nullptr);             // chord_at keeps its own rule
+
+    HarmonyTimeline two = one;
+    two.set_segment(4.0f, 8.0f, second, "test");
+    const ChordProgression whole2 = two.progression();
+    CHECK(whole2.count() == 3 && whole2.chords.get(2).degree == 5
+          && whole2.pulses.get(2) == 4.0f);
+    CHECK(two.chord_at_or_last(3.5f)->degree == 4);
+    CHECK(two.chord_at_or_last(4.0f)->degree == 5);
+    CHECK(two.chord_at_or_last(100.0f)->degree == 5);
+
+    const HarmonyTimeline none;
+    CHECK(none.chord_at_or_last(0.0f) == nullptr && none.progression().count() == 0);
+}
+
+static void run_play_unrealized_warning_test() {
+    std::printf("play: a part with passages and no events is named in a warning\n");
+    Piece piece = realize_probe_piece("lead");
+    RecordingInstrument rec;
+    Conductor conductor;
+    const PlayResult r = play(piece, Ensemble{{{"lead", &rec}}}, conductor);
+    bool named = false;
+    for (const auto& w : r.warnings) named = named || w.find("'lead'") != std::string::npos;
+    CHECK(named);
+    CHECK(rec.played.empty());
+}
+
+// The number of tones init_pitches voices for a definition: the root unless
+// omitted, and every interval that is not a unison.
+static int tone_count(const ChordDef& def) {
+    int n = def.omitRoot ? 0 : 1;
+    for (const auto& name : def.intervals)
+        if (Interval::get(name).semitones >= 0.01f) ++n;
+    return n;
+}
+
+// True when every inversion and spreads 0 to 2 of `def` voice one pitch per tone.
+static bool voices_every_tone(const ChordDef& def) {
+    const int n = tone_count(def);
+    bool ok = true;
+    for (int inv = 0; inv < std::max(n, 1); ++inv) {
+        for (int sp = 0; sp <= 2; ++sp) {
+            Chord c;
+            c.root = Pitch::from_name("C", 4);
+            c.def = &def;
+            c.inversion = inv;
+            c.spread = sp;
+            c.init_pitches();
+            ok = ok && c.pitch_count() == n;
+        }
+    }
+    return ok;
+}
+
+static void run_init_pitches_tests() {
+    std::printf("Chord::init_pitches: every dictionary chord returns; the pins hold\n");
+    bool all = true;
+    for (const auto& def : ChordDef::all()) all = all && voices_every_tone(def);
+    for (const char* dict : {"Canonic", "Default", "Guitar-Bar-6", "g6", "Guitar-Bar-5",
+                             "g5", "Guitar-Bar-4", "g4", "Guitar-Alt", "Piano"}) {
+        for (const auto& [name, def] : ChordDictionary::get(dict).chords)
+            all = all && voices_every_tone(def);
+    }
+    CHECK(all);
+
+    // Note numbers captured from the code before the doubling rule, root C4.
+    struct Pin { const char* type; int inv, spread; std::vector<float> nns; };
+    const Pin pins[] = {
+        {"Major", 0, 0, {48, 52, 55}}, {"Major", 0, 1, {48, 55, 64}}, {"Major", 0, 2, {48, 64, 79}},
+        {"Major", 1, 0, {52, 55, 60}}, {"Major", 1, 1, {52, 60, 67}}, {"Major", 1, 2, {52, 67, 84}},
+        {"Major", 2, 0, {55, 60, 64}}, {"Major", 2, 1, {55, 64, 72}}, {"Major", 2, 2, {55, 72, 88}},
+        {"7", 0, 0, {48, 52, 55, 58}}, {"7", 0, 1, {48, 55, 64, 70}}, {"7", 0, 2, {48, 58, 67, 76}},
+        {"7", 1, 0, {52, 55, 58, 60}}, {"7", 1, 1, {52, 58, 67, 72}}, {"7", 1, 2, {52, 60, 70, 79}},
+        {"7", 2, 0, {55, 58, 60, 64}}, {"7", 2, 1, {55, 60, 70, 76}}, {"7", 2, 2, {55, 64, 72, 82}},
+        {"7", 3, 0, {58, 60, 64, 67}}, {"7", 3, 1, {58, 64, 72, 79}}, {"7", 3, 2, {58, 67, 76, 84}},
+    };
+    bool pinned = true;
+    for (const auto& pin : pins) {
+        const Chord c = Chord::create("C", 4, pin.type, 1.0f, pin.inv, pin.spread);
+        std::vector<float> nns;
+        for (const auto& p : c.pitches) nns.push_back(p.note_number());
+        pinned = pinned && nns == pin.nns;
+    }
+    CHECK(pinned);
+}
+
 #include "mforce/core/component.h"
 #include <string>
 
@@ -15631,6 +15819,11 @@ int main() {
     run_walk1_tests();
     run_compose_request_tests();
     run_compose_kit_tests();
+    run_realize_events_tests();
+    run_dun_realize_tests();
+    run_harmony_timeline_tests();
+    run_play_unrealized_warning_test();
+    run_init_pitches_tests();
     run_passage_melody_tests();
     run_passage_parse_tests();
     run_onset_field_tests();

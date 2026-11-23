@@ -38,7 +38,8 @@ struct PlayResult {
 // length is the piece's seconds plus the tail. The instruments are cleared
 // after their render: clear forgets what was rendered, not the voices' state
 // or the rotation, so a second play on the same instruments continues from
-// where the first left them.
+// where the first left them. A part with passages and no events plays
+// nothing and adds a warning naming it.
 PlayResult play(const Piece& piece, const Ensemble& ensemble,
                 Conductor& conductor, float tailSeconds = 2.0f);
 

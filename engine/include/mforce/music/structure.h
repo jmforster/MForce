@@ -110,8 +110,8 @@ struct ElementSequence {
 // ===========================================================================
 // Phrase / Passage — Composer-internal scratch space.
 //
-// Built by strategies during compose(); walked by realize_event_sequences_
-// to populate Part.elementSequence. NOT consumed by Conductor or any
+// Built by strategies during compose(), or by dun_to_piece; walked by
+// realize_events to populate Part.elementSequence. NOT consumed by Conductor or any
 // downstream code — the authoritative score is Part.elementSequence.
 //
 // These types are kept in structure.h for now (rather than moved to a
@@ -212,8 +212,7 @@ struct Section {
 
   // Harmony context
   std::vector<KeyContext> keyContexts;
-  std::optional<ChordProgression> chordProgression;
-  HarmonyTimeline harmonyTimeline;
+  HarmonyTimeline harmonyTimeline;  // the section's harmony; empty = none
 
   Scale active_scale_at(float beat) const {
     Scale result = scale;
@@ -288,12 +287,20 @@ struct Piece {
   void add_part(Part p) { parts.push_back(std::move(p)); }
 };
 
-// The beat at which section `index` starts: the earlier sections' beats,
-// summed in order. The composer stamps events from it and TimeMap maps from
-// it, so the two cannot disagree.
+// The beats of a section that are played: its composed beats less the
+// truncated tail, not below 0.
+inline float played_beats(const Section& s) {
+  const float played = s.beats - s.truncateTailBeats;
+  return played < 0.0f ? 0.0f : played;
+}
+
+// The beat at which section `index` starts: the earlier sections' played
+// beats, summed in order, so a truncated section pulls the next one
+// earlier. The realize step and the composer stamp events from it and
+// TimeMap maps from it, so they cannot disagree.
 inline float section_start_beat(const std::vector<Section>& sections, std::size_t index) {
   float beat = 0.0f;
-  for (std::size_t k = 0; k < index && k < sections.size(); ++k) beat += sections[k].beats;
+  for (std::size_t k = 0; k < index && k < sections.size(); ++k) beat += played_beats(sections[k]);
   return beat;
 }
 

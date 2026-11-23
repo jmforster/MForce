@@ -28,9 +28,9 @@
 #include "mforce/music/anchor_selector.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/music/realization_strategy.h"
-#include "mforce/music/dynamic_state.h"
 #include "mforce/music/pitch_walker.h"
 #include "mforce/music/compose.h"
+#include "mforce/music/realize.h"
 #include "mforce/core/randomizer.h"
 #include <cmath>
 #include <cstdio>
@@ -163,7 +163,7 @@ struct Composer {
       }
     }
     realize_chord_parts_(piece, plan);
-    realize_event_sequences_(piece, plan);
+    realize_events(piece);
   }
 
   Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) {
@@ -225,15 +225,16 @@ private:
 
       // Wire harmony
       Section& section = piece.sections.back();
+      std::optional<ChordProgression> progression;
       if (sd.chordProgression) {
-        section.chordProgression = *sd.chordProgression;
+        progression = *sd.chordProgression;
       } else if (!sd.progressionName.empty()) {
-        section.chordProgression = ChordProgressionBuilder::build(sd.progressionName, sd.beats);
+        progression = ChordProgressionBuilder::build(sd.progressionName, sd.beats);
       }
       section.keyContexts = sd.keyContexts;
 
       // Desugar the section key into a beat-0 KeyContext. This is what makes
-      // the melody path key-aware (realize_passage_to_events_ gates on
+      // the melody path key-aware (realize_events gates on
       // keyContexts being non-empty), and it composes with LATER contexts:
       // "this section is in G, and modulates to D at beat 16" is legal.
       // A context already at beat <= 0 is two statements about the same beat,
@@ -258,10 +259,11 @@ private:
         section.keyContexts.insert(section.keyContexts.begin(), ctx);
       }
 
-      // Populate HarmonyTimeline from whatever source provided the progression.
-      if (section.chordProgression) {
+      // The section's harmony is its timeline: one segment holding the
+      // authored or named progression.
+      if (progression) {
         section.harmonyTimeline.set_segment(
-            0.0f, sd.beats, *section.chordProgression, "authored");
+            0.0f, sd.beats, std::move(*progression), "authored");
       }
     }
 
@@ -278,180 +280,6 @@ private:
     realize_motifs(tmpl, rng_);
   }
 
-  // -------------------------------------------------------------------------
-  // realize_event_sequences_ — Stage 5 entry point.
-  //
-  // For each Part, walks its Passage tree (per Section) and emits realized
-  // Notes into Part.elementSequence. Stage 2's exclusive Conductor dispatch
-  // picks elementSequence over the tree-walk fallback once it's non-empty.
-  //
-  // Stage 5 handles passages composed entirely of MelodicFigure. Passages
-  // containing any ChordFigure are skipped (Conductor's tree-walk fallback
-  // handles them). Stage 6 will extend coverage to ChordFigure; Stage 7 to
-  // chord events.
-  // -------------------------------------------------------------------------
-  static float section_start_beat_(const Piece& piece, const std::string& sectionName) {
-    for (std::size_t k = 0; k < piece.sections.size(); ++k)
-      if (piece.sections[k].name == sectionName) return section_start_beat(piece.sections, k);
-    return 0.0f;
-  }
-
-  void realize_event_sequences_(Piece& piece, const PieceTemplate& /*tmpl*/) {
-    for (auto& part : piece.parts) {
-      // Skip Parts that already have events (chord parts via add_chord, or
-      // direct-build patches).
-      if (!part.elementSequence.empty()) continue;
-
-      for (const auto& sec : piece.sections) {
-        auto it = part.passages.find(sec.name);
-        if (it == part.passages.end()) continue;
-        const Passage& passage = it->second;
-
-        float passageStartBeat = section_start_beat_(piece, sec.name);
-        float effectiveBeats = sec.beats - sec.truncateTailBeats;
-        if (effectiveBeats < 0.0f) effectiveBeats = 0.0f;
-
-        realize_passage_to_events_(part, passage, sec, passageStartBeat,
-                                    effectiveBeats);
-      }
-    }
-  }
-
-  void realize_passage_to_events_(Part& part, const Passage& passage,
-                                  const Section& section,
-                                  float passageStartBeat,
-                                  float maxSectionBeats) {
-    // A passage-level scaleOverride pins the whole passage; without one the
-    // realize step reads the section's key timeline per note (see
-    // realize_phrase_to_events_). Scale is two pointers, so the per-note
-    // lookup costs nothing worth optimizing.
-    const Scale& scale = passage.scaleOverride.value_or(section.scale);
-    const bool keyAware = !passage.scaleOverride && !section.keyContexts.empty();
-
-    DynamicState dynamics;
-    int nextMarking = 0;
-    if (!passage.dynamicMarkings.empty() && passage.dynamicMarkings[0].beat <= 0.0f) {
-      dynamics = DynamicState(passage.dynamicMarkings[0].level);
-      nextMarking = 1;
-    }
-
-    float currentBeat = passageStartBeat;
-    for (const auto& phrase : passage.phrases) {
-      if (currentBeat - passageStartBeat >= maxSectionBeats) break;
-      currentBeat = realize_phrase_to_events_(part, phrase, scale, currentBeat,
-                                              dynamics, passage.dynamicMarkings, nextMarking,
-                                              passageStartBeat, section,
-                                              maxSectionBeats, keyAware);
-    }
-  }
-
-  float realize_phrase_to_events_(Part& part, const Phrase& phrase,
-                                  const Scale& baseScale,
-                                  float startBeat,
-                                  DynamicState& dynamics,
-                                  const std::vector<DynamicMarking>& markings,
-                                  int& nextMarking,
-                                  float passageBeatOffset,
-                                  const Section& section,
-                                  float maxSectionBeats,
-                                  bool keyAware = false) {
-    float currentBeat = startBeat;
-    float currentNN = phrase.startingPitch.note_number();
-    constexpr int kBaseOctave = 4;  // matches Conductor::perform()'s baseOctave
-
-    // Key-aware realization (#6 stage 3). Section::keyContexts were parsed and
-    // stored but had ZERO readers, so a modulating passage rendered the same
-    // notes in every key. `scale` now tracks the section's key timeline; when
-    // it changes, the running cursor is SNAPPED into the new scale before the
-    // step is applied — otherwise a step of 0 across the boundary would carry
-    // the old key's pitch (an F held through a change into G major).
-    // keyAware is false whenever the passage pins a scaleOverride or the
-    // section has no keyContexts, which makes this a strict no-op for every
-    // existing patch.
-    Scale scale = baseScale;
-
-    for (int f = 0; f < phrase.figure_count(); ++f) {
-      const auto& fig = *phrase.figures[f];
-      bool isChordFig = (dynamic_cast<const ChordFigure*>(phrase.figures[f].get()) != nullptr);
-
-      for (int i = 0; i < fig.note_count(); ++i) {
-        const auto& u = fig.units[i];
-
-        if (maxSectionBeats >= 0.0f &&
-            (currentBeat - passageBeatOffset) >= maxSectionBeats) {
-          return currentBeat;
-        }
-
-        if (keyAware) {
-          Scale active = section.active_scale_at(currentBeat - passageBeatOffset);
-          if (active.pitchDef != scale.pitchDef
-              || active.scaleDef != scale.scaleDef) {
-            currentNN = snap_to_scale(currentNN, active);
-            scale = active;
-          }
-        }
-
-        if (isChordFig && section.chordProgression) {
-          // Find active chord at this beat (section-relative).
-          const auto& prog = *section.chordProgression;
-          float sectionBeat = currentBeat - passageBeatOffset;
-          float chordBeat = 0.0f;
-          int chordIdx = 0;
-          for (int ci = 0; ci < prog.count(); ++ci) {
-            if (chordBeat + prog.pulses.get(ci) > sectionBeat) {
-              chordIdx = ci;
-              break;
-            }
-            chordBeat += prog.pulses.get(ci);
-            chordIdx = ci;
-          }
-          auto resolved = prog.chords.get(chordIdx).resolve(section.scale, kBaseOctave);
-          // For unit 0 of the figure, fold FC.leadStep into the chord-tone
-          // walk: a single step_chord_tone(currentNN, leadStep + u.step, ...)
-          // call snaps once and walks once. Splitting into two calls would
-          // double-snap and drift. step_chord_tone is NOT linear over walks.
-          int stepFromLead = (i == 0 && f < int(phrase.connectors.size()))
-              ? phrase.connectors[f].leadStep : 0;
-          currentNN = step_chord_tone(currentNN, stepFromLead + u.step, resolved);
-        } else {
-          int stepFromLead = (i == 0 && f < int(phrase.connectors.size()))
-              ? phrase.connectors[f].leadStep : 0;
-          currentNN = step_note(currentNN, stepFromLead + u.step, scale);
-        }
-        float soundNN = currentNN + float(u.accidental);
-
-        float passageBeat = currentBeat - passageBeatOffset;
-        while (nextMarking < int(markings.size()) &&
-               markings[nextMarking].beat <= passageBeat) {
-          dynamics.set_marking(markings[nextMarking], passageBeatOffset);
-          nextMarking++;
-        }
-
-        // Clamp a note that would ring past the section end (#18). The loop
-        // above stops STARTING notes at the boundary, but the last one to get
-        // in kept its full duration and overhung — so a passage composed
-        // longer than its section ended at an arbitrary beat no matter what
-        // grid completion did to its final unit (wandering_24x: composed to a
-        // clean 49.0, truncated, realized ending at 48.042 in a 48-beat
-        // section). Truncation now lands exactly ON the section end.
-        float dur = u.duration;
-        if (maxSectionBeats >= 0.0f) {
-          const float room = maxSectionBeats - (currentBeat - passageBeatOffset);
-          if (dur > room) dur = room;
-        }
-
-        if (!u.rest && dur > 0.0f) {
-          float vel = dynamics.velocity_at(currentBeat);
-          Note n{soundNN, vel, dur, u.articulation, u.ornament};
-          part.elementSequence.add({currentBeat, n});
-        }
-        currentBeat += dur;
-      }
-    }
-
-    return currentBeat;
-  }
-
   void realize_chord_parts_(Piece& piece, const PieceTemplate& tmpl) {
     for (int pi = 0; pi < (int)tmpl.parts.size(); ++pi) {
       const auto& partTmpl = tmpl.parts[pi];
@@ -464,9 +292,9 @@ private:
       if (!part) continue;
       RealizationStrategy* blockStrat = &kit_.strategies.realization("block");
 
-      float beatOffset = 0.0f;
       for (int si = 0; si < (int)piece.sections.size(); ++si) {
         const auto& sec = piece.sections[si];
+        const float beatOffset = section_start_beat(piece.sections, std::size_t(si));
 
         auto passIt = partTmpl.passages.find(sec.name);
         const PassageTemplate* passTmpl = (passIt != partTmpl.passages.end())
@@ -485,7 +313,7 @@ private:
                                     *passTmpl->chordProgression, "passage");
           timeline = &localTimeline;
         }
-        if (timeline->empty()) { beatOffset += sec.beats; continue; }
+        if (timeline->empty()) continue;
 
         // Rhythm-pattern source. Present = "pattern" mode: the bar pattern
         // strikes and each strike samples the timeline. Absent = "span" mode:
@@ -617,7 +445,6 @@ private:
             }
           }
         }
-        beatOffset += sec.beats;
       }
     }
   }
@@ -727,7 +554,6 @@ private:
         auto prog = ChordWalker::walk(style, wc, tmpl.masterSeed + sectionIdx * 1000);
         section->harmonyTimeline.set_segment(
             0.0f, sd->beats, prog, "chord_walker");
-        section->chordProgression = prog;
       }
 
       passage = compose_passage(locus, passIt->second);
@@ -1571,7 +1397,7 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
     // phrase.connectors alongside the figure to keep the
     // figures.size() == connectors.size() invariant. The cursor advance
     // from leadStep is applied at realize time (see
-    // realize_phrase_to_events_), NOT here. Figures are not mutated.
+    // realize_events), NOT here. Figures are not mutated.
     FigureConnector fc{};
     if (i < int(phraseTmpl.connectors.size()) && phraseTmpl.connectors[i]) {
       fc = *phraseTmpl.connectors[i];
@@ -1621,7 +1447,7 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
 // crash possible AND made chord-driven cadences land on the wrong degree:
 //
 //   * it applied the figure's NET step in ONE step_chord_tone-style hop,
-//     where realize_phrase_to_events_ applies EVERY unit's step in turn.
+//     where realize_events applies EVERY unit's step in turn.
 //     pitch_walker.h says in as many words that step_chord_tone is not
 //     linear over walks, so one hop of n is not n hops of one;
 //   * it resolved the chord at the RUNNING octave, where realization
@@ -1639,7 +1465,7 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
 namespace chord_walk {
 
 // Advance `reader` through one chord-tone figure, unit by unit, mirroring
-// realize_phrase_to_events_'s ChordFigure branch. `sectionScale` and
+// realize_events's ChordFigure branch. `sectionScale` and
 // `baseOctave` must be the ones realization uses.
 inline void advance(PitchReader& reader, const ScaleChord& chord,
                     const Scale& sectionScale, int baseOctave,
@@ -1665,8 +1491,9 @@ inline Passage AlternatingFigureStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
-  const auto& sectionChordProg = locus.piece->sections[locus.sectionIdx].chordProgression;
-  if (!sectionChordProg || sectionChordProg->count() == 0) {
+  const ChordProgression chordProg =
+      locus.piece->sections[locus.sectionIdx].harmonyTimeline.progression();
+  if (chordProg.count() == 0) {
     throw std::runtime_error("AFS: no chord progression on section");
   }
   if (pt.phrases.empty() || pt.phrases[0].figures.size() < 2) {
@@ -1674,7 +1501,6 @@ inline Passage AlternatingFigureStrategy::compose_passage(
         "AFS: need 1 phrase with at least 2 figure templates (A and B)");
   }
 
-  const auto& chordProg = *sectionChordProg;
   const auto& figTemplateA = pt.phrases[0].figures[0];
   const auto& figTemplateB = pt.phrases[0].figures[1];
 
@@ -1734,15 +1560,15 @@ inline Passage PhraseAwareFigureStrategy::compose_passage(
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
 
-  // Passage-local progression wins over the section's (run 15 added
-  // PassageTemplate::chordProgression so two passages in one section can
-  // carry different harmony).
+  // Passage-local progression wins over the section's timeline, so two
+  // passages in one section can carry different harmony.
   const ChordProgression* prog = nullptr;
+  ChordProgression sectionProg;
   if (pt.chordProgression && pt.chordProgression->count() > 0) {
     prog = &*pt.chordProgression;
   } else {
-    const auto& sectionProg = locus.piece->sections[locus.sectionIdx].chordProgression;
-    if (sectionProg && sectionProg->count() > 0) prog = &*sectionProg;
+    sectionProg = locus.piece->sections[locus.sectionIdx].harmonyTimeline.progression();
+    if (sectionProg.count() > 0) prog = &sectionProg;
   }
   if (!prog) {
     throw std::runtime_error(

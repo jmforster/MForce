@@ -13,6 +13,7 @@
 #include "mforce/music/conductor.h"
 #include "mforce/music/compose.h"
 #include "mforce/music/register_builtin.h"
+#include "mforce/music/realize.h"
 #include "mforce/music/music_json.h"
 #include "mforce/music/parse_util.h"
 #include "mforce/music/templates.h"
@@ -67,11 +68,9 @@ static void print_scale(const PlayResult& r) {
         std::cout << "  normalized: mix peak " << r.mixPeak << " scaled by " << r.scale << "\n";
 }
 
-// A piece's beats, summed over its sections.
+// A piece's played beats: where a section after the last would start.
 static float total_beats(const Piece& piece) {
-    float beats = 0.0f;
-    for (const auto& s : piece.sections) beats += s.beats;
-    return beats;
+    return section_start_beat(piece.sections, piece.sections.size());
 }
 
 // ---------------------------------------------------------------------------
@@ -544,6 +543,7 @@ static int run_play(int argc, char** argv) {
     }
     json pj = json::parse(pf);
     Piece piece = pj.get<Piece>();
+    realize_events(piece);   // a part with passages and no events gets them
 
     std::cout << "Loaded piece: " << piece.key.to_string()
               << ", " << piece.sections.size() << " sections, "
@@ -609,7 +609,9 @@ static int run_patch(int argc, char** argv) {
 // DUN mode — render a .dun/.txt melody file
 // ---------------------------------------------------------------------------
 
-// The sections and each phrase's starting pitch, on stdout.
+// The sections and each phrase's starting pitch, on stdout. A section's
+// beats are its composed length on purpose, with its truncated tail beside
+// it, so the report shows what was cut.
 static void print_dun_sections(const Piece& piece) {
     if (piece.parts.empty()) return;
     for (int si = 0; si < int(piece.sections.size()); ++si) {
@@ -669,10 +671,8 @@ static int run_dun(int argc, char** argv) {
     if (!write_stereo(outPath, r.sampleRate, stereo)) return 1;
 
     // The printed beats leave out each section's truncated tail.
-    float playedBeats = 0;
-    for (auto& sec : piece.sections) playedBeats += std::max(0.0f, sec.beats - sec.truncateTailBeats);
     std::cout << "Rendered: " << outPath
-              << " (" << playedBeats << " beats @ " << piece.sections[0].tempo << " bpm, peak=" << r.peak << ")\n";
+              << " (" << total_beats(piece) << " beats @ " << piece.sections[0].tempo << " bpm, peak=" << r.peak << ")\n";
     return 0;
 }
 

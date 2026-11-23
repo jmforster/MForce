@@ -37,6 +37,36 @@ struct HarmonyTimeline {
     return nullptr;
   }
 
+  // The chord sounding at a beat, by the realize step's rule: walking the
+  // chords in order from each segment's start, the first whose end lies
+  // past the beat. A beat at or past the last chord's end gets the last
+  // chord. Null only when the timeline is empty.
+  const ScaleChord* chord_at_or_last(float beat) const {
+    const ScaleChord* last = nullptr;
+    for (const auto& seg : segments) {
+      float b = seg.startBeat;
+      for (int i = 0; i < seg.progression.count(); ++i) {
+        last = &seg.progression.chords.get(i);
+        if (b + seg.progression.pulses.get(i) > beat) return last;
+        b += seg.progression.pulses.get(i);
+      }
+    }
+    return last;
+  }
+
+  // Every segment's chords and pulses, in order and unclipped. One segment
+  // gives its progression exactly as stored.
+  ChordProgression progression() const {
+    if (segments.size() == 1) return segments.front().progression;
+    ChordProgression result;
+    for (const auto& seg : segments) {
+      for (int i = 0; i < seg.progression.count(); ++i) {
+        result.add(seg.progression.chords.get(i), seg.progression.pulses.get(i));
+      }
+    }
+    return result;
+  }
+
   ChordProgression slice(float startBeat, float endBeat) const {
     ChordProgression result;
     for (const auto& seg : segments) {

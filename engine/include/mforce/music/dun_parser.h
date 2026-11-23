@@ -3,6 +3,7 @@
 #include "mforce/music/structure.h"
 #include "mforce/music/figures.h"
 #include "mforce/music/pitch_reader.h"
+#include "mforce/music/realize.h"
 #include <string>
 #include <vector>
 #include <sstream>
@@ -322,6 +323,9 @@ inline DunParseResult load_dun(const std::string& path) {
 // unit's step field (previously it was passed as a FigureConnector, which
 // is no longer used). The first token of phrase-figure 0 is Xn (no movement),
 // so the startingPitch carries over from the previous phrase.
+//
+// The returned piece's events are realized from its passages, so it plays
+// as returned.
 // ---------------------------------------------------------------------------
 inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -1) {
   Piece piece;
@@ -447,6 +451,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
 
   piece.parts.push_back(std::move(part));
 
+  realize_events(piece);
   return piece;
 }
 
