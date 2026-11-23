@@ -2,7 +2,8 @@
 
 Status: **signed by Matt, 2026-11-22 ("Signed, and proceed with all
 steps without waiting for my ok"), as written: the seven rulings of
-section 9 stand as proposed, the live player included.** Parent:
+section 9 stand as proposed, the live player included. Built the same
+day; section 13 says where the code differs from this text.** Parent:
 `target-architecture.md`, sections 3.4, 3.7, 3.9, 3.11 and section 8
 item 4. Written under the 2026-11-21 reset (`CLAUDE.md`, "Scope right
 now"): short, the interfaces, then the build order. The blocks still
@@ -456,3 +457,50 @@ waits. The C# analogue is a bounded `System.Threading.Channels` channel
 created with `SingleReader` and `SingleWriter`, or the Disruptor's ring
 buffer. It works only because there is exactly one producer and one
 consumer, which is why there is one queue in each direction.
+
+## 13. As built (2026-11-22)
+
+Built the day it was signed, in the five steps of section 10 and one fix
+wave: `ad463d8`, `eae609b`, `b517173`, `47d87db`, `a9e5677`, `fa085c3`.
+The report is
+`docs/autonomy/refactor/reports/2026-11-22-part5-render.md`. Where the code
+differs from the text above, the code is right and this section says how.
+
+- **Section 5, the embedded score's order.** The reader emits notes in
+  score order. The old one delivered an unphrased note late when a phrased
+  note followed it (its slide-run buffer held it), so a score that mixes
+  the two renders differently now. No score in library or baselines mixes
+  them and the null gate held; the review built one that does and measured
+  the difference. This belongs on section 6's list of what moves and was
+  not on it.
+- **Section 6, `--dun`.** Its length now comes from the map, which counts
+  a section's full beats, where the tool subtracted a truncated tail. The
+  output is silent either way until Part 6.
+- **Section 6, `PlayResult`** also carries `mixPeak`, `scale`, `buildMs`
+  and `renderMs` (the tool prints all four). `play` throws on a piece with
+  no section and on a piece none of whose parts has an instrument, where
+  the tool wrote silence.
+- **Section 7.** `Voice` has no accessor to its internals but `nodes()`
+  and `signals()`; a read-only `description()` names, by node id, the
+  output, the tails, the envelopes a line gates, the trigger envelopes and
+  the dynamic pins. `PitchedInstrument` is constructed with its pool and
+  `pool()` is const; `LivePlayer` is its `friend`. `RingOut` takes its body
+  length at construction or later (`set_body`). The three-way choice is
+  `choose_delivery` in `render/delivery.h`. `render/mixer.h`'s four types
+  have a file each and render's sources sit under `engine/src/render/`.
+- **Section 8.**
+  - `SpscQueue` has a third call, `space()`, for the producer.
+  - `LivePlayer` also has `set_volume`, `sample_rate` and `sounding()`.
+  - A fresh note first checks that a voice is idle and that the queue has
+    room for everything it will send, and only then steals, so a steal is
+    never spent on a note that cannot start.
+  - A key-up the queue cannot take is kept and sent first by the next
+    control call.
+  - An idle voice is chosen in rotation.
+  - While a line is open every `note_on` carries, as offline, so a held
+    line makes the instrument monophonic live. With one line at a time,
+    "released longest ago" and "started longest ago" name the same voice.
+  - The player does not read `InstrumentClass::sustaining`: like the
+    offline instrument it trusts the note's `hold`, and the caller applies
+    the piano rule.
+  - Queue capacity is 256 each way.

@@ -19,6 +19,27 @@ given.
 
 ## Awaiting
 
+**R22 — Part 5: render, the contract, play** (2026-11-22, commits
+`ad463d8`..`a9e5677`, fix wave `fa085c3`; design
+`docs/architecture/part5-render.md`, signed that day; report
+`docs/autonomy/refactor/reports/2026-11-22-part5-render.md`).
+- **For your ears, one render.** `renders/comp/audition/part5_replay_fix/`
+  holds `template_binary_before.wav` and `template_binary_after.wav`. The
+  piece has two sections and every part was being played once per section;
+  it is played once now. Nothing else in a gate moved (null gate 77 of 77,
+  the other 20 comp baselines the same). A verdict of "fine" closes it; if
+  the old one is the one you want, say so and I look at why.
+- **One deletion that is yours.** `mforce_cli --josie` fails before it
+  plays and did before this part; its four patches are in no folder.
+  "Delete it" removes the mode; saying nothing leaves it for Part 6.
+- **One decision of mine you can reverse.** A patch's embedded score is
+  now read in score order. The old reader delivered an unphrased note late
+  when a phrased note followed it. No score in library or baselines mixes
+  the two, so nothing you have heard changed.
+- **For the editor's design, not now.** A held line makes a live
+  instrument monophonic, because the engine has one held line per
+  instrument.
+
 **R21 — checkpoint 4.6: the module, beside the loader** (2026-11-19, commits
 `c74ba17`..`37f7ba8`, fix wave `a994e18`; report
 `docs/autonomy/refactor/reports/2026-11-19-checkpoint-4.6.md`). Nothing for

@@ -37,61 +37,60 @@ plan is superseded (its header says so): only its Task 0 ran (`34222c8`,
 uncommitted edits were reverted unread on 11-21 (a copy:
 `renders/scratch/ab47/t1/task1_uncommitted_at_stop.diff`; its
 `ExplicitPartials` mend returned early on the last column and was not
-trusted), so CLEANUP 107 stays open and no derived mark exists. NEXT after
-the flip (2026-11-22): THE RENDER PART'S DESIGN (the target's Part 5): short,
-the interfaces, for Matt to sign before any code, written at the session's
-own effort setting (Matt removed the offer-max rule on 11-22: no effort
-offers). SURVEYED 11-22, NOTHING BUILT: render is about 1,750 lines plus the
-616-line `music/conductor.h` that drives it; `instrument.h` is 796 lines and
-`play_note` 131, both over the limits; `PitchedInstrument` holds the voice
-pool, note delivery, the held line, the sample loop, ring-out (written twice:
-`play_note`'s classic path and `finish_line`), capture and the live calls;
-the performers call `play_note`/`play_hit` at 12 places and the Conductor
-picks pitched or drums by two `dynamic_cast`s; a Conductor is hand-built six
-times in `mforce_cli/main.cpp` and once in `test_figures`, and
-`embedded_score.cpp` has its own note player; five of the meter's 12 include
-violations are render including music (`instrument.h` to `pitch_curve.h` and
-`pitch_bend.h`; `embedded_score.cpp` to `basics.h`, `conductor.h` and
-`music_json.h`); the live calls (`acquire_voice`, `prepare_voice_at`,
-`continue_voice_live`) and capture lost their user with the old editor (only
-the tests, `alloc_gate` and the explorer call them). THE BUILD ORDER PUT TO
-MATT (he has heard it and not ruled on it): (1) the contract module
-(`PerformedNote` owning its curve, `PitchCurve`, the drum hit,
-`InstrumentClass`), with `compile_pitch_curve` moved into render; (2)
-performers return notes, each instrument takes a part's notes through one
-entry point, the type test goes; (3) one play function replaces the
-hand-built loops and the embedded score's player, with the
-replay-once-per-section fix, the only step where renders may change; (4) the
-instrument split (voice pool, voice renderer, one ring-out rule, capture);
-(5) the live class behind one "fill this buffer" function, which I proposed
-building in this part with tests as its user, since the editor comes last.
-Steps 1, 2 and 4 must leave the null gate at 77 of 77. The editor's
-design waits until render, music and build are done.
-THE RENDER PART'S DESIGN IS WRITTEN (2026-11-22, session XXIV, Fable 5.2
-xhigh): `docs/architecture/part5-render.md`, 457 lines, uncommitted.
-IT AWAITS MATT'S SIGNATURE; nothing of it is built and no code changed. It
-holds the interfaces as code (the contract's `PerformedNote`, `PerformedHit`,
-`Performance`, `InstrumentClass`; `Instrument::play`; `TimeMap` and the
-Conductor returning data; `play(piece, ensemble, conductor)` and
-`play(patch)`; `Voice`, `VoicePool`, `RingOut`, `NodeCapture`; `SpscQueue`
-and `LivePlayer` with its five messages), the same five steps, and in its
-section 9 the seven rulings a signature accepts: (1) the live player is built
-in this part, last; (2) the pool is twice the voices, the steal is
-released-first then oldest with a 5 ms fade, a burst past the spares is
-dropped; (3) one `Performance` per part with a list of notes and a list of
-hits; (4) `play` has `--compose`'s mixing and length rules for every mode;
-(5) `DrumKit` and capture are kept though nothing builds the one or calls the
-other; (6) the performers stay in `music/` until Part 6; (7) `onset` is an
-`int` in the contract. FOUND WHILE WRITING IT: `capture_begin` has no caller
-in the tree; no code builds a `DrumKit` (one test makes one by hand); `Tone`
-and `DrumHit` in `music/basics.h` are referenced nowhere; the composer stamps
-events in whole-piece beats, which is why the Conductor's per-section loop
-replays, and `scores/baselines/template_binary.json` is the one comp baseline
-with two sections (the one that moves at step 3); the null gate's patches
-never reach the Conductor's piece loop or the chord performer, so the design
-runs the existing comp gate at steps 2, 3 and 4; most library patches declare
-polyphony 1, so the live player takes its voice count from the host. NEXT ON
-A SIGNATURE: step 1 (the contract module). Everything below this
+trusted), so CLEANUP 107 stays open and no derived mark exists. PART 5 (RENDER, THE
+CONTRACT, PLAY) IS DESIGNED, SIGNED, BUILT AND COMMITTED, ALL ON 2026-11-22
+(session XXIV, Fable 5.2 xhigh for the design, the briefs and the commits;
+one Opus 5.5 executor for the five steps and the fix wave; one Opus 5.5
+reviewer). Matt signed `docs/architecture/part5-render.md` as written
+("Signed, and proceed with all steps without waiting for my ok. Conserve
+fable where appropriate"); its section 13 says where the code differs from
+the signed text. COMMITS: `7c3ebe5` (the design), `ad463d8` (the contract
+module: `PerformedNote` with its start and its own curve, `PerformedHit`,
+`Performance`, `InstrumentClass`), `eae609b` (performers return data;
+`Instrument::play`), `b517173` (the `play` module, the `TimeMap`, the replay
+fix, the eight hand-built players gone), `47d87db` (the instrument split:
+`Voice`, `VoicePool`, `RingOut`, `NodeCapture`, `PitchedInstrument`,
+`DrumKit`), `a9e5677` (`LivePlayer` over `core/spsc_queue.h`; the old live
+calls deleted), `fa085c3` (the review's fix wave), then the docs commit.
+REPORT R22: `docs/autonomy/refactor/reports/2026-11-22-part5-render.md`.
+REVIEW holds R22: one render for Matt's ears
+(`renders/comp/audition/part5_replay_fix/`, `template_binary` before and
+after the replay fix), one deletion that is his (`mforce_cli --josie`, dead
+at the base), one decision he can reverse (an embedded score is read in
+score order). AT THE CLOSE: `engine_tests` 11,977 checks in 27 s; null gate
+77 of 77 at every step; allocation gate 0 of 131, through
+`LivePlayer::fill` from `a9e5677`; comp gate 21 same against the step before
+at every step but `b517173`, where `template_binary` moved as designed; the
+meter against `a2899cb`: files over the limit 16 to 13, functions 62 to 56,
+include edges 12 to 6 (the six left are music including JSON),
+`dynamic_cast` 56 to 55, duplicated blocks 129 to 124, lines 54,235 to
+55,612. The review: 0 Critical, 1 Major (the score-order change, recorded),
+8 Minor (seven fixed, one recorded). CLEANUP rows 122 to 130 are new; 46,
+51, 65 and 78 closed, 34 partly. HOW IT RAN, for the next part: a brief file
+per step written before the step, with one rules file and one gate script
+(`renders/scratch/ab5/briefs/`, `python renders/scratch/ab5/gates.py <stage>
+[--comp-base STAGE] [--expect-diff name]`: the build, stopping when it
+fails, then `engine_tests`, `test_figures`, the tool tests, the null gate,
+the allocation gate, the comp gate); ONE executor carried through every step
+by `SendMessage`, running the gates once per step; the coordinator read each
+report and the new headers, staged, ran the meter and committed; one review
+of the whole range, one fix wave. The comp gate's last stage is `p5s6`.
+Usage: weekly Fable 9 percent at the signature, 13 at the close (the
+execution, the review and the docs cost four Fable points); all-models 5 to
+10. NEXT: PART 6 (MUSIC)'S DESIGN, in Part 5's shape: short, the interfaces,
+for Matt to sign before any code (the target's sections 3.5 to 3.8 and 3.10
+and row 6 of its section 7: the model / voicing / compose / perform split,
+harmony stored once, the form of per-strategy settings, the template as
+in-and-out or a separate record, hand-built pieces made audible, the
+shelved generators, the spine fixes; the six JSON includes the meter still
+lists). WHAT PART 5 LEAVES IT: the performers, `time_map.h`,
+`embedded_score` and `pitch_gestures.h` sit under `music/` and become the
+`perform` module there; a truncated section's effect on later start times is
+unwritten (CLEANUP 125); `--melody` and `--dun` are silent and `--josie` is
+dead (CLEANUP 124); composed pieces do not gain onsets or holds. Then Part 8
+(build), then the editor's design, whose engine half for its first slice
+(`LivePlayer`) exists. GIT: main is ahead of origin and NOT pushed (ask at
+close-out); GOALS.md is Matt's own, never staged. Everything below this
 block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
