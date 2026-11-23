@@ -48,6 +48,14 @@ void run_live_volume_tests();
 void run_live_steal_policy_tests();
 void run_live_key_up_tests();
 void run_live_threads_tests();
+void run_live_set_value_first_note_tests();
+void run_live_set_value_sounding_tests();
+void run_live_set_value_false_tests();
+void run_live_set_value_never_lost_tests();
+void run_live_set_value_allocation_tests();
+void run_built_constants_tests();
+void run_live_set_value_trigger_tests();
+void run_live_set_value_census_tests();
 void run_note_wire_tests();
 void run_multiplex_bend_tests();
 void run_note_reseed_tests();
@@ -146,6 +154,14 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_build_duplicate_id_tests", run_build_duplicate_id_tests},
   {"run_build_instrument_tests", run_build_instrument_tests},
   {"run_generated_reader_twin_tests", run_generated_reader_twin_tests},
+  {"run_live_set_value_first_note_tests", run_live_set_value_first_note_tests},
+  {"run_live_set_value_sounding_tests", run_live_set_value_sounding_tests},
+  {"run_live_set_value_false_tests", run_live_set_value_false_tests},
+  {"run_live_set_value_never_lost_tests", run_live_set_value_never_lost_tests},
+  {"run_live_set_value_allocation_tests", run_live_set_value_allocation_tests},
+  {"run_built_constants_tests", run_built_constants_tests},
+  {"run_live_set_value_trigger_tests", run_live_set_value_trigger_tests},
+  {"run_live_set_value_census_tests", run_live_set_value_census_tests},
 };
 }  // namespace
 

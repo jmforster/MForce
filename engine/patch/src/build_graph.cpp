@@ -39,6 +39,7 @@ struct Build {
   const InstrumentBlock* instrument;
   std::map<std::string, size_t, std::less<>> index;      // an id's first node
   std::vector<TapBind> taps;
+  std::set<std::string, std::less<>> templated;          // every node a MultiplexSource's template reaches
   BuiltGraph out;
 
   const Node* node(std::string_view id) const {
@@ -144,12 +145,18 @@ void wire_feed(Build& b, Component& c, const std::string& id, const char* pin, c
   wire(c, id, pin, part, add, isSignal);
 }
 
+// A number wired to a pin as a ConstantSource, listed among the constants.
+void wire_constant(Build& b, Component& c, const Node& n, const char* pin, float v) {
+  auto constant = std::make_shared<ConstantSource>(v);
+  wire(c, n.id, pin, constant, false, true);
+  b.out.constants.push_back({n.id, pin, nullptr, std::move(constant)});
+}
+
 // Inputs: a number is a ConstantSource wired in; a list pin is cleared and
 // each feed added in order; any other pin takes its feed through set_param.
 void fill_inputs(Build& b, Component& c, const Node& n) {
   for (const auto& d : c.input_descriptors()) {
-    if (auto v = n.values.find(d.name); v != n.values.end())
-      wire(c, n.id, d.name, std::make_shared<ConstantSource>(v->second), false, true);
+    if (auto v = n.values.find(d.name); v != n.values.end()) wire_constant(b, c, n, d.name, v->second);
     auto w = n.wires.find(d.name);
     if (w == n.wires.end()) continue;
     if (d.multi) c.clear_param(d.name);
@@ -162,8 +169,12 @@ void fill_inputs(Build& b, Component& c, const Node& n) {
 void fill_params(Build& b, Component& c, const Node& n) {
   for (const auto& d : c.param_descriptors()) {
     if (auto v = n.values.find(d.name); v != n.values.end()) {
-      if (Param* p = c.param(d.name)) p->constant = v->second;
-      else wire(c, n.id, d.name, std::make_shared<ConstantSource>(v->second), false, true);
+      if (Param* p = c.param(d.name)) {
+        p->constant = v->second;
+        b.out.constants.push_back({n.id, d.name, p, nullptr});
+      } else {
+        wire_constant(b, c, n, d.name, v->second);
+      }
     }
     if (auto w = n.wires.find(d.name); w != n.wires.end())
       for (const auto& feed : w->second) wire_feed(b, c, n.id, d.name, feed, false);
@@ -273,6 +284,7 @@ void give_template(Build& b, MultiplexSource& mux, const Node& n) {
   auto w = n.wires.find("source");
   if (w == n.wires.end() || w->second.size() != 1 || w->second.front().tap) return;
   Graph sub = template_of(b, n, w->second.front().source);
+  for (const auto& inside : sub.nodes) b.templated.insert(inside.id);
   const Node* root = b.node(sub.output);
   const uint32_t base = root && root->seed ? *root->seed : 0u;
   std::optional<NoteSignals> note;
@@ -385,8 +397,20 @@ void warn_bend(Build& b) {
   }
 }
 
+// The constants of the nodes no template reaches, in the graph's node order,
+// a node's by pin name.
+void order_constants(Build& b) {
+  auto& list = b.out.constants;
+  std::erase_if(list, [&](const BuiltGraph::Constant& k) { return b.templated.count(k.node) != 0; });
+  std::sort(list.begin(), list.end(), [&](const BuiltGraph::Constant& x, const BuiltGraph::Constant& y) {
+    const size_t xi = b.index.find(x.node)->second, yi = b.index.find(y.node)->second;
+    return xi != yi ? xi < yi : x.pin < y.pin;
+  });
+}
+
 void finish(Build& b) {
   warn_bend(b);
+  order_constants(b);
   for (const auto& id : advance_ids(b.graph)) b.out.advance.push_back(as_signal(b.out.nodes.at(id), id));
   auto out = b.out.nodes.find(b.graph.output);
   if (out == b.out.nodes.end())
@@ -402,7 +426,7 @@ void finish(Build& b) {
 
 BuiltGraph build_graph(const Graph& graph, const NoteSignals* note, const InstrumentBlock* instrument) {
   if (graph.output.empty()) throw std::runtime_error("the patch has no output");
-  Build b{graph, note, instrument, {}, {}, {}};
+  Build b{graph, note, instrument, {}, {}, {}, {}};
   for (size_t i = 0; i < graph.nodes.size(); ++i)
     if (!b.index.try_emplace(graph.nodes[i].id, i).second)
       throw std::runtime_error(opening(graph.nodes[i].id, graph.nodes[i].type) + "the id " +

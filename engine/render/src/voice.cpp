@@ -95,10 +95,12 @@ Voice::Voice(const Graph& graph, const InstrumentBlock& block, std::shared_ptr<I
   if (!source_ && g.output)
     throw std::runtime_error("'" + graph.output + "' is a " + g.output->type_name() + ", a part, not a signal");
   const std::set<std::string> templated = template_only(graph);
+  std::set<std::string> envelopes;
   for (const auto& n : graph.nodes) {
     auto it = g.nodes.find(n.id);
     auto* env = it == g.nodes.end() ? nullptr : dynamic_cast<Envelope*>(it->second.get());
     if (!env) continue;
+    envelopes.insert(n.id);
     if (!templated.count(n.id)) {
       envelopes_.push_back(env);
       description_.heldEnvelopes.push_back(n.id);
@@ -116,6 +118,13 @@ Voice::Voice(const Graph& graph, const InstrumentBlock& block, std::shared_ptr<I
   description_.output = id_of(g, source_.get());
   tails_ = std::move(g.advance);
   for (const auto& s : g.signals) signals_.push_back({s.id, s.node});
+  // The voice decided its trigger list from each Envelope's `trigger` number
+  // just above, so a later write of it would not be a rebuild's equal: those
+  // constants are left out, and a player cannot follow them.
+  constants_ = std::move(g.constants);
+  std::erase_if(constants_, [&](const BuiltGraph::Constant& k) {
+    return k.pin == "trigger" && envelopes.count(k.node) != 0;
+  });
   nodes_ = std::move(g.nodes);
   // The glide's two stages laid out once, so laying them out again for a
   // carried note reuses their storage.

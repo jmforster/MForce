@@ -1,12 +1,14 @@
 #pragma once
 #include "mforce/contract/pitch_curve.h"
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/patch/built_graph.h"
 #include "mforce/patch/graph.h"
 #include "mforce/patch/instrument_block.h"
 #include "mforce/patch/note_signals.h"
 #include "mforce/render/perform_source.h"
 #include "mforce/source/envelope/envelope.h"
 #include <memory>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -91,6 +93,11 @@ public:
   // The signal nodes, in id order: faults and capture walk them.
   const std::vector<Signal>& signals() const { return signals_; }
   const Description& description() const { return description_; }
+  // Where each pin's constant lives in this voice: the build's list, less the
+  // constants the voice itself read at construction (each Envelope's
+  // `trigger`, which decides the trigger list). Every voice built from one
+  // graph has the same list, in the same order.
+  std::span<const BuiltGraph::Constant> constants() const { return constants_; }
 
 private:
   // A dynamic pin: a setting the patch drives once per note. A setting is a
@@ -133,6 +140,7 @@ private:
   std::shared_ptr<Envelope>      glide_;
   std::shared_ptr<Envelope>      bend_;
   Description                    description_;
+  std::vector<BuiltGraph::Constant> constants_;
 };
 
 } // namespace mforce

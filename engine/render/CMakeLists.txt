@@ -24,6 +24,8 @@ mforce_tests(render
           tests/generated_reader_tests.cpp
           tests/instrument_build_tests.cpp
           tests/live_player_tests.cpp
+          tests/live_set_value_census_tests.cpp
+          tests/live_set_value_tests.cpp
           tests/load_refusal_tests.cpp
           tests/note_delivery_tests.cpp
           tests/onset_field_tests.cpp

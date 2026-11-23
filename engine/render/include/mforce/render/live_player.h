@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 namespace mforce {
@@ -23,6 +24,13 @@ namespace mforce {
 // state (wheel and pressure: atomics the control thread writes and the audio
 // thread reads). The audio thread reads the instrument's peakGuard, which
 // must not change while the player runs.
+//
+// A pin's constant (set_value) is written into a voice by whichever thread
+// holds it: the audio thread writes a Set message into each voice it holds,
+// and the control thread writes every value set so far into a voice just
+// before it starts it. So each voice is still written by one thread at a
+// time, and a voice has every value whichever thread held it when the value
+// was set.
 class LivePlayer {
 public:
   using NoteId = std::uint32_t;
@@ -45,6 +53,15 @@ public:
   void set_wheel(float v);
   void set_pressure(float v);
   void set_volume(float v);
+  // The constant of `pin` on `node`, in every voice: the voices that are
+  // sounding hear it within one buffer, the others when they next start.
+  // False when the player cannot follow it, and nothing changes: the voices
+  // have no constant of that node and pin (a pin a wire feeds, a pin with no
+  // number, a name that is not there, a node a MultiplexSource's template
+  // reaches); the caller builds a new player then. A Set the queue cannot
+  // take now is kept and sent by a later control call: a value is never
+  // lost. Allocates nothing.
+  bool set_value(std::string_view node, std::string_view pin, float v);
   int  sample_rate() const;
   // The voices handed to the audio thread and not yet given back.
   int  sounding();
@@ -57,7 +74,7 @@ public:
 private:
   // A message from the control thread to the audio thread.
   struct Message {
-    enum class Kind : std::uint8_t { Start, Carry, Release, Fade };
+    enum class Kind : std::uint8_t { Start, Carry, Release, Fade, Set };
     Kind  kind{Kind::Start};
     int   voice{-1};
     float gain{1.0f};          // Start: the note's velocity
@@ -66,6 +83,8 @@ private:
     Voice::Note note{};        // Carry: the next note (no curve)
     bool  hold{false};         // Carry: the next note holds
     float fromFreq{0.0f};      // Carry: the frequency glided from
+    int   constant{-1};        // Set: the index into every voice's constants()
+    float value{0.0f};         // Set: the constant's new number
   };
   // A voice the audio thread gives back.
   struct Done { int voice{-1}; };
@@ -104,8 +123,14 @@ private:
   // other driver.
   Voice& voice(int v);
 
+  // Construction: every voice lists the same constants in the same order.
+  void check_constants_agree();
   // Control thread.
   void catch_up();
+  int  constant_index(std::string_view node, std::string_view pin);
+  Message set_message(int k) const;
+  void send_unsent();
+  void write_kept(Voice& v);
   Message release_message(int v) const;
   NoteId take_id();
   int  idle_voice() const;
@@ -140,6 +165,12 @@ private:
   int lastStarted_{-1};
   NoteId nextId_{1};
   std::uint64_t nextOrder_{0};
+  // By index into a voice's constants(), sized at construction: the latest
+  // value set; whether one was set; whether its Set waits for room.
+  std::vector<float> kept_;
+  std::vector<std::uint8_t> isKept_;
+  std::vector<std::uint8_t> unsent_;
+  int unsentCount_{0};
 
   // Audio thread only.
   std::vector<Sounding> sounding_;   // capacity for every voice, reserved at construction

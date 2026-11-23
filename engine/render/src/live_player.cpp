@@ -3,6 +3,8 @@
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/delivery.h"
 #include <algorithm>
+#include <stdexcept>
+#include <string>
 
 namespace mforce {
 
@@ -16,6 +18,28 @@ LivePlayer::LivePlayer(const Patch& patch, int voices) {
   volume_.store(instrument_->volume, std::memory_order_relaxed);
   handed_.assign(size_t(instrument_->pool().size()), Handed{});
   sounding_.reserve(size_t(instrument_->pool().size()));
+  check_constants_agree();
+  const size_t constants = instrument_->pool().size() > 0 ? voice(0).constants().size() : 0;
+  kept_.assign(constants, 0.0f);
+  isKept_.assign(constants, 0);
+  unsent_.assign(constants, 0);
+}
+
+// The player writes constant k of every voice as one: that holds only when
+// the voices, built from one graph, list the same node and pin at each index.
+void LivePlayer::check_constants_agree() {
+  const int n = int(instrument_->pool().size());
+  if (n == 0) return;
+  const auto first = voice(0).constants();
+  for (int v = 1; v < n; ++v) {
+    const auto other = voice(v).constants();
+    bool same = other.size() == first.size();
+    for (size_t k = 0; same && k < first.size(); ++k)
+      same = other[k].node == first[k].node && other[k].pin == first[k].pin;
+    if (!same)
+      throw std::runtime_error("the live player: voice " + std::to_string(v) +
+                               " lists its constants unlike voice 0, so a value cannot be set in every voice");
+  }
 }
 
 Voice& LivePlayer::voice(int v) { return instrument_->pool_.voice(v); }
@@ -54,6 +78,61 @@ void LivePlayer::catch_up() {
     handed_[size_t(d.voice)] = Handed{};
   }
   if (pendingRelease_ >= 0 && toAudio_.push(release_message(pendingRelease_))) pendingRelease_ = -1;
+  if (unsentCount_ > 0) send_unsent();
+}
+
+// The index of the constant of `pin` on `node` in every voice's constants();
+// -1 when the voices have none.
+int LivePlayer::constant_index(std::string_view node, std::string_view pin) {
+  if (instrument_->pool().size() == 0) return -1;
+  const auto list = voice(0).constants();
+  for (size_t k = 0; k < list.size(); ++k)
+    if (list[k].node == node && list[k].pin == pin) return int(k);
+  return -1;
+}
+
+LivePlayer::Message LivePlayer::set_message(int k) const {
+  Message m;
+  m.kind = Message::Kind::Set;
+  m.constant = k;
+  m.value = kept_[size_t(k)];
+  return m;
+}
+
+// The Sets that found no room, each with its constant's latest value, in
+// index order, until the queue is full again.
+void LivePlayer::send_unsent() {
+  for (size_t k = 0; k < unsent_.size() && unsentCount_ > 0; ++k) {
+    if (!unsent_[k]) continue;
+    if (!toAudio_.push(set_message(int(k)))) return;
+    unsent_[k] = 0;
+    --unsentCount_;
+  }
+}
+
+// Every value set so far, into a voice the control thread holds.
+void LivePlayer::write_kept(Voice& v) {
+  const auto list = v.constants();
+  for (size_t k = 0; k < list.size(); ++k)
+    if (isKept_[k]) list[k].set(kept_[k]);
+}
+
+bool LivePlayer::set_value(std::string_view node, std::string_view pin, float v) {
+  catch_up();
+  const int k = constant_index(node, pin);
+  if (k < 0) return false;
+  const size_t i = size_t(k);
+  kept_[i] = v;
+  isKept_[i] = 1;
+  const bool sent = toAudio_.push(set_message(k));
+  if (sent && unsent_[i]) {
+    unsent_[i] = 0;
+    --unsentCount_;
+  } else if (!sent && !unsent_[i]) {
+    unsent_[i] = 1;
+    ++unsentCount_;
+  }
+  return true;
 }
 
 LivePlayer::Message LivePlayer::release_message(int v) const {
@@ -148,6 +227,7 @@ LivePlayer::NoteId LivePlayer::start_fresh(const PerformedNote& note, const Voic
     handed_[size_t(victim)].fading = true;
   }
   Voice& started = voice(v);
+  write_kept(started);
   const bool held = choose_delivery(false, note.hold, started.can_hold()) == Delivery::OpenLine;
   started.start(n, held);
   Message m;
@@ -194,6 +274,10 @@ void LivePlayer::release(Sounding& s, int lastNoteSamples) noexcept {
 }
 
 void LivePlayer::apply(const Message& m) noexcept {
+  if (m.kind == Message::Kind::Set) {
+    for (auto& s : sounding_) voice(s.voice).constants()[size_t(m.constant)].set(m.value);
+    return;
+  }
   if (m.kind == Message::Kind::Start) {
     Sounding s{m.voice, m.gain, m.held ? RingOut(sampleRate_) : RingOut(sampleRate_, m.bodySamples)};
     sounding_.push_back(s);
@@ -209,7 +293,8 @@ void LivePlayer::apply(const Message& m) noexcept {
       break;
     case Message::Kind::Release: release(*s, s->noteSamples); break;
     case Message::Kind::Fade:    s->fadeLeft = fadeSamples_; break;
-    case Message::Kind::Start:   break;
+    case Message::Kind::Start:
+    case Message::Kind::Set:     break;
   }
 }
 

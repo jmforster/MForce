@@ -261,7 +261,9 @@ struct Processor : ValueSource {
 
 struct ConstantSource final : Generator {
   explicit ConstantSource(float v) : v_(v) { cur_ = v; }
-  void set(float v) { v_ = v; }
+  // The new number, and the memo a pin's current() reads without a pull, so
+  // no read until the next compute sees the old one. Called between ticks.
+  void set(float v) { v_ = v; cur_ = v; }
   float compute() override { return v_; }
   const char* type_name() const override { return "Constant"; }
 private:
