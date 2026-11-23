@@ -16,7 +16,8 @@ import hashlib, json, os, re, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CLI = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
+# The binary CTest names (MFORCE_CLI), else the build folder's.
+CLI = Path(os.environ.get("MFORCE_CLI") or ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe")
 SETS = ["patches/library", "patches/baselines"]
 MANIFEST = ROOT / "tools/null_gate_manifest.json"
 SCRATCH = ROOT / "renders/scratch"

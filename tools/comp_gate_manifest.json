@@ -1,0 +1,87 @@
+{
+ "scores/baselines/period_markov_test.json": {
+  "json": "a65c092b11564b71fbdac92223b4031e75323282e5fef07beade7682a905ab78",
+  "wav": "9b3306ca0b2996f02d5fc082caf058b0aa0cdeefa8ae572d1b1445ed0d3e2856"
+ },
+ "scores/baselines/template_binary.json": {
+  "json": "56667ef4edca543124be0150373cd78a7ba4593d57c1bbfe502fd756f09a4ea3",
+  "wav": "1d4806622462da45428853f09dd9e3f4b6a5425637e497f0aee97b70f6587b4b"
+ },
+ "scores/baselines/template_mary.json": {
+  "json": "e73a9586de8de6684d092d0d1f8989ab20f619a73fb85afa2694e8a50ef23ce4",
+  "wav": "abf8b0fad31f2bf1a3147385a6d1ea197ad3d8da02a9dbb188748253cb468715"
+ },
+ "scores/baselines/template_mary_crawl.json": {
+  "json": "f9f7a9dc3f02bcde9465480f08dd14ec94c06f33a7c54be8f4952c3bafa582ab",
+  "wav": "8a3a0e6e21f4f7d26b0219108895a247c1a5c4ef9f7765e37d80825e95721890"
+ },
+ "scores/baselines/template_mary_structural.json": {
+  "json": "f9f7a9dc3f02bcde9465480f08dd14ec94c06f33a7c54be8f4952c3bafa582ab",
+  "wav": "8a3a0e6e21f4f7d26b0219108895a247c1a5c4ef9f7765e37d80825e95721890"
+ },
+ "scores/baselines/template_mary_walk.json": {
+  "json": "34e033d27a784fb4c092b6cd80c4ce618e9e7262f5938a97e9c5539f560ebe5c",
+  "wav": "1f80189d6b4573c8e3b916eaec4750b92c14061d8b2dac942b5480d503a0b965"
+ },
+ "scores/baselines/template_ode_to_joy.json": {
+  "json": "ebdcde3224aebb7700e8e82e1c331445c415a262293b1ed0cf47156a06052301",
+  "wav": "0be1f43119791500211dacfa2b84a3472d9a8b0ed3bfadd2d95c70bb86db231c"
+ },
+ "scores/baselines/test_aaab.json": {
+  "json": "6d57f546a03fed1219e38ad42537f53eb91e4b5eaf4137a3dcb8dfec058a98ec",
+  "wav": "70ba106d4440754c6de9c1f73520cc31656272f35b9a91e5054e494a88f7de00"
+ },
+ "scores/baselines/test_afs_passage.json": {
+  "json": "bd14e54b30a32e98b963f0f74f505ceef5d0028f5e4f76c772c14f006d60ed69",
+  "wav": "a38509455c0c39854faa0f8f746e408754ff32c7fc0231cf46d88eb2d3fc061d"
+ },
+ "scores/baselines/test_elaborated.json": {
+  "json": "a3eb5938bcd9cded2be9bb1da6f406ccd70310e578f0ebe520d3f6a1ea968da9",
+  "wav": "29a8fc5639632861a02570220c089f74b84da09e1075fe46884e0e8adde77990"
+ },
+ "scores/baselines/test_harmony_progression.json": {
+  "json": "030d721d8fba634dfabc6ef7ac775f0c7f26bf6c3e0f932dac599c63221ae47c",
+  "wav": "08c7929e1a98e4c8b55f44858b690b4061fb68f9aa8e56887e6d8e5bba491f7e"
+ },
+ "scores/baselines/test_k467_harmony.json": {
+  "json": "7d02c482afa9c950f5342ca945c07ccab56d6690b7b3e9aa9a7046139545cfd8",
+  "wav": "0ec77dcaf175377bef1bcba516e5996c447cd6407b6af563af5030535cbfd013"
+ },
+ "scores/baselines/test_k467_motifs.json": {
+  "json": "e1c99e98707ec8342298081b14d4fb2ba1eb54763d120ed4e593a5d98cb864cd",
+  "wav": "6afaf120d062b988185606cf9612c5cc22ff5359ee1a32803ebd1b9cbaee26d1"
+ },
+ "scores/baselines/test_k467_opening.json": {
+  "json": "4e602fc94ca37a384470bde434d6afb53ec6ed5803d5b967dfd305d1d08bb9d5",
+  "wav": "29456c62ca29c390f30fd9abea680185c53aaaa832651527e148d8c7a295c170"
+ },
+ "scores/baselines/test_k467_parallel.json": {
+  "json": "7d435fc2c5cd54a27f3c05e15d9af51586e2fc1be7c7c10cc04662210bcae0db",
+  "wav": "0f49dd519c50aded04a64bbf9edd64c5b5f616dd3d8dda759f6efc28ac242096"
+ },
+ "scores/baselines/test_k467_period.json": {
+  "json": "14f05c8c62c567be1995c4e4062e4aa335dc8caf169eb8311aa634b93d1f1d8a",
+  "wav": "e402f71c6d6c363a5db9c75a1067338bf389c764d1cadeb6cc4ad7e5a2b71266"
+ },
+ "scores/baselines/test_k467_v4_rep.json": {
+  "json": "a156f3ff86ffb610717e8568638d9be4dc7345158ebf3e4c8971b5b7288b25f5",
+  "wav": "d9985331a49c8482bdae91bacacc0c42c3b8464221b2f50a04cf9a18c069e970"
+ },
+ "scores/baselines/test_k467_walker.json": "refused",
+ "scores/baselines/test_lib_billy.json": {
+  "json": "f9331358e330f59d62c98a1002e947c303cf5d30de75f0d0463398d5b9a11172",
+  "wav": "b876b94d735e0618cb88343656440b1a45a5b82e8d8abc0bec1fb8bbfe87d6e4"
+ },
+ "scores/baselines/test_passage_chords_ger6.json": {
+  "json": "7c205bba996fa3eccc900a972efe731a52133743492fa0cd274a2c4da2e284fd",
+  "wav": "f780aafc52c9baff296cbc72a660540173a8b6240db5514fbdcf8b724c1d2c76"
+ },
+ "scores/baselines/test_passage_chords_precedence.json": {
+  "json": "5b0419cefc2e1c51732f5543ad8b38a90cc81824583c9402626d1d15d8ffb624",
+  "wav": "1d8303f01025717b9a87328e60a219ffe0f8830aa10334869a77c28abaa10838"
+ },
+ "scores/baselines/test_period_sentence.json": {
+  "json": "a90e2952ec064116f2782c64fedb378b5971a1454312e1b8e3ffa6bae3179865",
+  "wav": "b805b178e14b98f0745f1c50ebab1ae49f960fa0d8b685466c702214aaf7f7e5"
+ }
+}

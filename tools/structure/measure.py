@@ -66,8 +66,14 @@ def type_declarations(text):
 
 def function_lengths(path):
     """[(name, start_line, length)] via lizard."""
+    return [(name, start, length) for name, _, start, length in functions(path)]
+
+
+def functions(path):
+    """[(name, signature, start_line, length)] via lizard. The signature is
+    lizard's long name: the qualified name with its parameter list."""
     info = lizard.analyze_file(path)
-    return [(f.name, f.start_line, f.length) for f in info.function_list]
+    return [(f.name, f.long_name, f.start_line, f.length) for f in info.function_list]
 
 
 def parse_duplicates(lizard_output):

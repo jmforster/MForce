@@ -24,7 +24,8 @@ import subprocess
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-EXE = os.path.join(ROOT, "build", "tools", "alloc_gate", "Release", "alloc_gate.exe")
+# The binary CTest names (MFORCE_ALLOC_GATE), else the build folder's.
+EXE = os.environ.get("MFORCE_ALLOC_GATE") or os.path.join(ROOT, "build", "tools", "alloc_gate", "Release", "alloc_gate.exe")
 SUMMARY = re.compile(r"^(\d+) patches: (\d+) allocate, (\d+) failed to load\s*$")
 
 

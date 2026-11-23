@@ -85,7 +85,7 @@ def delta(old, new):
 def render_modules(module_map):
     out = ["# Modules", "",
            "Generated from `tools/structure/modules.json` by `tools/structure/check.py`.",
-           "Phase 1: describes today's layout. Do not edit by hand.", "",
+           "Do not edit by hand.", "",
            "| Module | Purpose | Paths | May include |", "|---|---|---|---|"]
     for m in module_map.modules:
         out.append(f"| {m['name']} | {m['purpose']} | {', '.join('`' + p + '`' for p in m['paths'])} | "

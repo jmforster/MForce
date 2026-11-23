@@ -1,5 +1,5 @@
 {
-  "_comment": "Module map, phase 1 (describes today's layout). Every tracked C++ source file belongs to exactly one module; a .cpp belongs to its header's module. 'may_include' lists what a module may include. 'file_allowed' lists libraries allowed only in named files: JSON belongs to the serializer files and the tools; every other JSON include is reported.",
+  "_comment": "Module map. Every tracked C++ source file belongs to exactly one module; a .cpp belongs to its header's module. 'may_include' lists what a module may include. 'file_allowed' lists libraries allowed only in named files: JSON belongs to the serializer files and the tools; every other JSON include is an include violation.",
   "third_party": {
     "json":    ["nlohmann/", "json.hpp"],
     "imgui":   ["imgui", "imnodes"],

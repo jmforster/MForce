@@ -1,7 +1,7 @@
 # Modules
 
 Generated from `tools/structure/modules.json` by `tools/structure/check.py`.
-Phase 1: describes today's layout. Do not edit by hand.
+Do not edit by hand.
 
 | Module | Purpose | Paths | May include |
 |---|---|---|---|
