@@ -471,7 +471,50 @@ One independent review and one short report at the end of the part.
 - `test_figures` into the engine tests, a target per module, the build
   option for the shelved folder: Part 8.
 
-## 14. For the C# reader
+## 14. Amended while writing the briefs (2026-11-22, after the signature)
+
+Three details of sections 3, 4 and 12 could not be built as written. Each
+is corrected here before any code, and each is in the report for Matt.
+
+- **`Composition` has no `warnings` member.** Section 4 gave it one.
+  Nothing in `compose` would write to it: the composer's own four prints
+  are the unknown-name fallbacks, which become errors (section 3), and
+  the strategies' prints stay prints (section 13). A member nothing
+  writes is not built; it arrives with the change that moves those
+  prints.
+
+- **The kit has two members, and the codecs stand beside it.** Section 3
+  put `SettingsCodecs` inside `ComposeKit`. `SettingsCodecs` holds
+  functions over JSON, so a kit that contained it would make `compose`'s
+  own header include JSON, which section 1 counts as a fault. As built:
+
+  ```cpp
+  // compose/compose.h, no JSON
+  struct ComposeKit { StrategyRegistry strategies; VoicingRegistry voicings; };
+  Composition compose(const PieceTemplate& request, const ComposeKit& kit);
+
+  // compose/templates_json.h, a codec file
+  class SettingsCodecs { /* as section 3 */ };
+  PieceTemplate read_template(const nlohmann::json&, const SettingsCodecs&);
+  nlohmann::json write_template(const PieceTemplate&, const SettingsCodecs&);
+
+  // one list fills both, so a strategy is still registered once
+  void register_builtin(ComposeKit&, SettingsCodecs&);
+  void register_shelved(ComposeKit&, SettingsCodecs&);
+  ```
+
+  A host makes a kit and a codecs object and passes both to the
+  registration; `compose` sees the kit only and the file reader the
+  codecs only. `builtin_compose_kit()` is not built.
+- **The four file readers are declared without JSON and defined in codec
+  `.cpp` files.** Section 12 said "`_json.h` files beside them". A
+  strategy that loads a style table would then include a header that
+  includes JSON, which moves the fault instead of removing it. As built,
+  `style_table.h` declares `load_style_table(name)` and
+  `style_table_json.cpp` defines it; the same for the melody profile, the
+  figure pool and the pattern library.
+
+## 15. For the C# reader
 
 **`std::any` is `object` with a checked cast.** `std::any settings` can
 hold a value of any copyable type; `std::any_cast<PedalBuildupSettings>`
