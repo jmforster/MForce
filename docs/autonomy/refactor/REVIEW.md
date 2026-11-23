@@ -19,32 +19,56 @@ given.
 
 ## Awaiting
 
-**R25 — the new editor's design** (2026-11-23,
-`docs/architecture/editor.md`). **Signed 2026-11-23 ("Signed, proceed");
-slice 1 is being built and lands here as R26 when it is on your desk.**
-It builds on the UI section of the target architecture you decided on
-2026-10-05 and on the reset's rules.
-- **The idea in one line:** the patch record is the one truth, a view
-  changes nothing itself and calls an edit function, and every edit
-  function is plain code with tests that need no window.
-- **Slice 1 is your words: open, play, tweak, hear, save.** A pin's
-  constant follows the slider while the note sounds; any other edit
-  rebuilds the player and is heard from the next note. It plays
-  instruments; a plain sound gets its sound in a later slice. Groups and
-  note faces are kept in the file and drawn later.
-- **Five corrections before your signature**, in its section 12, each
-  as before and after. The two that change what you would see: a test
-  no longer opens your sound card (the adapter gets an `open()` that
-  only `main` calls), and live play is at the device's rate whatever
-  rate the file names (ruling 10; two baseline patches are at 22050).
-- **Ten rulings**, in its section 9. The three I would read first: the
-  same libraries as before (ImGui, imnodes, GLFW, RtAudio); where they
-  come from (git submodules pinned to the commits on your disk, which
-  means my fetching five repositories from GitHub, on your word only);
-  and the names `Session` and `mforce_editor`, each with alternatives.
-- **Yours to say, not needed to start:** the order of the slices after
-  the first (my read: build, see, generate, arrange, shape) and after
-  which one the freeze lifts for sound work (my read: the third).
+**R26 — the editor, slice 1: open, play, tweak, hear, save** (2026-11-23,
+commits `947d021`, `dc3ebf3`, `3414a43`, `737583a`, `e40ad75`, fix wave
+`98603b6`; design `docs/architecture/editor.md`, signed that day (R25);
+report `docs/autonomy/refactor/reports/2026-11-23-editor-slice1.md`). It is
+on your desk. Every gate passes (14,246 checks); no render moved. Nobody
+has pressed a key in it: I looked at pictures of the real window, and the
+sound card and the file dialogs have never run under a test. So this list
+is the slice's last proof, and anything wrong in it is worth one line back.
+- **Start it** from the repo root:
+  `build\editor\ui_app\Release\mforce_editor.exe patches\baselines\BaselineSIN.json`
+  You should see three nodes, their wires and the Output node.
+- **Play.** Q and Z play a note (Z an octave below Q); the peak bar moves
+  and the on-screen key shows pressed. Click a piano key with the mouse.
+  Up and Down change the octave; Left and Right halve and double the note
+  length.
+- **Tweak and hear.** Make the note long (Right a few times), click
+  `Sine1`, hold a note and drag `phase` or another number: the sounding
+  note should follow as you drag.
+- **A setting.** Click `env1` and change `timeMode`: the next note has it.
+  Drag `timeScale`: the number moves while you drag and applies when you
+  let go (a setting rebuilds the player, 29 ms here, and cuts the sounding
+  note; a pin's number does not).
+- **Save.** Drag a node: the title gains a star. Ctrl+S saves and the star
+  goes. Ctrl+Shift+S asks for a file. Edit something and close the window:
+  it asks Save, Discard or Cancel. Open another file while edited: the
+  same question. File > Open Recent remembers across restarts.
+- **Your grouped patches.** Open `patches\library\winds\oboe1.json`. It
+  opens as an overlapping pile: its saved positions were made for the old
+  editor's collapsed groups, and groups are drawn in a later slice. Two
+  ways to work in it meanwhile: pick a node from the list at the top of
+  the right-hand panel (nothing moves), or `View > Arrange nodes` (every
+  node laid out afresh; saved only if you save). Pan with the middle
+  button or Alt and a left drag; the minimap is bottom right.
+- **A sustaining patch.** `patches\baselines\phrase_smoke_phrased.json`: a
+  key holds until you let go; clicking into another window stops it.
+- **Decided without you, each reversible** (the report's section 6 and
+  the design's section 13): nodes with no saved position are placed in
+  columns when a file opens (114 of the 131 library and baseline patches
+  had none); a setting's drag applies on release; an Envelope's `trigger`
+  number rebuilds the player; live play is at the sound card's rate; the
+  editor keeps its recent list and window layout in `%APPDATA%\MForce\`.
+- **Yours to say:**
+  1. What is wrong or missing at the window, in any words.
+  2. The next slice. My read is slice 2, Build: add and delete nodes from
+     the registry's menu, wire and unwire, undo and redo, a new patch,
+     the note face as one node. It gets a page of interfaces for your
+     signature first, as slice 1 did.
+  3. After which slice the freeze lifts for sound work. My read was the
+     third (once you can see waveforms). If tweaking existing patches by
+     ear is enough to start, it could be now.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design

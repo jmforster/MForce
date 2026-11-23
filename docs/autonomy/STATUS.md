@@ -183,7 +183,51 @@ first slice (`LivePlayer`) exists; glfw, rtaudio, rtmidi and imgui are in
 no build and no clone (the design says where the editor's libraries come
 from). GIT: main is ahead of origin by the Part 6 and Part 8 commits
 (nothing pushed; push only on Matt's word); GOALS.md is Matt's own, never
-staged. Everything below this
+staged. THE EDITOR'S DESIGN IS SIGNED AND SLICE 1 IS BUILT, REVIEWED AND ON
+MATT'S DESK (2026-11-23, session XXVI; Matt: "Signed, proceed"). Report R26
+`docs/autonomy/refactor/reports/2026-11-23-editor-slice1.md`; REVIEW R26
+AWAITS MATT with the list of what to try (nobody has pressed a key in the
+window: the sound card path and the Win32 dialogs have run under no test).
+Design `docs/architecture/editor.md`: section 12 the five corrections made
+before the signature (found by running each interface block against the
+engine's headers), section 13 the thirteen additions made while building.
+Base `fcd73c2`; commits `947d021` (Dear ImGui, imnodes, GLFW, RtAudio, RtMidi
+as pinned git submodules under `third_party/`; `mforce_module(.. LIBS
+<family>)` links a library PRIVATE; five modules under `editor/`; the
+structure gate scans `editor/` and no baseline entry may name a file there;
+a build renames a running `mforce_editor.exe` aside), `dc3ebf3`
+(`patch/edit.h`: `set_value`, `set_setting`, `set_string`, `move_node`,
+`move_output`, `set_panning`, sharing `patch/src/node_rules.h` with
+`check()`), `3414a43` (`BuiltGraph::constants`, `Voice::constants()`,
+`LivePlayer::set_value` with a Set message and kept values written at a
+voice's start), `737583a` (`ui_model`: `OpenPatch`, `place_unplaced_nodes`,
+recent files; `ui_audio`: `AudioAdapter`, a player handed over through one
+atomic word; `ui_control`: `Session`, the edits, `LivePlay`, the unsaved
+guard), `e40ad75` (`ui_views`, one class per view, `draw_once_headless`;
+`ui_app`, `mforce_editor [patch] [--frames N] [--shot FILE]`), fix wave
+`98603b6`. AT THE CLOSE: 0 warning lines; checks sum 14,246 (12,308 at the
+base); null 77 of 77; allocation 0 of 131; comp 21 the same; the structure
+gate 514 files, 0 failures, 98 baseline entries, none under `editor/`; the
+editor is 2,818 lines in 56 files with 1,193 lines of tests, largest file
+206 lines. RUN IT from the repo root:
+`build\editor\ui_app\Release\mforce_editor.exe <patch.json>`. WHAT SLICE 1
+DOES NOT DO (the design's later slices): add, delete or wire nodes, undo,
+groups and note faces, waveforms, a plain sound's live sound, tables and
+envelope shapes. THE REVIEW: 1 Major (the edit refused a number on a list
+pin, which the engine plays; from the coordinator's own brief), 5 Minor, 4
+Notes, all addressed; the live player's and the adapter's threading found
+sound. CLEANUP rows 155 to 163 are new. HOW IT RAN: as Parts 5, 6 and 8;
+briefs, rules, gate script (`gates.py s<N>`: configure, build, stop on a
+failed build, `tools/gates.py`), review and fix-wave briefs under
+`renders/scratch/ed1/`; the coordinator looked at pictures of the real
+window (`--shot`, converted by `renders/scratch/ed1/s5/bmp_to_png.py`) and
+found two layout faults the gates could not. NEXT: MATT'S VERDICT ON R26
+(what is wrong at the window; the next slice, my read slice 2 "Build", which
+gets a page of interfaces for his signature first; after which slice the
+freeze lifts). R24 (where BACKLOG row 8 goes) and R23 (two DUN renders)
+still await him. GIT: main is ahead of origin by this session's commits
+(nothing pushed). Usage: weekly Fable 35 percent at the session's start.
+Everything below this
 block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey

@@ -74,11 +74,11 @@ Replicate legacy functionality of node-based UI to:
     second; that misread his "no need for the editor until this is done"):
     (1) the engine flip (every host on the `patch` module; the loader and the
     old editor deleted), DONE 11-21; (2) the render, music and build parts,
-    in that order (render and music DONE 11-22; build DONE 11-23; the
-    editor's design, `docs/architecture/editor.md`, is written and awaits
-    Matt's signature); (3) the new
-    editor's design; (4) the editor in slices, the
-    first being open, play, tweak, hear, save.
+    in that order (render and music DONE 11-22; build DONE 11-23); (3) the
+    new editor's design (`docs/architecture/editor.md`, SIGNED 11-23);
+    (4) the editor in slices, the first being open, play, tweak, hear, save
+    (slice 1 BUILT 11-23 and on Matt's desk, REVIEW R26; each later slice
+    gets a page of interfaces for his signature before its code).
   + The freeze lifts for sound work once the editor's first slices are
     usable. Until then, still no feature work.
   + Proof from here: the build, engine_tests and the null gate. (Since
@@ -150,8 +150,9 @@ Replicate legacy functionality of node-based UI to:
   before design or review work" rule: "overkill is currently what's killing
   us"). Matt picks the setting; work at it. The target architecture's
   "maximum effort" marks predate this and no longer apply.
-- (No UI exe to sweep at session start: the old editor, tools/mforce_ui, was
-  deleted 2026-11-21. The rule returns with the new editor.)
+- (No UI exe to sweep at session start: the build moves a running
+  `mforce_editor.exe` aside before it links, so a build never fails because
+  the editor is open. Matt restarts it when he chooses.)
 - Build from repo root: `cmake --build build --config Release --parallel`.
   Every warning is an error. A NEW build folder needs
   `-G "Visual Studio 17 2022"` (the `cmake` on PATH defaults to Ninja and
@@ -164,7 +165,16 @@ Replicate legacy functionality of node-based UI to:
   a module's `CMakeLists.txt` names what it may use and the compiler
   refuses anything else. The structure limits are a gate:
   `python tools/structure/check.py --gate`.
-- Main executable: mforce_cli
+- The editor is one folder per module under `editor/` (`ui_model`,
+  `ui_audio`, `ui_control`, `ui_views`, `ui_app`), made the same way, with
+  NO baseline entries: a file over 600 lines, a function over 80 or a
+  file-level variable there fails the gate. Its libraries are git submodules
+  under `third_party/` (`git submodule update --init`); without them the
+  engine and every gate still build.
+- Main executable: mforce_cli. The editor:
+  `build\editor\ui_app\Release\mforce_editor.exe [patch.json]`, run from the
+  repo root (`--frames N --shot FILE` draws N frames, saves a picture and
+  exits: how a session looks at the window).
 - Write renders into renders/
 - Comp-lane renders: MELODY on patches/library/winds/oboe1.json,
   ACCOMPANIMENT on patches/library/keys/acoustic_piano/piano_default.json,

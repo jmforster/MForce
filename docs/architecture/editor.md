@@ -1,7 +1,10 @@
 # The new editor
 
 Status: **signed 2026-11-23 ("Signed, proceed"), with the corrections of
-section 12. Slice 1 is being built.**
+section 12. Slice 1 was built the same day (report R26,
+`docs/autonomy/refactor/reports/2026-11-23-editor-slice1.md`); section 13
+says where it differs from the signed text. The later slices are not
+designed: each gets a page like section 4 for a signature first.**
 Parent: `target-architecture.md` section 4 (the UI, decided 2026-10-05)
 and the 2026-11-21 reset in `CLAUDE.md` ("written fresh on the `patch`
 module ... its logic is operations on plain data with tests; the window
