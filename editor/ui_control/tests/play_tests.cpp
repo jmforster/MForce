@@ -160,3 +160,17 @@ void run_control_held_keys_tests() {
   (void)loudest(s, 3.0f);
   CHECK(sounding(s) == 0);
 }
+
+// key_acts: presses are held back with Ctrl or a text field, releases never
+// are; a key outside the table does nothing.
+void run_control_key_act_tests() {
+  Keyboard how;
+  const std::vector<KeyChange> changes = {{'Q', true, false}, {'Z', false, true}, {'A', true, true}};
+  const auto acts = key_acts(how, changes, false);
+  REQUIRE(acts.size() == 2);
+  CHECK(acts[0].key == 'Q' && acts[0].down && acts[0].noteNumber == 48);
+  CHECK(acts[1].key == 'Z' && !acts[1].down);
+  const auto heldBack = key_acts(how, changes, true);
+  REQUIRE(heldBack.size() == 1);
+  CHECK(heldBack[0].key == 'Z' && !heldBack[0].down);
+}

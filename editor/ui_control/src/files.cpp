@@ -50,6 +50,7 @@ void open_file(Session& s, const std::string& path) {
   s.open = std::move(next);
   s.selected.clear();
   s.unsaved = Unsaved{};
+  ++s.opened;
   note_opened(s.recent, path);
   s.status = start_sound(s);
 }

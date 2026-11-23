@@ -1,5 +1,6 @@
 #include "mforce/ui_views/menu_bar.h"
 #include <imgui.h>
+#include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/unsaved.h"
 
@@ -39,6 +40,10 @@ void MenuBar::draw(Session& s) {
     if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S")) save_as(s);
     ImGui::Separator();
     if (ImGui::MenuItem("Quit")) request_close(s);
+    ImGui::EndMenu();
+  }
+  if (ImGui::BeginMenu("View")) {
+    if (ImGui::MenuItem("Arrange nodes", nullptr, false, !s.open.patch.graph.nodes.empty())) arrange(s);
     ImGui::EndMenu();
   }
   ImGui::EndMenuBar();

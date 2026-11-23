@@ -5,6 +5,7 @@
 #include <utility>
 #include "mforce/patch/edit.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_model/placement.h"
 
 namespace mforce::ui {
 
@@ -91,5 +92,13 @@ void pan_canvas(Session& s, Vec2 pos) {
 }
 
 void select_node(Session& s, std::string_view node) { s.selected = std::string(node); }
+
+void arrange(Session& s) {
+  Patch arranged = s.open.patch;
+  (void)arrange_nodes(arranged);
+  if (arranged == s.open.patch) return;
+  s.open.patch = std::move(arranged);
+  changed(s);
+}
 
 }  // namespace mforce::ui

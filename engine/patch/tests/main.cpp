@@ -32,6 +32,7 @@ void run_edit_apply_tests();
 void run_edit_value_refusal_tests();
 void run_edit_setting_refusal_tests();
 void run_edit_string_and_layout_refusal_tests();
+void run_edit_list_pin_tests();
 void run_edit_codec_tests();
 void run_edit_census_tests();
 
@@ -68,6 +69,7 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_edit_value_refusal_tests", run_edit_value_refusal_tests},
   {"run_edit_setting_refusal_tests", run_edit_setting_refusal_tests},
   {"run_edit_string_and_layout_refusal_tests", run_edit_string_and_layout_refusal_tests},
+  {"run_edit_list_pin_tests", run_edit_list_pin_tests},
   {"run_edit_codec_tests", run_edit_codec_tests},
   {"run_edit_census_tests", run_edit_census_tests},
 };

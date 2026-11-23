@@ -21,6 +21,9 @@ struct Session {
   std::string  selected;     // a node id, or empty
   std::string  status;       // the last thing worth telling: a refusal, why there is no sound
   Unsaved      unsaved;      // a close or an open waiting for the answer about unsaved changes
+  // How many files this session has opened; a view that keeps drawing state
+  // for the open patch drops it when this changes.
+  int          opened{0};
 };
 
 }  // namespace mforce::ui

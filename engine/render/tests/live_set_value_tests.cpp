@@ -219,3 +219,19 @@ void run_live_set_value_trigger_tests() {
   LivePlayer before(zero, 1), rebuilt(edited(zero, "ampEnv", "trigger", 0.1f), 1);
   CHECK(!patch_door::same_samples(note_until_quiet(before, note, 94), note_until_quiet(rebuilt, note, 94)));
 }
+
+// A number on a list pin (a MultiSource's `source`) is a constant the player
+// follows: the first note equals a player built with the number.
+void run_live_set_value_list_pin_tests() {
+  std::printf("the live player: a number on a list pin is followed\n");
+  const Patch patch = patch_door::read_text(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+    {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+    {"id":"m","type":"MultiSource","params":{"source":0.25}},
+    {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"m"}}}]}})");
+  LivePlayer a(edited(patch, "m", "source", 0.5f), 1), b(patch, 1), untold(patch, 1);
+  CHECK(b.set_value("m", "source", 0.5f));
+  const PerformedNote note = note_at(0.0f, 0.2f, 60.0f, 0.8f);
+  const auto fromB = note_until_quiet(b, note, 200);
+  CHECK(patch_door::same_samples(note_until_quiet(a, note, 200), fromB));
+  CHECK(!patch_door::same_samples(fromB, note_until_quiet(untold, note, 200)));
+}

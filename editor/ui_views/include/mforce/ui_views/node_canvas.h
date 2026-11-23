@@ -15,9 +15,10 @@ namespace mforce::ui {
 //
 // imnodes names nodes, pins and links by integers. A graph node's integer is
 // given the first time its id is drawn and kept for the life of the canvas,
-// never reused (0 is the Output node's); a pin is its node's integer times
-// 1024 plus its row (0 the output, 1 on the input rows in order); a link is
-// its reading pin's integer times 256 plus the feed's place in the pin's list.
+// not reused while the file stays open, and the integers start again when
+// another file is opened (0 is the Output node's); a pin is its node's
+// integer times 1024 plus its row (0 the output, 1 on the input rows in
+// order). Links are counted afresh each frame: none is interactive here.
 class NodeCanvas {
 public:
   void draw(Session& s);
@@ -34,6 +35,8 @@ private:
 
   std::map<std::string, int> ints_;                // node id -> imnodes integer
   int nextInt_{1};
+  int nextLink_{0};
+  int seenOpened_{-1};                             // session.opened when the integers above were given
   bool gesture_{false};                            // a drag or a pan is under way: the canvas keeps the user's
   Vec2 shownPanning_{};                            // the panning given to imnodes this frame
 };

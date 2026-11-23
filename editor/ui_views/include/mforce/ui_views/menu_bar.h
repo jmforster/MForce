@@ -5,7 +5,8 @@
 namespace mforce::ui {
 
 // The window's menu bar: File with Open (Ctrl+O), Open Recent, Save (Ctrl+S),
-// Save As (Ctrl+Shift+S) and Quit. The shortcuts work wherever the focus is.
+// Save As (Ctrl+Shift+S) and Quit; View with Arrange nodes. The shortcuts
+// work wherever the focus is.
 class MenuBar {
 public:
   explicit MenuBar(FileDialogs& dialogs);

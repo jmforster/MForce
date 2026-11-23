@@ -259,3 +259,75 @@ void run_control_status_tests() {
   edit_value(s, "Formant1", "cutoffFreq", 1700.0f);
   CHECK(s.status.empty());
 }
+
+// edit_string: a name gate's name applies and rebuilds the player; the same
+// text again is no change; a name the node does not have is refused.
+void run_control_string_tests() {
+  const TempFolder folder("strings");
+  Patch p = sine_with_probe();
+  Node gate;
+  gate.id = "g";
+  gate.type = "NameGate";
+  p.graph.nodes.push_back(gate);
+  save_patch(folder.file("gate.json"), p);
+  Session s;
+  open_file(s, folder.file("gate.json"));
+  REQUIRE(s.audio.player() != nullptr);
+  LivePlayer* before = s.audio.player();
+  edit_string(s, "g", "name", "attack");
+  CHECK(s.open.dirty && s.open.patch.graph.nodes[3].strings.at("name") == "attack");
+  CHECK(s.audio.player() != before);
+  save_file(s);
+  LivePlayer* saved = s.audio.player();
+  edit_string(s, "g", "name", "attack");
+  CHECK(!s.open.dirty && s.audio.player() == saved);
+  edit_string(s, "g", "nope", "x");
+  CHECK(s.status == "node 'g' (NameGate): 'nope' is not a string setting of NameGate");
+}
+
+// arrange: an unsaved change that clears the status line and leaves the
+// player as it is.
+void run_control_arrange_tests() {
+  Session s;
+  open_file(s, "patches/library/keys/acoustic_piano/piano_default.json");
+  LivePlayer* player = s.audio.player();
+  edit_value(s, "nope", "x", 1.0f);
+  REQUIRE(!s.status.empty());
+  arrange(s);
+  CHECK(s.open.dirty && s.status.empty());
+  CHECK(s.audio.player() == player);
+  CHECK(!s.open.patch.layout.panning.has_value());
+}
+
+// opened counts the files opened: a failed open does not count.
+void run_control_opened_tests() {
+  Session s;
+  CHECK(s.opened == 0);
+  open_file(s, kOboe);
+  CHECK(s.opened == 1);
+  open_file(s, "patches/library/no_such_patch.json");
+  CHECK(s.opened == 1);
+  open_file(s, kSlowRate);
+  CHECK(s.opened == 2);
+}
+
+// keep_up: a value the queue could not take reaches the sounding voice after
+// keep_up and a buffer, with no key or edit between; without it, it waits.
+void run_control_keep_up_tests() {
+  register_check_probe();
+  const TempFolder folder("keep_up");
+  save_patch(folder.file("sine.json"), sine_with_probe());
+  Session told, untold;
+  for (Session* s : {&told, &untold}) {
+    open_file(*s, folder.file("sine.json"));
+    s->keyboard.seconds = 4.0f;
+    key_down(*s, 1, 60);
+    for (int k = 0; k < 400; ++k) edit_value(*s, "osc", "amplitude", 0.2f + 0.001f * float(k));
+    edit_value(*s, "osc", "amplitude", 0.0f);           // the last value: silence
+    (void)buffer(*s);                                     // the queue drains; the last value waits
+  }
+  keep_up(told);
+  const auto heard = buffer(told), waited = buffer(untold);
+  CHECK(std::all_of(heard.begin(), heard.end(), [](float x) { return x == 0.0f; }));
+  CHECK(std::any_of(waited.begin(), waited.end(), [](float x) { return x != 0.0f; }));
+}

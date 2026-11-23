@@ -2,6 +2,7 @@
 // the block below placed nodes, a loop, sameness, and every measured patch.
 #include "mforce/testing/check.h"
 #include "mforce/patch/patch_json.h"
+#include "mforce/patch/type_declarations.h"
 #include "mforce/source/register_all_sources.h"
 #include "mforce/ui_model/placement.h"
 #include <algorithm>
@@ -130,4 +131,46 @@ void run_placement_census_tests() {
               "%d with a shared position\n", patches, hadNone, lacked, placed, shared);
   CHECK(patches > 0);
   CHECK(shared == 0);
+}
+
+// A node's slot is its header, a row per declared Param and Input and per
+// dynamic pin, a row for its output, and the gap: the second node of a
+// column starts that far below the first.
+void run_placement_slot_tests() {
+  Patch p = small();
+  (void)place_unplaced_nodes(p);
+  const TypeDeclarations* d = type_declarations("PerformNode");
+  REQUIRE(d != nullptr);
+  const float rows = float(d->params.size() + d->inputs.size() + 1);
+  CHECK(at(p, "env").y - at(p, "pf").y == 40.0f + 22.0f * rows + 20.0f);
+}
+
+// Arrange over every measured patch saved with groups or note faces: every node placed
+// afresh, none sharing a place, the same layout again on a second call,
+// check() empty, groups and faces kept, the panning dropped.
+void run_arrange_tests() {
+  int grouped = 0;
+  for (const char* folder : {"patches/library", "patches/baselines"})
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(folder)) {
+      if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
+      const Patch before = load_patch(entry.path().generic_string());
+      if (before.layout.groups.empty() && before.layout.faces.empty()) continue;
+      ++grouped;
+      Patch p = before;
+      CHECK(arrange_nodes(p) == int(p.graph.nodes.size()));
+      Patch fresh = before;
+      fresh.layout.positions.clear();
+      fresh.layout.outputPos.reset();
+      (void)place_unplaced_nodes(fresh);
+      CHECK(p.layout.positions == fresh.layout.positions);
+      CHECK(all_distinct(p));
+      CHECK(!p.layout.panning.has_value());
+      CHECK(p.layout.groups == before.layout.groups && p.layout.faces == before.layout.faces);
+      CHECK(p.check().empty());
+      Patch again = p;
+      (void)arrange_nodes(again);
+      CHECK(again == p);
+    }
+  std::printf("  arrange: %d patches saved with groups or note faces\n", grouped);
+  CHECK(grouped > 0);
 }

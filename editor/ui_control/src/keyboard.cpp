@@ -32,4 +32,15 @@ int note_number(const Keyboard& how, int offset) {
   return n >= 0 && n <= 127 ? n : -1;
 }
 
+std::vector<KeyAct> key_acts(const Keyboard& how, const std::vector<KeyChange>& changes, bool notesHeldBack) {
+  std::vector<KeyAct> acts;
+  for (const KeyChange& c : changes) {
+    const auto offset = key_offset(c.key);
+    if (!offset) continue;
+    if (c.pressed && !notesHeldBack) acts.push_back({c.key, true, note_number(how, *offset)});
+    if (c.released) acts.push_back({c.key, false, -1});
+  }
+  return acts;
+}
+
 }  // namespace mforce::ui

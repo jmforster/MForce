@@ -24,5 +24,6 @@ void edit_position(Session& s, std::string_view node, Vec2 pos);
 void edit_output_position(Session& s, Vec2 pos);
 void pan_canvas   (Session& s, Vec2 pos);            // kept in the patch, and not an unsaved change
 void select_node  (Session& s, std::string_view node);   // empty selects nothing
+void arrange      (Session& s);                         // every node laid out afresh: an unsaved change; the sound is untouched
 
 }  // namespace mforce::ui

@@ -54,7 +54,6 @@ Change set_value(Patch& p, std::string_view node, std::string_view pin, float v)
   const Pin shape = pin_of(at.d, pin);
   if (!shape.declared) throw std::runtime_error(at.head + " is not a pin of " + at.node.type);
   if (shape.slot) throw std::runtime_error(at.head + " is a slot: it takes a part, not a number");
-  if (shape.list) throw std::runtime_error(at.head + " is a list: it takes feeds, not a number");
   const std::string key(pin);
   const auto fed = at.node.wires.find(key);
   if (fed != at.node.wires.end() && !fed->second.empty())

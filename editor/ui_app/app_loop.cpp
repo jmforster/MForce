@@ -1,6 +1,7 @@
 #include "app_loop.h"
 #include <string>
 #include "mforce/ui_control/files.h"
+#include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/unsaved.h"
 
 namespace mforce::ui {
@@ -14,6 +15,7 @@ void run(AppWindow& window, Session& session, EditorViews& views, const Options&
       window.keep_open();
     }
     if (session.unsaved.closing) return;
+    keep_up(session);
     window.begin_frame();
     views.draw(session);
     window.end_frame(frame + 1 == o.frames ? o.shot : std::string());

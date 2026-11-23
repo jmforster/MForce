@@ -15,7 +15,8 @@ enum class Change { Value,       // a pin's constant: the sound can follow witho
 // A patch that passed check() before an accepted edit passes it after. A
 // node id names the first node that has it, as it does for check().
 
-// A pin's constant. Refused on a pin a wire feeds, a slot or a list.
+// A pin's constant. Refused on a pin a wire feeds and on a slot; a list
+// pin with no feed takes a number as any signal pin does.
 Change set_value  (Patch&, std::string_view node, std::string_view pin, float v);
 // A scalar setting (a float, an int, a bool as 0 or 1, an enum as its index).
 // Refused outside the declared range or labels.

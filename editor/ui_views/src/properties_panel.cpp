@@ -1,8 +1,8 @@
 #include "mforce/ui_views/properties_panel.h"
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <imgui.h>
+#include <imgui_stdlib.h>
 #include "mforce/ui_control/edits.h"
 
 namespace mforce::ui {
@@ -138,22 +138,19 @@ void PropertiesPanel::settings(Session& s, const Node& n, const TypeDeclarations
 
 void PropertiesPanel::string_setting(Session& s, const Node& n, const TypeDeclarations::Setting& st) {
   const std::string key = n.id + "/" + st.name;
-  std::array<char, 256> text{};
-  if (typedKey_ == key) {
-    text = typed_;
-  } else {
+  std::string text = typed_;
+  if (typedKey_ != key) {
     const auto held = n.strings.find(st.name);
-    const std::string& value = held == n.strings.end() ? st.defaultText : held->second;
-    std::memcpy(text.data(), value.c_str(), std::min(value.size(), text.size() - 1));
+    text = held == n.strings.end() ? st.defaultText : held->second;
   }
-  ImGui::InputText(st.name.c_str(), text.data(), text.size());
+  ImGui::InputText(st.name.c_str(), &text);        // ImGui's std::string field: any length
   if (ImGui::IsItemActive()) {
     typedKey_ = key;
     typed_ = text;
   }
   if (ImGui::IsItemDeactivatedAfterEdit()) {
     typedKey_.clear();
-    edit_string(s, n.id, st.name, text.data());
+    edit_string(s, n.id, st.name, text);
   } else if (!ImGui::IsItemActive() && typedKey_ == key) {
     typedKey_.clear();
   }
@@ -166,7 +163,25 @@ void PropertiesPanel::arrays(const Node& n, const TypeDeclarations& d) {
   }
 }
 
+// Every node of the patch by id and type, in the graph's order: a node
+// another hides on the canvas can be chosen here.
+void PropertiesPanel::choose_node(Session& s) {
+  const Node* current = selected_node(s);
+  const std::string shown = current ? current->id + "  (" + current->type + ")" : std::string("(no node)");
+  if (!ImGui::BeginCombo("node", shown.c_str())) return;
+  if (ImGui::Selectable("(no node)", !current)) select_node(s, "");
+  for (const auto& n : s.open.patch.graph.nodes)
+    if (ImGui::Selectable((n.id + "  (" + n.type + ")").c_str(), current == &n)) select_node(s, n.id);
+  ImGui::EndCombo();
+}
+
 void PropertiesPanel::draw(Session& s) {
+  if (seenOpened_ != s.opened) {                    // another file: nothing in flight belongs to it
+    draggedKey_.clear();
+    typedKey_.clear();
+    seenOpened_ = s.opened;
+  }
+  if (!s.open.patch.graph.nodes.empty()) choose_node(s);
   const Node* n = selected_node(s);
   if (!n) {
     patch_facts(s);

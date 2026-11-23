@@ -53,8 +53,11 @@ public:
   void set_wheel(float v);
   void set_pressure(float v);
   void set_volume(float v);
-  // The constant of `pin` on `node`, in every voice: the voices that are
-  // sounding hear it within one buffer, the others when they next start.
+  // The constant of `pin` on `node`, written in every voice: the voices that
+  // are sounding have it within one buffer, the others when they next start.
+  // The sound follows for a node that reads its pin's number as it runs (on
+  // the sounding note) or as a note starts (from the next note); render_tests'
+  // census holds every node type and pin the measured patches use to that.
   // False when the player cannot follow it, and nothing changes: the voices
   // have no constant of that node and pin (a pin a wire feeds, a pin with no
   // number, a name that is not there, a node a MultiplexSource's template

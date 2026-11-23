@@ -16,12 +16,11 @@ namespace {
 
 constexpr int kOutputNode = 0;
 constexpr int kPinsPerNode = 1024;
-constexpr int kFeedsPerPin = 256;
+constexpr float kMiniMapShare = 0.2f;
 constexpr unsigned int kTapColour = IM_COL32(230, 160, 60, 255);
 constexpr unsigned int kDynamicColour = IM_COL32(110, 200, 120, 255);
 
 int pin_int(int node, int row) { return node * kPinsPerNode + row; }
-int link_int(int readerPin, int feed) { return readerPin * kFeedsPerPin + feed; }
 ImVec2 im(Vec2 v) { return ImVec2(v.x, v.y); }
 Vec2 vec(ImVec2 v) { return Vec2{v.x, v.y}; }
 
@@ -124,8 +123,7 @@ void NodeCanvas::draw_links(const Session& s) {
       for (size_t f = 0; row > 0 && f < feeds.size(); ++f) {
         if (!present.count(feeds[f].source)) continue;
         if (feeds[f].tap) ImNodes::PushColorStyle(ImNodesCol_Link, kTapColour);
-        ImNodes::Link(link_int(pin_int(reader, row), int(f)), pin_int(node_int(feeds[f].source), 0),
-                      pin_int(reader, row));
+        ImNodes::Link(nextLink_++, pin_int(node_int(feeds[f].source), 0), pin_int(reader, row));
         if (feeds[f].tap) ImNodes::PopColorStyle();
       }
     }
@@ -133,12 +131,12 @@ void NodeCanvas::draw_links(const Session& s) {
       if (!present.count(source)) continue;
       ImNodes::PushColorStyle(ImNodesCol_Link, kDynamicColour);
       const int pin = pin_int(reader, row_of(names, setting));
-      ImNodes::Link(link_int(pin, 0), pin_int(node_int(source), 0), pin);
+      ImNodes::Link(nextLink_++, pin_int(node_int(source), 0), pin);
       ImNodes::PopColorStyle();
     }
   }
   if (present.count(g.output))
-    ImNodes::Link(link_int(pin_int(kOutputNode, 1), 0), pin_int(node_int(g.output), 0), pin_int(kOutputNode, 1));
+    ImNodes::Link(nextLink_++, pin_int(node_int(g.output), 0), pin_int(kOutputNode, 1));
 }
 
 // A position or the panning imnodes holds that the record does not: while
@@ -183,11 +181,19 @@ void NodeCanvas::carry_selection(Session& s) {
 }
 
 void NodeCanvas::draw(Session& s) {
+  if (seenOpened_ != s.opened) {                    // another file: its nodes get integers afresh
+    ints_.clear();
+    nextInt_ = 1;
+    gesture_ = false;
+    seenOpened_ = s.opened;
+  }
+  nextLink_ = 0;
   ImNodes::BeginNodeEditor();
   show_record(s);
   draw_nodes(s);
   draw_output(s);
   draw_links(s);
+  ImNodes::MiniMap(kMiniMapShare, ImNodesMiniMapLocation_BottomRight);
   ImNodes::EndNodeEditor();
   carry_moves(s);
   carry_selection(s);

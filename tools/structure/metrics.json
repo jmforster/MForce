@@ -1,17 +1,32 @@
 {
  "duplicate_blocks": [
   [
-   73,
+   82,
    [
     [
      "engine/render/tests/main.cpp",
      2,
-     74
+     83
     ],
     [
      "engine/source/tests/main.cpp",
      2,
-     74
+     83
+    ]
+   ]
+  ],
+  [
+   78,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     6,
+     83
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     6,
+     83
     ]
    ]
   ],
@@ -20,28 +35,43 @@
    [
     [
      "engine/render/tests/main.cpp",
-     77,
-     148
+     12,
+     83
     ],
     [
      "engine/source/tests/main.cpp",
-     102,
-     173
+     12,
+     83
     ]
    ]
   ],
   [
-   50,
+   59,
    [
     [
      "engine/render/tests/main.cpp",
      25,
-     74
+     83
     ],
     [
      "engine/source/tests/main.cpp",
      25,
-     74
+     83
+    ]
+   ]
+  ],
+  [
+   53,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     31,
+     83
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     31,
+     83
     ]
    ]
   ],
@@ -50,13 +80,28 @@
    [
     [
      "engine/render/tests/main.cpp",
-     100,
-     148
+     86,
+     134
     ],
     [
      "engine/source/tests/main.cpp",
-     125,
-     173
+     102,
+     150
+    ]
+   ]
+  ],
+  [
+   49,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     86,
+     134
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     102,
+     150
     ]
    ]
   ],
@@ -206,8 +251,118 @@
    ]
   ],
   [
+   39,
+   [
+    [
+     "editor/ui_control/tests/main.cpp",
+     2,
+     40
+    ],
+    [
+     "engine/play/tests/main.cpp",
+     2,
+     40
+    ]
+   ]
+  ],
+  [
+   39,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     96,
+     134
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     112,
+     150
+    ]
+   ]
+  ],
+  [
+   36,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     2,
+     37
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     2,
+     37
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     2,
+     37
+    ]
+   ]
+  ],
+  [
+   35,
+   [
+    [
+     "editor/ui_control/tests/main.cpp",
+     6,
+     40
+    ],
+    [
+     "engine/play/tests/main.cpp",
+     6,
+     40
+    ]
+   ]
+  ],
+  [
+   35,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     40,
+     74
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     86,
+     120
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     102,
+     136
+    ]
+   ]
+  ],
+  [
+   35,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     40,
+     74
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     86,
+     120
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     102,
+     136
+    ]
+   ]
+  ],
+  [
    33,
    [
+    [
+     "engine/patch/tests/main.cpp",
+     2,
+     34
+    ],
     [
      "engine/render/tests/main.cpp",
      2,
@@ -229,9 +384,59 @@
    32,
    [
     [
+     "engine/patch/tests/main.cpp",
+     6,
+     37
+    ],
+    [
      "engine/render/tests/main.cpp",
-     77,
-     108
+     6,
+     37
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     6,
+     37
+    ]
+   ]
+  ],
+  [
+   32,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     40,
+     71
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     86,
+     117
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     37,
+     68
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     102,
+     133
+    ]
+   ]
+  ],
+  [
+   32,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     40,
+     71
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     86,
+     117
     ],
     [
      "engine/shelved/tests/main.cpp",
@@ -254,44 +459,19 @@
      31
     ],
     [
-     "engine/render/tests/main.cpp",
-     2,
-     31
-    ],
-    [
-     "engine/shelved/tests/main.cpp",
-     2,
-     31
-    ],
-    [
-     "engine/source/tests/main.cpp",
-     2,
-     31
-    ]
-   ]
-  ],
-  [
-   29,
-   [
-    [
-     "engine/compose/tests/main.cpp",
-     2,
-     30
-    ],
-    [
      "engine/patch/tests/main.cpp",
      2,
-     30
+     31
     ],
     [
      "engine/render/tests/main.cpp",
      2,
-     30
+     31
     ],
     [
      "engine/shelved/tests/main.cpp",
      2,
-     30
+     31
     ]
    ]
   ],
@@ -304,19 +484,69 @@
      62
     ],
     [
+     "engine/patch/tests/main.cpp",
+     40,
+     68
+    ],
+    [
      "engine/render/tests/main.cpp",
-     77,
-     105
+     86,
+     114
     ],
     [
      "engine/shelved/tests/main.cpp",
      37,
      65
+    ]
+   ]
+  ],
+  [
+   29,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     34,
+     62
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     40,
+     68
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     86,
+     114
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     37,
+     65
+    ]
+   ]
+  ],
+  [
+   29,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     6,
+     34
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     6,
+     34
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     6,
+     34
     ],
     [
      "engine/source/tests/main.cpp",
-     102,
-     130
+     6,
+     34
     ]
    ]
   ],
@@ -336,27 +566,77 @@
    ]
   ],
   [
-   28,
+   26,
    [
     [
      "engine/compose/tests/main.cpp",
-     34,
-     61
+     6,
+     31
     ],
     [
      "engine/patch/tests/main.cpp",
-     33,
-     60
+     6,
+     31
     ],
     [
      "engine/render/tests/main.cpp",
-     77,
-     104
+     6,
+     31
     ],
     [
      "engine/shelved/tests/main.cpp",
-     37,
-     64
+     6,
+     31
+    ]
+   ]
+  ],
+  [
+   26,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     12,
+     37
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     12,
+     37
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     12,
+     37
+    ]
+   ]
+  ],
+  [
+   26,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     109,
+     134
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     125,
+     150
+    ]
+   ]
+  ],
+  [
+   26,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     133,
+     158
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     158,
+     183
     ]
    ]
   ],
@@ -411,6 +691,26 @@
    ]
   ],
   [
+   25,
+   [
+    [
+     "engine/patch/tests/main.cpp",
+     50,
+     74
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     96,
+     120
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     112,
+     136
+    ]
+   ]
+  ],
+  [
    24,
    [
     [
@@ -425,13 +725,38 @@
     ],
     [
      "engine/patch/tests/main.cpp",
-     33,
-     56
+     40,
+     63
     ],
     [
      "engine/render/tests/main.cpp",
-     77,
-     100
+     86,
+     109
+    ]
+   ]
+  ],
+  [
+   24,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     34,
+     57
+    ],
+    [
+     "engine/core/tests/main.cpp",
+     29,
+     52
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     40,
+     63
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     86,
+     109
     ]
    ]
   ],
@@ -469,14 +794,24 @@
    23,
    [
     [
-     "engine/shelved/tests/figure_compose_tests.cpp",
-     94,
-     116
+     "engine/patch/tests/main.cpp",
+     12,
+     34
     ],
     [
-     "engine/shelved/tests/figure_compose_tests.cpp",
-     242,
-     264
+     "engine/render/tests/main.cpp",
+     12,
+     34
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     12,
+     34
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     12,
+     34
     ]
    ]
   ],
@@ -499,6 +834,31 @@
    22,
    [
     [
+     "engine/patch/tests/main.cpp",
+     50,
+     71
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     96,
+     117
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     47,
+     68
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     112,
+     133
+    ]
+   ]
+  ],
+  [
+   22,
+   [
+    [
      "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
      35,
      56
@@ -507,6 +867,31 @@
      "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
      158,
      179
+    ]
+   ]
+  ],
+  [
+   21,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     6,
+     26
+    ],
+    [
+     "engine/core/tests/main.cpp",
+     6,
+     26
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     6,
+     26
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     6,
+     26
     ]
    ]
   ],
@@ -547,6 +932,116 @@
      "engine/source/include/mforce/source/filter/hammer_bank.h",
      8,
      31
+    ]
+   ]
+  ],
+  [
+   20,
+   [
+    [
+     "editor/ui_control/tests/main.cpp",
+     21,
+     40
+    ],
+    [
+     "engine/play/tests/main.cpp",
+     21,
+     40
+    ]
+   ]
+  ],
+  [
+   20,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     12,
+     31
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     12,
+     31
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     12,
+     31
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     12,
+     31
+    ]
+   ]
+  ],
+  [
+   20,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     115,
+     134
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     131,
+     150
+    ]
+   ]
+  ],
+  [
+   20,
+   [
+    [
+     "engine/shelved/tests/figure_compose_tests.cpp",
+     97,
+     116
+    ],
+    [
+     "engine/shelved/tests/figure_compose_tests.cpp",
+     245,
+     264
+    ]
+   ]
+  ],
+  [
+   19,
+   [
+    [
+     "editor/ui_audio/tests/main.cpp",
+     2,
+     20
+    ],
+    [
+     "engine/music/tests/main.cpp",
+     2,
+     20
+    ]
+   ]
+  ],
+  [
+   19,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     44,
+     62
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     50,
+     68
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     96,
+     114
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     47,
+     65
     ]
    ]
   ],
@@ -649,31 +1144,6 @@
    17,
    [
     [
-     "engine/compose/tests/main.cpp",
-     2,
-     18
-    ],
-    [
-     "engine/core/tests/main.cpp",
-     2,
-     18
-    ],
-    [
-     "engine/patch/tests/main.cpp",
-     2,
-     18
-    ],
-    [
-     "engine/play/tests/main.cpp",
-     2,
-     18
-    ]
-   ]
-  ],
-  [
-   17,
-   [
-    [
      "engine/source/include/mforce/source/filter/limiter.h",
      7,
      23
@@ -694,486 +1164,42 @@
      24
     ]
    ]
-  ],
-  [
-   17,
-   [
-    [
-     "tools/stk_ref/bandedwg_ref.cpp",
-     37,
-     53
-    ],
-    [
-     "tools/stk_ref/blowhole_ref.cpp",
-     37,
-     53
-    ],
-    [
-     "tools/stk_ref/bowed_ref.cpp",
-     41,
-     57
-    ],
-    [
-     "tools/stk_ref/brass_ref.cpp",
-     33,
-     49
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "engine/compose/include/mforce/compose/default_figure_strategy.h",
-     182,
-     197
-    ],
-    [
-     "engine/compose/include/mforce/compose/default_phrase_strategy.h",
-     278,
-     291
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "engine/compose/tests/main.cpp",
-     34,
-     49
-    ],
-    [
-     "engine/core/tests/main.cpp",
-     29,
-     44
-    ],
-    [
-     "engine/patch/tests/main.cpp",
-     33,
-     48
-    ],
-    [
-     "engine/play/tests/main.cpp",
-     21,
-     36
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "engine/source/tests/filter_tests.cpp",
-     190,
-     205
-    ],
-    [
-     "engine/source/tests/physical_tests.cpp",
-     113,
-     128
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "tools/durn_converter/main.cpp",
-     393,
-     408
-    ],
-    [
-     "tools/durn_converter/main.cpp",
-     417,
-     431
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "tools/stk_ref/bandedwg_ref.cpp",
-     9,
-     24
-    ],
-    [
-     "tools/stk_ref/blowhole_ref.cpp",
-     9,
-     24
-    ],
-    [
-     "tools/stk_ref/bowed_ref.cpp",
-     11,
-     26
-    ],
-    [
-     "tools/stk_ref/brass_ref.cpp",
-     5,
-     20
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
-     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
-     57,
-     71
-    ],
-    [
-     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
-     180,
-     194
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
-     "engine/source/include/mforce/source/envelope/segment_source.h",
-     9,
-     23
-    ],
-    [
-     "engine/source/include/mforce/source/filter/bw_bandpass_filter.h",
-     10,
-     17
-    ],
-    [
-     "engine/source/include/mforce/source/filter/delay_filter.h",
-     9,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/filter/distorted_source.h",
-     9,
-     16
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "engine/source/include/mforce/source/wavetable/averaging_evolution.h",
-     4,
-     17
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/eks_evolution.h",
-     5,
-     19
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
-     3,
-     24
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "engine/source/tests/filter_tests.cpp",
-     192,
-     205
-    ],
-    [
-     "engine/source/tests/physical_tests.cpp",
-     115,
-     128
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "tools/stk_ref/brass_ref.cpp",
-     61,
-     74
-    ],
-    [
-     "tools/stk_ref/clarinet_ref.cpp",
-     64,
-     77
-    ],
-    [
-     "tools/stk_ref/flute_ref.cpp",
-     61,
-     74
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "tools/stk_ref/clarinet_ref.cpp",
-     64,
-     77
-    ],
-    [
-     "tools/stk_ref/flute_ref.cpp",
-     61,
-     74
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "engine/shelved/tests/figure_compose_tests.cpp",
-     98,
-     110
-    ],
-    [
-     "engine/shelved/tests/figure_compose_tests.cpp",
-     246,
-     258
-    ],
-    [
-     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
-     44,
-     56
-    ],
-    [
-     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
-     167,
-     179
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
-     59,
-     71
-    ],
-    [
-     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
-     182,
-     194
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "engine/source/include/mforce/source/wavetable/averaging_evolution.h",
-     4,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/eks_evolution.h",
-     5,
-     18
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/pluck_evolution.h",
-     4,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
-     3,
-     23
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "engine/music/include/mforce/music/figures.h",
-     580,
-     591
-    ],
-    [
-     "engine/music/include/mforce/music/figures.h",
-     614,
-     625
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "engine/source/include/mforce/source/filter/bw_bandpass_filter.h",
-     6,
-     17
-    ],
-    [
-     "engine/source/include/mforce/source/filter/delay_filter.h",
-     5,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/physical/allpass_resonator.h",
-     7,
-     47
-    ],
-    [
-     "engine/source/include/mforce/source/physical/ks_string.h",
-     8,
-     60
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "tools/durn_converter/parsers/abc_parser.h",
-     427,
-     438
-    ],
-    [
-     "tools/durn_converter/parsers/abc_parser.h",
-     442,
-     454
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "tools/stk_ref/bandedwg_ref.cpp",
-     68,
-     79
-    ],
-    [
-     "tools/stk_ref/blowhole_ref.cpp",
-     70,
-     81
-    ],
-    [
-     "tools/stk_ref/bowed_ref.cpp",
-     79,
-     90
-    ],
-    [
-     "tools/stk_ref/brass_ref.cpp",
-     63,
-     74
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "tools/stk_ref/blowhole_ref.cpp",
-     70,
-     81
-    ],
-    [
-     "tools/stk_ref/saxofony_ref.cpp",
-     72,
-     83
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "tools/stk_ref/bowed_ref.cpp",
-     79,
-     90
-    ],
-    [
-     "tools/stk_ref/brass_ref.cpp",
-     63,
-     74
-    ],
-    [
-     "tools/stk_ref/clarinet_ref.cpp",
-     66,
-     77
-    ],
-    [
-     "tools/stk_ref/flute_ref.cpp",
-     63,
-     74
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "editor/ui_audio/tests/main.cpp",
-     2,
-     12
-    ],
-    [
-     "editor/ui_control/tests/main.cpp",
-     2,
-     12
-    ],
-    [
-     "editor/ui_views/tests/main.cpp",
-     2,
-     12
-    ],
-    [
-     "engine/voicing/tests/main.cpp",
-     2,
-     12
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/patch/tests/graph_build_tests.cpp",
-     57,
-     67
-    ],
-    [
-     "engine/render/tests/instrument_build_tests.cpp",
-     47,
-     57
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/shelved/include/mforce/shelved/period_passage_strategy.h",
-     284,
-     294
-    ],
-    [
-     "engine/shelved/include/mforce/shelved/period_passage_strategy.h",
-     315,
-     327
-    ]
-   ]
   ]
  ],
  "files": {
+  "editor/ui_app/app_loop.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 29,
+   "longest_function": [
+    19,
+    "mforce::ui::run"
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_app/app_loop.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 15,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": []
+  },
   "editor/ui_app/app_window.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 128,
+   "lines": 154,
    "longest_function": [
-    11,
+    17,
     "mforce::ui::AppWindow::end_frame"
    ],
    "module": "ui_app",
@@ -1190,7 +1216,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 31,
+   "lines": 37,
    "longest_function": [
     0,
     ""
@@ -1231,59 +1257,188 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 50,
+   "lines": 43,
    "longest_function": [
-    11,
+    22,
     "main"
    ],
    "module": "ui_app",
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_audio/include/mforce/ui_audio/audio_apis.h": {
+  "editor/ui_app/options.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 11,
+   "lines": 35,
    "longest_function": [
-    0,
-    ""
+    13,
+    "mforce::ui::read_options"
    ],
-   "module": "ui_audio",
+   "module": "ui_app",
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_audio/src/audio_apis.cpp": {
+  "editor/ui_app/options.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 16,
    "longest_function": [
-    9,
-    "mforce::ui::compiled_audio_apis"
+    0,
+    ""
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": [
+    "Options"
+   ]
+  },
+  "editor/ui_app/screenshot.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 62,
+   "longest_function": [
+    18,
+    "mforce::ui::put_headers"
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_app/screenshot.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 12,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_app/settings_folder.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 39,
+   "longest_function": [
+    15,
+    "mforce::ui::environment"
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_app/settings_folder.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 16,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": [
+    "SettingsFiles"
+   ]
+  },
+  "editor/ui_app/win32_file_dialogs.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 70,
+   "longest_function": [
+    11,
+    "mforce::ui::dialog_fields"
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_app/win32_file_dialogs.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 17,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_app",
+   "mutable_vars": 0,
+   "types": [
+    "Win32FileDialogs"
+   ]
+  },
+  "editor/ui_audio/include/mforce/ui_audio/audio_adapter.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 98,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_audio",
+   "mutable_vars": 0,
+   "types": [
+    "AudioAdapter"
+   ]
+  },
+  "editor/ui_audio/src/audio_adapter.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 110,
+   "longest_function": [
+    19,
+    "mforce::ui::AudioAdapter::fill_chunk"
    ],
    "module": "ui_audio",
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_audio/tests/audio_apis_tests.cpp": {
+  "editor/ui_audio/src/audio_device.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 14,
+   "lines": 118,
    "longest_function": [
-    8,
-    "run_audio_api_tests"
+    32,
+    "mforce::ui::AudioAdapter::open"
+   ],
+   "module": "ui_audio",
+   "mutable_vars": 0,
+   "types": [
+    "AudioAdapter"
+   ]
+  },
+  "editor/ui_audio/tests/audio_adapter_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 178,
+   "longest_function": [
+    25,
+    "run_adapter_silence_and_note_tests"
    ],
    "module": "tests",
    "mutable_vars": 0,
-   "types": []
+   "types": [
+    "Stereo"
+   ]
   },
   "editor/ui_audio/tests/main.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 12,
+   "lines": 20,
    "longest_function": [
     1,
     "main"
@@ -1292,11 +1447,11 @@
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_control/include/mforce/ui_control/module_name.h": {
+  "editor/ui_control/include/mforce/ui_control/edits.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 9,
+   "lines": 29,
    "longest_function": [
     0,
     ""
@@ -1305,24 +1460,195 @@
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_control/src/module_name.cpp": {
+  "editor/ui_control/include/mforce/ui_control/files.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 7,
+   "lines": 25,
    "longest_function": [
-    1,
-    "mforce::ui::control_module_name"
+    0,
+    ""
    ],
    "module": "ui_control",
    "mutable_vars": 0,
    "types": []
   },
+  "editor/ui_control/include/mforce/ui_control/keyboard.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 37,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": [
+    "Keyboard",
+    "KeyChange",
+    "KeyAct"
+   ]
+  },
+  "editor/ui_control/include/mforce/ui_control/live_play.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 48,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": [
+    "LivePlay"
+   ]
+  },
+  "editor/ui_control/include/mforce/ui_control/playing.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 23,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_control/include/mforce/ui_control/session.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 29,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": [
+    "Session"
+   ]
+  },
+  "editor/ui_control/include/mforce/ui_control/unsaved.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 28,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": [
+    "Unsaved",
+    "Answer"
+   ]
+  },
+  "editor/ui_control/src/edits.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 104,
+   "longest_function": [
+    9,
+    "mforce::ui::applied"
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_control/src/files.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 85,
+   "longest_function": [
+    17,
+    "mforce::ui::start_sound"
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_control/src/keyboard.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 46,
+   "longest_function": [
+    10,
+    "mforce::ui::key_acts"
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": [
+    "KeyNote"
+   ]
+  },
+  "editor/ui_control/src/live_play.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 72,
+   "longest_function": [
+    15,
+    "mforce::ui::LivePlay::rebuild"
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_control/src/playing.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 41,
+   "longest_function": [
+    3,
+    "mforce::ui::keep_up"
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_control/src/unsaved.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 51,
+   "longest_function": [
+    15,
+    "mforce::ui::answer_unsaved"
+   ],
+   "module": "ui_control",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_control/tests/edit_and_file_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 333,
+   "longest_function": [
+    49,
+    "run_control_unsaved_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "TempFolder"
+   ]
+  },
   "editor/ui_control/tests/main.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 12,
+   "lines": 40,
    "longest_function": [
     1,
     "main"
@@ -1331,16 +1657,29 @@
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_control/tests/module_name_tests.cpp": {
+  "editor/ui_control/tests/play_tests.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 7,
+   "lines": 176,
    "longest_function": [
-    3,
-    "run_module_name_tests"
+    39,
+    "run_control_key_tests"
    ],
    "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_model/include/mforce/ui_model/canvas_view.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 12,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_model",
    "mutable_vars": 0,
    "types": []
   },
@@ -1359,6 +1698,47 @@
     "OpenPatch"
    ]
   },
+  "editor/ui_model/include/mforce/ui_model/placement.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 26,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_model",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_model/include/mforce/ui_model/recent_files.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 21,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_model",
+   "mutable_vars": 0,
+   "types": [
+    "RecentFiles"
+   ]
+  },
+  "editor/ui_model/src/canvas_view.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 26,
+   "longest_function": [
+    13,
+    "mforce::ui::canvas_panning"
+   ],
+   "module": "ui_model",
+   "mutable_vars": 0,
+   "types": []
+  },
   "editor/ui_model/src/open_patch.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -1372,11 +1752,50 @@
    "mutable_vars": 0,
    "types": []
   },
+  "editor/ui_model/src/placement.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 136,
+   "longest_function": [
+    27,
+    "mforce::ui::columns"
+   ],
+   "module": "ui_model",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_model/src/recent_files.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 42,
+   "longest_function": [
+    12,
+    "mforce::ui::read_recent_files"
+   ],
+   "module": "ui_model",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_model/tests/canvas_view_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 17,
+   "longest_function": [
+    9,
+    "run_canvas_view_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
   "editor/ui_model/tests/main.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 16,
+   "lines": 30,
    "longest_function": [
     1,
     "main"
@@ -1400,11 +1819,67 @@
     "TempFolder"
    ]
   },
-  "editor/ui_views/include/mforce/ui_views/imgui_version.h": {
+  "editor/ui_model/tests/placement_tests.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 9,
+   "lines": 176,
+   "longest_function": [
+    30,
+    "run_placement_census_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_model/tests/recent_files_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 32,
+   "longest_function": [
+    22,
+    "run_recent_files_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_views/include/mforce/ui_views/editor_views.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 33,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "EditorViews"
+   ]
+  },
+  "editor/ui_views/include/mforce/ui_views/file_dialogs.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 16,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "FileDialogs"
+   ]
+  },
+  "editor/ui_views/include/mforce/ui_views/headless.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 11,
    "longest_function": [
     0,
     ""
@@ -1413,27 +1888,211 @@
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_views/src/imgui_version.cpp": {
+  "editor/ui_views/include/mforce/ui_views/keyboard_view.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 8,
+   "lines": 25,
    "longest_function": [
-    1,
-    "mforce::ui::imgui_version"
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "KeyboardView"
+   ]
+  },
+  "editor/ui_views/include/mforce/ui_views/menu_bar.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 22,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "MenuBar"
+   ]
+  },
+  "editor/ui_views/include/mforce/ui_views/node_canvas.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 44,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "NodeCanvas"
+   ]
+  },
+  "editor/ui_views/include/mforce/ui_views/properties_panel.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 40,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "PropertiesPanel"
+   ]
+  },
+  "editor/ui_views/include/mforce/ui_views/status_line.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 13,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "StatusLine"
+   ]
+  },
+  "editor/ui_views/include/mforce/ui_views/unsaved_prompt.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 19,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "UnsavedPrompt"
+   ]
+  },
+  "editor/ui_views/src/editor_views.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 49,
+   "longest_function": [
+    25,
+    "mforce::ui::EditorViews::draw"
    ],
    "module": "ui_views",
    "mutable_vars": 0,
    "types": []
   },
-  "editor/ui_views/tests/imgui_version_tests.cpp": {
+  "editor/ui_views/src/headless.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 7,
+   "lines": 56,
    "longest_function": [
-    3,
-    "run_imgui_version_tests"
+    10,
+    "mforce::ui::draw_once_headless"
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": [
+    "CancelledDialogs",
+    "Contexts"
+   ]
+  },
+  "editor/ui_views/src/keyboard_view.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 136,
+   "longest_function": [
+    34,
+    "mforce::ui::KeyboardView::piano"
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_views/src/menu_bar.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 52,
+   "longest_function": [
+    25,
+    "mforce::ui::MenuBar::draw"
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_views/src/node_canvas.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 202,
+   "longest_function": [
+    27,
+    "mforce::ui::NodeCanvas::draw_links"
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_views/src/properties_panel.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 206,
+   "longest_function": [
+    27,
+    "mforce::ui::PropertiesPanel::draw"
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_views/src/status_line.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 16,
+   "longest_function": [
+    7,
+    "mforce::ui::StatusLine::draw"
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_views/src/unsaved_prompt.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 43,
+   "longest_function": [
+    16,
+    "mforce::ui::UnsavedPrompt::draw"
+   ],
+   "module": "ui_views",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "editor/ui_views/tests/headless_draw_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 83,
+   "longest_function": [
+    26,
+    "run_headless_census_tests"
    ],
    "module": "tests",
    "mutable_vars": 0,
@@ -1443,7 +2102,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 12,
+   "lines": 14,
    "longest_function": [
     1,
     "main"
@@ -2434,7 +3093,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 324,
+   "lines": 326,
    "longest_function": [
     18,
     "mforce::ValueSource::next"
@@ -3200,7 +3859,22 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 22,
+   "lines": 38,
+   "longest_function": [
+    4,
+    "mforce::BuiltGraph::Constant::set"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "BuiltGraph"
+   ]
+  },
+  "engine/patch/include/mforce/patch/edit.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 32,
    "longest_function": [
     0,
     ""
@@ -3208,7 +3882,7 @@
    "module": "patch",
    "mutable_vars": 0,
    "types": [
-    "BuiltGraph"
+    "Change"
    ]
   },
   "engine/patch/include/mforce/patch/envelope_preset.h": {
@@ -3395,7 +4069,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 4,
-   "lines": 428,
+   "lines": 452,
    "longest_function": [
     30,
     "mforce::template_of"
@@ -3419,6 +4093,21 @@
    "module": "patch",
    "mutable_vars": 0,
    "types": []
+  },
+  "engine/patch/src/edit.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 106,
+   "longest_function": [
+    15,
+    "mforce::set_value"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "NamedOnNode"
+   ]
   },
   "engine/patch/src/float_text.h": {
    "changelog_comments": 0,
@@ -3461,11 +4150,26 @@
     "Reading"
    ]
   },
+  "engine/patch/src/node_rules.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 74,
+   "longest_function": [
+    15,
+    "mforce::setting_faults"
+   ],
+   "module": "patch",
+   "mutable_vars": 0,
+   "types": [
+    "Pin"
+   ]
+  },
   "engine/patch/src/patch.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 321,
+   "lines": 291,
    "longest_function": [
     25,
     "mforce::check_pin_shapes"
@@ -3473,7 +4177,6 @@
    "module": "patch",
    "mutable_vars": 0,
    "types": [
-    "Pin",
     "Checker",
     "NodeAt"
    ]
@@ -3587,6 +4290,37 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/patch/tests/edit_census_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 88,
+   "longest_function": [
+    15,
+    "set_node_again"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Census"
+   ]
+  },
+  "engine/patch/tests/edit_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 275,
+   "longest_function": [
+    26,
+    "run_edit_setting_refusal_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Apply",
+    "Refuse"
+   ]
+  },
   "engine/patch/tests/envelope_form_tests.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -3630,7 +4364,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 64,
+   "lines": 78,
    "longest_function": [
     1,
     "main"
@@ -4177,7 +4911,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 148,
+   "lines": 182,
    "longest_function": [
     0,
     ""
@@ -4285,7 +5019,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 138,
+   "lines": 146,
    "longest_function": [
     7,
     "mforce::Voice::next"
@@ -4396,9 +5130,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 256,
+   "lines": 341,
    "longest_function": [
-    29,
+    30,
     "mforce::LivePlayer::start_fresh"
    ],
    "module": "render",
@@ -4448,9 +5182,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 223,
+   "lines": 232,
    "longest_function": [
-    49,
+    58,
     "mforce::Voice::Voice"
    ],
    "module": "render",
@@ -4639,6 +5373,37 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/render/tests/live_set_value_census_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 144,
+   "longest_function": [
+    18,
+    "gather"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Case",
+    "Pairs",
+    "Outcome",
+    "Tally"
+   ]
+  },
+  "engine/render/tests/live_set_value_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 237,
+   "longest_function": [
+    32,
+    "run_built_constants_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/render/tests/load_refusal_tests.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -4656,7 +5421,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 152,
+   "lines": 170,
    "longest_function": [
     1,
     "main"
@@ -7920,14 +8685,14 @@
  "summary": {
   "changelog_comments": 0,
   "const_cast": 1,
-  "duplicate_blocks": 142,
+  "duplicate_blocks": 168,
   "dynamic_cast": 54,
   "file_level_mutable_vars": 22,
-  "files": 460,
+  "files": 514,
   "files_over_limit": 8,
   "functions_over_limit": 50,
   "include_violations": 0,
-  "lines": 59692,
+  "lines": 64313,
   "unmapped_files": 0
  }
 }

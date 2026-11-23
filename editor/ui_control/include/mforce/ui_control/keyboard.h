@@ -1,5 +1,6 @@
 #pragma once
 #include <optional>
+#include <vector>
 
 namespace mforce::ui {
 
@@ -23,5 +24,14 @@ std::optional<int> key_offset(char key);
 
 // octave * 12 + offset; -1 outside 0..127.
 int note_number(const Keyboard& how, int offset);
+
+// A computer key's change in one frame.
+struct KeyChange { char key; bool pressed; bool released; };
+// What a frame's key changes play: a key down for each note key pressed,
+// unless notes are held back (Ctrl is down, a text field has the keyboard);
+// a key up for each note key released, held back or not, so no note is left
+// sounding. A key outside the note table does nothing.
+struct KeyAct { char key; bool down; int noteNumber; };
+std::vector<KeyAct> key_acts(const Keyboard& how, const std::vector<KeyChange>& changes, bool notesHeldBack);
 
 }  // namespace mforce::ui

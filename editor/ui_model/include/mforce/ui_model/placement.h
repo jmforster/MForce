@@ -12,9 +12,15 @@ namespace mforce::ui {
 // left; a node nothing reads and that reaches the output through nothing is
 // in a last column. Wires, taps and dynamic pins are all reads. In a column,
 // nodes go top to bottom in the graph's order, each in a slot as tall as its
-// declared pins need. The Output node sits one column right of column 0.
+// rows need. The Output node sits one column right of column 0.
 // When some nodes have positions, the unplaced ones are laid out as one
 // block below the placed nodes.
 int place_unplaced_nodes(Patch& patch);
+
+// A fresh position for every node and for the Output node, by the same
+// rule as place_unplaced_nodes, whatever positions they had; the saved
+// panning is dropped, so the canvas looks at the new layout. Groups and
+// note faces are left as they are. Returns how many nodes it placed.
+int arrange_nodes(Patch& patch);
 
 }  // namespace mforce::ui

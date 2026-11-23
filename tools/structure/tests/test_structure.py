@@ -282,6 +282,16 @@ class EditorTests(unittest.TestCase):
         self.assertTrue(paths)
         self.assertEqual([p for p in paths if m.owner(p) is None], [])
 
+    def test_windows_headers_belong_to_ui_app(self):
+        # A family with no link target (the Windows SDK is linked by name, not
+        # through an mforce_lib_ target) is given by file_allowed, by folder,
+        # and so stays out of the USES-and-LIBS comparison above.
+        m = ModuleMap.load()
+        self.assertEqual(m.include_target("windows.h"), "windows")
+        self.assertTrue(m.may_include("ui_app", "windows", "editor/ui_app/error_box.cpp"))
+        self.assertFalse(m.may_include("ui_views", "windows", "editor/ui_views/src/menu_bar.cpp"))
+        self.assertFalse(m.may_include("ui_control", "windows", "editor/ui_control/src/files.cpp"))
+
     def test_the_baseline_names_no_editor_file(self):
         import json
         entries = json.loads((HERE.parent / "baseline.json").read_text(encoding="utf-8"))

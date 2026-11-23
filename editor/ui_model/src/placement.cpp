@@ -12,7 +12,8 @@ namespace mforce::ui {
 namespace {
 
 // The canvas units of the layout: a column's width, and a node's slot as a
-// header plus a fixed height per declared pin, with a gap below it. Fixed,
+// header, a fixed height per row (each declared Param and Input, each
+// setting a dynamic pin feeds, and the output), with a gap below it. Fixed,
 // because this module cannot measure what the views draw.
 constexpr float kColumnWidth = 280.0f;
 constexpr float kHeader = 40.0f;
@@ -64,8 +65,8 @@ std::vector<int> columns(const Graph& g) {
 
 float slot_height(const Node& n) {
   const TypeDeclarations* d = type_declarations(n.type);
-  const size_t pins = d ? d->params.size() + d->inputs.size() : 0;
-  return kHeader + kPinHeight * float(pins) + kSlotGap;
+  const size_t inputs = (d ? d->params.size() + d->inputs.size() : 0) + n.dynamicPins.size();
+  return kHeader + kPinHeight * float(inputs + 1) + kSlotGap;
 }
 
 // Positions for the nodes `which` names (indices, in the graph's order), by
@@ -123,6 +124,13 @@ int place_unplaced_nodes(Patch& patch) {
     ++placed;
   }
   return placed;
+}
+
+int arrange_nodes(Patch& patch) {
+  patch.layout.positions.clear();
+  patch.layout.outputPos.reset();
+  patch.layout.panning.reset();
+  return place_unplaced_nodes(patch) - 1;             // less the Output node
 }
 
 }  // namespace mforce::ui

@@ -19,6 +19,13 @@ void release_all_keys(Session& s) { s.live.all_keys_up(); }
 
 std::vector<int> held_notes(const Session& s) { return s.live.held_notes(); }
 
+// player() destroys what the output handed back; any control call of the
+// player sends what waited for room in its queue, and sounding() is the one
+// that changes nothing else.
+void keep_up(Session& s) {
+  if (LivePlayer* player = s.audio.player()) (void)player->sounding();
+}
+
 void change_octave(Session& s, int by) {
   s.keyboard.octave = std::clamp(s.keyboard.octave + by, kLowestOctave, kHighestOctave);
 }

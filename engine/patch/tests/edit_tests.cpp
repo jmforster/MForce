@@ -158,9 +158,6 @@ void run_edit_apply_tests() {
 }
 
 void run_edit_value_refusal_tests() {
-  const auto list = a_list_pin();
-  REQUIRE(list.has_value());
-  const std::string listType = list->first, listPin = list->second;
   const auto unknown = [](Patch& p) { p.graph.nodes.push_back(node("x", "NoSuchSource")); };
   const std::vector<Refuse> cases = {
     {"no such node", {}, [](Patch& p) { return set_value(p, "nope", "maxValue", 1.0f); },
@@ -171,9 +168,9 @@ void run_edit_value_refusal_tests() {
      "node 'env' (Envelope): 'timeScale' is not a pin of Envelope"},
     {"a slot", {}, [](Patch& p) { return set_value(p, "wt", "evolution", 1.0f); },
      "node 'wt' (WavetableSource): 'evolution' is a slot: it takes a part, not a number"},
-    {"a list", [=](Patch& p) { Node n; n.id = "l"; n.type = listType; p.graph.nodes.push_back(n); },
-     [=](Patch& p) { return set_value(p, "l", listPin, 1.0f); },
-     "node 'l' (" + listType + "): '" + listPin + "' is a list: it takes feeds, not a number"},
+    {"a fed list", [](Patch& p) { Node n = node("l", "MultiSource"); n.wires["source"] = {Wire{"freq"}}; p.graph.nodes.push_back(n); },
+     [](Patch& p) { return set_value(p, "l", "source", 0.5f); },
+     "node 'l' (MultiSource): 'source' is fed by 'freq': a pin takes a number or a feed, not both"},
     {"a fed pin", {}, [](Patch& p) { return set_value(p, "osc", "frequency", 440.0f); },
      "node 'osc' (SineSource): 'frequency' is fed by 'freq': a pin takes a number or a feed, not both"},
     {"not finite", {}, [](Patch& p) { return set_value(p, "env", "maxValue", kInf); },
@@ -244,6 +241,21 @@ Patch through_the_codec(const Patch& p) {
 
 }  // namespace
 
+// A number on a list pin with no feed is taken, as the codec, check() and
+// the build take one; the patch stays whole and survives the codec.
+void run_edit_list_pin_tests() {
+  const auto list = a_list_pin();
+  REQUIRE(list.has_value());
+  Patch p = instrument();
+  p.graph.nodes.push_back(node("l", list->first.c_str()));
+  REQUIRE(p.check().empty());
+  Patch want = p;
+  at(want, "l").values[list->second] = 0.25f;
+  CHECK(set_value(p, "l", list->second, 0.25f) == Change::Value);
+  CHECK(p == want);
+  CHECK(p.check().empty());
+}
+
 void run_edit_codec_tests() {
   // Read once first: a record made in code holds only what it was given, and
   // the reader fills every name a node's type declares with its default.
@@ -254,5 +266,10 @@ void run_edit_codec_tests() {
   move_node(p, "ep", Vec2{7.5f, -2.0f});
   move_output(p, Vec2{300, 10});
   set_panning(p, Vec2{-1.5f, 2.5f});
+  const auto list = a_list_pin();
+  REQUIRE(list.has_value());
+  p.graph.nodes.push_back(node("l", list->first.c_str()));
+  p = through_the_codec(p);
+  set_value(p, "l", list->second, 0.75f);                // a number on a list pin
   CHECK(through_the_codec(p) == p);
 }

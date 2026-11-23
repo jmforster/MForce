@@ -4,8 +4,8 @@
 //
 // Run from the repository root. A patch named is opened at start. --frames N
 // draws N frames and exits with 0, writing nothing but the --shot picture of
-// the last frame. A failure to start is shown in a message box and the exit
-// code is 1.
+// the last frame. A failure is shown in a message box ("could not start"
+// before the window is up, "stopped" after) and the exit code is 1.
 #include <stdexcept>
 #include <string>
 #include "app_loop.h"
@@ -21,10 +21,12 @@
 
 int main(int argc, char** argv) {
   using namespace mforce::ui;
+  bool windowUp = false;
   try {
     const Options options = read_options(argc, argv);
     const SettingsFiles files = options.frames < 0 ? settings_files() : SettingsFiles{};
     AppWindow window(1400, 900, "MForce", files.imguiIni);
+    windowUp = true;
     Session session;
     session.audio.open();                           // before any player is built: its rate is final here
     if (!files.recentFiles.empty()) session.recent = read_recent_files(files.recentFiles);
@@ -35,7 +37,7 @@ int main(int argc, char** argv) {
     if (!files.recentFiles.empty()) write_recent_files(session.recent, files.recentFiles);
     return 0;
   } catch (const std::exception& e) {
-    show_error_box("MForce could not start", e.what());
+    show_error_box(windowUp ? "MForce stopped" : "MForce could not start", e.what());
     return 1;
   }
 }

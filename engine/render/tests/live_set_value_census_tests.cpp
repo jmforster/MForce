@@ -104,31 +104,41 @@ Outcome run_case(const Pair& pair, const Case& c, bool& heard) {
   return Outcome::Differs;
 }
 
+// The census's counts.
+struct Tally { int heardEqual{0}, unheardEqual{0}, differs{0}, notFollowed{0}; };
+
+void count_pair(Tally& tally, const Pair& pair, const Case& c) {
+  bool heard = false;
+  const Outcome o = run_case(pair, c, heard);
+  if (o == Outcome::Differs) ++tally.differs;
+  if (o == Outcome::NotFollowed) {
+    ++tally.notFollowed;
+    std::printf("  NOT FOLLOWED %s.%s (%s, node '%s')\n", pair.first.c_str(), pair.second.c_str(), c.file.c_str(),
+                c.node.c_str());
+  }
+  if (o != Outcome::Equal) return;
+  if (heard) ++tally.heardEqual;
+  else {
+    ++tally.unheardEqual;
+    std::printf("  NOT HEARD %s.%s (%s, node '%s'): equal, and unheard in the note\n", pair.first.c_str(),
+                pair.second.c_str(), c.file.c_str(), c.node.c_str());
+  }
+}
+
 }  // namespace
 
 void run_live_set_value_census_tests() {
   std::printf("the live player: set_value over every (type, pin) holding a constant\n");
   const auto t0 = std::chrono::steady_clock::now();
   const Pairs pairs = gather();
-  int equal = 0, differs = 0, notFollowed = 0, inert = 0;
-  for (const auto& [pair, c] : pairs.instruments) {
-    bool heard = false;
-    switch (run_case(pair, c, heard)) {
-      case Outcome::Equal: ++equal; break;
-      case Outcome::Differs: ++differs; break;
-      case Outcome::NotFollowed:
-        ++notFollowed;
-        std::printf("  NOT FOLLOWED %s.%s (%s, node '%s')\n", pair.first.c_str(), pair.second.c_str(),
-                    c.file.c_str(), c.node.c_str());
-        break;
-    }
-    if (!heard) ++inert;
-  }
-  for (const auto& [type, pin] : pairs.plainOnly) std::printf("  only plain sounds hold %s.%s\n", type.c_str(), pin.c_str());
+  Tally tally;
+  for (const auto& [pair, c] : pairs.instruments) count_pair(tally, pair, c);
+  for (const auto& [type, pin] : pairs.plainOnly) std::printf("  ONLY PLAIN SOUNDS HOLD %s.%s\n", type.c_str(), pin.c_str());
   const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-  std::printf("  census: %zu (type, pin) pairs in instruments, %d equal, %d differ, %d not followed; "
-              "%d not heard in the note either way; %zu pairs only plain sounds hold; %.1f s\n",
-              pairs.instruments.size(), equal, differs, notFollowed, inert, pairs.plainOnly.size(), secs);
+  std::printf("  census: %zu (type, pin) pairs in instruments: %d heard and equal, %d equal but not heard, "
+              "%d differ, %d not followed; %zu pairs only plain sounds hold; %.1f s\n",
+              pairs.instruments.size(), tally.heardEqual, tally.unheardEqual, tally.differs, tally.notFollowed,
+              pairs.plainOnly.size(), secs);
   CHECK(!pairs.instruments.empty());
-  CHECK(differs == 0);   // a pair not followed was checked only for its false
+  CHECK(tally.differs == 0);   // a pair not followed was checked only for its false
 }

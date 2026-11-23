@@ -50,14 +50,17 @@ void KeyboardView::computer_keys(Session& s) {
     release_all_keys(s);
     mouseNote_ = -1;
   }
-  if (io.WantTextInput || io.KeyCtrl) return;
+  std::vector<KeyChange> changes;
   for (char c : kCandidates) {
-    const auto offset = key_offset(c);
     const ImGuiKey key = key_for(c);
-    if (!offset || key == ImGuiKey_None) continue;
-    if (ImGui::IsKeyPressed(key, false)) key_down(s, int(key), note_number(s.keyboard, *offset));
-    if (ImGui::IsKeyReleased(key)) key_up(s, int(key));
+    const bool pressed = ImGui::IsKeyPressed(key, false), released = ImGui::IsKeyReleased(key);
+    if (pressed || released) changes.push_back({c, pressed, released});
   }
+  for (const KeyAct& act : key_acts(s.keyboard, changes, io.WantTextInput || io.KeyCtrl)) {
+    if (act.down) key_down(s, int(key_for(act.key)), act.noteNumber);
+    else key_up(s, int(key_for(act.key)));
+  }
+  if (io.WantTextInput || io.KeyCtrl) return;
   if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false)) change_octave(s, 1);
   if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false)) change_octave(s, -1);
   if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false)) change_note_length(s, 0.5f);

@@ -1,5 +1,4 @@
 #pragma once
-#include <array>
 #include <string>
 #include "mforce/patch/node.h"
 #include "mforce/patch/type_declarations.h"
@@ -20,6 +19,7 @@ public:
   void draw(Session& s);
 
 private:
+  void choose_node(Session& s);
   void patch_facts(const Session& s);
   void pins(Session& s, const Node& n, const TypeDeclarations& d);
   void pin_row(Session& s, const Node& n, const std::string& name, float lo, float hi, bool isParam);
@@ -33,7 +33,8 @@ private:
   std::string draggedKey_;
   float dragged_{0.0f};
   std::string typedKey_;
-  std::array<char, 256> typed_{};
+  std::string typed_;
+  int seenOpened_{-1};                             // session.opened when the state above was kept
 };
 
 }  // namespace mforce::ui

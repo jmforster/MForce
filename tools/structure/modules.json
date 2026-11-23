@@ -1,13 +1,19 @@
 {
-  "_comment": "Module map. Every tracked C++ source file belongs to exactly one module; a .cpp belongs to its header's module. 'may_include' lists what a module may include. 'file_allowed' lists libraries allowed only in named files: JSON belongs to the serializer files and the tools; every other JSON include is an include violation.",
+  "_comment": "Module map. Every tracked C++ source file belongs to exactly one module; a .cpp belongs to its header's module. 'may_include' lists what a module may include. 'file_allowed' lists libraries allowed only in named files: JSON belongs to the serializer files and the tools; the Windows headers to ui_app and the two stack-trace readers of the allocation probe; every other include of either is an include violation.",
   "third_party": {
     "json":    ["nlohmann/", "json.hpp"],
     "imgui":   ["imgui", "imnodes"],
     "rtaudio": ["rtaudio"],
     "rtmidi":  ["rtmidi"],
-    "glfw":    ["glfw", "gl/"]
+    "glfw":    ["glfw", "gl/"],
+    "windows": ["windows.h", "commdlg.h"]
   },
   "file_allowed": {
+    "windows": [
+      "editor/ui_app/",
+      "engine/testing/src/alloc_probe.cpp",
+      "tools/alloc_gate/main.cpp"
+    ],
     "json": [
       "engine/patch/include/mforce/patch/envelope_preset.h",
       "engine/patch/include/mforce/patch/patch_json.h",

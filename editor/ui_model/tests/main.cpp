@@ -9,6 +9,8 @@ void run_placement_block_tests();
 void run_placement_census_tests();
 void run_recent_files_tests();
 void run_canvas_view_tests();
+void run_placement_slot_tests();
+void run_arrange_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -20,6 +22,8 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_placement_census_tests", run_placement_census_tests},
   {"run_recent_files_tests", run_recent_files_tests},
   {"run_canvas_view_tests", run_canvas_view_tests},
+  {"run_placement_slot_tests", run_placement_slot_tests},
+  {"run_arrange_tests", run_arrange_tests},
 };
 }  // namespace
 

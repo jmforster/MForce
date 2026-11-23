@@ -69,15 +69,17 @@ target_link_libraries(mforce_lib_glfw INTERFACE glfw OpenGL::GL)
 add_library(mforce_lib_rtaudio INTERFACE)
 target_link_libraries(mforce_lib_rtaudio INTERFACE rtaudio)
 
-# Dear ImGui's core (its demo window left out) and imnodes, for ui_views and
-# ui_app. Neither ships a CMake target of its own.
+# Dear ImGui's core (its demo window left out), its std::string text field
+# and imnodes, for ui_views and ui_app. Neither ships a CMake target of its own.
 add_library(mforce_lib_imgui STATIC
   ${third_party}/imgui/imgui.cpp
   ${third_party}/imgui/imgui_draw.cpp
   ${third_party}/imgui/imgui_tables.cpp
   ${third_party}/imgui/imgui_widgets.cpp
+  ${third_party}/imgui/misc/cpp/imgui_stdlib.cpp
   ${third_party}/imnodes/imnodes.cpp)
-target_include_directories(mforce_lib_imgui SYSTEM PUBLIC ${third_party}/imgui ${third_party}/imnodes)
+target_include_directories(mforce_lib_imgui SYSTEM PUBLIC
+  ${third_party}/imgui ${third_party}/imgui/misc/cpp ${third_party}/imnodes)
 # imnodes uses ImGui's arithmetic on ImVec2, which this switches on.
 target_compile_definitions(mforce_lib_imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
 
