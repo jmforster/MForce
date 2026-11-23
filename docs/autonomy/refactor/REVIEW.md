@@ -19,27 +19,6 @@ given.
 
 ## Awaiting
 
-**R22 — Part 5: render, the contract, play** (2026-11-22, commits
-`ad463d8`..`a9e5677`, fix wave `fa085c3`; design
-`docs/architecture/part5-render.md`, signed that day; report
-`docs/autonomy/refactor/reports/2026-11-22-part5-render.md`).
-- **For your ears, one render.** `renders/comp/audition/part5_replay_fix/`
-  holds `template_binary_before.wav` and `template_binary_after.wav`. The
-  piece has two sections and every part was being played once per section;
-  it is played once now. Nothing else in a gate moved (null gate 77 of 77,
-  the other 20 comp baselines the same). A verdict of "fine" closes it; if
-  the old one is the one you want, say so and I look at why.
-- **One deletion that is yours.** `mforce_cli --josie` fails before it
-  plays and did before this part; its four patches are in no folder.
-  "Delete it" removes the mode; saying nothing leaves it for Part 6.
-- **One decision of mine you can reverse.** A patch's embedded score is
-  now read in score order. The old reader delivered an unphrased note late
-  when a phrased note followed it. No score in library or baselines mixes
-  the two, so nothing you have heard changed.
-- **For the editor's design, not now.** A held line makes a live
-  instrument monophonic, because the engine has one held line per
-  instrument.
-
 **R21 — checkpoint 4.6: the module, beside the loader** (2026-11-19, commits
 `c74ba17`..`37f7ba8`, fix wave `a994e18`; report
 `docs/autonomy/refactor/reports/2026-11-19-checkpoint-4.6.md`). Nothing for
@@ -428,6 +407,28 @@ answer any time), and the consequences of the two deletions are named.
 - Refuter: byte-identity upheld with the refuter's own A/B (the eleven rewritten scope files and three controls 14/14, eight synthetics of its own 8/8, five archived copies through the tool); no Critical; two Majors, both in the editor's new Preset Apply (the cached `sustainLevel` — 0 on every two- or three-stage node — pushed over a fresh ADSR's four slots, and that push outside the audio lock); three Minors (the tool carried keys a class never read into a form that reads them, seven archived files would have moved; the refusal test pinned one knob of eleven; the whole-corpus roundtrip gate permanently red since 3.2); two Flags. The wave (`b1d0222`) fixed all but the standing Flag — Apply re-pulls under the lock through one function with a headless `--apply-preset` twin that proved it on `bassoon1` and `reed_test`; the tool drops the dead keys by name; the gate's known set is the backlog-79 six and the run is green. Re-review: closeable, nothing introduced, four Flags — two one-line fixes taken (an upper-case preset name; an ASCII note), one coverage correction accepted (the three in-scope `as` nodes are dead in the render, so `as` is render-pinned by the synthetic sets and the tests, not by the scope — CLEANUP 30), one stale scratch label.
 
 ## Resolved
+
+**R22 — Part 5: render, the contract, play** — VERDICT 2026-11-22 (Matt): "That's all good, let's continue to be a little forgiving of minor regression stuff, eg, don't worry about --josie." Accepted as landed: the replay fix, the embedded score read in score order, the live player's limits. `--josie` is left as it is, unmended and undeleted (CLEANUP 124). The standing reading for what follows: a minor regression in a peripheral thing gets a line in the report and in CLEANUP, not a fix and not an item here. As it was put to him:
+R22 (2026-11-22, commits
+`ad463d8`..`a9e5677`, fix wave `fa085c3`; design
+`docs/architecture/part5-render.md`, signed that day; report
+`docs/autonomy/refactor/reports/2026-11-22-part5-render.md`).
+- **For your ears, one render.** `renders/comp/audition/part5_replay_fix/`
+  holds `template_binary_before.wav` and `template_binary_after.wav`. The
+  piece has two sections and every part was being played once per section;
+  it is played once now. Nothing else in a gate moved (null gate 77 of 77,
+  the other 20 comp baselines the same). A verdict of "fine" closes it; if
+  the old one is the one you want, say so and I look at why.
+- **One deletion that is yours.** `mforce_cli --josie` fails before it
+  plays and did before this part; its four patches are in no folder.
+  "Delete it" removes the mode; saying nothing leaves it for Part 6.
+- **One decision of mine you can reverse.** A patch's embedded score is
+  now read in score order. The old reader delivered an unphrased note late
+  when a phrased note followed it. No score in library or baselines mixes
+  the two, so nothing you have heard changed.
+- **For the editor's design, not now.** A held line makes a live
+  instrument monophonic, because the engine has one held line per
+  instrument.
 
 **3.7 — the real-time fixes** (2026-11-06) — closed without a checkpoint,
 Matt's verdict "skip to 3.8". Part 3 §9's seven items were already landed by

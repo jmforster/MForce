@@ -53,11 +53,10 @@ fix, the eight hand-built players gone), `47d87db` (the instrument split:
 `DrumKit`), `a9e5677` (`LivePlayer` over `core/spsc_queue.h`; the old live
 calls deleted), `fa085c3` (the review's fix wave), then the docs commit.
 REPORT R22: `docs/autonomy/refactor/reports/2026-11-22-part5-render.md`.
-REVIEW holds R22: one render for Matt's ears
-(`renders/comp/audition/part5_replay_fix/`, `template_binary` before and
-after the replay fix), one deletion that is his (`mforce_cli --josie`, dead
-at the base), one decision he can reverse (an embedded score is read in
-score order). AT THE CLOSE: `engine_tests` 11,977 checks in 27 s; null gate
+R22 IS RESOLVED (Matt, 2026-11-22: "That's all good, let's continue to be a little forgiving of minor regression stuff, eg, don't worry about --josie."): accepted as
+landed; `--josie` is left as it is. HIS STANDING WORD FROM IT: be a little
+forgiving of minor regressions in peripheral things; such a thing gets a
+line in the report and CLEANUP, not a fix and not a REVIEW item. AT THE CLOSE: `engine_tests` 11,977 checks in 27 s; null gate
 77 of 77 at every step; allocation gate 0 of 131, through
 `LivePlayer::fill` from `a9e5677`; comp gate 21 same against the step before
 at every step but `b517173`, where `template_binary` moved as designed; the
@@ -89,8 +88,8 @@ lists). WHAT PART 5 LEAVES IT: the performers, `time_map.h`,
 unwritten (CLEANUP 125); `--melody` and `--dun` are silent and `--josie` is
 dead (CLEANUP 124); composed pieces do not gain onsets or holds. Then Part 8
 (build), then the editor's design, whose engine half for its first slice
-(`LivePlayer`) exists. GIT: main is ahead of origin and NOT pushed (ask at
-close-out); GOALS.md is Matt's own, never staged. Everything below this
+(`LivePlayer`) exists. GIT: main pushed to origin on Matt's word ("Push", 2026-11-22), through the
+docs commit that records this; GOALS.md is Matt's own, never staged. Everything below this
 block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey
