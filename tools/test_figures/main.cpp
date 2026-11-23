@@ -1,19 +1,21 @@
 #include "mforce/music/basics.h"
-#include "mforce/music/compose.h"
-#include "mforce/music/default_strategies.h"
-#include "mforce/music/register_builtin.h"
-#include "mforce/music/figure_transforms.h"
+#include "mforce/compose/compose.h"
+#include "mforce/compose/default_figure_strategy.h"
+#include "mforce/compose/default_phrase_strategy.h"
+#include "mforce/compose/register_builtin.h"
+#include "mforce/shelved/register_shelved.h"
+#include "mforce/compose/figure_transforms.h"
 #include "mforce/music/structure.h"
-#include "mforce/music/templates.h"
-#include "mforce/music/templates_json.h"
-#include "mforce/music/conductor.h"
+#include "mforce/compose/templates.h"
+#include "mforce/compose/templates_json.h"
+#include "mforce/perform/conductor.h"
 #include "mforce/music/music_json.h"
-#include "mforce/music/random_figure_builder.h"
-#include "mforce/music/pool_figure_builder.h"
-#include "mforce/music/two_figure_phrase_strategy.h"
-#include "mforce/music/elaborated_phrase_strategy.h"
-#include "mforce/music/elaborated_phrase_strategy_json.h"
-#include "mforce/music/two_figure_phrase_strategy_json.h"
+#include "mforce/compose/random_figure_builder.h"
+#include "mforce/compose/pool_figure_builder_json.h"
+#include "mforce/shelved/two_figure_phrase_strategy.h"
+#include "mforce/shelved/elaborated_phrase_strategy.h"
+#include "mforce/shelved/elaborated_phrase_strategy_json.h"
+#include "mforce/shelved/two_figure_phrase_strategy_json.h"
 #include "mforce/core/randomizer.h"
 #include "mforce/patch/patch_json.h"
 #include "mforce/play/play.h"
@@ -69,6 +71,7 @@ static Composition compose_builtin(const PieceTemplate& tmpl) {
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+    register_shelved(kit, codecs);
     return compose(tmpl, kit);
 }
 
@@ -530,7 +533,7 @@ static int test_pool_select() {
          "noteCount":3,"totalBeats":1.5,"contour":"Down","count":50}
       ]
     })json");
-    PoolFigureBuilder b(pool, 12345u);
+    PoolFigureBuilder b = pool_from_json(pool, 12345u);
 
     // (a) contour filter: Down never returns an ascending atom.
     for (int i = 0; i < 50; ++i) {

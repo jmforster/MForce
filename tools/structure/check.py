@@ -23,7 +23,8 @@ from modules import ROOT, ModuleMap             # noqa: E402
 LIMITS = json.loads((HERE / "limits.json").read_text(encoding="utf-8"))
 SNAPSHOT = HERE / "metrics.json"
 MODULES_MD = ROOT / "docs" / "architecture" / "MODULES.md"
-SOURCE_GLOBS = ["engine/include/*.h", "engine/src/*.cpp", "tools/*.cpp", "tools/*.h"]
+SOURCE_GLOBS = ["engine/include/*.h", "engine/src/*.cpp", "engine/shelved/*.h", "engine/shelved/*.cpp",
+                "tools/*.cpp", "tools/*.h"]
 
 
 def tracked_sources():

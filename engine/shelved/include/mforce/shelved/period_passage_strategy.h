@@ -1,0 +1,452 @@
+#pragma once
+#include "mforce/compose/strategy.h"
+#include "mforce/compose/compose.h"
+#include "mforce/compose/templates.h"
+#include "mforce/music/structure.h"
+#include "mforce/music/figures.h"
+#include "mforce/compose/piece_utils.h"
+#include "mforce/compose/default_figure_strategy.h"
+#include "mforce/compose/default_phrase_strategy.h"
+#include "mforce/compose/chord_walker.h"
+
+namespace mforce {
+
+// ===========================================================================
+// PeriodVariant — how a period's consequent relates to its antecedent.
+// ===========================================================================
+
+enum class PeriodVariant {
+    Parallel,     // consequent motifs = antecedent motifs (verbatim)
+    Modified,     // consequent motifs derived via transform from antecedent
+    Contrasting,  // consequent motifs independent
+};
+
+// ===========================================================================
+// PeriodSpec — one period of a period passage's settings.
+// ===========================================================================
+
+struct PeriodSpec {
+    PeriodVariant variant{PeriodVariant::Parallel};
+    float bars{4.0f};
+
+    PhraseTemplate antecedent;   // cadenceType typically 1 (HC)
+    PhraseTemplate consequent;   // cadenceType typically 2 (IAC or PAC)
+
+    // For Modified variant: how the consequent's basicIdea is derived from
+    // the antecedent's. Ignored for Parallel and Contrasting.
+    std::optional<TransformOp> consequentTransform;
+    int consequentTransformParam{0};
+
+    // Optional motif-pool name for a leading connective figure that bridges
+    // from the prior period's final cadence into this period's antecedent.
+    // First PeriodSpec in a list typically has no leadingConnective.
+    std::optional<std::string> leadingConnective;
+};
+
+// ===========================================================================
+// PeriodPassageSettings — the settings of PeriodPassageStrategy: the periods
+// the passage is planned from, in order.
+// ===========================================================================
+
+struct PeriodPassageSettings {
+    std::vector<PeriodSpec> periods;
+};
+
+// ---------------------------------------------------------------------------
+// PeriodPassageStrategy — Option α (variant logic inlined).
+//
+// plan_passage: reads its settings' periods, resolves each period's variant into
+// concrete PhraseTemplates for antecedent + consequent, flattens into
+// seed.phrases[] in order. Adds motifs to the plan's motif pool: generated
+// antecedent figures, and add_derived_motif for Modified-variant
+// consequents.
+//
+// compose_passage: dispatches each flattened phrase to the phrase strategy
+// it names (default_phrase when it names none), concatenates into a
+// Passage.
+//
+// Registered under name "period_passage".
+// ---------------------------------------------------------------------------
+class PeriodPassageStrategy : public PassageStrategy {
+public:
+  static constexpr const char* kName = "period_passage";
+  using Settings = PeriodPassageSettings;
+
+  std::string name() const override { return kName; }
+  StrategyScope scope() const override { return StrategyScope::MelodyAndHarmony; }
+
+  PassageTemplate plan_passage(Locus locus, PassageTemplate seed) override;
+  Passage         compose_passage(Locus locus, const PassageTemplate& pt) override;
+
+private:
+  // Compute the beat offset (relative to phrase start) where the cadence
+  // figure begins. Walks figures, summing durations from realized motifs,
+  // stopping at the last non-Connective/non-PostCadential figure.
+  static float compute_cadence_beat(const PhraseTemplate& phrase,
+                                     const PieceTemplate& tmpl) {
+    // Find the index of the cadence figure (last non-Connective/PostCadential)
+    int lastIdx = (int)phrase.figures.size() - 1;
+    while (lastIdx >= 0) {
+      const auto& ft = phrase.figures[lastIdx];
+      if (ft.role && (*ft.role == MotifRole::Connective || *ft.role == MotifRole::PostCadential)) {
+        --lastIdx;
+        continue;
+      }
+      break;
+    }
+    if (lastIdx < 0) return 0.0f;
+
+    // Sum durations of all figures BEFORE the cadence figure
+    float beat = 0.0f;
+    for (int i = 0; i < lastIdx; ++i) {
+      const auto& ft = phrase.figures[i];
+      if (ft.source == FigureSource::Reference && !ft.motifName.empty()) {
+        auto it = tmpl.realizedMotifs.find(ft.motifName);
+        if (it != tmpl.realizedMotifs.end()) {
+          beat += it->second.total_duration();
+          continue;
+        }
+      }
+      // Fallback: use totalBeats from template if available
+      if (ft.totalBeats > 0) beat += ft.totalBeats;
+      else beat += 4.0f; // last resort
+    }
+    return beat;
+  }
+
+  // Build a melody profile from composed phrases for a given beat range.
+  // Walks the passage's phrases, tracking pitch via scale degree.
+  static std::vector<MelodySpan> build_melody_profile(
+      const Passage& passage, const Scale& scale,
+      float startBeat, float endBeat) {
+    std::vector<MelodySpan> profile;
+    float beat = 0.0f;
+
+    for (int pi = 0; pi < passage.phrase_count(); ++pi) {
+      const Phrase& phrase = passage.phrases[pi];
+      // Compute starting degree from phrase's startingPitch
+      int degree = DefaultPhraseStrategy::degree_in_scale(
+          phrase.startingPitch, scale);
+      const int len = scale.length();
+
+      for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {
+        const auto& fig = phrase.figures[fi];
+        // FC.leadStep advances the cursor before walking this figure's
+        // units (post-foundation-refactor: leadStep is no longer baked into
+        // figure data; it lives on phrase.connectors[fi]).
+        if (fi < (int)phrase.connectors.size()) {
+          degree = ((degree + phrase.connectors[fi].leadStep) % len + len) % len;
+        }
+        for (const auto& u : fig->units) {
+          // Apply step FIRST — the unit sounds at degree+step, not degree
+          degree = ((degree + u.step) % len + len) % len;
+          if (beat + u.duration > startBeat && beat < endBeat) {
+            float spanStart = std::max(beat, startBeat) - startBeat;
+            float spanEnd = std::min(beat + u.duration, endBeat) - startBeat;
+            profile.push_back({spanStart, spanEnd - spanStart, degree, u.rest});
+          }
+          beat += u.duration;
+        }
+      }
+    }
+    return profile;
+  }
+
+  static ScaleChord cadence_chord(int cadenceType, int /*targetDegree*/) {
+    if (cadenceType == 1) {
+      return ScaleChord{4, 0, &ChordDef::get("Major")};   // V (HC)
+    } else {
+      return ScaleChord{0, 0, &ChordDef::get("Major")};   // I (PAC/IAC)
+    }
+  }
+};
+
+// --- Out-of-line definitions -------------------------------------------------
+
+inline PassageTemplate PeriodPassageStrategy::plan_passage(
+    Locus locus, PassageTemplate seed) {
+
+  // The periods are planned in a copy of the settings, which the planned
+  // template carries back: compose_passage reads the planned periods.
+  Settings settings = settings_of<Settings>(seed.strategy);
+  std::vector<PeriodSpec>& periods = settings.periods;
+
+  // If the settings have no periods, there's nothing to plan — just return
+  // the seed unchanged. Author probably intends to drive via seed.phrases[]
+  // with a different strategy; but if they pointed at period_passage
+  // without periods, we pass through rather than throwing.
+  if (periods.empty()) return seed;
+
+  // Reset phrases[]; we'll populate from the periods. If the user supplied
+  // pre-resolved phrases alongside periods, we overwrite — periods win.
+  seed.phrases.clear();
+
+  // Auto-generate motifs for Generate-source figures in antecedents.
+  // This converts them to Reference-source so the Parallel/Modified
+  // variant logic can reuse/transform them in the consequent.
+  for (int pi = 0; pi < (int)periods.size(); ++pi) {
+    PeriodSpec& p = periods[pi];
+    auto autoGenFigures = [&](PhraseTemplate& phrase, const std::string& suffix) {
+      MelodicFunction func = phrase.function;
+      int numFigs = (int)phrase.figures.size();
+      for (int fi = 0; fi < numFigs; ++fi) {
+        auto& ft = phrase.figures[fi];
+        if (ft.source != FigureSource::Generate) continue;
+
+        uint32_t figSeed = locus.rng->rng();
+        FigureTemplate genTmpl = ft;
+        genTmpl.seed = figSeed;
+
+        if (genTmpl.shape == FigureShape::Free && func != MelodicFunction::Free) {
+          genTmpl.shape = DefaultFigureStrategy::choose_shape(
+              func, fi, numFigs, figSeed, phrase.cadentialArrival == "approach");
+        }
+
+        DefaultFigureStrategy figStrat;
+        MelodicFigure fig = figStrat.generate_figure(genTmpl, figSeed);
+
+        std::string motifName = "auto_p" + std::to_string(pi) + suffix + std::to_string(fi);
+        Motif m;
+        m.name = motifName;
+        m.userProvided = false;
+        m.content = fig;
+        locus.plan->add_motif(std::move(m));
+
+        ft.source = FigureSource::Reference;
+        ft.motifName = motifName;
+      }
+    };
+
+    autoGenFigures(p.antecedent, "_f");
+    autoGenFigures(p.consequent, "_c");
+  }
+
+  for (int pi = 0; pi < (int)periods.size(); ++pi) {
+    PeriodSpec& p = periods[pi];
+
+    // --- Random harmonic skeleton (audition issue #1) ---
+    // When cadences are unspecified, randomly choose the period's harmonic
+    // frame as start/end scale-degrees of the two phrases [s1,e1,s2,e2], then
+    // map them onto each phrase's startingPitch (degree->pitch) and
+    // cadenceTarget. Harmony is generated FROM the mono melody, so these
+    // boundary pitches are the audible harmonic movement.
+    if (seed.startingPitch && p.antecedent.cadenceType == 0
+        && p.consequent.cadenceType == 0) {
+      static const int PROGRESSIONS[][4] = {
+        {0, 4, 4, 0},  // I-V-V-I
+        {0, 0, 4, 0},  // I-I-V-I
+        {0, 0, 0, 0},  // I-I-I-I
+        {0, 3, 4, 0},  // I-IV-V-I
+        {0, 3, 0, 0},  // I-IV-I-I
+        {0, 5, 4, 0},  // I-vi-V-I
+        {0, 3, 5, 0},  // I-IV-vi-I
+      };
+      const int N = int(sizeof(PROGRESSIONS) / sizeof(PROGRESSIONS[0]));
+      Randomizer progRng(locus.plan->masterSeed + uint32_t(pi) * 31u + 9001u);
+      const int* prog = PROGRESSIONS[progRng.int_range(0, N - 1)];
+
+      const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+      auto degree_pitch = [&](int deg) {
+        PitchReader pr(scale);
+        pr.set_pitch(*seed.startingPitch);
+        pr.step(deg);
+        return pr.get_pitch();
+      };
+      auto ctype = [](int endDeg) { return endDeg == 4 ? 1 : 2; };  // V->half, else authentic
+
+      p.antecedent.startingPitch = degree_pitch(prog[0]);
+      p.antecedent.cadenceType   = ctype(prog[1]);
+      p.antecedent.cadenceTarget = prog[1];
+      p.consequent.startingPitch = degree_pitch(prog[2]);
+      p.consequent.cadenceType   = ctype(prog[3]);
+      p.consequent.cadenceTarget = prog[3];
+    }
+
+    // Optional leading connective phrase (between periods, not before period 0).
+    if (pi > 0 && p.leadingConnective) {
+      PhraseTemplate connPhrase;
+      connPhrase.name = "connective_" + std::to_string(pi);
+      FigureTemplate ft;
+      ft.source = FigureSource::Reference;
+      ft.motifName = *p.leadingConnective;
+      connPhrase.figures.push_back(ft);
+      FigureConnector fc;  // default: all zeros
+      connPhrase.connectors.push_back(fc);
+      seed.phrases.push_back(std::move(connPhrase));
+    }
+
+    // Resolve variant into two concrete PhraseTemplates.
+    if (p.variant == PeriodVariant::Parallel) {
+      // Consequent starts as a copy of antecedent; cadence fields and
+      // explicit consequent figures (if any) override.
+      PhraseTemplate ante = p.antecedent;
+      PhraseTemplate consq = p.antecedent;
+      consq.cadenceType   = p.consequent.cadenceType;
+      consq.cadenceTarget = p.consequent.cadenceTarget;
+      if (p.consequent.startingPitch) consq.startingPitch = p.consequent.startingPitch;
+      if (!p.consequent.figures.empty()) {
+        consq.figures = p.consequent.figures;
+        consq.connectors = p.consequent.connectors;
+      }
+      seed.phrases.push_back(std::move(ante));
+      seed.phrases.push_back(std::move(consq));
+    }
+    else if (p.variant == PeriodVariant::Modified) {
+      // Consequent figure references derive from antecedent's via the
+      // period's consequentTransform. For each Reference-source figure
+      // in the consequent, swap motifName for an auto-derived motif
+      // synthesized via plan->add_derived_motif. For non-
+      // Reference figures (Literal, Locked, Generate), pass through.
+      PhraseTemplate ante = p.antecedent;
+      PhraseTemplate consq = p.antecedent;  // start from antecedent
+
+      if (p.consequentTransform) {
+        for (auto& ft : consq.figures) {
+          if (ft.source == FigureSource::Reference && !ft.motifName.empty()) {
+            std::string derivedName = locus.plan->add_derived_motif(
+                ft.motifName,
+                *p.consequentTransform,
+                p.consequentTransformParam);
+            ft.motifName = derivedName;
+          }
+        }
+      }
+
+      consq.cadenceType   = p.consequent.cadenceType;
+      consq.cadenceTarget = p.consequent.cadenceTarget;
+      if (p.consequent.startingPitch) consq.startingPitch = p.consequent.startingPitch;
+      // If the authored consequent has explicit figures, those override
+      // (even in Modified — user's direct expression wins).
+      if (!p.consequent.figures.empty()) {
+        consq.figures = p.consequent.figures;
+        consq.connectors = p.consequent.connectors;
+      }
+      seed.phrases.push_back(std::move(ante));
+      seed.phrases.push_back(std::move(consq));
+    }
+    else { // PeriodVariant::Contrasting
+      // Consequent uses its own authored figures entirely. Antecedent and
+      // consequent are independent.
+      seed.phrases.push_back(p.antecedent);
+      seed.phrases.push_back(p.consequent);
+    }
+  }
+
+  seed.strategy.settings = settings;
+  return seed;
+}
+
+inline Passage PeriodPassageStrategy::compose_passage(
+    Locus locus, const PassageTemplate& pt) {
+  Passage passage;
+
+  if (!pt.startingPitch) return passage;
+
+  auto& sec = locus.piece->sections[locus.sectionIdx];
+  const Scale& scale = sec.scale;
+  PitchReader runningReader(scale);
+  runningReader.set_pitch(*pt.startingPitch);
+
+  // --- Phase 1: Compose melody ---
+  for (int i = 0; i < (int)pt.phrases.size(); ++i) {
+    const PhraseTemplate& phraseTmpl = pt.phrases[i];
+    if (phraseTmpl.locked) continue;
+
+    PhraseTemplate localTmpl = phraseTmpl;
+    if (!localTmpl.startingPitch) {
+      localTmpl.startingPitch = runningReader.get_pitch();
+    } else {
+      runningReader.set_pitch(*localTmpl.startingPitch);
+    }
+
+    PhraseStrategy* ps = &locus.kit->strategies.phrase(localTmpl.strategy.name);
+    Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
+
+    for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {
+      if (fi < (int)phrase.connectors.size()) {
+        runningReader.step(phrase.connectors[fi].leadStep);
+      }
+      for (const auto& u : phrase.figures[fi]->units) {
+        runningReader.step(u.step);
+      }
+    }
+
+    passage.add_phrase(std::move(phrase));
+  }
+
+  // --- Phase 2: Generate harmony from composed melody ---
+  const PieceTemplate::SectionTemplate* sd = nullptr;
+  for (const auto& s : locus.plan->sections) {
+    if (s.name == sec.name) { sd = &s; break; }
+  }
+
+  const Settings settings = settings_of<Settings>(pt.strategy);
+  const std::vector<PeriodSpec>& periods = settings.periods;
+  if (sd && !sd->styleName.empty() && sec.harmonyTimeline.empty()
+      && !periods.empty()) {
+    auto style = StyleTable::load_by_name(sd->styleName);
+    float beatOffset = 0.0f;
+
+    for (int pi = 0; pi < (int)periods.size(); ++pi) {
+      const PeriodSpec& period = periods[pi];
+      float barsPerPhrase = period.bars / 2.0f;
+      float beatsPerBar = float(sec.meter.beats_per_bar());
+      float anteBeats = barsPerPhrase * beatsPerBar;
+      float consBeats = barsPerPhrase * beatsPerBar;
+
+      // Build attack beats at half-note intervals (2 beats)
+      auto make_attacks = [](float totalBeats) {
+        std::vector<float> attacks;
+        for (float b = 0; b < totalBeats - 0.01f; b += 2.0f)
+          attacks.push_back(b);
+        return attacks;
+      };
+
+      // Antecedent: I -> cadence target
+      ScaleChord anteEnd{0, 0, &ChordDef::get("Major")};
+      {
+        WalkConstraint wc;
+        wc.startChord = ScaleChord{0, 0, &ChordDef::get("Major")};
+        if (period.antecedent.cadenceType > 0) {
+          anteEnd = cadence_chord(period.antecedent.cadenceType,
+                                  period.antecedent.cadenceTarget);
+          wc.endChord = anteEnd;
+          wc.cadenceBeat = compute_cadence_beat(period.antecedent, *locus.plan);
+        }
+        wc.melodyProfile = build_melody_profile(
+            passage, scale, beatOffset, beatOffset + anteBeats);
+        wc.totalBeats = anteBeats;
+        auto attacks = make_attacks(anteBeats);
+        auto prog = ChordWalker::harmonize(style, wc, attacks,
+            locus.plan->masterSeed + pi * 100);
+        sec.harmonyTimeline.set_segment(
+            beatOffset, beatOffset + anteBeats, prog, "period_passage");
+        beatOffset += anteBeats;
+      }
+
+      // Consequent: starts on antecedent's cadence chord
+      {
+        WalkConstraint wc;
+        wc.startChord = anteEnd;
+        if (period.consequent.cadenceType > 0) {
+          wc.endChord = cadence_chord(period.consequent.cadenceType,
+                                       period.consequent.cadenceTarget);
+          wc.cadenceBeat = compute_cadence_beat(period.consequent, *locus.plan);
+        }
+        wc.melodyProfile = build_melody_profile(
+            passage, scale, beatOffset, beatOffset + consBeats);
+        wc.totalBeats = consBeats;
+        auto attacks = make_attacks(consBeats);
+        auto prog = ChordWalker::harmonize(style, wc, attacks,
+            locus.plan->masterSeed + pi * 100 + 50);
+        sec.harmonyTimeline.set_segment(
+            beatOffset, beatOffset + consBeats, prog, "period_passage");
+        beatOffset += consBeats;
+      }
+    }
+  }
+
+  return passage;
+}
+
+} // namespace mforce

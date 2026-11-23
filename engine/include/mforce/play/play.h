@@ -1,5 +1,5 @@
 #pragma once
-#include "mforce/music/conductor.h"
+#include "mforce/perform/conductor.h"
 #include "mforce/music/structure.h"
 #include "mforce/patch/patch.h"
 #include "mforce/render/instrument.h"

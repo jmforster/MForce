@@ -1734,9 +1734,9 @@ static void run_hold_delivery_tests() {
     }
 }
 
-#include "mforce/music/conductor.h"
-#include "mforce/music/embedded_score.h"
-#include "mforce/music/time_map.h"
+#include "mforce/perform/conductor.h"
+#include "mforce/perform/embedded_score.h"
+#include "mforce/perform/time_map.h"
 #include "mforce/play/play.h"
 #include <bit>
 #include <cstdint>
@@ -2991,9 +2991,10 @@ static void run_embedded_score_text_tests() {
     std::printf("  score-bearing files checked: %d\n", checked);
 }
 
-#include "mforce/music/passage_melody.h"
-#include "mforce/music/register_builtin.h"
-#include "mforce/music/templates_json.h"
+#include "mforce/compose/passage_melody.h"
+#include "mforce/compose/register_builtin.h"
+#include "mforce/shelved/register_shelved.h"
+#include "mforce/compose/templates_json.h"
 #include <filesystem>
 
 // A template read through the built-in strategies' codecs.
@@ -3001,6 +3002,7 @@ static mforce::PieceTemplate template_from(const nlohmann::json& j) {
     mforce::ComposeKit kit;
     mforce::SettingsCodecs codecs;
     mforce::register_builtin(kit, codecs);
+    mforce::register_shelved(kit, codecs);
     return mforce::read_template(j, codecs);
 }
 
@@ -3009,6 +3011,7 @@ static nlohmann::json json_of(const mforce::PieceTemplate& t) {
     mforce::ComposeKit kit;
     mforce::SettingsCodecs codecs;
     mforce::register_builtin(kit, codecs);
+    mforce::register_shelved(kit, codecs);
     return mforce::write_template(t, codecs);
 }
 
@@ -3040,7 +3043,7 @@ static void run_passage_melody_tests() {
     CHECK(phrases.size() == 2);
 
     // Phrase 1: 4 figures, DENSE connectors (one per figure, [0] a dummy —
-    // composer.h:1471 reads connectors[i] as the lead INTO figure i),
+    // realize_events reads connectors[i] as the lead INTO figure i),
     // starts E5.
     const auto& p1 = phrases[0];
     CHECK(p1.figures.size() == 4);
@@ -3146,15 +3149,19 @@ static void run_passage_melody_tests() {
     }
 }
 
-#include "mforce/music/anchor_selector.h"
-#include "mforce/music/compose.h"
-#include "mforce/music/composer.h"
+#include "mforce/compose/anchor_selector.h"
+#include "mforce/compose/compose.h"
+#include "mforce/compose/default_figure_strategy.h"
+#include "mforce/compose/default_passage_strategy.h"
+#include "mforce/compose/default_phrase_strategy.h"
+#include "mforce/compose/shape_strategies.h"
 
 // Composes `tmpl` with every built-in strategy and voicing registered.
 static Composition compose_builtin(const PieceTemplate& tmpl) {
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+    register_shelved(kit, codecs);
     return compose(tmpl, kit);
 }
 
@@ -3457,10 +3464,11 @@ static void run_walk2_tests() {
     }
 }
 
-#include "mforce/music/melody_profile.h"
-#include "mforce/music/style_table.h"
-#include "mforce/music/note_map.h"
-#include "mforce/music/phrase_critic.h"
+#include "mforce/compose/melody_profile.h"
+#include "mforce/compose/melody_profile_json.h"
+#include "mforce/compose/style_table.h"
+#include "mforce/compose/note_map.h"
+#include "mforce/compose/phrase_critic.h"
 #include <set>
 
 static void run_walk3_tests() {
@@ -3499,7 +3507,7 @@ static void run_walk3_tests() {
         // Missing key -> throws naming it.
         json j = json::parse(R"({"melody": {"tendencies": {}}})");
         bool threw = false;
-        try { MelodyProfile::parse_json(j); }
+        try { parse_melody_profile(j); }
         catch (const std::exception& e) {
             threw = std::string(e.what()).find("nct") != std::string::npos;
         }
@@ -3824,6 +3832,7 @@ static void run_compose_kit_tests() {
     ComposeKit builtin;
     SettingsCodecs codecs;
     register_builtin(builtin, codecs);
+    register_shelved(builtin, codecs);
     const PieceTemplate probe = template_from(compose_probe_json());
     CHECK(!compose_builtin(probe).piece.parts.empty());
 
@@ -4047,14 +4056,18 @@ static void run_init_pitches_tests() {
     CHECK(pinned);
 }
 
-#include "mforce/music/elaborated_phrase_strategy_json.h"
-#include "mforce/music/library_passage_strategy_json.h"
-#include "mforce/music/passage_strategies_json.h"
-#include "mforce/music/period_passage_strategy_json.h"
-#include "mforce/music/phrase_strategies_json.h"
-#include "mforce/music/realization_strategy_json.h"
-#include "mforce/music/two_figure_phrase_strategy_json.h"
-#include "mforce/music/voicing_json.h"
+#include "mforce/shelved/elaborated_phrase_strategy_json.h"
+#include "mforce/shelved/library_passage_strategy_json.h"
+#include "mforce/shelved/connective_passage_strategy_json.h"
+#include "mforce/shelved/pedal_buildup_strategy_json.h"
+#include "mforce/shelved/sequence_passage_strategy_json.h"
+#include "mforce/shelved/wandering_passage_strategy_json.h"
+#include "mforce/shelved/period_passage_strategy_json.h"
+#include "mforce/shelved/period_phrase_strategy_json.h"
+#include "mforce/shelved/sentence_phrase_strategy_json.h"
+#include "mforce/compose/realization_strategy_json.h"
+#include "mforce/shelved/two_figure_phrase_strategy_json.h"
+#include "mforce/voicing/voicing_json.h"
 
 static void run_settings_of_tests() {
     std::printf("settings_of: defaults when empty, the value when present, a named throw\n");
@@ -4092,6 +4105,7 @@ static void run_settings_codec_tests() {
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+    register_shelved(kit, codecs);
     const char* fig = R"({"units": [{"duration": 1.0, "step": 0}, {"duration": 1.0, "step": 1}]})";
     const std::string period = std::string(R"({"basicIdea": )") + fig + R"(, "antecedentTail": )" +
         fig + R"(, "consequentTail": )" + fig + R"(, "halfCadenceTarget": 3})";
@@ -4267,6 +4281,7 @@ static void run_settings_required_tests() {
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+    register_shelved(kit, codecs);
     const PieceTemplate probe = template_from(compose_probe_json());
     bool all = true;
     for (const char* name : {"period_phrase", "sentence_phrase", "two_figure_phrase",
@@ -4279,6 +4294,40 @@ static void run_settings_required_tests() {
     t.parts[0].passages["Main"].strategy.name = "library_passage";
     all = all && compose_throws_naming(t, kit, "library_passage: given no settings");
     CHECK(all);
+}
+
+
+// The kit register_builtin fills knows none of the eleven shelved strategies
+// and composes a template that names no strategy; register_shelved adds all
+// eleven.
+static void run_shelved_registration_tests() {
+    std::printf("registration: register_builtin alone lacks the shelved eleven; register_shelved adds them\n");
+    const char* phrases[] = {"period_phrase", "sentence_phrase", "two_figure_phrase",
+                             "elaborated_phrase"};
+    const char* passages[] = {"alternating_figure", "period_passage", "library_passage",
+                              "pedal_buildup", "sequence_passage", "connective_passage",
+                              "wandering_passage"};
+    auto throws_naming = [](auto lookup, const std::string& name) {
+        try { lookup(); } catch (const std::exception& e) {
+            return std::string(e.what()).find(name) != std::string::npos;
+        }
+        return false;
+    };
+    ComposeKit kit;
+    SettingsCodecs codecs;
+    register_builtin(kit, codecs);
+    bool unknown = true;
+    for (const char* n : phrases)
+        unknown = unknown && throws_naming([&] { (void)kit.strategies.phrase(n); }, n);
+    for (const char* n : passages)
+        unknown = unknown && throws_naming([&] { (void)kit.strategies.passage(n); }, n);
+    CHECK(unknown);
+    CHECK(!compose(template_from(compose_probe_json()), kit).piece.parts.empty());
+    register_shelved(kit, codecs);
+    bool known = true;
+    for (const char* n : phrases) known = known && kit.strategies.phrase(n).name() == n;
+    for (const char* n : passages) known = known && kit.strategies.passage(n).name() == n;
+    CHECK(known);
 }
 
 #include "mforce/core/component.h"
@@ -16077,6 +16126,7 @@ int main() {
     run_realization_strategy_tests();
     run_profile_selector_capture_tests();
     run_settings_required_tests();
+    run_shelved_registration_tests();
     run_passage_melody_tests();
     run_passage_parse_tests();
     run_onset_field_tests();

@@ -23,10 +23,15 @@ add_library(mforce_engine
   src/patch/retired_spellings.cpp
   src/patch/table_rule.cpp
   src/patch/type_declarations.cpp
-  src/music/compose.cpp
-  src/music/embedded_score.cpp
+  src/compose/compose.cpp
+  src/compose/melody_profile_json.cpp
+  src/compose/pool_figure_builder_json.cpp
+  src/compose/style_table_json.cpp
+  src/compose/register_builtin.cpp
+  shelved/src/pattern_library_json.cpp
+  shelved/src/register_shelved.cpp
+  src/perform/embedded_score.cpp
   src/music/realize.cpp
-  src/music/register_builtin.cpp
   src/play/play.cpp
   src/component.cpp
   src/source_registry.cpp
@@ -35,6 +40,7 @@ add_library(mforce_engine
 
 target_include_directories(mforce_engine PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/shelved/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 

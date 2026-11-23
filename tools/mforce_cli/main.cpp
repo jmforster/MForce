@@ -10,15 +10,16 @@
 #include "patch_file.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
-#include "mforce/music/conductor.h"
-#include "mforce/music/compose.h"
-#include "mforce/music/register_builtin.h"
+#include "mforce/perform/conductor.h"
+#include "mforce/compose/compose.h"
+#include "mforce/compose/register_builtin.h"
+#include "mforce/shelved/register_shelved.h"
 #include "mforce/music/realize.h"
 #include "mforce/music/music_json.h"
 #include "mforce/music/parse_util.h"
-#include "mforce/music/templates.h"
-#include "mforce/music/templates_json.h"
-#include "mforce/music/passage_melody.h"
+#include "mforce/compose/templates.h"
+#include "mforce/compose/templates_json.h"
+#include "mforce/compose/passage_melody.h"
 #include "mforce/music/dun_parser.h"
 #include <map>
 #include <iostream>
@@ -503,6 +504,7 @@ static int run_compose(int argc, char** argv) {
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+    register_shelved(kit, codecs);
 
     // Load template from JSON if specified
     PieceTemplate baseTmpl;
@@ -877,6 +879,7 @@ static int run_lint_template(int argc, char** argv)
     ComposeKit kit;
     SettingsCodecs codecs;
     register_builtin(kit, codecs);
+    register_shelved(kit, codecs);
     int files = 0, bad = 0;
     int nDrop = 0, nDef = 0, nForm = 0, nChg = 0;
     for (int a = 2; a < argc; ++a) {

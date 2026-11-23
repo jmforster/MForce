@@ -1,6 +1,6 @@
 #include "mforce/play/play.h"
-#include "mforce/music/embedded_score.h"
-#include "mforce/music/time_map.h"
+#include "mforce/perform/embedded_score.h"
+#include "mforce/perform/time_map.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"
 #include <algorithm>
