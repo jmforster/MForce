@@ -1,52 +1,27 @@
-add_library(mforce_engine
-  src/source/noise/red_noise_source.cpp
-  src/source/wavetable/wavetable_source.cpp
-  src/source/additive/additive_source.cpp
-  src/source/wavetable/hybrid_ks_source.cpp
-  src/music.cpp
-  src/chord.cpp
-  src/render/mixer.cpp
-  src/render/wav_writer.cpp
-  src/render/wav_reader.cpp
-  src/render/build_instrument.cpp
-  src/render/build_sound.cpp
-  src/render/instrument.cpp
-  src/render/voice.cpp
-  src/render/node_capture.cpp
-  src/render/pitched_instrument.cpp
-  src/render/drum_kit.cpp
-  src/render/live_player.cpp
-  src/patch/build_graph.cpp
-  src/patch/node_json.cpp
-  src/patch/patch.cpp
-  src/patch/patch_json.cpp
-  src/patch/retired_spellings.cpp
-  src/patch/table_rule.cpp
-  src/patch/type_declarations.cpp
-  src/compose/compose.cpp
-  src/compose/melody_profile_json.cpp
-  src/compose/pool_figure_builder_json.cpp
-  src/compose/style_table_json.cpp
-  src/compose/register_builtin.cpp
-  shelved/src/pattern_library_json.cpp
-  shelved/src/register_shelved.cpp
-  src/perform/embedded_score.cpp
-  src/music/realize.cpp
-  src/play/play.cpp
-  src/component.cpp
-  src/source_registry.cpp
-  src/source/source_registrations.cpp
-)
-
-target_include_directories(mforce_engine PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/shelved/include
-)
+# The engine: one folder and one target per module (mforce_module in
+# cmake/MforceModule.cmake). A module is added after every module it uses.
 
 # nlohmann/json.hpp as a SYSTEM header: a warning inside it is the library's,
 # not ours, so it does not fail the build. MSVC reads it through /external:I.
-target_include_directories(mforce_engine SYSTEM PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party
-)
+# Only a module that names JSON is given it (and, through it, its users).
+add_library(mforce_json INTERFACE)
+target_include_directories(mforce_json SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
-mforce_compile_rules(mforce_engine)
+add_subdirectory(core)
+add_subdirectory(contract)
+add_subdirectory(util)
+add_subdirectory(source)
+add_subdirectory(patch)
+add_subdirectory(render)
+add_subdirectory(music)
+add_subdirectory(voicing)
+add_subdirectory(compose)
+add_subdirectory(shelved)
+add_subdirectory(perform)
+add_subdirectory(play)
+
+# The name the tools link: no code of its own, every module but shelved.
+add_library(mforce_engine INTERFACE)
+target_link_libraries(mforce_engine INTERFACE
+  mforce_core mforce_contract mforce_util mforce_source mforce_patch mforce_render
+  mforce_music mforce_voicing mforce_compose mforce_perform mforce_play)

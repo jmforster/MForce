@@ -1,5 +1,5 @@
 add_executable(engine_tests main.cpp)
-target_link_libraries(engine_tests PRIVATE mforce_engine mforce_alloc_probe)
+target_link_libraries(engine_tests PRIVATE mforce_engine mforce_shelved mforce_alloc_probe)
 mforce_compile_rules(engine_tests)
 # One translation unit holds every engine test; past MSVC's default COFF
 # section limit it needs the large-object format.

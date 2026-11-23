@@ -1,3 +1,3 @@
 add_executable(test_figures main.cpp)
-target_link_libraries(test_figures PRIVATE mforce_engine)
+target_link_libraries(test_figures PRIVATE mforce_engine mforce_shelved)
 mforce_compile_rules(test_figures)

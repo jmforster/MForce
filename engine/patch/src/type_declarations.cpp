@@ -1,5 +1,6 @@
 #include "mforce/patch/type_declarations.h"
 #include "mforce/core/source_registry.h"
+#include "mforce/source/register_all_sources.h"
 #include <functional>
 #include <map>
 #include <memory>

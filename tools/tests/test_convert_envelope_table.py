@@ -15,7 +15,7 @@ from convert_rules import envelope_table  # noqa: E402
 
 COLUMNS = ["startVal", "endVal", "power", "type", "percent", "minSec", "maxSec", "nominal"]
 
-ENVELOPE_PRESET_H = os.path.join(os.path.dirname(__file__), "..", "..", "engine", "include", "mforce",
+ENVELOPE_PRESET_H = os.path.join(os.path.dirname(__file__), "..", "..", "engine", "patch", "include", "mforce",
                                  "patch", "envelope_preset.h")
 
 

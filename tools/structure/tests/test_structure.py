@@ -1,6 +1,7 @@
 """Unit and known-answer tests for the structure meter.
 Run: python -m unittest discover -s tools/structure/tests"""
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -162,10 +163,47 @@ class KnownAnswerTests(unittest.TestCase):
 
     def test_every_tracked_source_is_on_a_module(self):
         import subprocess
+        from check import SOURCE_GLOBS
         m = ModuleMap.load()
-        globs = ["engine/include/*.h", "engine/src/*.cpp", "tools/*.cpp", "tools/*.h"]
-        paths = subprocess.check_output(["git", "-C", str(ROOT), "ls-files"] + globs, text=True).split()
+        paths = subprocess.check_output(["git", "-C", str(ROOT), "ls-files"] + SOURCE_GLOBS, text=True).split()
+        self.assertTrue(paths)
         self.assertEqual([p for p in paths if m.owner(p) is None], [])
+
+
+def module_uses(cmake_text):
+    """(name, USES list) of the mforce_module call in a module's CMakeLists.txt,
+    or None when the file makes no module."""
+    call = re.search(r"mforce_module\(\s*(\w+)(.*?)\)", cmake_text, re.S)
+    if not call:
+        return None
+    words = call.group(2).split()
+    uses = words[words.index("USES") + 1:] if "USES" in words else []
+    return call.group(1), uses
+
+
+class ModuleTargetTests(unittest.TestCase):
+    """The compiler enforces each module's USES (engine/<m>/CMakeLists.txt);
+    the meter enforces its may_include (modules.json). The two say the same."""
+
+    def test_module_uses_reads_the_call(self):
+        text = "mforce_module(render\n  SOURCES src/a.cpp\n  USES    core source)\n"
+        self.assertEqual(module_uses(text), ("render", ["core", "source"]))
+        self.assertEqual(module_uses("mforce_module(util)\n"), ("util", []))
+        self.assertIsNone(module_uses("add_executable(x main.cpp)\n"))
+
+    def test_uses_equals_may_include(self):
+        m = ModuleMap.load()
+        made = {}
+        for cmake in sorted((ROOT / "engine").glob("*/CMakeLists.txt")):
+            found = module_uses(cmake.read_text(encoding="utf-8"))
+            if found:
+                made[found[0]] = found[1]
+        engine_modules = {mod["name"] for mod in m.modules if mod["paths"][0].startswith("engine/")}
+        self.assertEqual(sorted(made), sorted(engine_modules), "modules made by CMake vs modules in the map")
+        for name, uses in sorted(made.items()):
+            may = m.by_name[name]["may_include"]
+            self.assertEqual(sorted(uses), sorted(may),
+                             f"module {name}: USES {uses} in its CMakeLists.txt, may_include {may} in modules.json")
 
 
 if __name__ == "__main__":

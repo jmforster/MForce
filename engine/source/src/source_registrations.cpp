@@ -1,4 +1,5 @@
 #include "mforce/core/source_registry.h"
+#include "mforce/source/register_all_sources.h"
 #include "mforce/source/modulator/name_gate.h"
 #include "mforce/source/modulator/perform_node.h"
 #include "mforce/source/output/sound_channel.h"

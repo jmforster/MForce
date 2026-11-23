@@ -101,7 +101,4 @@ private:
   std::vector<std::string> order_;    // registration order
 };
 
-// Call once at startup to populate the registry with all source types.
-void register_all_sources();
-
 } // namespace mforce
