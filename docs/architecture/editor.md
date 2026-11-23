@@ -598,3 +598,14 @@ reversible; say so if you want any another way.
     The other way, putting every Envelope on the trigger list, changes
     nothing a render plays but changes what the voice reports about
     itself; it is in CLEANUP as a suggestion for after the refactor.
+
+12. **The measurement section 1 promised, and what follows from it**
+    (4.2's last bullet). Rebuilding the live player for an edited patch
+    takes 29 ms at the median over the 104 library and baseline
+    instruments and 36 ms for the slowest (`sing_tenor_U`), sixteen
+    voices, Release, on this machine. A rebuild also cuts the notes that
+    are sounding. So a setting's drag field applies once, when the drag
+    ends, and a checkbox or a choice at once; a pin's constant follows
+    the drag on every frame with no rebuild, as designed. If a setting
+    should be heard while it is dragged, that is the "second message
+    row" of 4.2, for a later slice.
