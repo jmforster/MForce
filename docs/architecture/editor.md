@@ -505,3 +505,85 @@ said before.
    view is handed render's and contract's folders as well as
    `ui_audio`'s, through `ui_control`. The structure gate refuses all
    three; the sentence named only one.
+
+## 13. Added while writing the steps (2026-11-23, after the signature)
+
+Writing each step's brief against the code turned up things the signed
+text did not have. None changes a ruling of section 9. Each is small and
+reversible; say so if you want any another way.
+
+1. **Most patches have no saved positions.** Of the 131 library and
+   baseline patches, 114 have none and 16 lack some. Slice 1's "every
+   node at its saved position" would have stacked them in one spot. So
+   `ui_model` gets one more function, and opening a file calls it:
+
+   ```cpp
+   // A position for every node that has none: columns by distance from the
+   // output. A node that has a position keeps it.
+   int place_unplaced_nodes(Patch& patch);
+   ```
+
+   The positions go into the patch record (the record stays the one
+   truth), are not an unsaved change by themselves, and are written by
+   the next save.
+
+2. **Two more layout edits** in `patch/edit.h` (4.1), because the layout
+   also holds the canvas's Output node and its panning:
+
+   ```cpp
+   Change move_output(Patch&, Vec2 pos);
+   Change set_panning(Patch&, Vec2 pos);
+   ```
+
+   Panning is kept in the patch and saved with it, and does not by
+   itself mark the patch unsaved.
+
+3. **The session holds three more plain things** (4.4):
+
+   ```cpp
+   struct Session {
+     OpenPatch    open;
+     AudioAdapter audio;
+     LivePlay     live{audio};
+     Keyboard     keyboard;     // new: the octave, the velocity, a struck note's length
+     RecentFiles  recent;       // new: the files opened most recently
+     std::string  selected;
+     std::string  status;
+     Unsaved      unsaved;      // new: a close or an open waiting for the answer about unsaved changes
+   };
+   ```
+
+   Opening another file asks first when there are unsaved changes, as
+   closing does.
+
+4. **The computer-key table is yours from the old editor**, copied as
+   data: the two zones (2026-09-13), Up and Down for the octave, Left
+   and Right to halve and double a struck note's length.
+
+5. **How the player finds a constant** (4.2): the build now lists where
+   each pin's constant lives (`BuiltGraph::constants`), and leaves out
+   the nodes inside a `MultiplexSource` template. That list is what
+   makes `set_value` false there.
+
+6. **The adapter's callback is public** (4.3), as `fill(float* stereo,
+   int frames)`: the device calls it and so do the tests. `play()`
+   refuses a player that is not at the adapter's rate.
+
+7. **The platform's file dialogs sit behind an interface** the views are
+   given (`FileDialogs`: `pick_open`, `pick_save`), implemented in
+   `ui_app` with the Win32 dialogs. So no view contains Windows code and
+   the headless test passes a stand-in.
+
+8. **Where the editor keeps its own files**: `%APPDATA%\MForce\`
+   (`recent_files.txt`, ImGui's `imgui.ini`). Nothing is written into
+   the repository. The recent list is a plain text file, one path per
+   line, so no editor module reads JSON.
+
+9. **Two options on the program for proof, not for use**:
+   `mforce_editor --frames N` draws N frames and exits (the real window
+   and sound card come up), and `--shot FILE` saves the last frame as a
+   picture, which is how the session that builds a slice looks at what
+   it drew before it reaches your desk.
+
+10. **RtMidi is pinned to the tag `6.0.0`**: the copy on your disk had no
+    git history to take a commit from.
