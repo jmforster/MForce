@@ -4,6 +4,4 @@
 # alloc_gate and engine_tests only.
 add_library(mforce_alloc_probe STATIC alloc_probe.cpp)
 target_include_directories(mforce_alloc_probe PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-if (MSVC)
-  target_compile_options(mforce_alloc_probe PRIVATE /W4 /permissive-)
-endif()
+mforce_compile_rules(mforce_alloc_probe)

@@ -12,9 +12,9 @@
 #include "mforce/compose/templates.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/core/randomizer.h"
+#include "mforce/compose/environment.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <memory>
 
 namespace mforce {
@@ -76,7 +76,7 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
     // Pool-first: draw an idiomatic Markov atom matching the template's beat/note
     // budget. On no-match (or pool unavailable, or override), fall through to the
     // procedural generator below. Contour is left unspecified for now.
-    if (usePool && std::getenv("MFORCE_FIGURE_RANDOM") == nullptr) {
+    if (usePool && !environment_variable_is_set("MFORCE_FIGURE_RANDOM")) {
         if (PoolFigureBuilder* pool = markov_pool_singleton()) {
             Constraints pc;
             if (figTmpl.totalBeats > 0) {
@@ -262,8 +262,8 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
         float actual = 0;
         for (auto& u : fig.units) actual += u.duration;
         if (actual > 0 && std::abs(actual - figTmpl.totalBeats) > 0.001f) {
-          float scale = figTmpl.totalBeats / actual;
-          for (auto& u : fig.units) u.duration *= scale;
+          float durationScale = figTmpl.totalBeats / actual;
+          for (auto& u : fig.units) u.duration *= durationScale;
         }
       }
       return fig;

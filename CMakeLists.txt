@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
-project(MForce LANGUAGES CXX C)
+project(MForce LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# The compile rules every MForce target takes (mforce_compile_rules).
+include(cmake/MforceModule.cmake)
 
 # Emit PDBs in Release so the crash-log SEH filter can resolve symbols.
 # /Zi adds debug info to .obj; /DEBUG tells the linker to write a .pdb;
@@ -15,30 +15,6 @@ if(MSVC)
         $<$<CONFIG:Release>:/OPT:ICF>
     )
 endif()
-
-# GLFW options
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-add_subdirectory(engine/third_party/glfw)
-
-# RtAudio — callback-based audio I/O for live keyboard play in an editor.
-# Static lib, WASAPI on Windows (default), no tests, no python bindings.
-# RTAUDIO_STATIC_MSVCRT OFF so it uses /MD like our other libs (avoids
-# MT/MD mismatch linker warnings).
-set(RTAUDIO_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
-set(RTAUDIO_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(RTAUDIO_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
-set(RTAUDIO_BUILD_PYTHON      OFF CACHE BOOL "" FORCE)
-set(RTAUDIO_STATIC_MSVCRT     OFF CACHE BOOL "" FORCE)
-add_subdirectory(engine/third_party/rtaudio)
-
-# RtMidi — MIDI keyboard input for an editor. Static lib, WinMM on Windows
-# (default), no tests.
-set(RTMIDI_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
-set(RTMIDI_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
-add_subdirectory(engine/third_party/rtmidi)
 
 add_subdirectory(engine)
 add_subdirectory(tools/mforce_cli)

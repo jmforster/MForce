@@ -41,9 +41,12 @@ add_library(mforce_engine
 target_include_directories(mforce_engine PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/shelved/include
+)
+
+# nlohmann/json.hpp as a SYSTEM header: a warning inside it is the library's,
+# not ours, so it does not fail the build. MSVC reads it through /external:I.
+target_include_directories(mforce_engine SYSTEM PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 
-if (MSVC)
-  target_compile_options(mforce_engine PRIVATE /W4 /permissive-)
-endif()
+mforce_compile_rules(mforce_engine)

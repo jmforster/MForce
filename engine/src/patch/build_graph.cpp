@@ -245,7 +245,9 @@ Graph template_of(const Build& b, const Node& mux, const std::string& root) {
     if (!n.dynamicPins.empty())
       throw std::runtime_error(opening(n.id, n.type) + "a dynamic pin inside" + of +
                                " is not supported: each clone would need its own");
-  for (const auto& id : advance_ids(sub)) {
+  const std::vector<std::string> unadvanced = advance_ids(sub);
+  if (!unadvanced.empty()) {
+    const std::string& id = unadvanced.front();
     const Node* n = b.node(id);
     throw std::runtime_error(opening(id, n->type) + "inside" + of +
                              " only a tap reads it, and nothing advances a clone's tail");

@@ -12,6 +12,8 @@ cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
 *.cmake
+# The project's own CMake modules, which the generated *.cmake files above are not.
+!/cmake/*.cmake
 Makefile
 install_manifest.txt
 

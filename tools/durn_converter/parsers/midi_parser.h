@@ -1,14 +1,14 @@
 #pragma once
 // midi_parser.h — Header-only Standard MIDI File parser (C++17)
-// Self-contained: no engine dependencies. Uses fopen/fread for I/O.
+// Self-contained: no engine dependencies. Reads the file through std::ifstream.
 
 #ifndef MIDI_PARSER_H
 #define MIDI_PARSER_H
 
 #include <algorithm>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <map>
 #include <string>
 #include <utility>
@@ -380,25 +380,24 @@ inline MidiParseResult parse_file(const std::string& path) {
     MidiParseResult result{};
 
     // Read entire file into memory
-    std::FILE* f = std::fopen(path.c_str(), "rb");
-    if (!f) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
         result.error = "cannot open file: " + path;
         return result;
     }
 
-    std::fseek(f, 0, SEEK_END);
-    long file_size = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
+    in.seekg(0, std::ios::end);
+    const std::streamoff file_size = in.tellg();
+    in.seekg(0, std::ios::beg);
 
     if (file_size <= 0) {
-        std::fclose(f);
         result.error = "file is empty or unreadable: " + path;
         return result;
     }
 
     std::vector<uint8_t> buf(static_cast<size_t>(file_size));
-    size_t read_count = std::fread(buf.data(), 1, buf.size(), f);
-    std::fclose(f);
+    in.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(buf.size()));
+    const size_t read_count = static_cast<size_t>(in.gcount());
 
     if (read_count != buf.size()) {
         result.error = "incomplete read of file: " + path;

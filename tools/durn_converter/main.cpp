@@ -234,7 +234,7 @@ static std::string kern_to_durn(const std::string& path) {
         if (!k.empty() && k.back() == ':') k.pop_back();
         if (!k.empty() && std::islower(k[0])) {
             scaleName = "Minor";
-            k[0] = std::toupper(k[0]);
+            k[0] = static_cast<char>(std::toupper(k[0]));
         }
         // Convert kern accidentals: - → b, # stays
         std::string normalized;
@@ -566,7 +566,8 @@ int main(int argc, char** argv) {
         if (!entry.is_regular_file()) continue;
 
         auto ext = entry.path().extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](char ch) { return static_cast<char>(::tolower(ch)); });
 
         // Handle ABC, kern, MIDI, MusicXML
         if (ext != ".abc" && ext != ".krn" && ext != ".mid" && ext != ".xml") continue;

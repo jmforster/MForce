@@ -9,9 +9,9 @@
 #include "mforce/compose/templates.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/core/randomizer.h"
+#include "mforce/compose/environment.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <memory>
 
 #include "mforce/compose/anchor_selector.h"
@@ -78,7 +78,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
   // requires a genre profile; the old in-code constants are gone.
   const bool harmonicMode = passTmpl.anchorMode == "harmonic";
   const bool wantAnchorLog =
-      harmonicMode && std::getenv("MFORCE_ANCHOR_LOG") != nullptr;
+      harmonicMode && environment_variable_is_set("MFORCE_ANCHOR_LOG");
   MelodyProfile melodyProfile;
   if (harmonicMode) {
     if (passTmpl.melodyProfile.empty())

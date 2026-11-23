@@ -146,7 +146,7 @@ struct Partials : PartialSet {
     prepare_note_arrays();
   }
 
-  void on_start(int frames) override {
+  void on_start(int /*frames*/) override {
     // Per-note stream base: baseSeed_ hashed with a note counter. Every rng
     // stream below reseeds from this, so a note's randomness depends only on
     // (baseSeed, note ordinal, partial, layer) — never on how many draws any

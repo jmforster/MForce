@@ -3550,7 +3550,7 @@ static void run_walk3_tests() {
         };
         // Mary bar 7 over G7 then C: D D E D | C -> E is an upper NEIGHBOR (licensed).
         {
-            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            HarmonyTimeline tl = timeline({{g7, 4.0f}, {cI, 4.0f}});
             ChordLookup cl(tl, c);
             auto r = evaluate_note_map(track({74, 74, 76, 74, 72}), 0, cl, c, 4.0f, prof, true);
             auto k = kinds(r);
@@ -3559,7 +3559,7 @@ static void run_walk3_tests() {
         }
         // D D D E | C -> E leaves by leap: ESCAPE tone (departure).
         {
-            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            HarmonyTimeline tl = timeline({{g7, 4.0f}, {cI, 4.0f}});
             ChordLookup cl(tl, c);
             auto r = evaluate_note_map(track({74, 74, 74, 76, 72}), 0, cl, c, 4.0f, prof, true);
             auto k = kinds(r);
@@ -3568,7 +3568,7 @@ static void run_walk3_tests() {
         }
         // Passing tone: E D C over C -> D passing, odds 100, contributes 0.
         {
-            HarmonyTimeline tl = timeline({{cI, 4}});
+            HarmonyTimeline tl = timeline({{cI, 4.0f}});
             ChordLookup cl(tl, c);
             auto r = evaluate_note_map(track({76, 74, 72, 72}), 0, cl, c, 4.0f, prof, true);
             CHECK(kinds(r).size() >= 1 && kinds(r)[0] == "passing");
@@ -3577,7 +3577,7 @@ static void run_walk3_tests() {
         // Suspension (walk1 s101): F F F F over G7 | F E over C -> F held into C,
         // resolves down by step = suspension; F G instead = unresolved (departure).
         {
-            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            HarmonyTimeline tl = timeline({{g7, 4.0f}, {cI, 4.0f}});
             ChordLookup cl(tl, c);
             auto good = evaluate_note_map(track({77, 77, 77, 77, 77, 76, 76, 76}), 0, cl, c, 4.0f, prof, true);
             auto kg = kinds(good);
@@ -3590,7 +3590,7 @@ static void run_walk3_tests() {
         }
         // Tendency: 7th of V7 (F) stepping down vs up -> 96:4 = ln ratio ln(24).
         {
-            HarmonyTimeline tl = timeline({{g7, 4}});
+            HarmonyTimeline tl = timeline({{g7, 4.0f}});
             ChordLookup cl(tl, c);
             auto down = evaluate_note_map(track({77, 76}), 0, cl, c, 4.0f, prof, true);
             auto up   = evaluate_note_map(track({77, 79}), 0, cl, c, 4.0f, prof, true);
@@ -3602,14 +3602,14 @@ static void run_walk3_tests() {
         // Leading tone B over G7 leaping down to F (walk2 s101): tendency
         // "other" (1/100) -> departure.
         {
-            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            HarmonyTimeline tl = timeline({{g7, 4.0f}, {cI, 4.0f}});
             ChordLookup cl(tl, c);
             auto r = evaluate_note_map(track({71, 71, 71, 71, 77, 79}), 0, cl, c, 4.0f, prof, true);
             CHECK(r.departures >= 2);   // B leap-down + F appoggiatura over C
         }
         // Accented modifier: neighbor on the bar downbeat.
         {
-            HarmonyTimeline tl = timeline({{cI, 4}, {cI, 4}});
+            HarmonyTimeline tl = timeline({{cI, 4.0f}, {cI, 4.0f}});
             ChordLookup cl(tl, c);
             // beats 0..: C E G G | A G ... -> A at beat 4 (downbeat), step in, step out opposite
             auto r = evaluate_note_map(track({72, 76, 79, 79, 81, 79}), 0, cl, c, 4.0f, prof, true);
@@ -3620,7 +3620,7 @@ static void run_walk3_tests() {
         }
         // Long NCT: E held 2 beats over G7 -> odds 1.
         {
-            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            HarmonyTimeline tl = timeline({{g7, 4.0f}, {cI, 4.0f}});
             ChordLookup cl(tl, c);
             std::vector<TrackNote> t = {{G(74), 0, 1}, {G(76), 1, 2}, {G(74), 3, 1}, {G(72), 4, 4}};
             auto r = evaluate_note_map(t, 0, cl, c, 4.0f, prof, true);
@@ -3630,7 +3630,7 @@ static void run_walk3_tests() {
         }
         // Scope: firstScoredNote excludes earlier fully-determined events.
         {
-            HarmonyTimeline tl = timeline({{cI, 8}});
+            HarmonyTimeline tl = timeline({{cI, 8.0f}});
             ChordLookup cl(tl, c);
             auto all  = evaluate_note_map(track({76, 74, 72, 74, 76, 74, 72}), 0, cl, c, 4.0f, prof, true);
             auto tail = evaluate_note_map(track({76, 74, 72, 74, 76, 74, 72}), 4, cl, c, 4.0f, prof, true);
@@ -15878,7 +15878,7 @@ static void run_build_sound_tests() {
     };
     for (const auto& c : plain_parts::shared_cases()) {
         const std::string got = refusal(c.text);
-        if (got != c.sentence) std::printf("  %s: %s\n", c.what, got.c_str());
+        if (got != c.sentence) std::printf("  %s: %s\n", c.what.c_str(), got.c_str());
         CHECK(got == c.sentence);
     }
     for (const auto& text : plain_parts::sharing_sounds_that_load()) {

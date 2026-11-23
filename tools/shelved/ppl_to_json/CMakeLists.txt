@@ -1,13 +1,12 @@
 add_executable(ppl_to_json main.cpp)
 
-# Header-only nlohmann::json lives at engine/third_party/
 target_include_directories(ppl_to_json PRIVATE
   ${CMAKE_SOURCE_DIR}/engine/include
+)
+# Header-only nlohmann::json lives at engine/third_party/, a SYSTEM folder so
+# that a warning inside json.hpp is not ours to fail on.
+target_include_directories(ppl_to_json SYSTEM PRIVATE
   ${CMAKE_SOURCE_DIR}/engine/third_party
 )
 
-if (MSVC)
-  target_compile_options(ppl_to_json PRIVATE /W4 /permissive-)
-endif()
-
-set_target_properties(ppl_to_json PROPERTIES CXX_STANDARD 17)
+mforce_compile_rules(ppl_to_json)

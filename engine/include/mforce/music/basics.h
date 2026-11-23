@@ -162,7 +162,6 @@ struct Scale {
   float semitones_between(int degree1, int degree2) const {
     float semis = 0;
     int len = length();
-    int d = degree1;
     if (degree2 > degree1) {
       for (int i = degree1; i < degree2; ++i)
         semis += scaleDef->ascSteps[i % len];

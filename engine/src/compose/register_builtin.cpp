@@ -25,7 +25,9 @@ namespace {
 template <class Selector>
 void add_profile_selector(ComposeKit& kit, SettingsCodecs& codecs) {
   kit.voicings.add_profile_selector(Selector::kName,
-      [](const VoicingProfile& baseline, const std::any& settings)
+      // A selector with settings is built from them alone, so its branch
+      // leaves the baseline unread.
+      []([[maybe_unused]] const VoicingProfile& baseline, const std::any& settings)
           -> std::unique_ptr<VoicingProfileSelector> {
         using S = typename Selector::Settings;
         if constexpr (std::is_same_v<S, NoSettings>) {

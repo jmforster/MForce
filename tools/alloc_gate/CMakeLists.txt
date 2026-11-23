@@ -3,7 +3,7 @@
 # probe, so this executable's operator new is the counting one.
 add_executable(alloc_gate main.cpp)
 target_link_libraries(alloc_gate PRIVATE mforce_engine mforce_alloc_probe)
+mforce_compile_rules(alloc_gate)
 if (MSVC)
   target_link_libraries(alloc_gate PRIVATE dbghelp)
-  target_compile_options(alloc_gate PRIVATE /W4 /permissive-)
 endif()
