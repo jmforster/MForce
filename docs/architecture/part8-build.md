@@ -446,3 +446,12 @@ one disagrees with an earlier section, it wins.
 5. **Shelved between steps 2 and 4.** Step 2 makes `mforce_shelved` a
    target that every host links, so nothing changes for a template that
    names a shelved strategy. Step 4 puts it behind the option.
+6. **`test_figures` counts tests, not checks (section 5).** Its 43 tests
+   use a second set of macros (`EXPECT_EQ`, `EXPECT_NEAR`) that leave the
+   test at the first failure, and it reports "43 passed". So its tests
+   cannot move unchanged, and "the sum equals today's two programs' sum"
+   has no second number to add. Each of the 43 moves by name, its
+   `EXPECT_EQ(a, b, msg)` becoming `REQUIRE(a == b)` (the same control
+   flow: the test ends there). The proof is then: the checks that came
+   from `engine_tests` still sum to 12,054, all 43 figure tests are
+   present by name, and the report gives the number of checks they add.
