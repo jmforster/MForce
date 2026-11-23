@@ -1416,7 +1416,10 @@ static void run_onset_field_tests() {
 #include "mforce/render/instrument.h"
 #include "mforce/core/equal_temperament.h"
 #include "mforce/render/delivery.h"
+#include "mforce/core/spsc_queue.h"
 #include "mforce/render/drum_kit.h"
+#include "mforce/render/live_player.h"
+#include <thread>
 #include "mforce/render/node_capture.h"
 #include "mforce/render/pitched_instrument.h"
 #include "mforce/render/ring_out.h"
@@ -1455,15 +1458,16 @@ static std::string difference(const std::vector<float>& a, const std::vector<flo
                   i < a.size() ? double(a[i]) : 0.0, i < b.size() ? double(b[i]) : 0.0);
     return text;
 }
-// A C4 of `seconds` on the live path: one prepared voice pulled sample by
-// sample, its tails after it, until the voice's life ends.
-static std::vector<float> live_c4(PitchedInstrument& pi, float seconds = 0.25f) {
-    auto v = pi.prepare_voice(60.0f, 0.8f, seconds);
-    std::vector<float> out(size_t(v.durSamples));
-    for (int i = 0; i < v.durSamples; ++i) {
-        v.tick();
-        out[size_t(i)] = v.source->next() * v.gain;
-        for (auto& a : v.advanceList) a->next();
+// A C4 of `seconds` on the live path: one note through a LivePlayer, filled
+// in 256-frame buffers until no voice sounds (at most a minute).
+static std::vector<float> live_c4(const mforce::Patch& patch, float seconds = 0.25f) {
+    LivePlayer player(patch, 1);
+    (void)player.note_on({.start = 0.0f, .duration = seconds, .noteNumber = 60.0f, .velocity = 0.8f});
+    std::vector<float> out, buf(256);
+    const int most = 60 * player.sample_rate() / 256;
+    for (int k = 0; k == 0 || (player.sounding() > 0 && k < most); ++k) {
+        player.fill(buf.data(), 256);
+        out.insert(out.end(), buf.begin(), buf.end());
     }
     return out;
 }
@@ -1995,6 +1999,208 @@ static void run_node_capture_tests() {
     CHECK(outsideZero && insideRaw && audible);
 }
 
+// --- The live player -------------------------------------------------------
+
+// The player's output in 256-frame buffers: `buffers` of them, or until no
+// voice sounds when `buffers` is negative (at most a minute), then `after`
+// buffers more.
+static std::vector<float> live_buffers(LivePlayer& player, int buffers, int after = 0) {
+    std::vector<float> out, buf(256);
+    const int most = 60 * player.sample_rate() / 256;
+    for (int k = 0; buffers < 0 ? (k == 0 || (player.sounding() > 0 && k < most)) : k < buffers; ++k) {
+        player.fill(buf.data(), 256);
+        out.insert(out.end(), buf.begin(), buf.end());
+    }
+    for (int k = 0; k < after; ++k) {
+        player.fill(buf.data(), 256);
+        out.insert(out.end(), buf.begin(), buf.end());
+    }
+    return out;
+}
+// `notes` played offline on a fresh instrument of `patch` as one part,
+// rendered for `frames`.
+static std::vector<float> offline_render(const Patch& patch, std::vector<PerformedNote> notes, size_t frames) {
+    auto inst = build_instrument(patch);
+    play_notes(*inst, std::move(notes));
+    std::vector<float> out(frames, 0.0f);
+    inst->render(out.data(), int(frames));
+    return out;
+}
+// A note of exactly `samples` samples at 48 kHz.
+static float seconds_of(int samples) { return (float(samples) + 0.5f) / 48000.0f; }
+// A quiet sustaining patch whose pitch reaches the oscillator: the envelope
+// holds, so a line can form, and two notes sum under the peak guard's knee.
+static std::string live_patch_json() {
+    return hold_patch_json(15.0f);
+}
+
+// A one-voice enveloped sine whose pitch reaches the oscillator.
+static std::string one_voice_patch_json() {
+    return R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.01,"decay":0.05,"sustainLevel":0.5,"release":0.1}},
+      {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"env"}}}]}})";
+}
+// The queue on one thread (empty, full, order, wrap-around) and between two
+// real threads (a million integers, none lost, none repeated, in order).
+static void run_spsc_queue_tests() {
+    std::printf("SpscQueue: empty, full, order, wrap-around; two threads, a million in order\n");
+    SpscQueue<int, 4> q;
+    int x = -1;
+    CHECK(!q.pop(x));
+    bool ordered = true;
+    for (int round = 0; round < 3; ++round) {                    // past the ring's end: wrap-around
+        for (int i = 0; i < 4; ++i) CHECK(q.push(round * 10 + i));
+        CHECK(!q.push(99));                                     // full
+        for (int i = 0; i < 4; ++i) ordered = ordered && q.pop(x) && x == round * 10 + i;
+        CHECK(!q.pop(x));
+    }
+    CHECK(ordered);
+    auto queue = std::make_unique<SpscQueue<std::uint32_t, 1024>>();
+    auto& big = *queue;
+    const std::uint32_t n = 1000000;
+    std::thread producer([&] {
+        for (std::uint32_t i = 0; i < n;)
+            if (big.push(i)) ++i;
+    });
+    std::uint32_t expect = 0;
+    bool inOrder = true;
+    while (expect < n) {
+        std::uint32_t v;
+        if (!big.pop(v)) continue;
+        inOrder = inOrder && v == expect;
+        ++expect;
+    }
+    producer.join();
+    std::uint32_t extra;
+    CHECK(inOrder && expect == n && !big.pop(extra));
+}
+
+// One classic note through fill equals the same note played offline, sample
+// for sample to the end of the ring-out, and fill writes zeros after it: on
+// two inline patches and a library patch with noise.
+static void run_live_classic_tests() {
+    std::printf("the live player: a classic note through fill equals the offline note\n");
+    const std::string sine = one_voice_patch_json();
+    const Patch hat = load_patch("patches/library/percussion/hi_hat1.json");
+    const Patch patches[] = {patch_door::read_text(sine), patch_door::read_text(live_patch_json()), hat};
+    for (const Patch& patch : patches) {
+        LivePlayer player(patch, 1);
+        const PerformedNote note = note_at(0.0f, 0.2f, 62.0f, 0.7f);
+        CHECK(player.note_on(note) != 0);
+        const auto live = live_buffers(player, -1, 4);
+        const auto offline = offline_render(patch, {note}, live.size());
+        if (!patch_door::same_samples(live, offline)) std::printf("  %s\n", patch_door::difference(live, offline).c_str());
+        CHECK(patch_door::same_samples(live, offline));
+        CHECK(std::all_of(live.end() - 4 * 256, live.end(), [](float s) { return s == 0.0f; }));
+        CHECK(std::any_of(live.begin(), live.end(), [](float s) { return s != 0.0f; }));
+    }
+}
+
+// A held note released by note_off after k buffers equals the offline line
+// of one held note of that length; a held note, a second carried after k
+// buffers and a note_off after m more equal the offline two-note line.
+static void run_live_line_tests() {
+    std::printf("the live player: a held note and a legato pair equal the offline lines\n");
+    const Patch patch = patch_door::read_text(live_patch_json());
+    const int k = 30, m = 25;
+    {
+        LivePlayer player(patch, 1);
+        const LivePlayer::NoteId id = player.note_on(note_at(0.0f, seconds_of(k * 256), 60.0f, 0.7f, true));
+        auto live = live_buffers(player, k);
+        player.note_off(id);
+        const auto tail = live_buffers(player, -1, 2);
+        live.insert(live.end(), tail.begin(), tail.end());
+        const auto offline = offline_render(patch, {note_at(0.0f, seconds_of(k * 256), 60.0f, 0.7f, true)}, live.size());
+        if (!patch_door::same_samples(live, offline)) std::printf("  held: %s\n", patch_door::difference(live, offline).c_str());
+        CHECK(patch_door::same_samples(live, offline));
+    }
+    {
+        LivePlayer player(patch, 1);
+        (void)player.note_on(note_at(0.0f, seconds_of(k * 256), 60.0f, 0.7f, true));
+        auto live = live_buffers(player, k);
+        const LivePlayer::NoteId second = player.note_on(note_at(0.0f, seconds_of(m * 256), 67.0f, 0.5f, true));
+        CHECK(second != 0);
+        const auto mid = live_buffers(player, m);
+        player.note_off(second);
+        const auto tail = live_buffers(player, -1, 2);
+        live.insert(live.end(), mid.begin(), mid.end());
+        live.insert(live.end(), tail.begin(), tail.end());
+        const auto offline = offline_render(patch, {note_at(0.0f, seconds_of(k * 256), 60.0f, 0.7f, true),
+                                                    note_at(0.0f, seconds_of(m * 256), 67.0f, 0.5f, true)}, live.size());
+        if (!patch_door::same_samples(live, offline)) std::printf("  legato: %s\n", patch_door::difference(live, offline).c_str());
+        CHECK(patch_door::same_samples(live, offline));
+    }
+}
+
+// A steal: with one voice to sound, a long note and then a second. The first
+// fades to zero over int(0.005 * rate) samples from the next buffer's top and
+// the second is whole; a third note before any fill finds no idle voice.
+static void run_live_steal_tests() {
+    std::printf("the live player: a steal fades the first note in 5 ms, the second whole, a third dropped\n");
+    const Patch patch = patch_door::read_text(one_voice_patch_json());
+    const PerformedNote first = note_at(0.0f, 2.0f, 60.0f, 0.4f), second = note_at(0.0f, 0.3f, 67.0f, 0.4f);
+    const int k = 4, at = k * 256, fade = int(0.005f * 48000.0f);
+    LivePlayer player(patch, 1);
+    CHECK(player.note_on(first) != 0);
+    auto live = live_buffers(player, k);
+    CHECK(player.note_on(second) != 0);
+    CHECK(player.note_on(note_at(0.0f, 0.3f, 72.0f, 0.4f)) == 0);
+    const auto rest = live_buffers(player, -1, 2);
+    live.insert(live.end(), rest.begin(), rest.end());
+    const auto a = offline_render(patch, {first}, live.size());
+    const auto b = offline_render(patch, {second}, live.size() - size_t(at));
+    std::vector<float> want(live.size(), 0.0f);
+    for (int i = 0; i < at + fade; ++i)
+        want[size_t(i)] = i < at ? a[size_t(i)] : a[size_t(i)] * (float(fade - (i - at)) / float(fade));
+    for (size_t i = size_t(at); i < want.size(); ++i) want[i] += b[i - size_t(at)];
+    if (!patch_door::same_samples(live, want)) std::printf("  steal: %s\n", patch_door::difference(live, want).c_str());
+    CHECK(patch_door::same_samples(live, want));
+}
+
+// note_off on a classic note, on an id never given and on an earlier note of
+// a line changes nothing.
+static void run_live_note_off_tests() {
+    std::printf("the live player: note_off on a classic note, an unknown id, an earlier note of a line\n");
+    const Patch patch = patch_door::read_text(live_patch_json());
+    const auto run = [&](bool extraOffs) {
+        LivePlayer player(patch, 2);
+        const LivePlayer::NoteId plain = player.note_on(note_at(0.0f, 0.2f, 55.0f, 0.3f));
+        auto out = live_buffers(player, 4);
+        if (extraOffs) { player.note_off(plain); player.note_off(9999); }
+        const LivePlayer::NoteId a = player.note_on(note_at(0.0f, seconds_of(10 * 256), 60.0f, 0.3f, true));
+        const auto mid = live_buffers(player, 10);
+        const LivePlayer::NoteId b = player.note_on(note_at(0.0f, seconds_of(10 * 256), 64.0f, 0.3f, true));
+        if (extraOffs) player.note_off(a);
+        const auto late = live_buffers(player, 10);
+        player.note_off(b);
+        const auto tail = live_buffers(player, -1, 1);
+        for (const auto* part : {&mid, &late, &tail}) out.insert(out.end(), part->begin(), part->end());
+        return out;
+    };
+    const auto quiet = run(false), noisy = run(true);
+    CHECK(!quiet.empty() && patch_door::same_samples(quiet, noisy));
+}
+
+// fill's output follows set_volume, and the peak guard bounds it.
+static void run_live_volume_tests() {
+    std::printf("the live player: fill follows set_volume; the peak guard bounds it\n");
+    const Patch patch = patch_door::read_text(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})");
+    const auto at = [&](float volume) {
+        LivePlayer player(patch, 1);
+        player.set_volume(volume);
+        (void)player.note_on(note_at(0.0f, 0.1f, 60.0f, 0.8f));
+        return live_buffers(player, 8);
+    };
+    const auto full = at(1.0f), half = at(0.5f), loud = at(10.0f);
+    bool follows = full.size() == half.size();
+    for (size_t i = 0; follows && i < full.size(); ++i) follows = half[i] == full[i] * 0.5f;
+    CHECK(follows && std::any_of(full.begin(), full.end(), [](float s) { return s != 0.0f; }));
+    CHECK(std::all_of(loud.begin(), loud.end(), [](float s) { return std::fabs(s) <= 0.999f; }));
+    CHECK(std::any_of(loud.begin(), loud.end(), [](float s) { return std::fabs(s) > 0.95f; }));
+}
+
 // One tempo maps beats to seconds bit for bit as b * 60 / bpm; across two
 // tempi a beat belongs to the last section starting at or before it, the
 // boundary beat to the later section, and a beat past the end to the last.
@@ -2496,19 +2702,6 @@ static void run_voice_pool_tests() {
     CHECK(file_voice_count("renders/scratch/_voice_pool_none.json", none) == 0);
 }
 
-// The streaming voice's gain is the note's velocity times the instrument's
-// pre-clip volume: a streaming caller never passes through render(), so the
-// volume rides along on the voice.
-static void run_voice_gain_tests() {
-    std::printf("the streaming voice's gain: velocity times the instrument's volume\n");
-    const char* one = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
-      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
-    auto ip = load_inst(one);
-    ip.instrument->volume = 0.5f;
-    CHECK(ip.instrument->prepare_voice_at(0, 60.0f, 0.8f, 0.1f).gain == 0.8f * 0.5f);
-    ip.instrument->volume = 1.0f;
-    CHECK(ip.instrument->prepare_voice_at(0, 60.0f, 0.8f, 0.1f).gain == 0.8f);
-}
 
 // The frame count play gives a patch file; -1, with the reason printed, when
 // the load throws.
@@ -8482,24 +8675,18 @@ static void run_alloc_probe_tests() {
     CHECK(depth == 0);
 }
 
-// Allocation-free start() and next(): one note through the real host's live
-// path — a pool slot, prepare_voice_at (the note's Setup, then start on the
-// voice and its tails), one pull per sample for the note's life — armed from
-// note-on to the last sample, must count nothing. Returns the count.
+// Allocation-free start() and next(): one note through the live player —
+// note_on (the note's Setup and start on the control side) and fill in
+// 256-frame buffers until the player is silent — armed from note-on to the
+// last sample, must count nothing. Returns the count.
 static std::size_t allocations_in_one_note(const char* patchJson, float noteNumber = 60.0f) {
-    auto ip = load_inst(patchJson);
-    PitchedInstrument& inst = *ip.instrument;
-    inst.release_voice(inst.acquire_voice());        // the slot table is sized on first use
+    LivePlayer player(patch_door::read_text(patchJson), 1);
+    std::vector<float> buf(256);
+    const int most = 60 * player.sample_rate() / 256;
     alloc_probe::reset();
     alloc_probe::arm();
-    const int slot = std::max(0, inst.acquire_voice());
-    PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, noteNumber, 0.8f, 0.1f);
-    for (int i = 0; i < sv.durSamples; ++i) {
-        sv.tick();
-        (void)sv.source->next();
-        for (auto& a : sv.advanceList) a->next();
-    }
-    inst.release_voice(slot);
+    (void)player.note_on({.start = 0.0f, .duration = 0.1f, .noteNumber = noteNumber, .velocity = 0.8f});
+    for (int k = 0; k == 0 || (player.sounding() > 0 && k < most); ++k) player.fill(buf.data(), 256);
     alloc_probe::disarm();
     if (alloc_probe::count())
         std::printf("  [alloc] %zu allocation(s), %zu bytes, in one note of the patch beginning %.60s\n",
@@ -8507,19 +8694,11 @@ static std::size_t allocations_in_one_note(const char* patchJson, float noteNumb
     return alloc_probe::count();
 }
 
-// One note through the live path, its samples returned: what a listener gets.
+// One note played on the instrument, its samples returned: what a listener
+// gets. The instrument keeps its voices' state from note to note.
 static std::vector<float> render_one_live_note(PitchedInstrument& inst, float noteNumber) {
-    inst.release_voice(inst.acquire_voice());
-    const int slot = std::max(0, inst.acquire_voice());
-    PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, noteNumber, 0.8f, 0.1f);
-    std::vector<float> out(size_t(sv.durSamples), 0.0f);
-    for (int i = 0; i < sv.durSamples; ++i) {
-        sv.tick();
-        out[size_t(i)] = sv.source->next() * sv.gain;
-        for (auto& a : sv.advanceList) a->next();
-    }
-    inst.release_voice(slot);
-    return out;
+    inst.play(Performance{{{.start = 0.0f, .duration = 0.1f, .noteNumber = noteNumber, .velocity = 0.8f}}, {}});
+    return inst.rendered().back().samples;
 }
 
 static void run_allocation_tests_partials() {
@@ -8689,25 +8868,18 @@ static void run_allocation_tests_pins() {
         const char* held = R"({"sampleRate":48000,"instrument":{"polyphony":2,"sustaining":true},"graph":{"output":"osc","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
           {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.05,"decay":0.1,"sustainLevel":0.8,"release":0.2}},
           {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":{"ref":"env"}}}]}})";
-        auto ip = load_inst(held);
-        PitchedInstrument& inst = *ip.instrument;
-        inst.release_voice(inst.acquire_voice());
-        const int slot = std::max(0, inst.acquire_voice());
-        Voice& vg = inst.pool().voice(slot);
-        CHECK(vg.can_hold());
-        vg.gate();
+        CHECK(load_inst(held).instrument->pool().voice(0).can_hold());
+        LivePlayer player(patch_door::read_text(held), 1);
+        std::vector<float> buf(256);
         alloc_probe::reset();
         alloc_probe::arm();
-        PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, 60.0f, 0.8f, 0.5f);
-        const auto pull = [&](int n) {
-            for (int i = 0; i < n; ++i) { sv.tick(); (void)sv.source->next(); for (auto& a : sv.advanceList) a->next(); }
-        };
-        pull(sv.durSamples / 2);
-        (void)vg.release(int(0.5f * 48000.0f));   // the releasing note's length: the release is re-laid against it
-        pull(sv.durSamples / 2);
+        const LivePlayer::NoteId id = player.note_on({.start = 0.0f, .duration = 0.5f, .noteNumber = 60.0f,
+                                                      .velocity = 0.8f, .hold = true});
+        for (int k = 0; k < 47; ++k) player.fill(buf.data(), 256);   // half the note
+        player.note_off(id);                                          // released against that length
+        for (int k = 0; k < 2000 && player.sounding() > 0; ++k) player.fill(buf.data(), 256);
         alloc_probe::disarm();
-        CHECK(alloc_probe::count() == 0);
-        inst.release_voice(slot);
+        CHECK(alloc_probe::count() == 0 && player.sounding() == 0);
     }
 
     // The drum kit has no library or baselines patch: one hit's engine path
@@ -10651,7 +10823,7 @@ static void run_review_gap_lifecycle_tests() {
         for (int i = 0; i < 3; ++i) f.next();
         CHECK(freq->rate == 48000 && freq->starts == 1 && freq->nexts == 3);
     }
-    // the live note-on's reseed reaches the voice's signals
+    // a carried note's reseed reaches the voice's signals
     {
         register_all_sources();
         auto& reg = SourceRegistry::instance();
@@ -10661,14 +10833,11 @@ static void run_review_gap_lifecycle_tests() {
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
           {"id":"p","type":"ReseedProbe"}]}})";
         auto ip = load_inst(probed);
-        PitchedInstrument& inst = *ip.instrument;
-        inst.release_voice(inst.acquire_voice());
-        const int slot = std::max(0, inst.acquire_voice());
-        (void)inst.prepare_voice_at(slot, 60.0f, 0.8f, 0.1f);
-        inst.continue_voice_live(slot, 62.0f, 0.8f, 0.1f, 261.6f, 0.0f);
-        auto* probe = dynamic_cast<ReseedProbe*>(inst.pool().voice(slot).nodes().at("p").get());
+        Voice& voice = ip.instrument->pool().voice(0);
+        voice.start({note_to_freq(60.0f), 0.8f, 4800, 0.1f, 0, nullptr}, false);
+        voice.carry_on({note_to_freq(62.0f), 0.8f, 4800, 0.1f, 0, nullptr}, 261.6f, 0.0f);
+        auto* probe = dynamic_cast<ReseedProbe*>(voice.nodes().at("p").get());
         CHECK(probe != nullptr && probe->reseeds == 1);
-        inst.release_voice(slot);
     }
 }
 
@@ -15006,7 +15175,7 @@ static std::string twin_text(const std::string& type, TwinText text, std::string
 // One render of `text` through the module: a C4 of an instrument, the mix of a sound.
 static std::vector<float> twin_render(const std::string& text) {
     const Patch p = read_text(text);
-    if (p.instrument) return live_c4(*build_instrument(p));
+    if (p.instrument) return live_c4(p);
     BuiltSound s = build_sound(p);
     return render_sound(s);
 }
@@ -15228,6 +15397,12 @@ int main() {
     run_delivery_choice_tests();
     run_multiplex_held_line_tests();
     run_node_capture_tests();
+    run_spsc_queue_tests();
+    run_live_classic_tests();
+    run_live_line_tests();
+    run_live_steal_tests();
+    run_live_note_off_tests();
+    run_live_volume_tests();
     run_note_wire_tests();
     run_multiplex_bend_tests();
     run_note_reseed_tests();
@@ -15236,7 +15411,6 @@ int main() {
     run_embedded_score_delivery_tests();
     run_embedded_score_text_tests();
     run_voice_pool_tests();
-    run_voice_gain_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();
     run_name_gate_tests();

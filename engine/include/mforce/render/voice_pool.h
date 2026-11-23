@@ -28,10 +28,6 @@ public:
   auto begin() const { return voices_.begin(); }
   auto end() const { return voices_.end(); }
 
-  // For the live calls, which move the rotation themselves.
-  int rotation() const { return next_; }
-  void set_rotation(int next) { next_ = next; }
-
 private:
   std::vector<Voice> voices_;
   int next_{0};

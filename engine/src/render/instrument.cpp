@@ -17,6 +17,10 @@ void Instrument::render(float* out, int frames) {
     }
   }
 
+  apply_output_stage(out, frames, volume, peakGuard);
+}
+
+void apply_output_stage(float* out, int frames, float volume, bool peakGuard) noexcept {
   if (volume != 1.0f) {
     for (int i = 0; i < frames; ++i)
       out[i] *= volume;

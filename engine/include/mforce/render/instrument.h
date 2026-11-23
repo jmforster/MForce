@@ -53,4 +53,9 @@ private:
   std::vector<RenderedNote> rendered_;
 };
 
+// An instrument's output stage over `frames` samples of its mono sum: scaled
+// by `volume` when it is not 1, then each sample bounded by soft_clip when
+// `peakGuard`. Allocates nothing.
+void apply_output_stage(float* out, int frames, float volume, bool peakGuard) noexcept;
+
 } // namespace mforce

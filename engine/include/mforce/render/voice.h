@@ -63,7 +63,7 @@ public:
   // The next note of a held line: every signal's random draws re-anchored,
   // the glide from `fromFreq`, the note into the PerformSource, the triggers
   // fired. The graph is not started again and the dynamic pins keep their
-  // line-start values.
+  // line-start values. Allocates nothing.
   void carry_on(const Note& n, float fromFreq, float glideSec);
 
   // The gate closes: every envelope's release is laid out against the
@@ -99,17 +99,12 @@ public:
   const std::vector<Envelope*>& triggers() const { return triggers_; }
   const std::vector<PushBinding>& push_bindings() const { return pushBindings_; }
 
-  // For the live calls: Setup without gating or triggers, the envelopes
-  // gated by hand, and the clock a streaming caller ticks.
-  void start_untriggered(const Note& n);
-  void gate();
-  const std::shared_ptr<SampleClock>& clock() const { return clock_; }
-
 private:
   void deliver(const Note& n);
+  void gate();
   void start_graph(int samples);
   void fire_triggers();
-  std::shared_ptr<Envelope> make_glide(float fromFreq, float toFreq, float glideSec, int samples) const;
+  void aim_glide(float fromFreq, float toFreq, float glideSec, int samples);
 
   std::shared_ptr<ValueSource>   source_;
   std::shared_ptr<PerformSource> performSource_;
@@ -128,6 +123,12 @@ private:
   // Envelope of the graph but those only a Multiplex template holds.
   std::vector<Envelope*>         triggers_;
   std::vector<Envelope*>         envelopes_;
+  // The voice's one glide, laid out again in place for each carried note, and
+  // the compiled bend of its current note. The voice keeps both so the
+  // PerformSource never drops their last reference: a carried note, which
+  // may arrive on the audio thread, frees nothing.
+  std::shared_ptr<Envelope>      glide_;
+  std::shared_ptr<Envelope>      bend_;
 };
 
 } // namespace mforce

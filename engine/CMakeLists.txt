@@ -15,6 +15,7 @@ add_library(mforce_engine
   src/render/node_capture.cpp
   src/render/pitched_instrument.cpp
   src/render/drum_kit.cpp
+  src/render/live_player.cpp
   src/patch/build_graph.cpp
   src/patch/node_json.cpp
   src/patch/patch.cpp

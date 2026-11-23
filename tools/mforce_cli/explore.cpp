@@ -25,15 +25,14 @@
 //   rendered offline via sound_from_file + mixer->render. "duration" in the
 //   spec overrides the patch's top-level "seconds".
 // - Instrument-style ("instrument" section present, output is a ValueSource):
-//   rendered via instrument_from_file + PitchedInstrument::prepare_voice +
-//   per-sample pull. Saved variants load as instruments.
+//   rendered via instrument_from_file as one note through Instrument::play
+//   and render. Saved variants load as instruments.
 //   Spec fields: "noteNumber" (default 60), "duration" (seconds, default 3.0).
 
 #include "explore.h"
 #include "patch_file.h"
 #include "mforce/render/wav_writer.h"
 #include "mforce/render/instrument.h"
-#include "mforce/render/limiter.h"
 #include "mforce/util/signal_stats.h"
 #include <nlohmann/json.hpp>
 #include <filesystem>
@@ -345,22 +344,18 @@ int run_explore(int argc, char** argv) {
             try {
                 std::vector<float> out;  // interleaved L/R for wav write
                 if (basePatchIsInstrument) {
-                    // Instrument-style render: load patch, grab voicePool[0],
-                    // prepare with note duration, pull samples by hand.
+                    // Instrument-style render: one note at full velocity
+                    // through play, rendered for the note and its 0.4 s
+                    // tail; render applies the volume and the peak guard.
                     auto ip = instrument_from_file(patchPath.string());
-                    auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-                    if (!pitched) throw std::runtime_error("not a PitchedInstrument");
                     sr = ip.sampleRate;
-                    auto sv = pitched->prepare_voice(instrNoteNumber, 1.0f, instrDuration);
-                    frames = sv.durSamples;
+                    Performance one;
+                    one.notes.push_back({.start = 0.0f, .duration = instrDuration,
+                                         .noteNumber = instrNoteNumber, .velocity = 1.0f});
+                    ip.instrument->play(one);
+                    frames = int(instrDuration * float(sr)) + int(0.4f * float(sr));
                     std::vector<float> mono(size_t(frames), 0.0f);
-                    // soft_clip after gain matches the live audio path —
-                    // dual-stack / N-stack instruments that sum past ±1.0 get
-                    // gracefully shaped instead of hard-clipped at the wav writer.
-                    for (int i = 0; i < frames; ++i) {
-                        sv.tick();
-                        mono[size_t(i)] = soft_clip(sv.source->next() * sv.gain);
-                    }
+                    ip.instrument->render(mono.data(), frames);
                     // Mirror mono to stereo for the wav writer
                     out.resize(size_t(frames) * 2);
                     for (int i = 0; i < frames; ++i) {

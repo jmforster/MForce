@@ -99,6 +99,11 @@ Voice::Voice(const Graph& graph, const InstrumentBlock& block, std::shared_ptr<I
   tails_ = std::move(g.advance);
   for (const auto& s : g.signals) signals_.push_back({s.id, s.node});
   nodes_ = std::move(g.nodes);
+  // The glide's two stages laid out once, so laying them out again for a
+  // carried note reuses their storage.
+  glide_ = std::make_shared<Envelope>();
+  glide_->add_stage({});
+  glide_->add_stage({});
 }
 
 void Voice::prepare(const RenderContext& c) {
@@ -117,13 +122,13 @@ void Voice::prepare(const RenderContext& c) {
 // Setup so a bend never reaches a setting.
 void Voice::deliver(const Note& n) {
   if (performSource_) {
-    std::shared_ptr<Envelope> bend;
+    bend_ = nullptr;
     if (n.curve) {
-      bend = compile_pitch_curve(*n.curve);
-      bend->prepare(ctx_);
-      bend->start(n.samples);
+      bend_ = compile_pitch_curve(*n.curve);
+      bend_->prepare(ctx_);
+      bend_->start(n.samples);
     }
-    performSource_->set_note(n.freq, n.velocity, n.samples, n.seconds, std::move(bend), float(n.onset));
+    performSource_->set_note(n.freq, n.velocity, n.samples, n.seconds, bend_, float(n.onset));
   }
   for (auto& b : pushBindings_) {
     b.chain->step();                 // a Setup-time evaluation, between ticks
@@ -154,11 +159,6 @@ void Voice::start(const Note& n, bool gated) {
   fire_triggers();
 }
 
-void Voice::start_untriggered(const Note& n) {
-  deliver(n);
-  start_graph(n.samples);
-}
-
 void Voice::gate() {
   for (auto* e : envelopes_) e->set_gated(true);
 }
@@ -170,15 +170,17 @@ void Voice::ungate() {
 // The legato glide as an ordinary bend: semitones from the old pitch down to
 // 0 over `glideSec`, then 0. The PerformSource's frequency is the new base
 // times 2^(bend/12), so the ramp starts on the old pitch and lands on the new.
-std::shared_ptr<Envelope> Voice::make_glide(float fromFreq, float toFreq, float glideSec, int samples) const {
-  auto g = std::make_shared<Envelope>();
-  g->timeMode.value = 1;                         // seconds
+// The glide is laid out as a new Envelope is: both stages removed, then
+// timeMode, the two stages, prepare and start, which between them set every
+// field the walk reads. Removing and adding two stages reuses their storage.
+void Voice::aim_glide(float fromFreq, float toFreq, float glideSec, int samples) {
+  while (glide_->stage_count() > 0) glide_->remove_stage(glide_->stage_count() - 1);
+  glide_->timeMode.value = 1;                    // seconds
   const float semis = 12.0f * std::log2(fromFreq / toFreq);
-  g->add_stage({{semis, 0.0f, RampType::Linear, 0.0f}, glideSec, 0.0f, 0.0f});
-  g->add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
-  g->prepare(ctx_);
-  g->start(samples);
-  return g;
+  glide_->add_stage({{semis, 0.0f, RampType::Linear, 0.0f}, glideSec, 0.0f, 0.0f});
+  glide_->add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+  glide_->prepare(ctx_);
+  glide_->start(samples);
 }
 
 // The draws re-anchor so an in-line note is pinned as a fresh note is;
@@ -186,11 +188,11 @@ std::shared_ptr<Envelope> Voice::make_glide(float fromFreq, float toFreq, float 
 // reads the new note; a dynamic pin holds its line-start value.
 void Voice::carry_on(const Note& n, float fromFreq, float glideSec) {
   for (auto& s : signals_) s.node->reseed();
-  std::shared_ptr<Envelope> glide;
-  if (glideSec > 0.0f && fromFreq > 0.0f && n.freq != fromFreq)
-    glide = make_glide(fromFreq, n.freq, glideSec, n.samples);
+  const bool glides = glideSec > 0.0f && fromFreq > 0.0f && n.freq != fromFreq;
+  if (glides) aim_glide(fromFreq, n.freq, glideSec, n.samples);
   if (performSource_)
-    performSource_->set_note(n.freq, n.velocity, n.samples, n.seconds, std::move(glide), float(n.onset));
+    performSource_->set_note(n.freq, n.velocity, n.samples, n.seconds, glides ? glide_ : nullptr,
+                             float(n.onset));
   fire_triggers();   // the onset gesture restarts from its current value
 }
 

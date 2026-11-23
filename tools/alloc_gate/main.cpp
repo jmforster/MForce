@@ -4,11 +4,12 @@
 //
 // Each patch is loaded and prepared unarmed (prepare may allocate), then the
 // allocation probe is armed around what the real-time contract forbids
-// allocating. An instrument patch is played the way the UI's keyboard plays
-// it — the live path: a pool slot, the note's Setup and start in
-// prepare_voice_at, one pull per sample for the note's life — once for each
-// note of its embedded score (hold has no streaming form and is played as a
-// plain note), or once for a C4 when it has no score. A mixer-mode graph
+// allocating. An instrument patch is played through a LivePlayer, the live
+// path, armed from its first note_on to its last sample: each note of its
+// embedded score as a plain note (or a C4 when it has no score), filled in
+// 256-frame buffers until the player is silent; then a held line (a held
+// note, a second carried onto it, a note_off) when its voices can hold; then
+// a steal (one note more at once than the player sounds). A mixer-mode graph
 // renders each channel's source, whose adapter calls start and next. A patch
 // that allocates is reported with its count and the first allocation's call
 // stack; the exit code is 1 if any did, 2 if any failed to load.
@@ -16,6 +17,7 @@
 #include "mforce/patch/patch_json.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"
+#include "mforce/render/live_player.h"
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -102,30 +104,53 @@ void take_result(Result& r) {
     r.stack.assign(frames, frames + depth);
 }
 
-// The live path: for each note, a pool slot, prepare_voice_at (the note's
-// Setup, then start on the voice and its tails), one pull per sample for
-// the note's life (duration plus the tail), then the slot back. Scored
-// timing does not bear on allocation, so the notes play one after another.
+// A note of `seconds` at `noteNumber`, held or not.
+PerformedNote note_of(float noteNumber, float velocity, float seconds, bool hold = false) {
+    return {.start = 0.0f, .duration = seconds, .noteNumber = noteNumber, .velocity = velocity, .hold = hold};
+}
+
+// The player filled in 256-frame buffers until no voice sounds (at most a
+// minute of audio).
+void fill_until_silent(LivePlayer& player, std::vector<float>& buf) {
+    const int most = 60 * player.sample_rate() / int(buf.size());
+    int k = 0;
+    do player.fill(buf.data(), int(buf.size()));
+    while (player.sounding() > 0 && ++k < most);
+}
+
+// `count` buffers filled.
+void fill_for(LivePlayer& player, std::vector<float>& buf, int count) {
+    for (int k = 0; k < count; ++k) player.fill(buf.data(), int(buf.size()));
+}
+
+// The live path, through a LivePlayer of one sounding voice (or the patch's
+// polyphony): each score note, then a held line when the voices can hold,
+// then a steal, armed throughout.
 Result gate_instrument(const fs::path& path, const json& root) {
     Result r;
-    const std::unique_ptr<PitchedInstrument> built = build_instrument(load_patch(path.string()));
-    PitchedInstrument& inst = *built;
+    const Patch patch = load_patch(path.string());
+    const bool canHold = build_instrument(patch)->pool().voice(0).can_hold();
+    LivePlayer player(patch, 1);
     std::vector<Event> events = score_events(root);
     if (events.empty()) events.push_back(Event{});
-    inst.release_voice(inst.acquire_voice());   // the slot table is sized on first use: before arming
+    const int voices = (std::max)(1, patch.instrument->polyphony);   // parenthesized: windows.h defines max
+    std::vector<float> buf(256);
     alloc_probe::reset();
     alloc_probe::arm();
     for (const Event& e : events) {
-        int slot = inst.acquire_voice();
-        if (slot < 0) slot = 0;
-        PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, e.note, e.velocity, e.duration);
-        for (int i = 0; i < sv.durSamples; ++i) {
-            sv.tick();
-            (void)sv.source->next();
-            for (auto& a : sv.advanceList) a->next();
-        }
-        inst.release_voice(slot);
+        (void)player.note_on(note_of(e.note, e.velocity, e.duration));
+        fill_until_silent(player, buf);
     }
+    if (canHold) {
+        (void)player.note_on(note_of(60.0f, 0.8f, 0.5f, true));
+        fill_for(player, buf, 20);
+        const LivePlayer::NoteId second = player.note_on(note_of(64.0f, 0.8f, 0.5f, true));
+        fill_for(player, buf, 20);
+        player.note_off(second);
+        fill_until_silent(player, buf);
+    }
+    for (int k = 0; k <= voices; ++k) (void)player.note_on(note_of(60.0f + float(k), 0.8f, 0.5f));
+    fill_until_silent(player, buf);
     alloc_probe::disarm();
     take_result(r);
     return r;

@@ -1,13 +1,10 @@
 #pragma once
-#include "mforce/contract/pitch_curve.h"
 #include "mforce/render/instrument.h"
 #include "mforce/render/node_capture.h"
 #include "mforce/render/perform_source.h"
 #include "mforce/render/ring_out.h"
 #include "mforce/render/voice_pool.h"
-#include <cstdint>
 #include <memory>
-#include <span>
 #include <vector>
 
 namespace mforce {
@@ -42,37 +39,6 @@ public:
   NodeCapture& capture() { return capture_; }
   const NodeCapture& capture() const { return capture_; }
 
-  // --- The live calls: a host pulls a prepared voice itself ---------------
-  // A voice prepared for a streaming caller, which ticks it, pulls it and its
-  // tap-only tails once per sample for `durSamples` samples.
-  struct StreamingVoice {
-    std::shared_ptr<ValueSource> source;
-    int   durSamples{0};
-    // The note's velocity times the instrument's volume: a streaming caller
-    // never passes through render().
-    float gain{1.0f};
-    std::shared_ptr<PerformSource> performSource;
-    // The voice's tap-only tails, pulled once per sample after the source.
-    std::span<const std::shared_ptr<ValueSource>> advanceList;
-    std::shared_ptr<SampleClock> clock;
-    // A sample begins: once per sample, before source->next().
-    void tick() { clock->tick(); if (performSource) performSource->tick(); }
-  };
-  // The note on the next voice in the rotation.
-  StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
-                               const PitchCurve* curve = nullptr);
-  // The note on voice `slot`, the rotation untouched. No trigger fires.
-  StreamingVoice prepare_voice_at(int slot, float noteNumber, float velocity, float duration,
-                                  const PitchCurve* curve = nullptr);
-  // An idle slot, rotating from the scheduled rotation; -1 when every slot
-  // sounds. The caller owns the steal policy and the threading.
-  int acquire_voice();
-  void release_voice(int slot);
-  void release_all_voices();
-  // A held line's next note delivered into a voice the caller is pulling.
-  void continue_voice_live(int slot, float noteNumber, float velocity, float duration,
-                           float fromFreq, float onsetId);
-
 private:
   // The held line: one per instrument. Its voice renders each note's samples
   // and stays warm between them; the release, the tail and the ring-out run
@@ -104,7 +70,6 @@ private:
   NodeCapture capture_;
   HeldLine line_;
   bool warnedNoEnvelopes_{false};
-  std::vector<uint8_t> slotInUse_;   // the live calls' slot table
 };
 
 } // namespace mforce

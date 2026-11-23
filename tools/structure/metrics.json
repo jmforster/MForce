@@ -425,13 +425,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5326,
-     5341
+     5519,
+     5534
     ],
     [
      "tools/engine_tests/main.cpp",
-     5620,
-     5635
+     5813,
+     5828
     ]
    ]
   ],
@@ -855,18 +855,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5328,
-     5338
+     5521,
+     5531
     ],
     [
      "tools/engine_tests/main.cpp",
-     5622,
-     5632
+     5815,
+     5825
     ],
     [
      "tools/engine_tests/main.cpp",
-     6149,
-     6159
+     6342,
+     6352
     ]
    ]
   ],
@@ -1040,13 +1040,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     1571,
-     1579
+     1575,
+     1583
     ],
     [
      "tools/engine_tests/main.cpp",
-     3926,
-     3934
+     4119,
+     4127
     ]
    ]
   ],
@@ -1055,13 +1055,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5290,
-     5298
+     5483,
+     5491
     ],
     [
      "tools/engine_tests/main.cpp",
-     6007,
-     6015
+     6200,
+     6208
     ]
    ]
   ],
@@ -1636,6 +1636,21 @@
     "TypeTag",
     "TypeEntry",
     "SourceRegistry"
+   ]
+  },
+  "engine/include/mforce/core/spsc_queue.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 49,
+   "longest_function": [
+    7,
+    "mforce::SpscQueue::push"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "SpscQueue"
    ]
   },
   "engine/include/mforce/music/alternating_figure_strategy.h": {
@@ -2977,7 +2992,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 56,
+   "lines": 61,
    "longest_function": [
     1,
     "mforce::Instrument::rendered"
@@ -3000,6 +3015,21 @@
    "module": "render",
    "mutable_vars": 0,
    "types": []
+  },
+  "engine/include/mforce/render/live_player.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 130,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": [
+    "LivePlayer"
+   ]
   },
   "engine/include/mforce/render/mixer.h": {
    "changelog_comments": 0,
@@ -3068,7 +3098,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 110,
+   "lines": 75,
    "longest_function": [
     1,
     "mforce::PitchedInstrument::pool"
@@ -3098,7 +3128,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 133,
+   "lines": 134,
    "longest_function": [
     7,
     "mforce::Voice::next"
@@ -3113,7 +3143,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 40,
+   "lines": 36,
    "longest_function": [
     5,
     "mforce::VoicePool::next_scheduled"
@@ -4744,10 +4774,23 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 38,
+   "lines": 42,
    "longest_function": [
-    23,
+    15,
     "mforce::Instrument::render"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/src/render/live_player.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 226,
+   "longest_function": [
+    22,
+    "mforce::LivePlayer::start_fresh"
    ],
    "module": "render",
    "mutable_vars": 0,
@@ -4783,7 +4826,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 214,
+   "lines": 166,
    "longest_function": [
     19,
     "mforce::PitchedInstrument::play_note"
@@ -4796,9 +4839,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 203,
+   "lines": 205,
    "longest_function": [
-    33,
+    38,
     "mforce::Voice::Voice"
    ],
    "module": "render",
@@ -4913,9 +4956,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 237,
+   "lines": 262,
    "longest_function": [
-    24,
+    29,
     "gate_instrument"
    ],
    "module": "tests",
@@ -5058,7 +5101,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 37,
-   "lines": 15329,
+   "lines": 15503,
    "longest_function": [
     327,
     "run_envelope_table_tests"
@@ -5128,10 +5171,10 @@
   "tools/mforce_cli/explore.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
-   "dynamic_cast": 1,
-   "lines": 603,
+   "dynamic_cast": 0,
+   "lines": 598,
    "longest_function": [
-    208,
+    204,
     "mforce::run_explore"
    ],
    "module": "cli",
@@ -5391,13 +5434,13 @@
   "changelog_comments": 80,
   "const_cast": 10,
   "duplicate_blocks": 124,
-  "dynamic_cast": 54,
+  "dynamic_cast": 53,
   "file_level_mutable_vars": 24,
-  "files": 267,
-  "files_over_limit": 14,
+  "files": 270,
+  "files_over_limit": 13,
   "functions_over_limit": 56,
   "include_violations": 6,
-  "lines": 54892,
+  "lines": 55416,
   "unmapped_files": 0
  }
 }
