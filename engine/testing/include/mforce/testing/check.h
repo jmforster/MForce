@@ -5,7 +5,8 @@
 // program's main lists its tests and hands them to run_tests.
 //
 //   CHECK(cond)            counts a check; on failure prints file, line and the text
-//   CHECK_NEAR(a, b, eps)  as CHECK, for |a - b| <= eps, both sides converted to float
+//   CHECK_NEAR(a, b, eps)  as CHECK, for |a - b| <= eps, both sides converted to float;
+//                          a NaN on either side fails
 //   REQUIRE(cond)          as CHECK, and on failure ends the test it is in
 namespace mforce::testing {
 
@@ -27,8 +28,9 @@ struct RequireFailed {};
 
 // Runs each test inside a try/catch: a test that throws is reported by name
 // and counted as one failed check, and the next test runs. Prints
-// "ALL PASS (N checks)" or "F/N FAILED" for the checks these tests made, and
-// returns 0 or 1.
+// "ALL PASS (N checks)" and returns 0 when the tests made checks and none
+// failed; otherwise prints "F/N FAILED", or "NO CHECKS MADE" when they made
+// none, and returns 1.
 int run_tests(std::span<const Test> tests);
 
 }  // namespace mforce::testing

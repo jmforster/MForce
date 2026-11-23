@@ -12,7 +12,8 @@ editor is planned. It is built and tested on Windows only.
 
 - Visual Studio 2022 with the C++ desktop workload
 - CMake 3.20 or later
-- Python 3 with `lizard` (`pip install lizard`), for the structure gate
+- Python 3 with `lizard` (`pip install lizard`). CMake will not configure
+  without Python: several of the tests are Python scripts.
 
 ## Build
 
@@ -21,7 +22,7 @@ cmake -S . -B build -G "Visual Studio 17 2022"
 cmake --build build --config Release --parallel
 ```
 
-Every compiler warning is an error. A clean build takes about twelve
+Every compiler warning is an error. A clean build takes ten to twelve
 minutes on four cores.
 
 Add `-DMFORCE_SHELVED=ON` to the first command to also build the shelved

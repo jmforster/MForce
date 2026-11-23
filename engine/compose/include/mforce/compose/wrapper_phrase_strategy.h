@@ -14,7 +14,7 @@ namespace mforce {
 // Realizes `phraseTmpl.figures[0]` into a single-figure Phrase by dispatching
 // through the registered `default_figure` strategy. Ignores connectors,
 // cadence, and MelodicFunction. Intended as the strategy-driven entry point
-// for figure-level testing (see step 2 of ComposerRefactor3).
+// for figure-level testing.
 // ---------------------------------------------------------------------------
 class WrapperPhraseStrategy : public PhraseStrategy {
 public:

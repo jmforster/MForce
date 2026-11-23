@@ -62,7 +62,8 @@ class MeasureTests(unittest.TestCase):
         self.assertEqual(measure.includes(SRC), ["mforce/core/a.h", "nlohmann/json.hpp"])
 
     def test_mutable_vars_skip_consts_functions_and_wrapped_return_types(self):
-        self.assertEqual(measure.file_level_mutable_vars(SRC), 2)
+        # counter, g_list, and x (the const_cast line defines a variable too)
+        self.assertEqual(measure.file_level_mutable_vars(SRC), 3)
 
     def test_flags_include_hash_backlog_ids(self):
         f = measure.flag_counts(SRC)

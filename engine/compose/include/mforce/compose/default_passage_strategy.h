@@ -53,10 +53,9 @@ public:
 inline Passage DefaultPassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& passTmpl) const {
   (void)settings_of<Settings>(passTmpl.strategy);  // refuses settings of another type
-  // The loader does not refuse a passage without a startingPitch (one with
-  // none would render SILENCE with no diagnostic). The information is
-  // usually present one level down, so use it; and when it genuinely is
-  // not, refuse by name rather than emit nothing.
+  // The loader accepts a passage without a startingPitch. Such a passage
+  // starts on the startingPitch of its first phrase that has one; when none has, the
+  // passage is refused by name.
   std::optional<Pitch> passageStart = passTmpl.startingPitch;
   if (!passageStart) {
     for (const auto& ph : passTmpl.phrases) {

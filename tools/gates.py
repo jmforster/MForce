@@ -10,7 +10,10 @@
 It runs CTest in the build folder and does not build: a registered test whose
 program is missing is named, and the run fails. It prints one PASS or FAIL
 line per test with its seconds (and a test program's "ALL PASS (N checks)"
-line), the sum of those checks, and ALL GATES PASS or the failed names. The
+line), the sum of those checks, and ALL GATES PASS or the failed names. A
+run passes only when every registered test has a result line that says
+Passed and CTest exits 0; a registered test with no result line fails as
+"no result". The
 comp gate is registered only on a build configured with -DMFORCE_SHELVED=ON;
 without it the full run says so and does not print ALL GATES PASS.
 """
@@ -23,8 +26,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CTEST = shutil.which("ctest") or "ctest"
-RESULT = re.compile(r"Test\s+#(\d+): (\S+) \.+[ *]*(Passed|\*\*\*Failed|Failed|\*\*\*Exception.*|Not Run.*)\s+([\d.]+) sec")
-ALL_PASS = re.compile(r"^(\d+): (ALL PASS \((\d+) checks\))")
+# CTest's result line: "1/17 Test  #4: name ....***Timeout   1.02 sec". The
+# statuses named are the ones CTest writes; any other text is read as a status
+# too, and only Passed passes.
+RESULT = re.compile(r"Test\s+#(\d+): (\S+) \.+[ *]*(Passed|Failed|Timeout|Exception[^\d]*|Not Run[^\d]*|\S[^\d]*?)"
+                    r"\s+([\d.]+) sec")
+# A test program's verdict: its last output line (ctest -V prefixes each with
+# the test's number). An ALL PASS line earlier in the output is not counted.
+OUTPUT = re.compile(r"^(\d+): (.*)$")
+ALL_PASS = re.compile(r"^ALL PASS \((\d+) checks\)$")
 
 
 def registered(build, label_args):
@@ -42,18 +52,36 @@ def missing_programs(tests):
 
 
 def run(build, label_args):
-    """[(name, passed, seconds, all_pass_line, checks)] for one CTest run."""
+    """([(name, passed, seconds, all_pass_line, checks)], CTest's exit code)
+    for one CTest run."""
     r = subprocess.run([CTEST, "--test-dir", str(build), "-C", "Release", "-V"] + label_args,
                        capture_output=True, text=True, cwd=ROOT, errors="replace")
-    numbers, rows = {}, []
+    last, numbers, rows = {}, {}, []
     for line in r.stdout.splitlines():
+        m = OUTPUT.match(line)
+        if m:
+            last[m.group(1)] = m.group(2).strip()
+    for n, line in last.items():
         m = ALL_PASS.match(line)
         if m:
-            numbers[m.group(1)] = (m.group(2), int(m.group(3)))
+            numbers[n] = (line, int(m.group(1)))
     for m in RESULT.finditer(r.stdout):
         line, checks = numbers.get(m.group(1), ("", 0))
-        rows.append((m.group(2), m.group(3) == "Passed", float(m.group(4)), line, checks))
-    return rows
+        rows.append((m.group(2), m.group(3).strip() == "Passed", float(m.group(4)), line, checks))
+    return rows, r.returncode
+
+
+def failures(tests, rows, codes, missing):
+    """The failed names: a test whose row is not Passed, a registered test with
+    no row ("no result"), a missing program, and a CTest exit code other than 0
+    that no test accounts for."""
+    seen = {r[0] for r in rows}
+    out = [f"{n} (missing program)" for n in missing]
+    out += [r[0] for r in rows if not r[1] and r[0] not in missing]
+    out += [f"{n} (no result)" for n, _ in tests if n not in seen and n not in missing]
+    if not out and any(codes):
+        out.append(f"ctest (exit {max(codes)})")
+    return out
 
 
 def main(argv):
@@ -67,11 +95,13 @@ def main(argv):
     missing = missing_programs(tests)
     for name in missing:
         print(f"MISSING {name}: its program is not built (this script does not build)")
-    rows = [row for s in sets for row in run(build, s)]
+    runs = [run(build, s) for s in sets]
+    rows = [row for rs, _ in runs for row in rs]
     for name, ok, secs, line, _ in rows:
         print(f"[{'PASS' if ok else 'FAIL'}] {name} ({secs:.1f}s){'  ' + line if line else ''}")
     print(f"checks sum {sum(r[4] for r in rows)}")
-    failed = [r[0] for r in rows if not r[1] and r[0] not in missing] + missing
+    failed = failures(tests, rows, [code for _, code in runs], missing)
+    # The one test this script names: it says why the comp gate is absent.
     comp_registered = any(name == "comp_gate" for name, _ in tests)
     if not fast and not comp_registered:
         print(f"the comp gate is not registered: {build.name} is configured without -DMFORCE_SHELVED=ON")

@@ -58,9 +58,9 @@ inline float fast_sin_turns(float x) {
 // whose last bit decides borderline cutoff comparisons (see Partials).
 //
 // Why it exists: `std::exp2` is a CRT call, and the motion layer calls it
-// once per partial per sample. Measured with tools/ablate_layers.py on
-// patches/viola_default.json (96 partials, motion + shimmer + onset +
-// bandwidth all on): zeroing the motion depth alone cut the pre-render from
+// once per partial per sample. Measured with tools/ablate_layers.py on an
+// additive viola patch (96 partials, motion + shimmer + onset + bandwidth
+// all on): zeroing the motion depth alone cut the pre-render from
 // 1387 ms to 478 ms — the motion path was 65.6% of the whole loop, and
 // essentially all of it was this one libm call (as truncf is a CRT call:
 // see Partials).

@@ -297,8 +297,8 @@ void run_curve_table_tests() {
     }
 }
 
-// A type this engine no longer has fails the load naming the tool that
-// rewrites it; a name it never had does not.
+// A retired type name (one with a hint) fails the load naming the tool that
+// rewrites it; an unknown name with no hint fails without naming it.
 void run_retired_type_message_tests() {
     auto message_for = [](const char* type) {
         const std::string json = std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"n","nodes":[

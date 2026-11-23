@@ -7,13 +7,14 @@ void run_init_pitches_tests();
 void run_passage_parse_tests();
 void run_embedded_score_text_tests();
 
-int main() {
-  static constexpr mforce::testing::Test kTests[] = {
-    {"run_realize_events_tests", run_realize_events_tests},
-    {"run_harmony_timeline_tests", run_harmony_timeline_tests},
-    {"run_init_pitches_tests", run_init_pitches_tests},
-    {"run_passage_parse_tests", run_passage_parse_tests},
-    {"run_embedded_score_text_tests", run_embedded_score_text_tests},
-  };
-  return mforce::testing::run_tests(kTests);
-}
+namespace {
+constexpr mforce::testing::Test kTests[] = {
+  {"run_realize_events_tests", run_realize_events_tests},
+  {"run_harmony_timeline_tests", run_harmony_timeline_tests},
+  {"run_init_pitches_tests", run_init_pitches_tests},
+  {"run_passage_parse_tests", run_passage_parse_tests},
+  {"run_embedded_score_text_tests", run_embedded_score_text_tests},
+};
+}  // namespace
+
+int main() { return mforce::testing::run_tests(kTests); }

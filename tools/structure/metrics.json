@@ -16,16 +16,16 @@
    ]
   ],
   [
-   73,
+   72,
    [
     [
      "engine/render/tests/main.cpp",
-     76,
+     77,
      148
     ],
     [
      "engine/source/tests/main.cpp",
-     101,
+     102,
      173
     ]
    ]
@@ -226,21 +226,21 @@
    ]
   ],
   [
-   33,
+   32,
    [
     [
      "engine/render/tests/main.cpp",
-     76,
+     77,
      108
     ],
     [
      "engine/shelved/tests/main.cpp",
-     36,
+     37,
      68
     ],
     [
      "engine/source/tests/main.cpp",
-     101,
+     102,
      133
     ]
    ]
@@ -271,77 +271,52 @@
    ]
   ],
   [
-   30,
+   29,
    [
     [
      "engine/compose/tests/main.cpp",
-     33,
+     2,
+     30
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     2,
+     30
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     2,
+     30
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     2,
+     30
+    ]
+   ]
+  ],
+  [
+   29,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     34,
      62
     ],
     [
      "engine/render/tests/main.cpp",
-     76,
+     77,
      105
     ],
     [
      "engine/shelved/tests/main.cpp",
-     36,
+     37,
      65
     ],
     [
      "engine/source/tests/main.cpp",
-     101,
+     102,
      130
-    ]
-   ]
-  ],
-  [
-   29,
-   [
-    [
-     "engine/compose/tests/main.cpp",
-     2,
-     30
-    ],
-    [
-     "engine/patch/tests/main.cpp",
-     2,
-     30
-    ],
-    [
-     "engine/render/tests/main.cpp",
-     2,
-     30
-    ],
-    [
-     "engine/shelved/tests/main.cpp",
-     2,
-     30
-    ]
-   ]
-  ],
-  [
-   29,
-   [
-    [
-     "engine/compose/tests/main.cpp",
-     33,
-     61
-    ],
-    [
-     "engine/patch/tests/main.cpp",
-     32,
-     60
-    ],
-    [
-     "engine/render/tests/main.cpp",
-     76,
-     104
-    ],
-    [
-     "engine/shelved/tests/main.cpp",
-     36,
-     64
     ]
    ]
   ],
@@ -357,6 +332,31 @@
      "tools/stk_ref/mesh2d_ref.cpp",
      138,
      166
+    ]
+   ]
+  ],
+  [
+   28,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     34,
+     61
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     33,
+     60
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     77,
+     104
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     37,
+     64
     ]
    ]
   ],
@@ -411,26 +411,26 @@
    ]
   ],
   [
-   25,
+   24,
    [
     [
      "engine/compose/tests/main.cpp",
-     33,
+     34,
      57
     ],
     [
      "engine/core/tests/main.cpp",
-     28,
+     29,
      52
     ],
     [
      "engine/patch/tests/main.cpp",
-     32,
+     33,
      56
     ],
     [
      "engine/render/tests/main.cpp",
-     76,
+     77,
      100
     ]
    ]
@@ -674,31 +674,6 @@
    17,
    [
     [
-     "engine/compose/tests/main.cpp",
-     33,
-     49
-    ],
-    [
-     "engine/core/tests/main.cpp",
-     28,
-     44
-    ],
-    [
-     "engine/patch/tests/main.cpp",
-     32,
-     48
-    ],
-    [
-     "engine/play/tests/main.cpp",
-     20,
-     36
-    ]
-   ]
-  ],
-  [
-   17,
-   [
-    [
      "engine/source/include/mforce/source/filter/limiter.h",
      7,
      23
@@ -757,6 +732,31 @@
      "engine/compose/include/mforce/compose/default_phrase_strategy.h",
      278,
      291
+    ]
+   ]
+  ],
+  [
+   16,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     34,
+     49
+    ],
+    [
+     "engine/core/tests/main.cpp",
+     29,
+     44
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     33,
+     48
+    ],
+    [
+     "engine/play/tests/main.cpp",
+     21,
+     36
     ]
    ]
   ],
@@ -856,6 +856,21 @@
    ]
   ],
   [
+   15,
+   [
+    [
+     "engine/source/tests/filter_tests.cpp",
+     191,
+     205
+    ],
+    [
+     "engine/source/tests/physical_tests.cpp",
+     114,
+     128
+    ]
+   ]
+  ],
+  [
    14,
    [
     [
@@ -922,6 +937,21 @@
      "tools/stk_ref/flute_ref.cpp",
      61,
      74
+    ]
+   ]
+  ],
+  [
+   13,
+   [
+    [
+     "engine/patch/tests/graph_build_tests.cpp",
+     42,
+     54
+    ],
+    [
+     "engine/render/tests/instrument_build_tests.cpp",
+     38,
+     50
     ]
    ]
   ],
@@ -1124,46 +1154,6 @@
      57
     ]
    ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/shelved/include/mforce/shelved/period_passage_strategy.h",
-     284,
-     294
-    ],
-    [
-     "engine/shelved/include/mforce/shelved/period_passage_strategy.h",
-     315,
-     327
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/source/include/mforce/source/filter/bw_bandpass_filter.h",
-     7,
-     17
-    ],
-    [
-     "engine/source/include/mforce/source/filter/delay_filter.h",
-     6,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/filter/distorted_source.h",
-     6,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/oscillator/triangle_source.h",
-     3,
-     24
-    ]
-   ]
   ]
  ],
  "files": {
@@ -1264,9 +1254,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 365,
+   "lines": 364,
    "longest_function": [
-    311,
+    310,
     "mforce::DefaultPassageStrategy::compose_passage"
    ],
    "module": "compose",
@@ -1853,9 +1843,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 65,
+   "lines": 66,
    "longest_function": [
-    33,
+    1,
     "main"
    ],
    "module": "tests",
@@ -2461,9 +2451,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 55,
+   "lines": 56,
    "longest_function": [
-    28,
+    1,
     "main"
    ],
    "module": "tests",
@@ -2863,9 +2853,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 19,
+   "lines": 20,
    "longest_function": [
-    10,
+    1,
     "main"
    ],
    "module": "tests",
@@ -3345,9 +3335,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 63,
+   "lines": 64,
    "longest_function": [
-    32,
+    1,
     "main"
    ],
    "module": "tests",
@@ -3405,7 +3395,7 @@
    "lines": 23,
    "longest_function": [
     9,
-    "register_earlier_tests_probes"
+    "register_test_probes"
    ],
    "module": "tests",
    "mutable_vars": 0,
@@ -3573,9 +3563,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 17,
+   "lines": 18,
    "longest_function": [
-    9,
+    1,
     "main"
    ],
    "module": "tests",
@@ -3669,9 +3659,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 39,
+   "lines": 40,
    "longest_function": [
-    20,
+    1,
     "main"
    ],
    "module": "tests",
@@ -4371,9 +4361,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 151,
+   "lines": 152,
    "longest_function": [
-    76,
+    1,
     "main"
    ],
    "module": "tests",
@@ -5050,9 +5040,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 71,
+   "lines": 72,
    "longest_function": [
-    36,
+    1,
     "main"
    ],
    "module": "tests",
@@ -6779,9 +6769,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 201,
+   "lines": 202,
    "longest_function": [
-    101,
+    1,
     "main"
    ],
    "module": "tests",
@@ -7029,7 +7019,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 39,
+   "lines": 41,
    "longest_function": [
     0,
     ""
@@ -7059,9 +7049,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 63,
+   "lines": 68,
    "longest_function": [
-    24,
+    28,
     "mforce::testing::run_tests"
    ],
    "module": "testing",
@@ -7072,15 +7062,16 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 59,
+   "lines": 80,
    "longest_function": [
-    19,
+    24,
     "main"
    ],
    "module": "tests",
    "mutable_vars": 0,
    "types": [
-    "Outcome"
+    "Outcome",
+    "Promise"
    ]
   },
   "engine/util/include/mforce/util/fft.h": {
@@ -7282,9 +7273,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 11,
+   "lines": 12,
    "longest_function": [
-    6,
+    1,
     "main"
    ],
    "module": "tests",
@@ -7639,9 +7630,9 @@
   "file_level_mutable_vars": 22,
   "files": 439,
   "files_over_limit": 8,
-  "functions_over_limit": 51,
+  "functions_over_limit": 50,
   "include_violations": 0,
-  "lines": 59129,
+  "lines": 59166,
   "unmapped_files": 0
  }
 }

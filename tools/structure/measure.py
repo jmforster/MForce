@@ -1,22 +1,24 @@
 """Turn source text into numbers. Pure functions over text, plus two that
 call lizard (function lengths read a file; token duplicates run lizard as
 a subprocess). Every regex here is the definition of the number it feeds."""
+import functools
 import re
 import subprocess
 import sys
 
 import lizard
 
+import cxx
+
 _INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]([^>"]+)[>"]')
-# A file-level `static` declaration that is not const and completes on its
-# line (`;` or `=` present), so a wrapped function return type is not one.
-_STATIC_VAR = re.compile(r'^static\s+(?!const\b|constexpr\b|inline\s+const|void\b)(?=[^(]*[=;])')
-# The UI's `g_` / `s_` globals declared at file level without `static`.
-_GLOBAL_VAR = re.compile(
-    r'^(?!static\b|//|#|using\b|typedef\b|extern\b|return\b|namespace\b|struct\b|'
-    r'class\b|enum\b|template\b|inline\b|const\b|constexpr\b|friend\b)'
-    r'[A-Za-z_][\w:<>,\*&\s]*?\b(g_|s_)\w+\s*(=|;|\{|\[)')
-_CHANGELOG = re.compile(r'//.*(20\d\d-\d\d-\d\d|\bbacklog\s+#?\d|\bREVIEW\s+\d)')
+# What the changelog rule can be certain of in a comment: a date (2026-11-23,
+# 2026/11/23) or a tracker id (backlog, CLEANUP or REVIEW and a number, with or
+# without #). History in words is a reviewer's to find, not this pattern's.
+_CHANGELOG = re.compile(r'\b20\d\d[-/]\d\d[-/]\d\d\b|\b(?:backlog|BACKLOG|CLEANUP|REVIEW)\s*#?\s*\d')
+# The statements that are never a variable, by their first word.
+_NOT_A_VARIABLE = re.compile(r'^(?:using|typedef|static_assert|template|namespace|extern|friend)\b')
+_TYPE_HEAD = re.compile(r'^(?:class|struct|union|enum)\b')
+_DECORATION = re.compile(r'\[\[.*?\]\]|\b(?:alignas|__declspec)\s*\([^()]*\)')
 _TYPE_DECL = re.compile(r'^(?:struct|class|enum class|enum)\s+([A-Za-z_]\w*)\b(?!\s*;)')
 _DUP_SPAN = re.compile(r'^(.*):(\d+) ~ (\d+)$')
 
@@ -35,17 +37,58 @@ def includes(text):
     return [m.group(1) for m in map(_INCLUDE.match, lines_of(text)) if m]
 
 
+@functools.lru_cache(maxsize=4)
+def _lexed(text):
+    return cxx.lex(text)
+
+
+def _specifiers(stmt):
+    """The declaration's text before its initialiser, with template arguments
+    and parenthesised groups taken out: where `const` would say the variable
+    is const."""
+    spec = re.split(r'=|\{', stmt, maxsplit=1)[0]
+    while True:
+        shorter = re.sub(r'<[^<>]*>', ' ', re.sub(r'\([^()]*\)', ' ', spec))
+        if shorter == spec:
+            return spec
+        spec = shorter
+
+
+def _is_mutable_variable(stmt):
+    """Whether a namespace-scope statement defines a variable that is not
+    const: not const, constexpr or constinit const (a pointer to const reads
+    as const), not extern, and not a function, type, alias, template, using,
+    static_assert or macro call. A variable initialised with parentheses
+    (`Foo x(1);`) reads as a function declaration and is not counted."""
+    s = _DECORATION.sub(" ", stmt).strip()
+    if not s or _NOT_A_VARIABLE.match(s):
+        return False
+    if _TYPE_HEAD.match(s):
+        rest = s.rsplit("{}", 1)[1] if "{}" in s else ""
+        if not re.match(r'\s*[A-Za-z_*&]', rest):
+            return False
+    elif "(" in s and "{}" not in s and not cxx.has_assignment(s):
+        return False
+    return not re.search(r'\b(?:const|constexpr)\b', _specifiers(s))
+
+
+def mutable_variables(text):
+    """[(line, statement)]: the variables defined at namespace scope (every
+    open brace a namespace's) that are not const. `thread_local` and `inline`
+    variables count."""
+    code, _ = _lexed(text)
+    return [(ln, s) for ln, s in cxx.namespace_statements(code) if _is_mutable_variable(s)]
+
+
 def file_level_mutable_vars(text):
-    """Variables declared at file level that are not const: `static int x;`
-    and the `g_` / `s_` globals the UI uses. A heuristic, written down so
-    its number means one thing. Known misses: a pointer-to-const
-    (`static const char* p`) is skipped; an unprefixed non-static global
-    is not counted."""
-    n = 0
-    for line in lines_of(text):
-        if _STATIC_VAR.match(line) or _GLOBAL_VAR.match(line):
-            n += 1
-    return n
+    """The number of mutable_variables."""
+    return len(mutable_variables(text))
+
+
+def changelog_lines(text):
+    """The lines whose comment holds a date or a tracker id."""
+    _, comments = _lexed(text)
+    return sorted({ln for ln, c in comments if _CHANGELOG.search(c)})
 
 
 def flag_counts(text):
@@ -54,7 +97,7 @@ def flag_counts(text):
     return {
         "const_cast": sum("const_cast" in l for l in ls),
         "dynamic_cast": sum("dynamic_cast" in l for l in ls),
-        "changelog_comments": sum(bool(_CHANGELOG.search(l)) for l in ls),
+        "changelog_comments": len(changelog_lines(text)),
     }
 
 

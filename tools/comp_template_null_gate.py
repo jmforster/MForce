@@ -6,15 +6,18 @@
 Each scores/baselines/*.json is composed with DIR/tools/mforce_cli/Release/
 mforce_cli.exe --compose on piano_default, seed 1, into renders/scratch/
 comp_gate/; the manifest (tools/comp_gate_manifest.json) holds the sha256 of
-the piece JSON and of the WAV per template, or "refused" for a template the
-tool refuses (one that is not JSON). DIR defaults to build.
+the piece JSON and of the WAV per template, "refused" for a template the
+tool refuses (exit code 1 and no output files: one that is not JSON), or
+"failed (exit N)" for any other run that wrote no piece, which never equals a
+frozen value. DIR defaults to build.
 
 check: compares with the manifest and prints one line per template that
 differs, is missing from the manifest, or is in the manifest and gone, then a
 summary line; exit 1 on any. A template recorded as refused passes while it is
 still refused. Seven of the templates name shelved strategies, so the gate
 cannot pass on a build without them: check reads MFORCE_SHELVED from DIR's
-CMakeCache.txt and, when it is not ON, says so and exits 1.
+CMakeCache.txt and, when it is not ON, says so and exits 1; a DIR with no
+CMakeCache.txt is reported as not configured.
 
 freeze: rewrites the manifest from what this build composes.
 """
@@ -41,6 +44,7 @@ def sha(p):
 
 
 def shelved_on(build):
+    """MFORCE_SHELVED from the build folder's cache; None when there is no cache."""
     cache = build / "CMakeCache.txt"
     if not cache.exists():
         return None
@@ -51,7 +55,7 @@ def shelved_on(build):
 
 
 def compose(cli, template):
-    """{"json": sha, "wav": sha} for one template, or "refused"."""
+    """{"json": sha, "wav": sha} for one template, "refused", or "failed (...)"."""
     prefix = OUT / template.stem
     outputs = [OUT / f"{template.stem}_1.json", OUT / f"{template.stem}_1.wav"]
     for p in outputs:
@@ -59,8 +63,13 @@ def compose(cli, template):
             p.unlink()
     r = subprocess.run([str(cli), "--compose", str(PATCH), str(prefix), "1", "--template", str(template)],
                        capture_output=True, text=True, cwd=str(ROOT))
-    if r.returncode != 0 or not all(p.exists() for p in outputs):
+    written = [p.exists() for p in outputs]
+    if r.returncode == 1 and not any(written):
         return REFUSED
+    if r.returncode != 0:
+        return f"failed (exit {r.returncode})"
+    if not all(written):
+        return "failed (no output)"
     return {"json": sha(outputs[0]), "wav": sha(outputs[1])}
 
 
@@ -78,13 +87,17 @@ def main():
         print(__doc__)
         return 2
     build = ROOT / arg("--build", "build")
+    shelved = shelved_on(build)
+    if shelved is None:
+        print(f"{build} has no CMakeCache.txt: configure it first")
+        return 1
+    if not shelved:
+        print(f"{build.name} is configured without the shelved strategies, which seven baseline "
+              f"templates name: configure it with -DMFORCE_SHELVED=ON")
+        return 1
     cli = build / "tools/mforce_cli/Release/mforce_cli.exe"
     if not cli.exists():
         print(f"no mforce_cli at {cli}: build first (this gate does not build)")
-        return 1
-    if not shelved_on(build):
-        print(f"{build.name} is configured without the shelved strategies, which seven baseline "
-              f"templates name: configure it with -DMFORCE_SHELVED=ON")
         return 1
     got = compose_all(cli, int(arg("--jobs", "3")))
     if command == "freeze":

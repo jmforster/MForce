@@ -11,9 +11,12 @@
 
 The gate fails when a file breaks a limit (limits.json) with no baseline
 entry for it, or is worse than its entry; a file better than its entry
-passes. Duplicated blocks are reported, never gated, and --gate does not
-run the duplicate detector. An exception is recorded by editing
-baseline.json in the commit that needs it.
+passes. It measures the tracked sources and the untracked ones git does not
+ignore; the report and the snapshot measure the tracked ones. Duplicated
+blocks are reported, never gated, and --gate does not run the duplicate
+detector. The changelog rule catches dates and tracker ids in comments;
+history told in words is a reviewer's to find. An exception is recorded by
+editing baseline.json in the commit that needs it.
 """
 import json
 import subprocess
@@ -33,13 +36,23 @@ SNAPSHOT = HERE / "metrics.json"
 BASELINE = HERE / "baseline.json"
 MODULES_MD = ROOT / "docs" / "architecture" / "MODULES.md"
 # Git pathspecs: "*" crosses folders; ":(exclude)" drops the vendored libraries.
-SOURCE_GLOBS = ["engine/*.h", "engine/*.cpp", ":(exclude)engine/third_party",
-                "tools/*.cpp", "tools/*.h"]
+SOURCE_EXTENSIONS = ("h", "hpp", "inl", "ipp", "cpp", "cc", "cxx")
+SOURCE_GLOBS = ([f"{top}/*.{ext}" for top in ("engine", "tools") for ext in SOURCE_EXTENSIONS]
+                + [":(exclude)engine/third_party"])
 
 
 def tracked_sources():
+    """The sources git tracks: what the report and the snapshot measure."""
     out = subprocess.check_output(["git", "-C", str(ROOT), "ls-files"] + SOURCE_GLOBS, text=True)
     return [p for p in out.split("\n") if p]
+
+
+def gated_sources():
+    """The tracked sources and the untracked ones git does not ignore: what
+    the gate measures, so a file not yet added is gated before its commit."""
+    out = subprocess.check_output(["git", "-C", str(ROOT), "ls-files", "--others", "--exclude-standard"]
+                                  + SOURCE_GLOBS, text=True)
+    return sorted(set(tracked_sources()) | {p for p in out.split("\n") if p})
 
 
 def measure_file(rel):
@@ -73,7 +86,7 @@ def measure_tree(paths, module_map):
 
 
 def gate(module_map):
-    files, incs = measure_files(tracked_sources(), module_map)
+    files, incs = measure_files(gated_sources(), module_map)
     failures = baseline.compare(baseline.violations(files, incs, LIMITS), baseline.load(BASELINE), LIMITS)
     for path, rule, key, value, allowed in failures:
         where = f" {key}" if key else ""

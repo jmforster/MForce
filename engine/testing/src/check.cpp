@@ -27,7 +27,8 @@ bool check(bool passed, const char* file, int line, const char* text) {
 bool check_near(float a, float b, double eps, const char* file, int line,
                 const char* textA, const char* textB) {
   ++g_tally.checks;
-  const bool passed = !(std::fabs(a - b) > eps);
+  // Written so that a NaN on either side fails: every comparison with NaN is false.
+  const bool passed = std::fabs(a - b) <= eps;
   if (!passed) {
     ++g_tally.fails;
     std::printf("FAIL %s:%d  %s=%g vs %s=%g\n", file, line, textA, double(a), textB, double(b));
@@ -54,6 +55,10 @@ int run_tests(std::span<const Test> tests) {
   const int fails = g_tally.fails - before.fails;
   if (fails) {
     std::printf("%d/%d FAILED\n", fails, checks);
+    return 1;
+  }
+  if (checks == 0) {
+    std::printf("NO CHECKS MADE\n");
     return 1;
   }
   std::printf("ALL PASS (%d checks)\n", checks);

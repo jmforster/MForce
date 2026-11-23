@@ -9,7 +9,8 @@ An entry is {"file", "rule", "key", "value"}:
   mutable_vars    key ""                       value = the count in the file
   const_cast      key ""                       value = lines using it
   dynamic_cast    key ""                       value = lines using it (engine/ files)
-  changelog       key ""                       value = changelog comment lines
+  changelog       key ""                       value = comment lines holding a date or a
+                                               tracker id (history in words is a reviewer's)
   include         key = the #include target    value = 1
   unmapped        key ""                       value = 1 (a file on no module)
 

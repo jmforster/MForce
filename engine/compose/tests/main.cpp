@@ -30,36 +30,37 @@ void test_vary_composite();
 void test_complexify_grows_unit_count();
 void test_embellish_marks_articulation();
 
-int main() {
-  static constexpr mforce::testing::Test kTests[] = {
-    {"run_walk2_tests", run_walk2_tests},
-    {"run_realization_strategy_tests", run_realization_strategy_tests},
-    {"test_contour_roundtrip", test_contour_roundtrip},
-    {"test_pool_select", test_pool_select},
-    {"test_build_approach_steps", test_build_approach_steps},
-    {"test_settle_tail", test_settle_tail},
-    {"test_invert", test_invert},
-    {"test_retrograde_steps", test_retrograde_steps},
-    {"test_prune_end", test_prune_end},
-    {"test_prune_start", test_prune_start},
-    {"test_set_last_pulse", test_set_last_pulse},
-    {"test_adjust_last_pulse", test_adjust_last_pulse},
-    {"test_stretch", test_stretch},
-    {"test_compress", test_compress},
-    {"test_combine_basic", test_combine_basic},
-    {"test_combine_with_elide_and_adjust", test_combine_with_elide_and_adjust},
-    {"test_combine_sugar", test_combine_sugar},
-    {"test_replicate_repeats", test_replicate_repeats},
-    {"test_replicate_connectors", test_replicate_connectors},
-    {"test_replicate_and_prune", test_replicate_and_prune},
-    {"test_split", test_split},
-    {"test_add_neighbor_up", test_add_neighbor_up},
-    {"test_add_turn_up", test_add_turn_up},
-    {"test_vary_rhythm_preserves_length", test_vary_rhythm_preserves_length},
-    {"test_vary_steps_changes_interior", test_vary_steps_changes_interior},
-    {"test_vary_composite", test_vary_composite},
-    {"test_complexify_grows_unit_count", test_complexify_grows_unit_count},
-    {"test_embellish_marks_articulation", test_embellish_marks_articulation},
-  };
-  return mforce::testing::run_tests(kTests);
-}
+namespace {
+constexpr mforce::testing::Test kTests[] = {
+  {"run_walk2_tests", run_walk2_tests},
+  {"run_realization_strategy_tests", run_realization_strategy_tests},
+  {"test_contour_roundtrip", test_contour_roundtrip},
+  {"test_pool_select", test_pool_select},
+  {"test_build_approach_steps", test_build_approach_steps},
+  {"test_settle_tail", test_settle_tail},
+  {"test_invert", test_invert},
+  {"test_retrograde_steps", test_retrograde_steps},
+  {"test_prune_end", test_prune_end},
+  {"test_prune_start", test_prune_start},
+  {"test_set_last_pulse", test_set_last_pulse},
+  {"test_adjust_last_pulse", test_adjust_last_pulse},
+  {"test_stretch", test_stretch},
+  {"test_compress", test_compress},
+  {"test_combine_basic", test_combine_basic},
+  {"test_combine_with_elide_and_adjust", test_combine_with_elide_and_adjust},
+  {"test_combine_sugar", test_combine_sugar},
+  {"test_replicate_repeats", test_replicate_repeats},
+  {"test_replicate_connectors", test_replicate_connectors},
+  {"test_replicate_and_prune", test_replicate_and_prune},
+  {"test_split", test_split},
+  {"test_add_neighbor_up", test_add_neighbor_up},
+  {"test_add_turn_up", test_add_turn_up},
+  {"test_vary_rhythm_preserves_length", test_vary_rhythm_preserves_length},
+  {"test_vary_steps_changes_interior", test_vary_steps_changes_interior},
+  {"test_vary_composite", test_vary_composite},
+  {"test_complexify_grows_unit_count", test_complexify_grows_unit_count},
+  {"test_embellish_marks_articulation", test_embellish_marks_articulation},
+};
+}  // namespace
+
+int main() { return mforce::testing::run_tests(kTests); }

@@ -1,8 +1,8 @@
-// The type-declaration tests check every registered type, the test probes
-// included: the probes the render tests register (ReseedProbe, EnumTableProbe
-// and the four of three_kinds). Those tests run in another program, so this
-// one registers the same probes, in the same order and the same way, before
-// the type-declaration tests read the table.
+// Registers every source and the probe types the test fixtures define
+// (ReseedProbe and EnumTableProbe from core/tests/fixtures.h, the four of
+// three_kinds). The type-declaration tests listed after it check every
+// registered type, so with the probes registered first they check these
+// test-made types the same way as the shipped sources.
 #include "mforce/testing/check.h"
 #include "mforce/core/source_registry.h"
 #include "mforce/source/register_all_sources.h"
@@ -12,7 +12,7 @@
 
 using namespace mforce;
 
-void register_earlier_tests_probes() {
+void register_test_probes() {
     register_all_sources();
     auto& reg = SourceRegistry::instance();
     if (!reg.has("ReseedProbe"))

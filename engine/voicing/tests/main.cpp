@@ -3,9 +3,10 @@
 
 void run_profile_selector_capture_tests();
 
-int main() {
-  static constexpr mforce::testing::Test kTests[] = {
-    {"run_profile_selector_capture_tests", run_profile_selector_capture_tests},
-  };
-  return mforce::testing::run_tests(kTests);
-}
+namespace {
+constexpr mforce::testing::Test kTests[] = {
+  {"run_profile_selector_capture_tests", run_profile_selector_capture_tests},
+};
+}  // namespace
+
+int main() { return mforce::testing::run_tests(kTests); }

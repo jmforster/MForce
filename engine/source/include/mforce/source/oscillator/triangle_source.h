@@ -10,20 +10,20 @@ namespace mforce {
 //
 // `power` warps the two straight legs into curves, modelled on RampSource's
 // Expo/Inverse_Expo (MForce.Utility.Ramp). Signed shape control, neutral at 1:
-//   |power| <= 1 : linear — the historical triangle, byte-for-byte.
+//   |power| <= 1 : linear — the C# triangle's arithmetic (the neutral band in wave()).
 //   power  >  1  : CONCAVE sides — legs pinch inward (spiky), exponent `power`.
 //   power  < -1  : CONVEX  sides — legs bow outward (domed), exponent |power|.
 // Default 1.0: straight legs.
 //
 // By default both sides bend the SAME way: the falling leg is the mirror of the
 // rising leg about the peak, so the waveform stays symmetric. Setting the
-// `asymmetric` flag restores the earlier per-leg warp (each leg warped from its
-// own start), which bends the two sides in opposite senses — a "shark fin".
+// `asymmetric` flag warps each leg from its own start instead, which bends the
+// two sides in opposite senses — a "shark fin".
 struct TriangleSource final : WaveSource {
   Param bias {this, "bias",  0.5f,  0.0f, 1.0f, "0-1"};
   Param power{this, "power", 1.0f, -8.0f, 8.0f, "shape"};
-  // Off: symmetric legs (both sides bend the same way). On: the earlier
-  // per-leg warp, which bends the two sides oppositely ("shark fin").
+  // Off: symmetric legs (both sides bend the same way). On: each leg warped
+  // from its own start, which bends the two sides oppositely ("shark fin").
   Setting<bool> asymmetric{this, "asymmetric", false, false, true};
 
   const char* type_name() const override { return "TriangleSource"; }
