@@ -407,3 +407,42 @@ folder on.
 **`/WX` is `TreatWarningsAsErrors`.** The reason is the same: a warning
 nobody has to fix is read once and never again, and the tenth one hides
 the first.
+
+## 14. Amendments made while writing the briefs, before any code (2026-11-22)
+
+Each of these came from running a section above against the code. Where
+one disagrees with an earlier section, it wins.
+
+1. **JSON's folder passes on (section 3).** "Only a target that asks for
+   JSON gets it" is true of the asking, not of the reach. Patch, music,
+   voicing, compose and shelved declare their codecs in headers that
+   include JSON, so a module that uses one of them must be able to open
+   `json.hpp` as well. A module's CMake file names `JSON` when its own
+   files include it, and the folder then passes to the modules that use
+   it. Core, contract, source and util are never given it: an include of
+   JSON from one of them fails to compile. For the rest, "only codec
+   files include JSON" stays the meter's rule, as section 2 said.
+2. **Tests no one module can reach (section 5).** "The highest module it
+   needs" has no answer for a test that needs two modules no module may
+   use together. Compose with perform is the known case: a composed piece,
+   performed. Such tests go to one more program, `integration_tests`, in
+   `engine/tests/`, which may use every module, as the command-line tool
+   may. A test there that needs shelved sits in a file built only when
+   the option is on. The report says what ended up in it.
+3. **A declaration lives with its definition (section 2).**
+   `register_all_sources()` is declared in core's `source_registry.h` and
+   defined in source. With a library per module, that is a header
+   promising what its own library does not hold. The declaration moves to
+   a header in source, and the one file that calls it
+   (`patch/type_declarations.cpp`) changes one `#include` line: the
+   exception to "no `#include` line changes". Any other such pair that
+   linking the per-module test programs turns up is treated the same way
+   and listed in the report.
+4. **The harness tests itself (section 5).** A small program,
+   `testing_tests`, proves that a failed `CHECK` fails the run, that a
+   throw inside a test is caught and named, and that `REQUIRE` ends its
+   test. Every other test's pass rests on those three. The allocation
+   probe's header is included as `mforce/testing/alloc_probe.h`.
+5. **Shelved between steps 2 and 4.** Step 2 makes `mforce_shelved` a
+   target that every host links, so nothing changes for a template that
+   names a shelved strategy. Step 4 puts it behind the option.
