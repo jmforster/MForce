@@ -31,7 +31,12 @@ architecture you decided on 2026-10-05 and on the reset's rules.
   rebuilds the player and is heard from the next note. It plays
   instruments; a plain sound gets its sound in a later slice. Groups and
   note faces are kept in the file and drawn later.
-- **Nine rulings**, in its section 9. The three I would read first: the
+- **Five corrections before your signature**, in its section 12, each
+  as before and after. The two that change what you would see: a test
+  no longer opens your sound card (the adapter gets an `open()` that
+  only `main` calls), and live play is at the device's rate whatever
+  rate the file names (ruling 10; two baseline patches are at 22050).
+- **Ten rulings**, in its section 9. The three I would read first: the
   same libraries as before (ImGui, imnodes, GLFW, RtAudio); where they
   come from (git submodules pinned to the commits on your disk, which
   means my fetching five repositories from GitHub, on your word only);

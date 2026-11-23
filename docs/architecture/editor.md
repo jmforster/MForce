@@ -101,10 +101,11 @@ editor/
   type, and replacing a library later (JUCE for the window or the
   device) touches one module. `mforce_module` gains one keyword for it,
   `LIBS`.
-- **The one pair the compiler cannot refuse:** `ui_views` uses
-  `ui_control`, whose headers include `ui_audio`'s, so a view could
-  include `audio_adapter.h` (never RtAudio itself). The structure gate
-  refuses that include, as it does play including voicing.
+- **What the compiler cannot refuse:** `ui_views` uses `ui_control`,
+  whose headers include `ui_audio`'s and, through them, render's and
+  contract's. So the compiler would let a view include
+  `audio_adapter.h` or `live_player.h` (never RtAudio itself). The
+  structure gate refuses each, as it does play including voicing.
 - **Names.** `OpenPatch`, `AudioAdapter` and `LivePlay` are the target
   architecture's. New here:
   - `Session`, the one object that holds the open patch, the audio
@@ -154,7 +155,7 @@ table".
 // render/live_player.h, control thread
 // The constant of `pin` on `node`, in every voice: the voices that are
 // sounding hear it within one buffer, the others when they next start.
-// False when the patch has no such constant (the pin is fed by a wire).
+// False when the player cannot follow it: the caller builds a new player.
 bool set_value(std::string_view node, std::string_view pin, float v);
 ```
 
@@ -171,7 +172,7 @@ What each kind of edit does to the sound:
 
 | `Change` | What `LivePlay` does | Heard |
 |---|---|---|
-| `Value` | `player.set_value(...)` | while the note sounds, as the slider moves |
+| `Value` | `player.set_value(...)`; when that returns false, as `Structure` | while the note sounds, as the slider moves |
 | `Structure` | builds a new `LivePlayer` from the patch and hands it to the adapter | from the next note; notes sounding at the swap fade over 5 ms |
 | `Layout` | nothing | |
 
@@ -184,14 +185,26 @@ What each kind of edit does to the sound:
 - Every setting edit is `Structure` in the first slice. If dragging a
   setting feels slow, a non-structural setting becomes a second message
   row; the first slice measures before deciding.
+- The player cannot follow a constant inside the template of a
+  `MultiplexSource`: that node builds its clones itself, out of the
+  voice's reach. `set_value` returns false there and the player is
+  rebuilt. No library or baseline patch has a `MultiplexSource` today.
+  (A pin a wire feeds never gets this far: `patch/edit.h` refuses it.)
+- A built voice holds a pin's constant in one of two forms: a param's
+  own number, or a `ConstantSource` wired to an input. `set_value`
+  writes whichever the pin has.
 
 ### 4.3 The audio adapter (`ui_audio`)
 
 ```cpp
 class AudioAdapter {
 public:
-  AudioAdapter();                                  // opens the default output: 48 kHz, stereo, 512 frames
+  AudioAdapter();                                  // no device yet: play() and the callback work, nothing is heard
   ~AudioAdapter();
+  // The default output: stereo, 512 frames, at 48 kHz or the nearest rate
+  // the device has. Throws nothing: when it fails, error() says why.
+  void open();
+  int  sample_rate() const;                        // the device's rate; 48000 before open()
   // Control thread. The player that sounds from the next buffer; the one
   // before it fades over 5 ms and is destroyed later on this thread,
   // never on the audio thread.
@@ -210,6 +223,14 @@ private:
   callback allocates nothing (the counting allocator of
   `engine/testing`).
 - `fill()` is mono; the adapter writes it to both channels.
+- `main` calls `open()` once (`session.audio.open();`). No test does,
+  so a `Session` made in a test never touches the sound card.
+- **Live play is at the device's rate.** `LivePlay` builds each player
+  from the patch with its `sampleRate` replaced by the adapter's. The
+  file's `sampleRate` is the standalone render's and no edit changes
+  it; when the two differ the status line says so. Of the 131 library
+  and baseline patches 129 are at 48000; the other two
+  (`double_advance_bug`, `double_advance_ok`) are at 22050.
 
 ### 4.4 The model and the session
 
@@ -315,8 +336,14 @@ the commit above (the ones the old editor ran on).
 | `ui_views_tests` | every library patch draws one frame headless | no |
 
 Proof per slice is what the reset set: the build, `python tools/gates.py`
-and a review of the slice. The gates already cover a new module: its
-tests are found by CTest, its files by the structure gate.
+and a review of the slice. CTest finds a new module's tests. The
+structure gate does not see a new top-level folder until it is told: it
+scans `engine/` and `tools/`. So step 1 adds `editor/` to the folders it
+scans and the five modules to `tools/structure/modules.json` (their
+folders, what each may include, which module may open which library),
+and a tool test holds that no file under `editor/` has a baseline
+entry. The editor's limits fail from its first commit only because of
+that step.
 
 What only you can prove: that it feels right. Each slice ends with the
 program on your desk and a short list of what to try.
@@ -342,7 +369,8 @@ It plays instruments. A plain sound (no instrument block) opens, shows,
 edits and saves in slice 1 and gets its sound with slice 4.
 
 Steps, each ending at the gates: (1) the submodules, the `LIBS` keyword,
-the five empty modules and a window that opens; (2) `patch/edit.h` and
+the five empty modules, the structure gate taught the new folder, and a
+window that opens; (2) `patch/edit.h` and
 its tests; (3) `LivePlayer::set_value` and its tests; (4) `ui_model`,
 `ui_audio`, `ui_control` with their tests, no window; (5) the views and
 the headless draw test; (6) on your desk.
@@ -373,11 +401,14 @@ slices are usable". My read is after slice 3; that is yours to say.
 5. **Edits are free functions in `patch/edit.h`** that return what kind
    of change they were (4.1).
 6. **`LivePlayer::set_value`**: a constant follows the slider with no
-   rebuild; every other edit rebuilds the player and swaps it (4.2).
+   rebuild; every other edit, and a constant the player cannot follow,
+   rebuilds the player and swaps it (4.2).
 7. **No perform-module key performer yet** (4.4).
 8. **The headless draw test** as the views' proof (section 5).
 9. **Slice 1 as section 8 lists it**: instruments only for sound; groups
    and note faces drawn later; undo in slice 2.
+10. **Live play at the device's rate**; the file's `sampleRate` stays
+    the render's (4.3).
 
 ## 10. Not in this design
 
@@ -408,3 +439,68 @@ drawing code is handed one object, reads it, and asks for changes
 through functions. The nearest C# pattern is Model-View-Update (Elm,
 or a Redux store): the view is a function of the state, and every
 change is a named function that takes the state and an input.
+
+## 12. Corrected before the signature (2026-11-23)
+
+Each interface block was run against the engine's headers and against
+this design's own rules before asking for the signature. Five things
+changed. The sections above carry the corrected text; this is what they
+said before.
+
+1. **The adapter's constructor opened the sound card** (4.3). `Session`
+   holds an `AudioAdapter`, so every test that made a `Session` would
+   have opened the device, against section 7's "needs a device: no".
+
+   ```cpp
+   // before
+   AudioAdapter();          // opens the default output: 48 kHz, stereo, 512 frames
+   Session session;         // main, and every ui_control test: the device opens
+
+   // after
+   AudioAdapter();          // no device yet: play() and the callback work, nothing is heard
+   void open();             // the default output; on failure error() says why
+   Session session;         // a test stops here
+   session.audio.open();    // main only
+   ```
+
+   Alternative: `Session` holds a reference to an adapter `main` makes.
+   Then every test builds two objects to get one, for no gain.
+
+2. **A constant the player cannot reach** (4.2). The design said
+   `set_value` is false only for a pin a wire feeds. A `MultiplexSource`
+   builds the clones of its template inside itself, where the voice's
+   node list does not reach, so a constant on a template node would
+   have changed in the patch and not in the sound.
+
+   ```cpp
+   // before: false when the patch has no such constant (the pin is fed by a wire)
+   // after:  false when the player cannot follow it: the caller builds a new player
+   bool set_value(std::string_view node, std::string_view pin, float v);
+
+   // LivePlay, on a Change::Value
+   if (!player.set_value(node, pin, v)) rebuild();
+   ```
+
+   No library or baseline patch has a `MultiplexSource`, so nothing in
+   the measured set takes the rebuild path today.
+
+3. **The rate was not decided** (4.3, ruling 10). The adapter opened at
+   48 kHz and a `LivePlayer` runs at its patch's `sampleRate`; a patch
+   at another rate would have played at the wrong pitch. Now the player
+   is built at the device's rate and the file's rate stays the render's.
+   Two baseline patches are at 22050; the other 129 are at 48000.
+   Alternative: reopen the device at each patch's rate, which depends
+   on what the sound card will open.
+
+4. **"The gates already cover a new module" was half true** (section 7,
+   step 1). CTest finds a new module's tests. The structure gate scans
+   `engine/` and `tools/` only (`SOURCE_GLOBS` in
+   `tools/structure/check.py`) and knows a module only from
+   `modules.json`, so the editor's limits would have measured nothing.
+   Teaching it the folder is now part of step 1, with a test that the
+   editor has no baseline entry.
+
+5. **More than one pair the compiler cannot refuse** (section 3). A
+   view is handed render's and contract's folders as well as
+   `ui_audio`'s, through `ui_control`. The structure gate refuses all
+   three; the sentence named only one.
