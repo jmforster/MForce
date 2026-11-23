@@ -455,3 +455,14 @@ one disagrees with an earlier section, it wins.
    flow: the test ends there). The proof is then: the checks that came
    from `engine_tests` still sum to 12,054, all 43 figure tests are
    present by name, and the report gives the number of checks they add.
+7. **A header is checked by its own module (section 2).** The compiler
+   reads a header with the folders of whichever file includes it, not
+   with its own module's. So a forbidden include written in a header is
+   refused only if a `.cpp` of that header's module happens to include
+   it, and most of this engine is headers: voicing, contract and util
+   have no `.cpp` at all, and source has five for about ninety headers.
+   Each module therefore also compiles one generated file that includes
+   every one of its headers, with the module's own folders and nothing
+   else. That is what makes section 2's table true for a header as well
+   as for a `.cpp`, and it puts every header under `/W4 /WX` whether or
+   not anything includes it yet.
