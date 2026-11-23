@@ -466,3 +466,20 @@ one disagrees with an earlier section, it wins.
    else. That is what makes section 2's table true for a header as well
    as for a `.cpp`, and it puts every header under `/W4 /WX` whether or
    not anything includes it yet.
+8. **Duplicated blocks are reported, not gated (section 8).** Found at
+   step 1, after its code. The meter counts duplicates with lizard's
+   token detector, and that detector's answer for a file depends on the
+   rest of the tree. Step 1 edited nine code files and the meter's count
+   went from 122 to 124. Compared block by block, the two trees differ
+   only in places step 1 did not edit: a 7-line block in
+   `pitch_walker.h` reported only after, a 5-line block in
+   `test_figures/main.cpp` only before, and a block in the shelved
+   strategies and one in the converter each a line longer. Measuring one
+   tree twice gives the same blocks, so this is the detector's block
+   edges moving, not chance, and no duplication was added. A rule that
+   fails a commit for a block it did not write is worse than no rule. So
+   `check.py --gate` does not fail on duplicates and the baseline holds
+   no entries for them; the report still prints the count and the
+   largest blocks. A duplicate rule that can fail needs a measure whose
+   answer for a block depends on that block and its copy alone: booked
+   in CLEANUP.
