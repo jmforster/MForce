@@ -49,9 +49,11 @@ Neither command builds. Both read their list of tests from CMake, so
 ## Hear something
 
 ```
-mkdir renders
 build\tools\mforce_cli\Release\mforce_cli.exe patches\library\winds\oboe1.json renders\oboe1.wav
 ```
+
+The tool does not create folders. `renders/` is not tracked; it exists
+once the tests have run, otherwise create it first.
 
 A patch (`patches/`) is an instrument: a sound graph and how it is
 played. Most carry a short score of their own, which is what this
