@@ -29,6 +29,11 @@ Add `-DMFORCE_SHELVED=ON` to the first command to also build the shelved
 composition strategies, their tests and `ppl_to_json`. Seven of the
 templates in `scores/baselines/` need them.
 
+The editor, `mforce_editor`, needs its libraries, which are git submodules
+under `third_party/`: clone with `git clone --recurse-submodules`, or run
+`git submodule update --init` in an existing clone. Without them the engine,
+the tools and every test build as before, and configure says what is missing.
+
 ## Test
 
 ```

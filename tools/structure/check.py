@@ -35,9 +35,11 @@ LIMITS = json.loads((HERE / "limits.json").read_text(encoding="utf-8"))
 SNAPSHOT = HERE / "metrics.json"
 BASELINE = HERE / "baseline.json"
 MODULES_MD = ROOT / "docs" / "architecture" / "MODULES.md"
-# Git pathspecs: "*" crosses folders; ":(exclude)" drops the vendored libraries.
+# Git pathspecs: "*" crosses folders; ":(exclude)" drops the vendored JSON
+# library. The top-level third_party/ (the editor's libraries) is not a
+# measured folder.
 SOURCE_EXTENSIONS = ("h", "hpp", "inl", "ipp", "cpp", "cc", "cxx")
-SOURCE_GLOBS = ([f"{top}/*.{ext}" for top in ("engine", "tools") for ext in SOURCE_EXTENSIONS]
+SOURCE_GLOBS = ([f"{top}/*.{ext}" for top in ("engine", "tools", "editor") for ext in SOURCE_EXTENSIONS]
                 + [":(exclude)engine/third_party"])
 
 

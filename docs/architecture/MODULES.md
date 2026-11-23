@@ -19,7 +19,12 @@ Do not edit by hand.
 | util | Stand-alone analysis helpers (FFT, signal statistics). | `engine/util/` | nothing |
 | cli | mforce_cli, the command-line renderer. | `tools/mforce_cli/` | core, source, patch, render, music, voicing, compose, shelved, perform, util, contract, play |
 | testing | The one test harness (check.h, run_tests) and the counting allocator. | `engine/testing/` | nothing |
-| tests | The test programs (one per module's tests folder), the allocation gate and the tool tests. | `engine/core/tests/`, `engine/source/tests/`, `engine/patch/tests/`, `engine/render/tests/`, `engine/music/tests/`, `engine/voicing/tests/`, `engine/compose/tests/`, `engine/shelved/tests/`, `engine/perform/tests/`, `engine/play/tests/`, `engine/testing/tests/`, `tools/alloc_gate/`, `tools/alloc_gate.py`, `tools/tests/` | core, source, patch, render, music, voicing, compose, shelved, perform, util, contract, play, testing |
+| ui_model | The editor's model: the open patch, its file, whether it has unsaved changes. | `editor/ui_model/` | patch |
+| ui_audio | The editor's sound output: the device, the callback, the player that sounds. | `editor/ui_audio/` | patch, render, contract, rtaudio |
+| ui_control | The editor's state (Session), the edit functions the views call, live play. | `editor/ui_control/` | ui_model, ui_audio, patch, render, contract |
+| ui_views | The editor's windows, one class each. | `editor/ui_views/` | ui_model, ui_control, patch, core, imgui |
+| ui_app | mforce_editor: the window, the frame loop. | `editor/ui_app/` | ui_model, ui_audio, ui_control, ui_views, imgui, glfw |
+| tests | The test programs (one per module's tests folder), the allocation gate and the tool tests. | `engine/core/tests/`, `engine/source/tests/`, `engine/patch/tests/`, `engine/render/tests/`, `engine/music/tests/`, `engine/voicing/tests/`, `engine/compose/tests/`, `engine/shelved/tests/`, `engine/perform/tests/`, `engine/play/tests/`, `engine/testing/tests/`, `editor/ui_model/tests/`, `editor/ui_audio/tests/`, `editor/ui_control/tests/`, `editor/ui_views/tests/`, `tools/alloc_gate/`, `tools/alloc_gate.py`, `tools/tests/` | core, source, patch, render, music, voicing, compose, shelved, perform, util, contract, play, testing, ui_model, ui_audio, ui_control, ui_views |
 | durn | durn_converter: notation formats to DURN. | `tools/durn_converter/` | music |
 | misc_tools | ppl_to_json, stk_ref, wav_check. | `tools/shelved/ppl_to_json/`, `tools/stk_ref/`, `tools/wav_check.cpp`, `tools/wav_check.c` | core, source, patch, render, music, voicing, compose, shelved, perform, util, contract, play |
 

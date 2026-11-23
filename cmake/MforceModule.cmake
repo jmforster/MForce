@@ -1,6 +1,7 @@
 # The functions every MForce target is made with: mforce_compile_rules (the
-# language level and warning rules), mforce_module (an engine module, with its
-# header check) and mforce_tests (a module's test program).
+# language level and warning rules), mforce_module (a module of the engine or
+# the editor, with its header check) and mforce_tests (a module's test
+# program).
 #
 # A CMake "function" is called like a command: mforce_compile_rules(mforce_cli).
 # mforce_compile_rules is the one place the language level and the warning
@@ -25,12 +26,17 @@ function(mforce_compile_rules target)
   endif()
 endfunction()
 
-# Makes the engine module <name>, called from the module's own folder
-# (engine/<name>/CMakeLists.txt):
+# Makes the module <name>, called from the module's own folder
+# (engine/<name>/CMakeLists.txt or editor/<name>/CMakeLists.txt):
 #
 #   mforce_module(render
 #     SOURCES src/mixer.cpp src/voice.cpp ...
 #     USES    core source patch contract)
+#
+#   mforce_module(ui_views
+#     SOURCES src/node_canvas.cpp ...
+#     USES    ui_model ui_control patch core
+#     LIBS    imgui)
 #
 # The target is mforce_<name>: a static library built from SOURCES, or, with
 # no SOURCES, a header-only target that has nothing to compile and exists to
@@ -41,14 +47,24 @@ endfunction()
 # JSON says the module's own files include nlohmann/json.hpp: the module, and
 # every module that uses it, is then given that folder as a system one.
 #
+# LIBS names library families as modules.json names them under third_party
+# (imgui, rtaudio, glfw). The module links the target mforce_lib_<family>
+# PRIVATE: its own .cpp files can include that library's headers, and the
+# library's folders are passed on to no user of the module and not to its
+# header check, so a header under include/ that names a library's type does
+# not compile. A module with LIBS has SOURCES: the library is for its .cpp files.
+#
 # Each module also compiles every header under its include/ in one generated
 # file, with the module's own folders and nothing else (mforce_header_check).
 function(mforce_module name)
-  # cmake_parse_arguments sorts the call's words: JSON is a flag, SOURCES and
-  # USES are lists; anything else is a mistake in the call.
-  cmake_parse_arguments(PARSE_ARGV 1 arg "JSON" "" "SOURCES;USES")
+  # cmake_parse_arguments sorts the call's words: JSON is a flag, SOURCES,
+  # USES and LIBS are lists; anything else is a mistake in the call.
+  cmake_parse_arguments(PARSE_ARGV 1 arg "JSON" "" "SOURCES;USES;LIBS")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "mforce_module(${name}): unknown arguments ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  if(arg_LIBS AND NOT arg_SOURCES)
+    message(FATAL_ERROR "mforce_module(${name}): LIBS ${arg_LIBS} on a module with no SOURCES")
   endif()
   set(target mforce_${name})
   if(arg_SOURCES)
@@ -71,6 +87,12 @@ function(mforce_module name)
   if(arg_JSON)
     target_link_libraries(${target} ${reach} mforce_json)
   endif()
+  foreach(family IN LISTS arg_LIBS)
+    if(NOT TARGET mforce_lib_${family})
+      message(FATAL_ERROR "mforce_module(${name}): LIBS ${family}, which has no target mforce_lib_${family}")
+    endif()
+    target_link_libraries(${target} PRIVATE mforce_lib_${family})
+  endforeach()
   mforce_header_check(${name})
 endfunction()
 
@@ -104,9 +126,10 @@ function(mforce_header_check name)
 endfunction()
 
 # Makes the test program <name>_tests from the files listed after SOURCES
-# (a module's tests/ folder), linked with the module mforce_<name> and the
-# harness, under the compile rules, and registers it with CTest to run from
-# the repo root (the tests read patches and scores by repo-relative path):
+# (a module's tests/ folder, under engine/ or editor/), linked with the module
+# mforce_<name> and the harness, under the compile rules, and registers it with
+# CTest to run from the repo root (the tests read patches and scores by
+# repo-relative path):
 #
 #   mforce_tests(render SOURCES tests/main.cpp tests/voice_tests.cpp ...)
 function(mforce_tests name)

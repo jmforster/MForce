@@ -34,6 +34,9 @@ if(MFORCE_SHELVED)
   add_subdirectory(tools/shelved/ppl_to_json)
 endif()
 add_subdirectory(tools/alloc_gate)
+# The editor, built only when its libraries (the submodules under third_party/)
+# are there; its CMake file says in one line which it found.
+add_subdirectory(editor)
 
 # The interpreter on PATH (where lizard is installed), not the newest one in the Windows registry.
 set(Python3_FIND_STRATEGY LOCATION)

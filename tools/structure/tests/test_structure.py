@@ -179,20 +179,56 @@ class KnownAnswerTests(unittest.TestCase):
         self.assertEqual([p for p in paths if m.owner(p) is None], [])
 
 
+MODULE_KEYWORDS = ("JSON", "SOURCES", "USES", "LIBS")
+
+
+def call_list(words, keyword):
+    """The words after `keyword` in a call, up to the next keyword."""
+    if keyword not in words:
+        return []
+    rest = words[words.index(keyword) + 1:]
+    ends = [i for i, w in enumerate(rest) if w in MODULE_KEYWORDS]
+    return rest[:ends[0]] if ends else rest
+
+
+def module_call(cmake_text):
+    """(name, words) of the mforce_module call in a CMakeLists.txt, or None."""
+    call = re.search(r"mforce_module\(\s*(\w+)(.*?)\)", cmake_text, re.S)
+    return (call.group(1), call.group(2).split()) if call else None
+
+
 def module_uses(cmake_text):
     """(name, USES list) of the mforce_module call in a module's CMakeLists.txt,
     or None when the file makes no module."""
-    call = re.search(r"mforce_module\(\s*(\w+)(.*?)\)", cmake_text, re.S)
+    call = module_call(cmake_text)
+    return (call[0], call_list(call[1], "USES")) if call else None
+
+
+def module_libs(cmake_text):
+    """The LIBS list of the mforce_module call in a CMakeLists.txt."""
+    call = module_call(cmake_text)
+    return call_list(call[1], "LIBS") if call else []
+
+
+def program_links(cmake_text, target):
+    """What the program `target` links, in the map's names: mforce_<m> is the
+    module m, mforce_lib_<family> or mforce_lib_<family>_<part> the family."""
+    call = re.search(r"target_link_libraries\(\s*" + target + r"\b(.*?)\)", cmake_text, re.S)
     if not call:
-        return None
-    words = call.group(2).split()
-    uses = words[words.index("USES") + 1:] if "USES" in words else []
-    return call.group(1), uses
+        return []
+    names = []
+    for word in call.group(1).split():
+        if word.startswith("mforce_lib_"):
+            names.append(word[len("mforce_lib_"):].split("_")[0])
+        elif word.startswith("mforce_"):
+            names.append(word[len("mforce_"):])
+    return sorted(set(names))
 
 
 class ModuleTargetTests(unittest.TestCase):
-    """The compiler enforces each module's USES (engine/<m>/CMakeLists.txt);
-    the meter enforces its may_include (modules.json). The two say the same."""
+    """The compiler enforces each module's USES and LIBS (engine/<m>/ and
+    editor/<m>/CMakeLists.txt); the meter enforces its may_include
+    (modules.json). The two say the same."""
 
     def test_module_uses_reads_the_call(self):
         text = "mforce_module(render\n  SOURCES src/a.cpp\n  USES    core source)\n"
@@ -200,19 +236,57 @@ class ModuleTargetTests(unittest.TestCase):
         self.assertEqual(module_uses("mforce_module(util)\n"), ("util", []))
         self.assertIsNone(module_uses("add_executable(x main.cpp)\n"))
 
+    def test_a_list_stops_at_the_next_keyword(self):
+        text = "mforce_module(ui_views\n  SOURCES src/a.cpp\n  USES    ui_model core\n  LIBS    imgui)\n"
+        self.assertEqual(module_uses(text), ("ui_views", ["ui_model", "core"]))
+        self.assertEqual(module_libs(text), ["imgui"])
+        text = "mforce_module(patch JSON\n  USES core\n  SOURCES src/a.cpp)\n"
+        self.assertEqual(module_uses(text), ("patch", ["core"]))
+        self.assertEqual(module_libs(text), [])
+
+    def test_program_links_reads_modules_and_families(self):
+        text = "target_link_libraries(mforce_editor PRIVATE\n  mforce_ui_views mforce_lib_imgui_backends mforce_lib_glfw)\n"
+        self.assertEqual(program_links(text, "mforce_editor"), ["glfw", "imgui", "ui_views"])
+
     def test_uses_equals_may_include(self):
         m = ModuleMap.load()
         made = {}
-        for cmake in sorted((ROOT / "engine").glob("*/CMakeLists.txt")):
-            found = module_uses(cmake.read_text(encoding="utf-8"))
-            if found:
-                made[found[0]] = found[1]
-        engine_modules = {mod["name"] for mod in m.modules if f"engine/{mod['name']}/" in mod["paths"]}
-        self.assertEqual(sorted(made), sorted(engine_modules), "modules made by CMake vs modules in the map")
+        for top in ("engine", "editor"):
+            for cmake in sorted((ROOT / top).glob("*/CMakeLists.txt")):
+                text = cmake.read_text(encoding="utf-8")
+                found = module_uses(text)
+                if found:
+                    made[found[0]] = found[1] + module_libs(text)
+        app = ROOT / "editor" / "ui_app" / "CMakeLists.txt"
+        if app.exists():
+            made["ui_app"] = program_links(app.read_text(encoding="utf-8"), "mforce_editor")
+        in_map = {mod["name"] for mod in m.modules
+                  if f"engine/{mod['name']}/" in mod["paths"] or f"editor/{mod['name']}/" in mod["paths"]}
+        self.assertEqual(sorted(made), sorted(in_map), "modules made by CMake vs modules in the map")
         for name, uses in sorted(made.items()):
             may = m.by_name[name]["may_include"]
             self.assertEqual(sorted(uses), sorted(may),
-                             f"module {name}: USES {uses} in its CMakeLists.txt, may_include {may} in modules.json")
+                             f"module {name}: USES and LIBS {uses} in its CMakeLists.txt, may_include {may} in modules.json")
+
+
+class EditorTests(unittest.TestCase):
+    """The editor's limits hold from its first file: every source under
+    editor/ is on a module (a file on none is not checked for includes), and
+    the baseline allows nothing under editor/."""
+
+    def test_every_editor_source_is_on_a_module(self):
+        from check import SOURCE_EXTENSIONS
+        m = ModuleMap.load()
+        paths = [p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "editor").rglob("*"))
+                 if p.is_file() and p.suffix.lstrip(".") in SOURCE_EXTENSIONS]
+        self.assertTrue(paths)
+        self.assertEqual([p for p in paths if m.owner(p) is None], [])
+
+    def test_the_baseline_names_no_editor_file(self):
+        import json
+        entries = json.loads((HERE.parent / "baseline.json").read_text(encoding="utf-8"))
+        self.assertTrue(entries)
+        self.assertEqual([e for e in entries if e["file"].replace("\\", "/").startswith("editor/")], [])
 
 
 if __name__ == "__main__":
