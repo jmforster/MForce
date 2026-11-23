@@ -100,3 +100,29 @@ function(mforce_header_check name)
   target_link_libraries(mforce_${name}_header_check PRIVATE mforce_${name})
   mforce_compile_rules(mforce_${name}_header_check)
 endfunction()
+
+# Makes the test program <name>_tests from the files listed after SOURCES
+# (a module's tests/ folder), linked with the module mforce_<name> and the
+# harness, under the compile rules, and registers it with CTest to run from
+# the repo root (the tests read patches and scores by repo-relative path).
+# A program whose tests no one module reaches names what it links instead:
+#
+#   mforce_tests(render SOURCES tests/main.cpp tests/voice_tests.cpp ...)
+#   mforce_tests(integration LINKS mforce_engine SOURCES main.cpp ...)
+function(mforce_tests name)
+  cmake_parse_arguments(PARSE_ARGV 1 arg "" "" "SOURCES;LINKS")
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "mforce_tests(${name}): unknown arguments ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  if(NOT arg_LINKS)
+    set(arg_LINKS mforce_${name})
+  endif()
+  set(target ${name}_tests)
+  add_executable(${target} ${arg_SOURCES})
+  target_link_libraries(${target} PRIVATE ${arg_LINKS} mforce_testing)
+  # A test program may include the helpers a lower module's tests share with
+  # the programs above them, as "<module>/tests/fixtures.h".
+  target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/engine)
+  mforce_compile_rules(${target})
+  add_test(NAME ${target} COMMAND ${target} WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+endfunction()

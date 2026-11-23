@@ -16,20 +16,17 @@ if(MSVC)
     )
 endif()
 
+# Tests. enable_testing() comes before the folders, whose CMake files register
+# their test programs (mforce_tests). Every test runs from the repo root: the
+# test programs load patches and scores by repo-relative path.
+enable_testing()
+
 add_subdirectory(engine)
 add_subdirectory(tools/mforce_cli)
 add_subdirectory(tools/durn_converter)
-add_subdirectory(tools/test_figures)
 add_subdirectory(tools/shelved/ppl_to_json)
-add_subdirectory(tools/engine_tests)
-add_subdirectory(tools/alloc_probe)
 add_subdirectory(tools/alloc_gate)
 
-# Tests. Every test runs from the repo root: the test programs load patches
-# and scores by repo-relative path.
-enable_testing()
-add_test(NAME engine_tests COMMAND engine_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-add_test(NAME test_figures COMMAND test_figures WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 # The interpreter on PATH (where lizard is installed), not the newest one in the Windows registry.
 set(Python3_FIND_STRATEGY LOCATION)
 set(Python3_FIND_REGISTRY NEVER)

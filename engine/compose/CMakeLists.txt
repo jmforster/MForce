@@ -5,3 +5,9 @@ mforce_module(compose JSON
           src/register_builtin.cpp
           src/style_table_json.cpp
   USES    core music voicing)
+
+mforce_tests(compose
+  SOURCES tests/main.cpp
+          tests/elaborate_tests.cpp
+          tests/figure_transform_tests.cpp
+          tests/realization_strategy_tests.cpp)

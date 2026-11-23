@@ -1,6 +1,66 @@
 {
  "duplicate_blocks": [
   [
+   73,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     2,
+     74
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     2,
+     74
+    ]
+   ]
+  ],
+  [
+   73,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     76,
+     148
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     101,
+     173
+    ]
+   ]
+  ],
+  [
+   50,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     25,
+     74
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     25,
+     74
+    ]
+   ]
+  ],
+  [
+   49,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     100,
+     148
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     125,
+     173
+    ]
+   ]
+  ],
+  [
    49,
    [
     [
@@ -131,17 +191,157 @@
    ]
   ],
   [
-   39,
+   40,
    [
     [
      "engine/source/include/mforce/source/filter/bw_highpass_filter.h",
      10,
-     48
+     49
     ],
     [
      "engine/source/include/mforce/source/filter/bw_lowpass_filter.h",
      10,
-     53
+     54
+    ]
+   ]
+  ],
+  [
+   33,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     2,
+     34
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     2,
+     34
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     2,
+     34
+    ]
+   ]
+  ],
+  [
+   33,
+   [
+    [
+     "engine/render/tests/main.cpp",
+     76,
+     108
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     36,
+     68
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     101,
+     133
+    ]
+   ]
+  ],
+  [
+   30,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     2,
+     31
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     2,
+     31
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     2,
+     31
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     2,
+     31
+    ]
+   ]
+  ],
+  [
+   30,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     33,
+     62
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     76,
+     105
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     36,
+     65
+    ],
+    [
+     "engine/source/tests/main.cpp",
+     101,
+     130
+    ]
+   ]
+  ],
+  [
+   29,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     2,
+     30
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     2,
+     30
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     2,
+     30
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     2,
+     30
+    ]
+   ]
+  ],
+  [
+   29,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     33,
+     61
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     32,
+     60
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     76,
+     104
+    ],
+    [
+     "engine/shelved/tests/main.cpp",
+     36,
+     64
     ]
    ]
   ],
@@ -186,6 +386,56 @@
    ]
   ],
   [
+   25,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     2,
+     26
+    ],
+    [
+     "engine/core/tests/main.cpp",
+     2,
+     26
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     2,
+     26
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     2,
+     26
+    ]
+   ]
+  ],
+  [
+   25,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     33,
+     57
+    ],
+    [
+     "engine/core/tests/main.cpp",
+     28,
+     52
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     32,
+     56
+    ],
+    [
+     "engine/render/tests/main.cpp",
+     76,
+     100
+    ]
+   ]
+  ],
+  [
    24,
    [
     [
@@ -197,6 +447,36 @@
      "engine/shelved/include/mforce/shelved/wandering_passage_strategy.h",
      103,
      126
+    ]
+   ]
+  ],
+  [
+   23,
+   [
+    [
+     "engine/patch/tests/graph_build_tests.cpp",
+     32,
+     54
+    ],
+    [
+     "engine/render/tests/instrument_build_tests.cpp",
+     29,
+     50
+    ]
+   ]
+  ],
+  [
+   23,
+   [
+    [
+     "engine/shelved/tests/figure_compose_tests.cpp",
+     94,
+     116
+    ],
+    [
+     "engine/shelved/tests/figure_compose_tests.cpp",
+     242,
+     264
     ]
    ]
   ],
@@ -219,34 +499,29 @@
    22,
    [
     [
-     "tools/test_figures/main.cpp",
-     89,
-     110
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     35,
+     56
     ],
     [
-     "tools/test_figures/main.cpp",
-     793,
-     814
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     918,
-     939
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     158,
+     179
     ]
    ]
   ],
   [
-   22,
+   21,
    [
     [
-     "tools/test_figures/main.cpp",
-     793,
-     814
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     36,
+     56
     ],
     [
-     "tools/test_figures/main.cpp",
-     918,
-     939
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     159,
+     179
     ]
    ]
   ],
@@ -381,22 +656,67 @@
    ]
   ],
   [
-   19,
+   18,
    [
     [
-     "tools/test_figures/main.cpp",
-     98,
-     116
+     "engine/patch/tests/retired_spelling_tests.cpp",
+     1,
+     18
     ],
     [
-     "tools/test_figures/main.cpp",
-     177,
-     195
+     "engine/play/tests/retired_form_table_tests.cpp",
+     2,
+     16
+    ]
+   ]
+  ],
+  [
+   17,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     2,
+     18
     ],
     [
-     "tools/test_figures/main.cpp",
-     733,
-     751
+     "engine/core/tests/main.cpp",
+     2,
+     18
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     2,
+     18
+    ],
+    [
+     "engine/play/tests/main.cpp",
+     2,
+     18
+    ]
+   ]
+  ],
+  [
+   17,
+   [
+    [
+     "engine/compose/tests/main.cpp",
+     33,
+     49
+    ],
+    [
+     "engine/core/tests/main.cpp",
+     28,
+     44
+    ],
+    [
+     "engine/patch/tests/main.cpp",
+     32,
+     48
+    ],
+    [
+     "engine/play/tests/main.cpp",
+     20,
+     36
     ]
    ]
   ],
@@ -444,6 +764,21 @@
    16,
    [
     [
+     "engine/source/tests/filter_tests.cpp",
+     190,
+     205
+    ],
+    [
+     "engine/source/tests/physical_tests.cpp",
+     113,
+     128
+    ]
+   ]
+  ],
+  [
+   16,
+   [
+    [
      "tools/durn_converter/main.cpp",
      393,
      408
@@ -452,21 +787,6 @@
      "tools/durn_converter/main.cpp",
      417,
      431
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "tools/engine_tests/main.cpp",
-     6374,
-     6389
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     6668,
-     6683
     ]
    ]
   ],
@@ -499,6 +819,21 @@
    15,
    [
     [
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     57,
+     71
+    ],
+    [
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     180,
+     194
+    ]
+   ]
+  ],
+  [
+   15,
+   [
+    [
      "engine/source/include/mforce/source/envelope/segment_source.h",
      9,
      23
@@ -521,21 +856,6 @@
    ]
   ],
   [
-   15,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     815,
-     829
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     940,
-     954
-    ]
-   ]
-  ],
-  [
    14,
    [
     [
@@ -552,6 +872,96 @@
      "engine/source/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
      3,
      24
+    ]
+   ]
+  ],
+  [
+   14,
+   [
+    [
+     "engine/source/tests/filter_tests.cpp",
+     192,
+     205
+    ],
+    [
+     "engine/source/tests/physical_tests.cpp",
+     115,
+     128
+    ]
+   ]
+  ],
+  [
+   14,
+   [
+    [
+     "tools/stk_ref/brass_ref.cpp",
+     61,
+     74
+    ],
+    [
+     "tools/stk_ref/clarinet_ref.cpp",
+     64,
+     77
+    ],
+    [
+     "tools/stk_ref/flute_ref.cpp",
+     61,
+     74
+    ]
+   ]
+  ],
+  [
+   14,
+   [
+    [
+     "tools/stk_ref/clarinet_ref.cpp",
+     64,
+     77
+    ],
+    [
+     "tools/stk_ref/flute_ref.cpp",
+     61,
+     74
+    ]
+   ]
+  ],
+  [
+   13,
+   [
+    [
+     "engine/shelved/tests/figure_compose_tests.cpp",
+     98,
+     110
+    ],
+    [
+     "engine/shelved/tests/figure_compose_tests.cpp",
+     246,
+     258
+    ],
+    [
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     44,
+     56
+    ],
+    [
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     167,
+     179
+    ]
+   ]
+  ],
+  [
+   13,
+   [
+    [
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     59,
+     71
+    ],
+    [
+     "engine/shelved/tests/figure_phrase_strategy_tests.cpp",
+     182,
+     194
     ]
    ]
   ],
@@ -577,61 +987,6 @@
      "engine/source/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
      3,
      23
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "tools/durn_converter/main.cpp",
-     396,
-     408
-    ],
-    [
-     "tools/durn_converter/main.cpp",
-     420,
-     431
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     98,
-     110
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     177,
-     189
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     733,
-     745
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     802,
-     814
-    ]
-   ]
-  ],
-  [
-   13,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     817,
-     829
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     942,
-     954
     ]
    ]
   ],
@@ -716,6 +1071,61 @@
    ]
   ],
   [
+   12,
+   [
+    [
+     "tools/stk_ref/blowhole_ref.cpp",
+     70,
+     81
+    ],
+    [
+     "tools/stk_ref/saxofony_ref.cpp",
+     72,
+     83
+    ]
+   ]
+  ],
+  [
+   12,
+   [
+    [
+     "tools/stk_ref/bowed_ref.cpp",
+     80,
+     91
+    ],
+    [
+     "tools/stk_ref/brass_ref.cpp",
+     63,
+     74
+    ],
+    [
+     "tools/stk_ref/clarinet_ref.cpp",
+     66,
+     77
+    ],
+    [
+     "tools/stk_ref/flute_ref.cpp",
+     63,
+     74
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "engine/patch/tests/graph_build_tests.cpp",
+     57,
+     67
+    ],
+    [
+     "engine/render/tests/instrument_build_tests.cpp",
+     47,
+     57
+    ]
+   ]
+  ],
+  [
    11,
    [
     [
@@ -752,426 +1162,6 @@
      "engine/source/include/mforce/source/oscillator/triangle_source.h",
      3,
      24
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/source/include/mforce/source/filter/bw_bandpass_filter.h",
-     7,
-     17
-    ],
-    [
-     "engine/source/include/mforce/source/filter/delay_filter.h",
-     6,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/filter/distorted_source.h",
-     6,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/oscillator/triangle_source.h",
-     3,
-     24
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/source/include/mforce/source/filter/distorted_source.h",
-     6,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/oscillator/triangle_source.h",
-     3,
-     24
-    ],
-    [
-     "engine/source/include/mforce/source/physical/allpass_resonator.h",
-     8,
-     47
-    ],
-    [
-     "engine/source/include/mforce/source/physical/ks_string.h",
-     9,
-     62
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/source/include/mforce/source/filter/distorted_source.h",
-     6,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/oscillator/triangle_source.h",
-     3,
-     24
-    ],
-    [
-     "engine/source/include/mforce/source/physical/allpass_resonator.h",
-     8,
-     47
-    ],
-    [
-     "engine/source/include/mforce/source/physical/ks_string.h",
-     9,
-     62
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "engine/source/include/mforce/source/modulator/repeating_source.h",
-     7,
-     17
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/averaging_evolution.h",
-     9,
-     17
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/eks_evolution.h",
-     10,
-     19
-    ],
-    [
-     "engine/source/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
-     8,
-     24
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
-     "tools/engine_tests/main.cpp",
-     6376,
-     6386
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     6670,
-     6680
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     7197,
-     7207
-    ]
-   ]
-  ],
-  [
-   10,
-   [
-    [
-     "engine/compose/include/mforce/compose/figure_transforms.h",
-     252,
-     261
-    ],
-    [
-     "engine/compose/include/mforce/compose/figure_transforms.h",
-     279,
-     288
-    ]
-   ]
-  ],
-  [
-   10,
-   [
-    [
-     "engine/compose/src/style_table_json.cpp",
-     21,
-     30
-    ],
-    [
-     "engine/compose/src/style_table_json.cpp",
-     34,
-     43
-    ]
-   ]
-  ],
-  [
-   10,
-   [
-    [
-     "engine/music/include/mforce/music/pitch_walker.h",
-     46,
-     55
-    ],
-    [
-     "engine/music/include/mforce/music/pitch_walker.h",
-     59,
-     68
-    ]
-   ]
-  ],
-  [
-   10,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     94,
-     103
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     798,
-     807
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     923,
-     932
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     1137,
-     1146
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "engine/compose/include/mforce/compose/chord_progression_builder.h",
-     56,
-     64
-    ],
-    [
-     "engine/compose/include/mforce/compose/chord_progression_builder.h",
-     67,
-     75
-    ],
-    [
-     "engine/compose/include/mforce/compose/chord_progression_builder.h",
-     78,
-     86
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "engine/source/include/mforce/source/physical/allpass_resonator.h",
-     126,
-     134
-    ],
-    [
-     "engine/source/include/mforce/source/physical/ks_string.h",
-     353,
-     361
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "tools/engine_tests/main.cpp",
-     1581,
-     1589
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     4974,
-     4982
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "tools/engine_tests/main.cpp",
-     6338,
-     6346
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     7055,
-     7063
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "tools/stk_ref/bandedwg_ref.cpp",
-     44,
-     52
-    ],
-    [
-     "tools/stk_ref/blowhole_ref.cpp",
-     44,
-     52
-    ],
-    [
-     "tools/stk_ref/bowed_ref.cpp",
-     49,
-     57
-    ],
-    [
-     "tools/stk_ref/brass_ref.cpp",
-     40,
-     48
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     90,
-     98
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     725,
-     733
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     794,
-     802
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     919,
-     927
-    ]
-   ]
-  ],
-  [
-   9,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     117,
-     125
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     817,
-     825
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     942,
-     950
-    ]
-   ]
-  ],
-  [
-   8,
-   [
-    [
-     "engine/shelved/include/mforce/shelved/connective_passage_strategy_json.h",
-     12,
-     19
-    ],
-    [
-     "engine/shelved/include/mforce/shelved/sequence_passage_strategy_json.h",
-     11,
-     18
-    ],
-    [
-     "engine/shelved/include/mforce/shelved/wandering_passage_strategy_json.h",
-     12,
-     19
-    ]
-   ]
-  ],
-  [
-   8,
-   [
-    [
-     "engine/shelved/include/mforce/shelved/connective_passage_strategy_json.h",
-     21,
-     28
-    ],
-    [
-     "engine/shelved/include/mforce/shelved/sequence_passage_strategy_json.h",
-     19,
-     26
-    ],
-    [
-     "engine/shelved/include/mforce/shelved/wandering_passage_strategy_json.h",
-     20,
-     27
-    ]
-   ]
-  ],
-  [
-   8,
-   [
-    [
-     "engine/source/include/mforce/source/filter/distorted_source.h",
-     9,
-     16
-    ],
-    [
-     "engine/source/include/mforce/source/oscillator/fm_source.h",
-     8,
-     24
-    ],
-    [
-     "engine/source/include/mforce/source/oscillator/triangle_source.h",
-     6,
-     24
-    ],
-    [
-     "engine/source/include/mforce/source/physical/allpass_resonator.h",
-     11,
-     47
-    ]
-   ]
-  ],
-  [
-   8,
-   [
-    [
-     "tools/engine_tests/main.cpp",
-     2465,
-     2472
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     2536,
-     2543
-    ]
-   ]
-  ],
-  [
-   8,
-   [
-    [
-     "tools/engine_tests/main.cpp",
-     6340,
-     6347
-    ],
-    [
-     "tools/engine_tests/main.cpp",
-     6625,
-     6632
     ]
    ]
   ]
@@ -1833,6 +1823,58 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/compose/tests/elaborate_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 109,
+   "longest_function": [
+    89,
+    "run_walk2_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/compose/tests/figure_transform_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 387,
+   "longest_function": [
+    36,
+    "test_pool_select"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/compose/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 65,
+   "longest_function": [
+    33,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/compose/tests/realization_strategy_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 59,
+   "longest_function": [
+    33,
+    "run_realization_strategy_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/contract/include/mforce/contract/instrument_class.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -2330,6 +2372,191 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/core/tests/alloc_probe_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 31,
+   "longest_function": [
+    22,
+    "run_alloc_probe_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/core/tests/driven_part_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 96,
+   "longest_function": [
+    41,
+    "run_driven_part_lifecycle_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "PinCounter",
+    "OrderProbe",
+    "OrderProbe",
+    "TwoPinPart"
+   ]
+  },
+  "engine/core/tests/dsp_primitive_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 344,
+   "longest_function": [
+    50,
+    "run_dsp_biquad_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "RawRef",
+    "DoublePoleRef",
+    "ChafeRef",
+    "ResonanceRef"
+   ]
+  },
+  "engine/core/tests/fixtures.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 129,
+   "longest_function": [
+    13,
+    "partials_twin::advance"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "TestHost",
+    "W",
+    "EnumTableProbe",
+    "StringProbe",
+    "ListProbe",
+    "CountingFeed",
+    "CheckProbe",
+    "RefusingProbe",
+    "ReseedProbe"
+   ]
+  },
+  "engine/core/tests/formant_factor_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 38,
+   "longest_function": [
+    22,
+    "run_formant_factor_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/core/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 55,
+   "longest_function": [
+    28,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/core/tests/pin_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 228,
+   "longest_function": [
+    37,
+    "run_pin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "PinProbe",
+    "Doubler",
+    "UnitRamp",
+    "PrepCounter",
+    "ManualHolder",
+    "ManualDoubler",
+    "ManualIdle",
+    "Counter"
+   ]
+  },
+  "engine/core/tests/ramp_hold_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 20,
+   "longest_function": [
+    13,
+    "run_ramp_hold_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/core/tests/segment_walk_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 41,
+   "longest_function": [
+    22,
+    "run_segment_walk_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/core/tests/spsc_queue_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 43,
+   "longest_function": [
+    32,
+    "run_spsc_queue_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/core/tests/string_setting_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 33,
+   "longest_function": [
+    23,
+    "run_string_setting_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/core/tests/test_support.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 23,
+   "longest_function": [
+    4,
+    "same_bits"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/music/include/mforce/music/basics.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -2577,6 +2804,97 @@
     "mforce::realize_phrase"
    ],
    "module": "music",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/music/tests/chord_pitch_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 67,
+   "longest_function": [
+    31,
+    "run_init_pitches_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/music/tests/embedded_score_text_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 49,
+   "longest_function": [
+    32,
+    "run_embedded_score_text_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/music/tests/fixtures.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 38,
+   "longest_function": [
+    24,
+    "realize_probe_piece"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/music/tests/harmony_timeline_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 40,
+   "longest_function": [
+    31,
+    "run_harmony_timeline_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/music/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 19,
+   "longest_function": [
+    10,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/music/tests/passage_parse_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 27,
+   "longest_function": [
+    21,
+    "run_passage_parse_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/music/tests/realize_events_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 35,
+   "longest_function": [
+    25,
+    "run_realize_events_tests"
+   ],
+   "module": "tests",
    "mutable_vars": 0,
    "types": []
   },
@@ -2943,6 +3261,197 @@
     "Table"
    ]
   },
+  "engine/patch/tests/blep_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 86,
+   "longest_function": [
+    21,
+    "run_dsp_blep_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/codec_refusal_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 309,
+   "longest_function": [
+    55,
+    "patch_codec::value_refusals"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Refused"
+   ]
+  },
+  "engine/patch/tests/codec_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 412,
+   "longest_function": [
+    51,
+    "run_codec_kind_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/envelope_form_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 76,
+   "longest_function": [
+    59,
+    "run_envelope_form_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/fixtures.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 39,
+   "longest_function": [
+    14,
+    "three_kinds::register_probes"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/graph_build_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 2,
+   "lines": 331,
+   "longest_function": [
+    51,
+    "run_build_fill_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 63,
+   "longest_function": [
+    32,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/patch_check_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 304,
+   "longest_function": [
+    45,
+    "patch_check::value_breaks"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Break"
+   ]
+  },
+  "engine/patch/tests/patch_record_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 138,
+   "longest_function": [
+    44,
+    "patch_records::patch_cases"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "PatchCase",
+    "FragmentCase"
+   ]
+  },
+  "engine/patch/tests/preset_curve_label_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 56,
+   "longest_function": [
+    40,
+    "run_preset_curve_label_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/registry_setup.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 23,
+   "longest_function": [
+    9,
+    "register_earlier_tests_probes"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/retired_spelling_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 48,
+   "longest_function": [
+    37,
+    "run_retired_spelling_table_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/test_support.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 42,
+   "longest_function": [
+    5,
+    "patch_codec::read_node"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/patch/tests/type_declaration_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 267,
+   "longest_function": [
+    42,
+    "run_type_declaration_accept_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "LateProbe"
+   ]
+  },
   "engine/perform/include/mforce/perform/conductor.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -3021,6 +3530,71 @@
     "ScoreWarnings"
    ]
   },
+  "engine/perform/tests/conductor_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 83,
+   "longest_function": [
+    48,
+    "run_conductor_performance_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/perform/tests/dun_realize_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 36,
+   "longest_function": [
+    27,
+    "run_dun_realize_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/perform/tests/embedded_score_perform_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 67,
+   "longest_function": [
+    39,
+    "run_perform_embedded_score_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/perform/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 17,
+   "longest_function": [
+    9,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/perform/tests/time_map_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 43,
+   "longest_function": [
+    23,
+    "run_time_map_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/play/include/mforce/play/play.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -3047,6 +3621,128 @@
     "mforce::play"
    ],
    "module": "play",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/play/tests/build_sound_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 98,
+   "longest_function": [
+    52,
+    "run_build_sound_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/play/tests/channel_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 122,
+   "longest_function": [
+    41,
+    "run_channel_source_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/play/tests/embedded_score_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 198,
+   "longest_function": [
+    59,
+    "run_embedded_score_delivery_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "LoadedInstrument"
+   ]
+  },
+  "engine/play/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 39,
+   "longest_function": [
+    20,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/play/tests/plain_part_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 155,
+   "longest_function": [
+    31,
+    "run_plain_sharing_multiplex_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/play/tests/play_piece_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 80,
+   "longest_function": [
+    41,
+    "run_play_piece_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/play/tests/retired_form_table_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 53,
+   "longest_function": [
+    44,
+    "run_retired_form_table_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/play/tests/test_support.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 95,
+   "longest_function": [
+    25,
+    "plain_parts::cases"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "RecordingInstrument",
+    "Case"
+   ]
+  },
+  "engine/play/tests/unrealized_warning_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 23,
+   "longest_function": [
+    11,
+    "run_play_unrealized_warning_test"
+   ],
+   "module": "tests",
    "mutable_vars": 0,
    "types": []
   },
@@ -3502,6 +4198,416 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/render/tests/allocation_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 238,
+   "longest_function": [
+    60,
+    "run_allocation_tests_partials"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/curve_table_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 325,
+   "longest_function": [
+    213,
+    "run_curve_table_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "CurveCase"
+   ]
+  },
+  "engine/render/tests/declared_load_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 230,
+   "longest_function": [
+    66,
+    "run_shaper_validate_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/dynamic_pin_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 167,
+   "longest_function": [
+    42,
+    "run_dynamic_pin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Plug"
+   ]
+  },
+  "engine/render/tests/enum_column_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 2,
+   "lines": 171,
+   "longest_function": [
+    86,
+    "run_enum_column_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/envelope_table_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 3,
+   "lines": 424,
+   "longest_function": [
+    327,
+    "run_envelope_table_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/fault_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 146,
+   "longest_function": [
+    64,
+    "run_fault_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/fixtures.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 158,
+   "longest_function": [
+    29,
+    "plain_parts::shared_cases"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "ScratchPatch",
+    "Chan",
+    "Shared"
+   ]
+  },
+  "engine/render/tests/generated_reader_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 264,
+   "longest_function": [
+    30,
+    "reader_twin::twin_text"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "TwinText",
+    "TwinResult"
+   ]
+  },
+  "engine/render/tests/instrument_build_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 203,
+   "longest_function": [
+    54,
+    "run_build_instrument_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Named"
+   ]
+  },
+  "engine/render/tests/live_player_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 276,
+   "longest_function": [
+    38,
+    "run_live_threads_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/load_refusal_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 213,
+   "longest_function": [
+    73,
+    "run_retired_key_refusal_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 151,
+   "longest_function": [
+    76,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/note_delivery_tests.cpp": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 8,
+   "lines": 355,
+   "longest_function": [
+    157,
+    "run_hold_delivery_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/onset_field_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 17,
+   "longest_function": [
+    10,
+    "run_onset_field_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/perform_node_field_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 2,
+   "lines": 205,
+   "longest_function": [
+    38,
+    "run_perform_node_field_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/performer_tests.cpp": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 63,
+   "longest_function": [
+    28,
+    "run_perform_source_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/plain_part_refusal_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 49,
+   "longest_function": [
+    30,
+    "run_plain_part_refusal_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/prepare_start_combine_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 217,
+   "longest_function": [
+    64,
+    "run_combine_mod_pin_split_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/prepare_start_filter_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 249,
+   "longest_function": [
+    46,
+    "run_vibrato_split_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/prepare_start_host_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 111,
+   "longest_function": [
+    52,
+    "run_wired_split_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/prepare_start_physical_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 149,
+   "longest_function": [
+    76,
+    "run_physical_split_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/prepare_start_source_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 238,
+   "longest_function": [
+    45,
+    "run_wavetable_split_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/prepare_start_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 206,
+   "longest_function": [
+    63,
+    "run_core_split_envelope_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/retired_form_load_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 229,
+   "longest_function": [
+    46,
+    "run_declared_reader_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Case"
+   ]
+  },
+  "engine/render/tests/review_gap_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 112,
+   "longest_function": [
+    45,
+    "run_review_gap_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/setting_loader_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 2,
+   "lines": 149,
+   "longest_function": [
+    56,
+    "run_validate_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/shared_source_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 2,
+   "lines": 78,
+   "longest_function": [
+    31,
+    "run_shared_source_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/render/tests/test_support.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 319,
+   "longest_function": [
+    24,
+    "hold_patch_json"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "LoadedInstrument",
+    "Counter",
+    "PinCounter",
+    "SplitResult"
+   ]
+  },
+  "engine/render/tests/voice_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 6,
+   "lines": 294,
+   "longest_function": [
+    62,
+    "run_onset_trigger_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/shelved/include/mforce/shelved/alternating_figure_strategy.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -3878,6 +4984,143 @@
     "mforce::register_shelved"
    ],
    "module": "shelved",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/tests/compose_kit_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 113,
+   "longest_function": [
+    39,
+    "run_compose_request_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "TemplateFootprint"
+   ]
+  },
+  "engine/shelved/tests/figure_compose_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 2,
+   "lines": 287,
+   "longest_function": [
+    57,
+    "test_smoke_round_trip"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "ComposeResult"
+   ]
+  },
+  "engine/shelved/tests/figure_helpers.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 32,
+   "longest_function": [
+    20,
+    "expect_figures_equal"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/tests/figure_phrase_strategy_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 3,
+   "lines": 297,
+   "longest_function": [
+    46,
+    "compose_elaborated"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "TwoFigureResult",
+    "ElaboratedResult"
+   ]
+  },
+  "engine/shelved/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 71,
+   "longest_function": [
+    36,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/tests/melody_profile_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 306,
+   "longest_function": [
+    273,
+    "run_walk3_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/tests/melody_shaping_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 246,
+   "longest_function": [
+    208,
+    "run_walk1_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/tests/passage_melody_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 149,
+   "longest_function": [
+    133,
+    "run_passage_melody_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/tests/strategy_settings_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 334,
+   "longest_function": [
+    42,
+    "settings_cases"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/shelved/tests/test_support.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 73,
+   "longest_function": [
+    16,
+    "compose_probe_json"
+   ],
+   "module": "tests",
    "mutable_vars": 0,
    "types": []
   },
@@ -5309,6 +6552,537 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/source/tests/additive_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 366,
+   "longest_function": [
+    40,
+    "run_additive_explicit_array_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/combine_mod_pin_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 318,
+   "longest_function": [
+    60,
+    "run_combine_mod_default_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Doubler",
+    "LengthProbe"
+   ]
+  },
+  "engine/source/tests/combine_mod_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 256,
+   "longest_function": [
+    75,
+    "run_combine_mod_behavior_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/component_root_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 34,
+   "longest_function": [
+    18,
+    "run_component_root_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/curve_node_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 136,
+   "longest_function": [
+    36,
+    "run_curve_expr_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/delay_loop_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 219,
+   "longest_function": [
+    88,
+    "run_loop_compensation_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/envelope_pin_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 110,
+   "longest_function": [
+    43,
+    "run_envelope_pin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/envelope_retrigger_tests.cpp": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 72,
+   "longest_function": [
+    29,
+    "run_release_relayout_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/evolution_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 370,
+   "longest_function": [
+    56,
+    "run_evolution_live_read_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/filter_design_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 155,
+   "longest_function": [
+    50,
+    "run_dsp_biquad_recipe_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "BwRef"
+   ]
+  },
+  "engine/source/tests/filter_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 393,
+   "longest_function": [
+    67,
+    "run_filter_behavior_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/fixtures.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 163,
+   "longest_function": [
+    11,
+    "stages_are"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "PhasedRow",
+    "StageRow"
+   ]
+  },
+  "engine/source/tests/formant_peaks_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 57,
+   "longest_function": [
+    33,
+    "run_formant_peaks_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/formant_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 228,
+   "longest_function": [
+    64,
+    "run_formant_sequence_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "StepSource"
+   ]
+  },
+  "engine/source/tests/input_list_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 51,
+   "longest_function": [
+    37,
+    "run_input_list_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/list_node_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 548,
+   "longest_function": [
+    181,
+    "run_phased_list_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Feed",
+    "MultiCase",
+    "Row",
+    "PhasedCase"
+   ]
+  },
+  "engine/source/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 201,
+   "longest_function": [
+    101,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/memo_tap_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 238,
+   "longest_function": [
+    74,
+    "run_tap_reading_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/multiplex_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 72,
+   "longest_function": [
+    36,
+    "run_multiplex_builder_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/no_throw_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 73,
+   "longest_function": [
+    53,
+    "run_no_throw_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/node_twin_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 253,
+   "longest_function": [
+    40,
+    "run_registry_built_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "LineFeed"
+   ]
+  },
+  "engine/source/tests/noise_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 269,
+   "longest_function": [
+    59,
+    "run_shaped_draw_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/output_part_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 2,
+   "lines": 61,
+   "longest_function": [
+    41,
+    "run_output_part_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/partial_motion_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 401,
+   "longest_function": [
+    114,
+    "run_partial_layout_twin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/perform_node_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 36,
+   "longest_function": [
+    22,
+    "run_perform_node_type_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/physical_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 228,
+   "longest_function": [
+    52,
+    "run_physical_pin_shape_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/pierce_filter_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 101,
+   "longest_function": [
+    58,
+    "run_pierce_passivity_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Playback"
+   ]
+  },
+  "engine/source/tests/pin_order_probe.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 17,
+   "longest_function": [
+    1,
+    "OrderProbe::type_name"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "OrderProbe"
+   ]
+  },
+  "engine/source/tests/range_var_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 103,
+   "longest_function": [
+    45,
+    "run_range_var_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/registry_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 245,
+   "longest_function": [
+    59,
+    "run_registry_family_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "FamilyRow",
+    "MenuRow"
+   ]
+  },
+  "engine/source/tests/shaper_tests.cpp": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 200,
+   "longest_function": [
+    42,
+    "run_shaper_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/source/tests/test_support.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 183,
+   "longest_function": [
+    9,
+    "pin_order"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "UnitRamp",
+    "Counter",
+    "PinCounter",
+    "OrderProbe",
+    "Row",
+    "NoiseFeed"
+   ]
+  },
+  "engine/source/tests/wavetable_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 124,
+   "longest_function": [
+    38,
+    "run_wavetable_pin_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/testing/include/mforce/testing/alloc_probe.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 20,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "testing",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/testing/include/mforce/testing/check.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 39,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "testing",
+   "mutable_vars": 0,
+   "types": [
+    "Test",
+    "Tally",
+    "RequireFailed"
+   ]
+  },
+  "engine/testing/src/alloc_probe.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 116,
+   "longest_function": [
+    12,
+    "record"
+   ],
+   "module": "testing",
+   "mutable_vars": 5,
+   "types": []
+  },
+  "engine/testing/src/check.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 63,
+   "longest_function": [
+    24,
+    "mforce::testing::run_tests"
+   ],
+   "module": "testing",
+   "mutable_vars": 1,
+   "types": []
+  },
+  "engine/testing/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 59,
+   "longest_function": [
+    19,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Outcome"
+   ]
+  },
   "engine/util/include/mforce/util/fft.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -5504,6 +7278,32 @@
     "VoicingSelector"
    ]
   },
+  "engine/voicing/tests/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 11,
+   "longest_function": [
+    6,
+    "main"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/voicing/tests/profile_selector_tests.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 57,
+   "longest_function": [
+    37,
+    "run_profile_selector_capture_tests"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": []
+  },
   "tools/alloc_gate/main.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -5520,32 +7320,6 @@
     "Result",
     "Event"
    ]
-  },
-  "tools/alloc_probe/alloc_probe.cpp": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 116,
-   "longest_function": [
-    12,
-    "record"
-   ],
-   "module": "tests",
-   "mutable_vars": 5,
-   "types": []
-  },
-  "tools/alloc_probe/alloc_probe.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 19,
-   "longest_function": [
-    0,
-    ""
-   ],
-   "module": "tests",
-   "mutable_vars": 0,
-   "types": []
   },
   "tools/durn_converter/main.cpp": {
    "changelog_comments": 0,
@@ -5647,78 +7421,6 @@
     "FigureUnit",
     "ScaleMap",
     "ParseResult"
-   ]
-  },
-  "tools/engine_tests/main.cpp": {
-   "changelog_comments": 4,
-   "const_cast": 0,
-   "dynamic_cast": 39,
-   "lines": 16400,
-   "longest_function": [
-    327,
-    "run_envelope_table_tests"
-   ],
-   "module": "tests",
-   "mutable_vars": 1,
-   "types": [
-    "RawRef",
-    "DoublePoleRef",
-    "ChafeRef",
-    "ResonanceRef",
-    "BwRef",
-    "Playback",
-    "LoadedInstrument",
-    "RecordingInstrument",
-    "ScratchPatch",
-    "TemplateFootprint",
-    "PinProbe",
-    "Doubler",
-    "UnitRamp",
-    "PrepCounter",
-    "ManualHolder",
-    "ManualDoubler",
-    "ManualIdle",
-    "TestHost",
-    "Counter",
-    "PinCounter",
-    "OrderProbe",
-    "PhasedRow",
-    "LengthProbe",
-    "SplitResult",
-    "StageRow",
-    "CurveCase",
-    "Plug",
-    "W",
-    "OrderProbe",
-    "TwoPinPart",
-    "Row",
-    "EnumTableProbe",
-    "StringProbe",
-    "ListProbe",
-    "CountingFeed",
-    "CheckProbe",
-    "RefusingProbe",
-    "StepSource",
-    "ReseedProbe",
-    "FamilyRow",
-    "MenuRow",
-    "NoiseFeed",
-    "LineFeed",
-    "Feed",
-    "MultiCase",
-    "Row",
-    "PhasedCase",
-    "Chan",
-    "Case",
-    "Shared",
-    "PatchCase",
-    "FragmentCase",
-    "LateProbe",
-    "Break",
-    "Refused",
-    "Named",
-    "TwinText",
-    "TwinResult"
    ]
   },
   "tools/mforce_cli/explore.cpp": {
@@ -5914,23 +7616,6 @@
     "Variant"
    ]
   },
-  "tools/test_figures/main.cpp": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 5,
-   "lines": 1202,
-   "longest_function": [
-    109,
-    "run_render"
-   ],
-   "module": "tests",
-   "mutable_vars": 2,
-   "types": [
-    "ComposeResult",
-    "TwoFigureResult",
-    "ElaboratedResult"
-   ]
-  },
   "tools/wav_check.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -5949,14 +7634,14 @@
  "summary": {
   "changelog_comments": 77,
   "const_cast": 1,
-  "duplicate_blocks": 119,
+  "duplicate_blocks": 140,
   "dynamic_cast": 54,
-  "file_level_mutable_vars": 24,
-  "files": 312,
-  "files_over_limit": 10,
-  "functions_over_limit": 52,
+  "file_level_mutable_vars": 22,
+  "files": 439,
+  "files_over_limit": 8,
+  "functions_over_limit": 51,
   "include_violations": 0,
-  "lines": 57146,
+  "lines": 59248,
   "unmapped_files": 0
  }
 }

@@ -1,0 +1,151 @@
+// The render tests, in the order they run.
+#include "mforce/testing/check.h"
+
+void run_allocation_tests_partials();
+void run_allocation_tests_tables();
+void run_allocation_tests_nodes();
+void run_allocation_tests_pins();
+void run_structural_setting_tests();
+void run_structural_push_refusal_tests();
+void run_param_map_refusal_tests();
+void run_retired_key_refusal_tests();
+void run_dynamic_pin_tests();
+void run_wiring_door_tests();
+void run_formant_part_tests();
+void run_formant_peaks_load_tests();
+void run_review_gap_tests();
+void run_plain_part_refusal_tests();
+void run_plain_sharing_refusal_tests();
+void run_retired_spelling_load_tests();
+void run_perform_node_field_tests();
+void run_review_gap_lifecycle_tests();
+void run_enum_column_tests();
+void run_string_setting_loader_tests();
+void run_input_list_loader_tests();
+void run_validate_tests();
+void run_prepare_start_tests();
+void run_string_pin_refusal_tests();
+void run_envelope_form_loader_tests();
+void run_envelope_table_tests();
+void run_curve_table_tests();
+void run_retired_type_message_tests();
+void run_fault_tests();
+void run_wire_rejection_tests();
+void run_shared_source_tests();
+void run_onset_field_tests();
+void run_hold_delivery_tests();
+void run_instrument_play_tests();
+void run_drum_kit_play_tests();
+void run_ring_out_tests();
+void run_delivery_choice_tests();
+void run_multiplex_held_line_tests();
+void run_node_capture_tests();
+void run_live_classic_tests();
+void run_live_line_tests();
+void run_live_steal_tests();
+void run_live_note_off_tests();
+void run_live_volume_tests();
+void run_live_steal_policy_tests();
+void run_live_key_up_tests();
+void run_live_threads_tests();
+void run_note_wire_tests();
+void run_multiplex_bend_tests();
+void run_note_reseed_tests();
+void run_voice_pool_tests();
+void run_name_gate_tests();
+void run_onset_trigger_tests();
+void run_perform_source_tests();
+void run_dsp_performer_smoother_tests();
+void run_name_gate_name_tests();
+void run_shaper_validate_tests();
+void run_declared_default_load_tests();
+void run_list_node_loader_tests();
+void run_expand_rule_loader_tests();
+void run_retired_form_load_tests();
+void run_feed_shape_refusal_tests();
+void run_declared_reader_tests();
+void run_branch_key_tests();
+void run_trigger_value_tests();
+void run_mixer_signal_fault_tests();
+void run_build_template_reader_tests();
+void run_build_template_closure_tests();
+void run_build_duplicate_id_tests();
+void run_build_instrument_tests();
+void run_generated_reader_twin_tests();
+
+int main() {
+  static constexpr mforce::testing::Test kTests[] = {
+    {"run_allocation_tests_partials", run_allocation_tests_partials},
+    {"run_allocation_tests_tables", run_allocation_tests_tables},
+    {"run_allocation_tests_nodes", run_allocation_tests_nodes},
+    {"run_allocation_tests_pins", run_allocation_tests_pins},
+    {"run_structural_setting_tests", run_structural_setting_tests},
+    {"run_structural_push_refusal_tests", run_structural_push_refusal_tests},
+    {"run_param_map_refusal_tests", run_param_map_refusal_tests},
+    {"run_retired_key_refusal_tests", run_retired_key_refusal_tests},
+    {"run_dynamic_pin_tests", run_dynamic_pin_tests},
+    {"run_wiring_door_tests", run_wiring_door_tests},
+    {"run_formant_part_tests", run_formant_part_tests},
+    {"run_formant_peaks_load_tests", run_formant_peaks_load_tests},
+    {"run_review_gap_tests", run_review_gap_tests},
+    {"run_plain_part_refusal_tests", run_plain_part_refusal_tests},
+    {"run_plain_sharing_refusal_tests", run_plain_sharing_refusal_tests},
+    {"run_retired_spelling_load_tests", run_retired_spelling_load_tests},
+    {"run_perform_node_field_tests", run_perform_node_field_tests},
+    {"run_review_gap_lifecycle_tests", run_review_gap_lifecycle_tests},
+    {"run_enum_column_tests", run_enum_column_tests},
+    {"run_string_setting_loader_tests", run_string_setting_loader_tests},
+    {"run_input_list_loader_tests", run_input_list_loader_tests},
+    {"run_validate_tests", run_validate_tests},
+    {"run_prepare_start_tests", run_prepare_start_tests},
+    {"run_string_pin_refusal_tests", run_string_pin_refusal_tests},
+    {"run_envelope_form_loader_tests", run_envelope_form_loader_tests},
+    {"run_envelope_table_tests", run_envelope_table_tests},
+    {"run_curve_table_tests", run_curve_table_tests},
+    {"run_retired_type_message_tests", run_retired_type_message_tests},
+    {"run_fault_tests", run_fault_tests},
+    {"run_wire_rejection_tests", run_wire_rejection_tests},
+    {"run_shared_source_tests", run_shared_source_tests},
+    {"run_onset_field_tests", run_onset_field_tests},
+    {"run_hold_delivery_tests", run_hold_delivery_tests},
+    {"run_instrument_play_tests", run_instrument_play_tests},
+    {"run_drum_kit_play_tests", run_drum_kit_play_tests},
+    {"run_ring_out_tests", run_ring_out_tests},
+    {"run_delivery_choice_tests", run_delivery_choice_tests},
+    {"run_multiplex_held_line_tests", run_multiplex_held_line_tests},
+    {"run_node_capture_tests", run_node_capture_tests},
+    {"run_live_classic_tests", run_live_classic_tests},
+    {"run_live_line_tests", run_live_line_tests},
+    {"run_live_steal_tests", run_live_steal_tests},
+    {"run_live_note_off_tests", run_live_note_off_tests},
+    {"run_live_volume_tests", run_live_volume_tests},
+    {"run_live_steal_policy_tests", run_live_steal_policy_tests},
+    {"run_live_key_up_tests", run_live_key_up_tests},
+    {"run_live_threads_tests", run_live_threads_tests},
+    {"run_note_wire_tests", run_note_wire_tests},
+    {"run_multiplex_bend_tests", run_multiplex_bend_tests},
+    {"run_note_reseed_tests", run_note_reseed_tests},
+    {"run_voice_pool_tests", run_voice_pool_tests},
+    {"run_name_gate_tests", run_name_gate_tests},
+    {"run_onset_trigger_tests", run_onset_trigger_tests},
+    {"run_perform_source_tests", run_perform_source_tests},
+    {"run_dsp_performer_smoother_tests", run_dsp_performer_smoother_tests},
+    {"run_name_gate_name_tests", run_name_gate_name_tests},
+    {"run_shaper_validate_tests", run_shaper_validate_tests},
+    {"run_declared_default_load_tests", run_declared_default_load_tests},
+    {"run_list_node_loader_tests", run_list_node_loader_tests},
+    {"run_expand_rule_loader_tests", run_expand_rule_loader_tests},
+    {"run_retired_form_load_tests", run_retired_form_load_tests},
+    {"run_feed_shape_refusal_tests", run_feed_shape_refusal_tests},
+    {"run_declared_reader_tests", run_declared_reader_tests},
+    {"run_branch_key_tests", run_branch_key_tests},
+    {"run_trigger_value_tests", run_trigger_value_tests},
+    {"run_mixer_signal_fault_tests", run_mixer_signal_fault_tests},
+    {"run_build_template_reader_tests", run_build_template_reader_tests},
+    {"run_build_template_closure_tests", run_build_template_closure_tests},
+    {"run_build_duplicate_id_tests", run_build_duplicate_id_tests},
+    {"run_build_instrument_tests", run_build_instrument_tests},
+    {"run_generated_reader_twin_tests", run_generated_reader_twin_tests},
+  };
+  return mforce::testing::run_tests(kTests);
+}

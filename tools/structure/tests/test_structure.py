@@ -161,6 +161,14 @@ class KnownAnswerTests(unittest.TestCase):
             self.assertTrue(covering, f"no duplicate block covers line {a}")
             self.assertGreaterEqual(max(covering), 10)
 
+    def test_a_module_tests_folder_belongs_to_tests(self):
+        # The longest listed path wins: engine/render/tests/ inside engine/render/.
+        m = ModuleMap.load()
+        self.assertEqual(m.owner("engine/render/tests/voice_tests.cpp"), "tests")
+        self.assertEqual(m.owner("engine/render/src/voice.cpp"), "render")
+        self.assertEqual(m.owner("engine/testing/tests/main.cpp"), "tests")
+        self.assertEqual(m.owner("engine/testing/src/check.cpp"), "testing")
+
     def test_every_tracked_source_is_on_a_module(self):
         import subprocess
         from check import SOURCE_GLOBS
@@ -198,7 +206,7 @@ class ModuleTargetTests(unittest.TestCase):
             found = module_uses(cmake.read_text(encoding="utf-8"))
             if found:
                 made[found[0]] = found[1]
-        engine_modules = {mod["name"] for mod in m.modules if mod["paths"][0].startswith("engine/")}
+        engine_modules = {mod["name"] for mod in m.modules if f"engine/{mod['name']}/" in mod["paths"]}
         self.assertEqual(sorted(made), sorted(engine_modules), "modules made by CMake vs modules in the map")
         for name, uses in sorted(made.items()):
             may = m.by_name[name]["may_include"]

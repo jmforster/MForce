@@ -3,8 +3,8 @@
   python tools/gates.py            run everything (15-30 minutes)
   python tools/gates.py --fast     the CTest set and the allocation gate only
 
-The CTest set (engine_tests, test_figures, the meter and its unit tests,
-the tool tests) is run through ctest, so CMakeLists.txt stays the one list
+The CTest set (the test programs, the meter and its unit tests, the tool
+tests) is run through ctest, so CMakeLists.txt stays the one list
 of tests. The allocation gate and the slow gate, the null gate, are the
 repo's own scripts. A gate passes when its exit code
 is 0; the summary lists PASS or FAIL per gate and the exit code is 1 if
@@ -21,7 +21,7 @@ PY = sys.executable
 CTEST = shutil.which("ctest") or "ctest"
 
 FAST = [
-    ("ctest (engine_tests, test_figures, structure meter)", [CTEST, "--test-dir", str(ROOT / "build"), "-C", "Release"]),
+    ("ctest (the test programs, structure meter)", [CTEST, "--test-dir", str(ROOT / "build"), "-C", "Release"]),
     ("allocation gate (no allocation between note-on and the last sample)",
      [PY, "tools/alloc_gate.py", "--jobs", "3", "patches/library", "patches/baselines"]),
 ]

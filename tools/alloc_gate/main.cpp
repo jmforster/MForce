@@ -13,7 +13,7 @@
 // renders each channel's source, whose adapter calls start and next. A patch
 // that allocates is reported with its count and the first allocation's call
 // stack; the exit code is 1 if any did, 2 if any failed to load.
-#include "alloc_probe.h"
+#include "mforce/testing/alloc_probe.h"
 #include "mforce/patch/patch_json.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"

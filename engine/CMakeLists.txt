@@ -7,6 +7,8 @@
 add_library(mforce_json INTERFACE)
 target_include_directories(mforce_json SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
+# The test harness first: every module's test program links it.
+add_subdirectory(testing)
 add_subdirectory(core)
 add_subdirectory(contract)
 add_subdirectory(util)
