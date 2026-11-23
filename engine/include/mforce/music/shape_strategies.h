@@ -31,21 +31,30 @@ namespace mforce {
 // ====== ShapeCadentialApproachStrategy ======================================
 class ShapeCadentialApproachStrategy : public FigureStrategy {
 public:
-  std::string name() const override { return "shape_cadential_approach"; }
+  static constexpr const char* kName = "shape_cadential_approach";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
   MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
 // ====== ShapeSkippingStrategy ===============================================
 class ShapeSkippingStrategy : public FigureStrategy {
 public:
-  std::string name() const override { return "shape_skipping"; }
+  static constexpr const char* kName = "shape_skipping";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
   MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
 // ====== ShapeSteppingStrategy ===============================================
 class ShapeSteppingStrategy : public FigureStrategy {
 public:
-  std::string name() const override { return "shape_stepping"; }
+  static constexpr const char* kName = "shape_stepping";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
   MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 

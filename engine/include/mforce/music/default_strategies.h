@@ -47,7 +47,10 @@ inline PoolFigureBuilder* markov_pool_singleton() {
 
 class DefaultFigureStrategy : public FigureStrategy {
 public:
-  std::string name() const override { return "default_figure"; }
+  static constexpr const char* kName = "default_figure";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
 
   // Markov atom pool is the default source for generated figures; on a pool
   // no-match it falls back to procedural generation. Set false (or the env var
@@ -234,7 +237,10 @@ inline FigureShape DefaultFigureStrategy::choose_shape(
 // ---------------------------------------------------------------------------
 class DefaultPassageStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "default_passage"; }
+  static constexpr const char* kName = "default_passage";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
 
   Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
 };
@@ -261,7 +267,10 @@ public:
 // ---------------------------------------------------------------------------
 class DefaultPhraseStrategy : public PhraseStrategy {
 public:
-  std::string name() const override { return "default_phrase"; }
+  static constexpr const char* kName = "default_phrase";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
 
   Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
   static int degree_in_scale(const Pitch& pitch, const Scale& scale);

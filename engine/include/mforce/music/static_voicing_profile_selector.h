@@ -1,18 +1,22 @@
 #pragma once
+#include "mforce/music/no_settings.h"
 #include "mforce/music/voicing_profile_selector.h"
 
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// StaticVoicingProfileSelector — returns the configured baseline profile
-// unchanged for every chord. The implicit default when no profile selector
-// name is set on the PassageTemplate. Equivalent to pre-selector behavior.
+// StaticVoicingProfileSelector — returns the passage's baseline profile
+// unchanged for every chord. The selector used when a passage names none.
 // ---------------------------------------------------------------------------
 class StaticVoicingProfileSelector : public VoicingProfileSelector {
  public:
-  void configure(const VoicingProfile& baseline) { baseline_ = baseline; }
+  static constexpr const char* kName = "static";
+  using Settings = NoSettings;  // the baseline is the passage's voicingProfile
 
-  std::string name() const override { return "static"; }
+  explicit StaticVoicingProfileSelector(const VoicingProfile& baseline)
+      : baseline_(baseline) {}
+
+  std::string name() const override { return kName; }
   void reset(uint32_t /*seed*/) override {}
 
   VoicingProfile profile_for_chord(int /*chordIdx*/,

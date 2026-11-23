@@ -1,14 +1,34 @@
 #pragma once
 #include "mforce/music/strategy.h"
-#include "mforce/music/strategy_registry.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/piece_utils.h"
 #include "mforce/music/random_figure_builder.h"
 #include "mforce/music/figure_transforms.h"
 #include <iostream>
+#include <stdexcept>
 
 namespace mforce {
+
+// ===========================================================================
+// TwoFigurePhraseSettings — base + transform phrase
+// ===========================================================================
+
+struct TwoFigurePhraseSettings {
+    enum class Method { ByCount, ByLength, Singleton };
+    Method method{Method::ByCount};
+    int   count{4};        // used when method == ByCount
+    float length{4.0f};    // used when method == ByLength
+
+    Constraints constraints;
+
+    // 0 means "use phraseTmpl.seed, else a deterministic default"
+    uint32_t seed{0};
+
+    // How figure 2 is derived from figure 1.
+    TransformOp transform{TransformOp::Invert};
+    int transformParam{0};
+};
 
 // ---------------------------------------------------------------------------
 // TwoFigurePhraseStrategy — builds figure 1 via RFB, derives figure 2 via
@@ -18,7 +38,10 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 class TwoFigurePhraseStrategy : public PhraseStrategy {
 public:
-  std::string name() const override { return "two_figure_phrase"; }
+  static constexpr const char* kName = "two_figure_phrase";
+  using Settings = TwoFigurePhraseSettings;
+
+  std::string name() const override { return kName; }
   Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 
@@ -32,18 +55,16 @@ inline Phrase TwoFigurePhraseStrategy::compose_phrase(
     phrase.startingPitch = ::mforce::piece_utils::pitch_before(locus);
   }
 
-  if (!phraseTmpl.twoFigureConfig) {
-    std::cerr << "TwoFigurePhraseStrategy: phraseTmpl.twoFigureConfig is empty; "
-                 "returning empty phrase\n";
-    return phrase;
+  if (!phraseTmpl.strategy.settings.has_value()) {
+    throw std::runtime_error("two_figure_phrase: given no settings");
   }
   if (!phraseTmpl.figures.empty()) {
     std::cerr << "TwoFigurePhraseStrategy: ignoring phraseTmpl.figures ("
               << phraseTmpl.figures.size()
-              << " entries) — strategy uses twoFigureConfig\n";
+              << " entries) — strategy uses its settings\n";
   }
 
-  const TwoFigurePhraseConfig& cfg = *phraseTmpl.twoFigureConfig;
+  const Settings cfg = settings_of<Settings>(phraseTmpl.strategy);
 
   uint32_t seed = cfg.seed != 0 ? cfg.seed
                 : phraseTmpl.seed != 0 ? phraseTmpl.seed
@@ -52,13 +73,13 @@ inline Phrase TwoFigurePhraseStrategy::compose_phrase(
 
   MelodicFigure fig1;
   switch (cfg.method) {
-    case TwoFigurePhraseConfig::Method::ByCount:
+    case TwoFigurePhraseSettings::Method::ByCount:
       fig1 = rfb.build_by_count(cfg.count, cfg.constraints);
       break;
-    case TwoFigurePhraseConfig::Method::ByLength:
+    case TwoFigurePhraseSettings::Method::ByLength:
       fig1 = rfb.build_by_length(cfg.length, cfg.constraints);
       break;
-    case TwoFigurePhraseConfig::Method::Singleton:
+    case TwoFigurePhraseSettings::Method::Singleton:
       fig1 = rfb.build_singleton(cfg.constraints);
       break;
   }

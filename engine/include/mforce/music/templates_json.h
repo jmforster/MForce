@@ -2,7 +2,20 @@
 #include "mforce/music/templates.h"
 #include "mforce/music/music_json.h"
 #include "mforce/music/figure_constraints.h"
+#include "mforce/music/realization_strategy.h"
+#include "mforce/music/strategy.h"
+#include "mforce/music/strategy_choice.h"
+#include "mforce/music/voicing_json.h"
+#include "mforce/music/voicing_profile_selector.h"
 #include <nlohmann/json.hpp>
+#include <any>
+#include <functional>
+#include <initializer_list>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <typeinfo>
 
 namespace mforce {
 
@@ -520,140 +533,197 @@ inline void from_json(const json& j, Motif& m) {
 }
 
 // ===========================================================================
-// PeriodPhraseConfig
+// SettingsCodecs — for each level and name a template can choose, how that
+// strategy's settings are read from and written to JSON
 // ===========================================================================
 
-inline void to_json(json& j, const PeriodPhraseConfig& c) {
-  j["basicIdea"] = c.basicIdea;
-  j["antecedentTail"] = c.antecedentTail;
-  j["consequentTail"] = c.consequentTail;
-  if (c.halfCadenceTarget != 4) j["halfCadenceTarget"] = c.halfCadenceTarget;
-}
+// The four places a template names a strategy.
+enum class StrategyLevel { Phrase, Passage, Realization, ProfileSelector };
 
-inline void from_json(const json& j, PeriodPhraseConfig& c) {
-  from_json(j.at("basicIdea"), c.basicIdea);
-  from_json(j.at("antecedentTail"), c.antecedentTail);
-  from_json(j.at("consequentTail"), c.consequentTail);
-  c.halfCadenceTarget = j.value("halfCadenceTarget", 4);
-}
-
-// ===========================================================================
-// SentencePhraseConfig
-// ===========================================================================
-
-inline void to_json(json& j, const SentencePhraseConfig& c) {
-  j["basicIdea"] = c.basicIdea;
-  j["continuation"] = c.continuation;
-  if (c.variationTransposition != 0) j["variationTransposition"] = c.variationTransposition;
-}
-
-inline void from_json(const json& j, SentencePhraseConfig& c) {
-  from_json(j.at("basicIdea"), c.basicIdea);
-  from_json(j.at("continuation"), c.continuation);
-  c.variationTransposition = j.value("variationTransposition", 0);
-}
-
-// ===========================================================================
-// TwoFigurePhraseConfig
-// ===========================================================================
-
-inline void to_json(json& j, const TwoFigurePhraseConfig& c) {
-    switch (c.method) {
-        case TwoFigurePhraseConfig::Method::ByCount:   j["method"] = "by_count";   break;
-        case TwoFigurePhraseConfig::Method::ByLength:  j["method"] = "by_length";  break;
-        case TwoFigurePhraseConfig::Method::Singleton: j["method"] = "singleton";  break;
+inline const char* level_label(StrategyLevel level) {
+    switch (level) {
+        case StrategyLevel::Phrase:          return "phrase strategy";
+        case StrategyLevel::Passage:         return "passage strategy";
+        case StrategyLevel::Realization:     return "realization strategy";
+        case StrategyLevel::ProfileSelector: return "voicing profile selector";
     }
-    if (c.count != 4)     j["count"]  = c.count;
-    if (c.length != 4.0f) j["length"] = c.length;
-    j["constraints"] = c.constraints;
-    if (c.seed != 0) j["seed"] = c.seed;
-    j["transform"] = c.transform;
-    if (c.transformParam != 0) j["transformParam"] = c.transformParam;
+    return "strategy";
 }
 
-inline void from_json(const json& j, TwoFigurePhraseConfig& c) {
-    auto methodStr = j.value("method", std::string("by_count"));
-    if      (methodStr == "by_count")   c.method = TwoFigurePhraseConfig::Method::ByCount;
-    else if (methodStr == "by_length")  c.method = TwoFigurePhraseConfig::Method::ByLength;
-    else if (methodStr == "singleton")  c.method = TwoFigurePhraseConfig::Method::Singleton;
-    else                                c.method = TwoFigurePhraseConfig::Method::ByCount;
-    c.count  = j.value("count", 4);
-    c.length = j.value("length", 4.0f);
-    if (j.contains("constraints")) from_json(j.at("constraints"), c.constraints);
-    c.seed = j.value("seed", 0u);
-    if (j.contains("transform")) c.transform = j.at("transform").get<TransformOp>();
-    c.transformParam = j.value("transformParam", 0);
+class SettingsCodecs;
+
+// A settings type's JSON functions: to_json / from_json found by ADL, or,
+// for a type that holds templates, the forms that take the codecs.
+template <class S>
+void read_settings(const json& j, S& s, const SettingsCodecs& codecs) {
+    if constexpr (requires { from_json(j, s, codecs); }) from_json(j, s, codecs);
+    else from_json(j, s);
+}
+
+template <class S>
+json write_settings(const S& s, const SettingsCodecs& codecs) {
+    json j;
+    if constexpr (requires { to_json(j, s, codecs); }) to_json(j, s, codecs);
+    else to_json(j, s);
+    return j;
+}
+
+class SettingsCodecs {
+public:
+    // Registers Strategy::kName at Strategy's level, with the JSON
+    // functions of Strategy::Settings (none for NoSettings).
+    template <class Strategy> void add() {
+        using S = typename Strategy::Settings;
+        Entry e;
+        if constexpr (!std::is_same_v<S, NoSettings>) {
+            e.read = [](const json& j, const SettingsCodecs& c) -> std::any {
+                S s{};
+                read_settings(j, s, c);
+                return s;
+            };
+            e.write = [](const std::any& a, const SettingsCodecs& c) -> json {
+                const S* s = std::any_cast<S>(&a);
+                if (!s) {
+                    throw std::runtime_error(std::string("strategy '") + Strategy::kName +
+                        "' holds settings of type " + a.type().name() +
+                        " where it writes " + typeid(S).name());
+                }
+                return write_settings(*s, c);
+            };
+        }
+        table_[level_of<Strategy>()][Strategy::kName] = std::move(e);
+    }
+
+    // A choice in either file form: a bare name, or {name, settings}.
+    // Refuses a name not registered at that level, and settings for a
+    // strategy that takes none.
+    StrategyChoice read(const json& j, StrategyLevel level) const {
+        StrategyChoice c;
+        if (j.is_string()) {
+            c.name = j.get<std::string>();
+        } else if (j.is_object()) {
+            c.name = j.at("name").get<std::string>();
+        } else {
+            throw std::runtime_error(std::string("a ") + level_label(level) +
+                                     " is a name or {\"name\", \"settings\"}: " + j.dump());
+        }
+        const bool hasSettings = j.is_object() && j.contains("settings");
+        if (c.name.empty()) {
+            if (hasSettings)
+                throw std::runtime_error(std::string("settings for an unnamed ") +
+                                         level_label(level));
+            return c;
+        }
+        const Entry& e = entry(level, c.name);
+        if (hasSettings) {
+            if (!e.read)
+                throw std::runtime_error(std::string(level_label(level)) + " '" + c.name +
+                                         "' takes no settings");
+            c.settings = e.read(j.at("settings"), *this);
+        }
+        return c;
+    }
+
+    // A bare name when the choice holds no settings; {name, settings}
+    // otherwise. The caller omits an empty choice.
+    json write(const StrategyChoice& c, StrategyLevel level) const {
+        if (!c.settings.has_value()) return c.name;
+        const Entry& e = entry(level, c.name);
+        if (!e.write)
+            throw std::runtime_error(std::string(level_label(level)) + " '" + c.name +
+                                     "' takes no settings");
+        return json{{"name", c.name}, {"settings", e.write(c.settings, *this)}};
+    }
+
+private:
+    struct Entry {
+        std::function<std::any(const json&, const SettingsCodecs&)> read;
+        std::function<json(const std::any&, const SettingsCodecs&)> write;
+    };
+
+    template <class Strategy> static constexpr StrategyLevel level_of() {
+        if constexpr (std::is_base_of_v<PhraseStrategy, Strategy>) return StrategyLevel::Phrase;
+        else if constexpr (std::is_base_of_v<PassageStrategy, Strategy>) return StrategyLevel::Passage;
+        else if constexpr (std::is_base_of_v<RealizationStrategy, Strategy>) return StrategyLevel::Realization;
+        else {
+            static_assert(std::is_base_of_v<VoicingProfileSelector, Strategy>,
+                          "a template chooses phrase, passage and realization strategies "
+                          "and voicing profile selectors only");
+            return StrategyLevel::ProfileSelector;
+        }
+    }
+
+    const Entry& entry(StrategyLevel level, const std::string& name) const {
+        auto lt = table_.find(level);
+        if (lt != table_.end()) {
+            auto it = lt->second.find(name);
+            if (it != lt->second.end()) return it->second;
+        }
+        throw std::runtime_error(std::string("no ") + level_label(level) + " named '" +
+                                 name + "' is registered");
+    }
+
+    std::map<StrategyLevel, std::map<std::string, Entry>> table_;
+};
+
+// A template key of the form before strategy choices refuses to be read.
+inline void refuse_old_keys(const json& j, std::initializer_list<const char*> keys) {
+    for (const char* k : keys) {
+        if (j.contains(k)) {
+            throw std::runtime_error(std::string("template key '") + k +
+                "' is the old form; rewrite the file with: "
+                "python tools/convert_template.py <file or folder>");
+        }
+    }
+}
+
+inline void refuse_old_phrase_keys(const json& j) {
+    refuse_old_keys(j, {"periodConfig", "sentenceConfig", "twoFigureConfig",
+                        "elaboratedConfig"});
+}
+
+// Writes the choice under `key` unless it is empty.
+inline void write_choice(json& j, const char* key, const StrategyChoice& c,
+                         StrategyLevel level, const SettingsCodecs& codecs) {
+    if (!c.name.empty() || c.settings.has_value()) j[key] = codecs.write(c, level);
 }
 
 // ===========================================================================
-// ElaboratedPhraseConfig
+// FigureConnector lists
 // ===========================================================================
 
-inline void to_json(json& j, ElaboratedPhraseConfig::Method m) {
-    switch (m) {
-        case ElaboratedPhraseConfig::Method::ByCount:   j = "by_count";   break;
-        case ElaboratedPhraseConfig::Method::ByLength:  j = "by_length";  break;
-        case ElaboratedPhraseConfig::Method::Singleton: j = "singleton";  break;
+// Connectors: DENSE array, same length as figures — connectors[i] is
+// the bridge INTO figures[i], so element 0 is a dummy (write null).
+// NOT an N-1 "between figures" list: [1,-1] for three figures shifts
+// figure 0 by +1 (bit the 2026-09-21 structural-Mary round).
+// Each entry accepts null (dummy/default), an integer (bare leadStep
+// shorthand), or a full object with elide/adjust/leadStep fields.
+inline std::vector<std::optional<FigureConnector>> read_connectors(const json& arr) {
+    std::vector<std::optional<FigureConnector>> connectors;
+    for (const auto& cj : arr) {
+        if (cj.is_null()) {
+            connectors.push_back(std::nullopt);
+        } else if (cj.is_number_integer()) {
+            FigureConnector fc;
+            fc.leadStep = cj.get<int>();
+            connectors.push_back(fc);
+        } else {
+            FigureConnector fc;
+            fc.elideCount = cj.value("elide", 0);
+            fc.adjustCount = cj.value("adjust", 0.0f);
+            fc.leadStep = cj.value("leadStep", 0);
+            connectors.push_back(fc);
+        }
     }
-}
-
-inline void from_json(const json& j, ElaboratedPhraseConfig::Method& m) {
-    const std::string s = j.get<std::string>();
-    if      (s == "by_count")  m = ElaboratedPhraseConfig::Method::ByCount;
-    else if (s == "by_length") m = ElaboratedPhraseConfig::Method::ByLength;
-    else if (s == "singleton") m = ElaboratedPhraseConfig::Method::Singleton;
-    else throw std::runtime_error("Unknown ElaboratedPhraseConfig::Method: " + s);
-}
-
-inline void to_json(json& j, ElaboratedPhraseConfig::ChoiceMode m) {
-    switch (m) {
-        case ElaboratedPhraseConfig::ChoiceMode::Random:      j = "random";       break;
-        case ElaboratedPhraseConfig::ChoiceMode::AllLeave:    j = "all_leave";    break;
-        case ElaboratedPhraseConfig::ChoiceMode::AllGenerate: j = "all_generate"; break;
-    }
-}
-
-inline void from_json(const json& j, ElaboratedPhraseConfig::ChoiceMode& m) {
-    const std::string s = j.get<std::string>();
-    if      (s == "random")       m = ElaboratedPhraseConfig::ChoiceMode::Random;
-    else if (s == "all_leave")    m = ElaboratedPhraseConfig::ChoiceMode::AllLeave;
-    else if (s == "all_generate") m = ElaboratedPhraseConfig::ChoiceMode::AllGenerate;
-    else throw std::runtime_error("Unknown ElaboratedPhraseConfig::ChoiceMode: " + s);
-}
-
-inline void to_json(json& j, const ElaboratedPhraseConfig& c) {
-    j = json::object();
-    if (c.skeleton) j["skeleton"] = *c.skeleton;
-    j["buildMethod"]      = c.buildMethod;
-    if (c.buildCount != 4)     j["buildCount"]  = c.buildCount;
-    if (c.buildLength != 4.0f) j["buildLength"] = c.buildLength;
-    j["buildConstraints"] = c.buildConstraints;
-    j["choiceMode"]       = c.choiceMode;
-    j["generateConstraints"] = c.generateConstraints;
-    if (c.seed != 0) j["seed"] = c.seed;
-}
-
-inline void from_json(const json& j, ElaboratedPhraseConfig& c) {
-    if (j.contains("skeleton")) {
-        MelodicFigure mf;
-        from_json(j.at("skeleton"), mf);
-        c.skeleton = std::move(mf);
-    }
-    if (j.contains("buildMethod"))         c.buildMethod = j.at("buildMethod").get<ElaboratedPhraseConfig::Method>();
-    c.buildCount  = j.value("buildCount", 4);
-    c.buildLength = j.value("buildLength", 4.0f);
-    if (j.contains("buildConstraints"))    from_json(j.at("buildConstraints"), c.buildConstraints);
-    if (j.contains("choiceMode"))          c.choiceMode = j.at("choiceMode").get<ElaboratedPhraseConfig::ChoiceMode>();
-    if (j.contains("generateConstraints")) from_json(j.at("generateConstraints"), c.generateConstraints);
-    c.seed = j.value("seed", 0u);
+    return connectors;
 }
 
 // ===========================================================================
 // PhraseTemplate
 // ===========================================================================
 
-inline void to_json(json& j, const PhraseTemplate& pt) {
-    j = json{{"figures", pt.figures}};
+inline json write_phrase_template(const PhraseTemplate& pt, const SettingsCodecs& codecs) {
+    json j = json{{"figures", pt.figures}};
     if (!pt.name.empty()) j["name"] = pt.name;
     if (pt.startingPitch) j["startingPitch"] = *pt.startingPitch;
     if (pt.parallel) j["parallel"] = true;
@@ -664,11 +734,7 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (pt.function != MelodicFunction::Free) j["function"] = pt.function;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
-    if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
-    if (pt.periodConfig) j["periodConfig"] = *pt.periodConfig;
-    if (pt.sentenceConfig) j["sentenceConfig"] = *pt.sentenceConfig;
-    if (pt.twoFigureConfig) j["twoFigureConfig"] = *pt.twoFigureConfig;
-    if (pt.elaboratedConfig) j["elaboratedConfig"] = *pt.elaboratedConfig;
+    write_choice(j, "strategy", pt.strategy, StrategyLevel::Phrase, codecs);
 
     // Connectors: only emit if any are present
     bool anyConnectors = false;
@@ -687,9 +753,12 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
         }
         j["connectors"] = connArr;
     }
+    return j;
 }
 
-inline void from_json(const json& j, PhraseTemplate& pt) {
+inline void read_phrase_template(const json& j, PhraseTemplate& pt,
+                                 const SettingsCodecs& codecs) {
+    refuse_old_phrase_keys(j);
     pt.figures.clear();
     for (auto& fj : j.at("figures")) {
         FigureTemplate ft;
@@ -710,189 +779,39 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
     if (j.contains("function")) from_json(j.at("function"), pt.function);
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
-    pt.strategy = j.value("strategy", std::string(""));
-    if (j.contains("periodConfig")) {
-        PeriodPhraseConfig c;
-        from_json(j.at("periodConfig"), c);
-        pt.periodConfig = c;
-    }
-    if (j.contains("sentenceConfig")) {
-        SentencePhraseConfig c;
-        from_json(j.at("sentenceConfig"), c);
-        pt.sentenceConfig = c;
-    }
-    if (j.contains("twoFigureConfig")) {
-        TwoFigurePhraseConfig c;
-        from_json(j.at("twoFigureConfig"), c);
-        pt.twoFigureConfig = c;
-    }
-    if (j.contains("elaboratedConfig")) {
-        ElaboratedPhraseConfig c;
-        from_json(j.at("elaboratedConfig"), c);
-        pt.elaboratedConfig = c;
-    }
+    pt.strategy = j.contains("strategy")
+        ? codecs.read(j.at("strategy"), StrategyLevel::Phrase) : StrategyChoice{};
 
-    // Connectors: DENSE array, same length as figures — connectors[i] is
-    // the bridge INTO figures[i], so element 0 is a dummy (write null).
-    // NOT an N-1 "between figures" list: [1,-1] for three figures shifts
-    // figure 0 by +1 (bit the 2026-09-21 structural-Mary round).
-    // Each entry accepts null (dummy/default), an integer (bare leadStep
-    // shorthand), or a full object with elide/adjust/leadStep fields.
-    if (j.contains("connectors")) {
-        pt.connectors.clear();
-        for (const auto& cj : j.at("connectors")) {
-            if (cj.is_null()) {
-                pt.connectors.push_back(std::nullopt);
-            } else if (cj.is_number_integer()) {
-                FigureConnector fc;
-                fc.leadStep = cj.get<int>();
-                pt.connectors.push_back(fc);
-            } else {
-                FigureConnector fc;
-                fc.elideCount = cj.value("elide", 0);
-                fc.adjustCount = cj.value("adjust", 0.0f);
-                fc.leadStep = cj.value("leadStep", 0);
-                pt.connectors.push_back(fc);
-            }
-        }
-    }
-}
-
-// ===========================================================================
-// PeriodVariant / PeriodSpec
-// ===========================================================================
-
-inline void to_json(json& j, PeriodVariant v) {
-    switch (v) {
-        case PeriodVariant::Parallel:    j = "Parallel"; break;
-        case PeriodVariant::Modified:    j = "Modified"; break;
-        case PeriodVariant::Contrasting: j = "Contrasting"; break;
-    }
-}
-inline void from_json(const json& j, PeriodVariant& v) {
-    auto s = j.get<std::string>();
-    if (s == "Parallel")         v = PeriodVariant::Parallel;
-    else if (s == "Modified")    v = PeriodVariant::Modified;
-    else if (s == "Contrasting") v = PeriodVariant::Contrasting;
-    else throw std::runtime_error("Unknown PeriodVariant: " + s);
-}
-
-inline void to_json(json& j, const PeriodSpec& ps) {
-    j = json::object();
-    j["variant"] = ps.variant;
-    j["bars"] = ps.bars;
-    j["antecedent"] = ps.antecedent;
-    j["consequent"] = ps.consequent;
-    if (ps.consequentTransform) j["consequentTransform"] = *ps.consequentTransform;
-    if (ps.consequentTransformParam != 0) j["consequentTransformParam"] = ps.consequentTransformParam;
-    if (ps.leadingConnective) j["leadingConnective"] = *ps.leadingConnective;
-}
-inline void from_json(const json& j, PeriodSpec& ps) {
-    ps = PeriodSpec{};
-    ps.variant = j.value("variant", PeriodVariant::Parallel);
-    ps.bars = j.value("bars", 4.0f);
-    // The antecedent/consequent PhraseTemplates inside a PeriodSpec don't
-    // require their own startingPitch in JSON — placement comes from the
-    // enclosing PassageTemplate's startingPitch + period flow. So we do
-    // not use from_json(PhraseTemplate) directly (which enforces startingPitch);
-    // instead we read each phrase's fields manually here.
-    auto loadPhrase = [](const json& pj) {
-        PhraseTemplate ph;
-        if (pj.contains("figures")) {
-            for (auto& fj : pj.at("figures")) {
-                FigureTemplate ft; from_json(fj, ft);
-                ph.figures.push_back(std::move(ft));
-            }
-        }
-        ph.name = pj.value("name", std::string(""));
-        if (pj.contains("startingPitch")) {
-            Pitch p; from_json(pj.at("startingPitch"), p);
-            ph.startingPitch = p;
-        }
-        ph.parallel = pj.value("parallel", false);
-        ph.totalBeats = pj.value("totalBeats", 0.0f);
-        ph.cadenceType = pj.value("cadenceType", 0);
-        ph.cadenceTarget = pj.value("cadenceTarget", -1);
-        ph.cadentialArrival = pj.value("cadentialArrival", std::string());
-        if (pj.contains("function")) from_json(pj.at("function"), ph.function);
-        ph.seed = pj.value("seed", 0u);
-        ph.locked = pj.value("locked", false);
-        ph.strategy = pj.value("strategy", std::string(""));
-        if (pj.contains("connectors")) {
-            ph.connectors.clear();
-            for (const auto& cj : pj.at("connectors")) {
-                if (cj.is_null()) {
-                    ph.connectors.push_back(std::nullopt);
-                } else if (cj.is_number_integer()) {
-                    FigureConnector fc;
-                    fc.leadStep = cj.get<int>();
-                    ph.connectors.push_back(fc);
-                } else {
-                    FigureConnector fc;
-                    fc.elideCount = cj.value("elide", 0);
-                    fc.adjustCount = cj.value("adjust", 0.0f);
-                    fc.leadStep = cj.value("leadStep", 0);
-                    ph.connectors.push_back(fc);
-                }
-            }
-        }
-        return ph;
-    };
-    ps.antecedent = loadPhrase(j.at("antecedent"));
-    ps.consequent = loadPhrase(j.at("consequent"));
-    if (j.contains("consequentTransform") && !j.at("consequentTransform").is_null()) {
-        ps.consequentTransform = j.at("consequentTransform").get<TransformOp>();
-    }
-    ps.consequentTransformParam = j.value("consequentTransformParam", 0);
-    if (j.contains("leadingConnective") && !j.at("leadingConnective").is_null()) {
-        ps.leadingConnective = j.at("leadingConnective").get<std::string>();
-    }
+    if (j.contains("connectors")) pt.connectors = read_connectors(j.at("connectors"));
 }
 
 // ===========================================================================
 // PassageTemplate
 // ===========================================================================
 
-inline void to_json(json& j, const PassageTemplate& pt) {
-    j = json{{"phrases", pt.phrases}};
+inline json write_passage_template(const PassageTemplate& pt, const SettingsCodecs& codecs) {
+    json phrases = json::array();
+    for (const auto& ph : pt.phrases) phrases.push_back(write_phrase_template(ph, codecs));
+    json j = json{{"phrases", std::move(phrases)}};
     if (!pt.name.empty()) j["name"] = pt.name;
     if (pt.startingPitch) j["startingPitch"] = *pt.startingPitch;
     if (!pt.character.empty()) j["character"] = pt.character;
     if (!pt.fromKey.empty()) j["fromKey"] = pt.fromKey;
     if (!pt.toKey.empty()) j["toKey"] = pt.toKey;
     if (!pt.scaleOverride.empty()) j["scaleOverride"] = pt.scaleOverride;
-    if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
+    write_choice(j, "strategy", pt.strategy, StrategyLevel::Passage, codecs);
     // Not defaultish (default is 1.0), so it must always be written or the
     // round trip loses an authored 0 / 4.0.
     j["endGrid"] = pt.endGrid;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
-    if (!pt.periods.empty()) j["periods"] = pt.periods;
-    // chordConfig was parseable but not serializable, so a template that went
-    // through the engine came back out with its chord octave/inversion/spread
-    // silently reset (found by --lint-template).
     if (pt.chordConfig) {
         json cj;
         to_json(cj, *pt.chordConfig);
         j["chordConfig"] = std::move(cj);
     }
     if (pt.chordProgression) j["chordProgression"] = *pt.chordProgression;
-    if (!pt.realizationStrategy.empty()) j["realizationStrategy"] = pt.realizationStrategy;
-    if (pt.rhythmPattern) {
-        json jrp;
-        jrp["defaultPattern"] = pt.rhythmPattern->defaultPattern;
-        if (!pt.rhythmPattern->overrides.empty()) {
-            json jOvs = json::array();
-            for (const auto& ov : pt.rhythmPattern->overrides) {
-                json jOv;
-                jOv["bars"] = ov.bars;
-                jOv["pattern"] = ov.pattern;
-                jOvs.push_back(std::move(jOv));
-            }
-            jrp["overrides"] = jOvs;
-        }
-        j["rhythmPattern"] = jrp;
-    }
+    write_choice(j, "realization", pt.realization, StrategyLevel::Realization, codecs);
     if (!pt.voicingSelector.empty()) j["voicingSelector"] = pt.voicingSelector;
     {
       const auto& vp = pt.voicingProfile;
@@ -901,89 +820,43 @@ inline void to_json(json& j, const PassageTemplate& pt) {
                   || !vp.allowedSpreads.empty()
                   || vp.repeatPenalty != 0.0f
                   || vp.cadential;
-      if (anySet) {
-        json vpj = json::object();
-        if (vp.priority != 0.0f) vpj["priority"] = vp.priority;
-        if (!vp.allowedInversions.empty()) vpj["allowedInversions"] = vp.allowedInversions;
-        if (!vp.allowedSpreads.empty()) vpj["allowedSpreads"] = vp.allowedSpreads;
-        if (vp.repeatPenalty != 0.0f) vpj["repeatPenalty"] = vp.repeatPenalty;
-        if (vp.cadential) vpj["cadential"] = vp.cadential;
-        j["voicingProfile"] = std::move(vpj);
-      }
+      if (anySet) j["voicingProfile"] = vp;
     }
-    if (!pt.voicingProfileSelector.empty())
-        j["voicingProfileSelector"] = pt.voicingProfileSelector;
-    if (!pt.voicingProfileSelectorConfig.is_null()
-        && !pt.voicingProfileSelectorConfig.empty()) {
-        j["voicingProfileSelectorConfig"] = pt.voicingProfileSelectorConfig;
-    }
+    write_choice(j, "voicingProfileSelector", pt.voicingProfileSelector,
+                 StrategyLevel::ProfileSelector, codecs);
     if (!pt.voicingDictionary.empty()) j["voicingDictionary"] = pt.voicingDictionary;
-    if (pt.libraryConfig) {
-        json jlc = json::object();
-        if (!pt.libraryConfig->patternName.empty()) jlc["patternName"] = pt.libraryConfig->patternName;
-        if (pt.libraryConfig->barsHint != 0) jlc["barsHint"] = pt.libraryConfig->barsHint;
-        if (pt.libraryConfig->seed != 0) jlc["seed"] = pt.libraryConfig->seed;
-        j["libraryConfig"] = jlc;
-    }
     if (!pt.melodyPassageFile.empty()) {
         j["melodyPassageFile"] = pt.melodyPassageFile;
         j["melodyOctave"] = pt.melodyOctave;
     }
     if (!pt.anchorMode.empty()) j["anchorMode"] = pt.anchorMode;
     if (!pt.melodyProfile.empty()) j["melodyProfile"] = pt.melodyProfile;
-    if (pt.pedalBuildupConfig) {
-        const auto& c = *pt.pedalBuildupConfig;
-        j["pedalBuildupConfig"] = json{
-            {"levels", c.levels}, {"climbStep", c.climbStep},
-            {"cellBeats", c.cellBeats}, {"holdBeats", c.holdBeats},
-            {"rangeCap", c.rangeCap}, {"maxTries", c.maxTries},
-            {"seed", c.seed}};
-    }
-    if (pt.sequenceConfig) {
-        const auto& c = *pt.sequenceConfig;
-        j["sequenceConfig"] = json{
-            {"entries", c.entries}, {"stepA", c.stepA}, {"stepB", c.stepB},
-            {"cellBeats", c.cellBeats}, {"rangeCap", c.rangeCap},
-            {"maxTries", c.maxTries}, {"seed", c.seed}};
-    }
-    if (pt.connectiveConfig) {
-        const auto& c = *pt.connectiveConfig;
-        j["connectiveConfig"] = json{
-            {"entries", c.entries}, {"targetDegree", c.targetDegree},
-            {"tailUnits", c.tailUnits}, {"finalAugment", c.finalAugment},
-            {"cellBeats", c.cellBeats}, {"rangeCap", c.rangeCap},
-            {"maxTries", c.maxTries}, {"seed", c.seed}};
-    }
-    if (pt.wanderingConfig) {
-        const auto& c = *pt.wanderingConfig;
-        j["wanderingConfig"] = json{
-            {"entries", c.entries}, {"pullThreshold", c.pullThreshold},
-            {"pullAmount", c.pullAmount}, {"cellBeats", c.cellBeats},
-            {"rangeCap", c.rangeCap}, {"maxTries", c.maxTries},
-            {"seed", c.seed}};
-    }
+    return j;
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
     cc.octave = j.value("octave", 3);
     cc.inversion = j.value("inversion", 0);
     cc.spread = j.value("spread", 0);
-    // defaultPattern / overrides removed at Stage 11; if present in legacy
-    // patches they're silently ignored. Migrate to PassageTemplate.rhythmPattern.
 }
 
-inline void from_json(const json& j, PassageTemplate& pt) {
+inline void read_passage_template(const json& j, PassageTemplate& pt,
+                                  const SettingsCodecs& codecs) {
+    refuse_old_keys(j, {"libraryConfig", "pedalBuildupConfig", "sequenceConfig",
+                        "connectiveConfig", "wanderingConfig", "periods",
+                        "realizationStrategy", "rhythmPattern",
+                        "voicingProfileSelectorConfig"});
     if (j.contains("startingPitch")) {
         Pitch p;
         from_json(j.at("startingPitch"), p);
         pt.startingPitch = p;
     }
 
-    // phrases[] may be empty when periods[] drives the passage.
+    // phrases[] may be empty when a strategy's settings drive the passage.
     pt.phrases.clear();
     if (j.contains("phrases") && j.at("phrases").is_array()) {
         for (auto& pj : j.at("phrases")) {
-            PhraseTemplate ph; from_json(pj, ph);
+            PhraseTemplate ph; read_phrase_template(pj, ph, codecs);
             pt.phrases.push_back(std::move(ph));
         }
     }
@@ -991,20 +864,12 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     pt.character = j.value("character", std::string(""));
     pt.fromKey = j.value("fromKey", std::string(""));
     pt.toKey = j.value("toKey", std::string(""));
-    pt.strategy = j.value("strategy", std::string(""));
+    pt.strategy = j.contains("strategy")
+        ? codecs.read(j.at("strategy"), StrategyLevel::Passage) : StrategyChoice{};
     pt.scaleOverride = j.value("scaleOverride", std::string(""));
     pt.endGrid = j.value("endGrid", 1.0f);
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
-
-    // Optional period scaffolding.
-    if (j.contains("periods") && j.at("periods").is_array()) {
-        pt.periods.clear();
-        for (const auto& pj : j.at("periods")) {
-            PeriodSpec ps; from_json(pj, ps);
-            pt.periods.push_back(std::move(ps));
-        }
-    }
 
     // Optional chord accompaniment config.
     if (j.contains("chordConfig")) {
@@ -1019,45 +884,16 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         pt.chordProgression = parse_chord_progression(j["chordProgression"]);
     }
 
-    // Optional realization strategy + rhythm pattern (Stage 4+).
-    if (j.contains("realizationStrategy"))
-        pt.realizationStrategy = j["realizationStrategy"].get<std::string>();
-    if (j.contains("rhythmPattern")) {
-        RhythmPattern rp;
-        const auto& jrp = j["rhythmPattern"];
-        if (jrp.contains("defaultPattern")) {
-            rp.defaultPattern.clear();
-            for (auto& v : jrp["defaultPattern"]) rp.defaultPattern.push_back(v.get<float>());
-        }
-        if (jrp.contains("overrides")) {
-            for (auto& ov : jrp["overrides"]) {
-                RhythmPattern::BarOverride bo;
-                for (auto& b : ov["bars"]) bo.bars.push_back(b.get<int>());
-                for (auto& v : ov["pattern"]) bo.pattern.push_back(v.get<float>());
-                rp.overrides.push_back(std::move(bo));
-            }
-        }
-        pt.rhythmPattern = rp;
-    }
+    pt.realization = j.contains("realization")
+        ? codecs.read(j.at("realization"), StrategyLevel::Realization) : StrategyChoice{};
 
     pt.voicingSelector = j.value("voicingSelector", std::string(""));
 
     // VoicingProfile: prefer nested object; fall back to lifting flat
-    // voicingPriority / allowedInversions / allowedSpreads for back-compat.
+    // voicingPriority / allowedInversions / allowedSpreads.
     pt.voicingProfile = VoicingProfile{};
     if (j.contains("voicingProfile")) {
-        const auto& vpj = j.at("voicingProfile");
-        pt.voicingProfile.priority = vpj.value("priority", 0.0f);
-        pt.voicingProfile.repeatPenalty = vpj.value("repeatPenalty", 0.0f);
-        pt.voicingProfile.cadential = vpj.value("cadential", false);
-        if (vpj.contains("allowedInversions")) {
-            pt.voicingProfile.allowedInversions =
-                vpj.at("allowedInversions").get<std::vector<int>>();
-        }
-        if (vpj.contains("allowedSpreads")) {
-            pt.voicingProfile.allowedSpreads =
-                vpj.at("allowedSpreads").get<std::vector<int>>();
-        }
+        from_json(j.at("voicingProfile"), pt.voicingProfile);
     } else {
         pt.voicingProfile.priority = j.value("voicingPriority", 0.0f);
         if (j.contains("allowedInversions")) {
@@ -1070,103 +906,41 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         }
     }
 
-    pt.voicingProfileSelector = j.value("voicingProfileSelector", std::string(""));
-    pt.voicingProfileSelectorConfig = j.contains("voicingProfileSelectorConfig")
-        ? j.at("voicingProfileSelectorConfig")
-        : json::object();
+    pt.voicingProfileSelector = j.contains("voicingProfileSelector")
+        ? codecs.read(j.at("voicingProfileSelector"), StrategyLevel::ProfileSelector)
+        : StrategyChoice{};
 
     pt.voicingDictionary = j.value("voicingDictionary", std::string(""));
-
-    if (j.contains("libraryConfig")) {
-        const auto& jlc = j.at("libraryConfig");
-        LibraryPassageConfig lc;
-        lc.patternName = jlc.value("patternName", std::string(""));
-        lc.barsHint    = jlc.value("barsHint", 0);
-        lc.seed        = jlc.value("seed", 0u);
-        pt.libraryConfig = lc;
-    }
 
     pt.melodyPassageFile = j.value("melodyPassageFile", std::string(""));
     pt.melodyOctave = j.value("melodyOctave", 5);
     pt.anchorMode = j.value("anchorMode", std::string(""));
     pt.melodyProfile = j.value("melodyProfile", std::string(""));
-
-    if (j.contains("pedalBuildupConfig")) {
-        const auto& jc = j.at("pedalBuildupConfig");
-        PedalBuildupConfig c;
-        c.levels    = jc.value("levels", c.levels);
-        c.climbStep = jc.value("climbStep", c.climbStep);
-        c.cellBeats = jc.value("cellBeats", c.cellBeats);
-        c.holdBeats = jc.value("holdBeats", c.holdBeats);
-        c.rangeCap  = jc.value("rangeCap", c.rangeCap);
-        c.maxTries  = jc.value("maxTries", c.maxTries);
-        c.seed      = jc.value("seed", c.seed);
-        pt.pedalBuildupConfig = c;
-    }
-
-    if (j.contains("sequenceConfig")) {
-        const auto& jc = j.at("sequenceConfig");
-        SequencePassageConfig c;
-        c.entries   = jc.value("entries", c.entries);
-        c.stepA     = jc.value("stepA", c.stepA);
-        c.stepB     = jc.value("stepB", c.stepB);
-        c.cellBeats = jc.value("cellBeats", c.cellBeats);
-        c.rangeCap  = jc.value("rangeCap", c.rangeCap);
-        c.maxTries  = jc.value("maxTries", c.maxTries);
-        c.seed      = jc.value("seed", c.seed);
-        pt.sequenceConfig = c;
-    }
-
-    if (j.contains("connectiveConfig")) {
-        const auto& jc = j.at("connectiveConfig");
-        ConnectivePassageConfig c;
-        c.entries      = jc.value("entries", c.entries);
-        c.targetDegree = jc.value("targetDegree", c.targetDegree);
-        c.tailUnits    = jc.value("tailUnits", c.tailUnits);
-        c.finalAugment = jc.value("finalAugment", c.finalAugment);
-        c.cellBeats    = jc.value("cellBeats", c.cellBeats);
-        c.rangeCap     = jc.value("rangeCap", c.rangeCap);
-        c.maxTries     = jc.value("maxTries", c.maxTries);
-        c.seed         = jc.value("seed", c.seed);
-        pt.connectiveConfig = c;
-    }
-
-    if (j.contains("wanderingConfig")) {
-        const auto& jc = j.at("wanderingConfig");
-        WanderingPassageConfig c;
-        c.entries       = jc.value("entries", c.entries);
-        c.pullThreshold = jc.value("pullThreshold", c.pullThreshold);
-        c.pullAmount    = jc.value("pullAmount", c.pullAmount);
-        c.cellBeats     = jc.value("cellBeats", c.cellBeats);
-        c.rangeCap      = jc.value("rangeCap", c.rangeCap);
-        c.maxTries      = jc.value("maxTries", c.maxTries);
-        c.seed          = jc.value("seed", c.seed);
-        pt.wanderingConfig = c;
-    }
 }
 
 // ===========================================================================
 // PartTemplate
 // ===========================================================================
 
-inline void to_json(json& j, const PartTemplate& pt) {
-    j = json{{"name", pt.name}, {"role", pt.role}};
+inline json write_part_template(const PartTemplate& pt, const SettingsCodecs& codecs) {
+    json j = json{{"name", pt.name}, {"role", pt.role}};
     if (!pt.instrumentPatch.empty()) j["instrumentPatch"] = pt.instrumentPatch;
     if (!pt.passages.empty()) {
         json passagesJ;
         for (auto& [secName, passageTmpl] : pt.passages)
-            passagesJ[secName] = passageTmpl;
+            passagesJ[secName] = write_passage_template(passageTmpl, codecs);
         j["passages"] = passagesJ;
     }
+    return j;
 }
 
-inline void from_json(const json& j, PartTemplate& pt) {
+inline void read_part_template(const json& j, PartTemplate& pt, const SettingsCodecs& codecs) {
     pt.name = j.at("name").get<std::string>();
     from_json(j.at("role"), pt.role);
     pt.instrumentPatch = j.value("instrumentPatch", std::string(""));
     if (j.contains("passages")) {
         for (auto& [secName, passageJ] : j.at("passages").items()) {
-            PassageTemplate pass; from_json(passageJ, pass);
+            PassageTemplate pass; read_passage_template(passageJ, pass, codecs);
             pt.passages[secName] = std::move(pass);
         }
     }
@@ -1233,22 +1007,29 @@ inline void from_json(const json& j, PieceTemplate::SectionTemplate& sd) {
     }
 }
 
-inline void to_json(json& j, const PieceTemplate& pt) {
-    j = json{
+// A template to and from its file form. Each strategy choice is read and
+// written through the codecs; a template naming a strategy the codecs do not
+// know, or holding a key of the form before choices, is refused by name.
+inline json write_template(const PieceTemplate& pt, const SettingsCodecs& codecs) {
+    json parts = json::array();
+    for (const auto& part : pt.parts) parts.push_back(write_part_template(part, codecs));
+    json j = json{
         {"keyName", pt.keyName},
         {"scaleName", pt.scaleName},
         {"meter", pt.meter},
         {"bpm", pt.bpm},
         {"sections", pt.sections},
-        {"parts", pt.parts}
+        {"parts", std::move(parts)}
     };
     if (!pt.motifs.empty()) j["motifs"] = pt.motifs;
     if (!pt.form.empty()) j["form"] = pt.form;
     if (pt.harmonySeeds) j["harmony"] = *pt.harmonySeeds;
     if (pt.masterSeed != 0) j["masterSeed"] = pt.masterSeed;
+    return j;
 }
 
-inline void from_json(const json& j, PieceTemplate& pt) {
+inline PieceTemplate read_template(const json& j, const SettingsCodecs& codecs) {
+    PieceTemplate pt;
     pt.keyName = j.value("keyName", std::string("C"));
     pt.scaleName = j.value("scaleName", std::string("Major"));
     if (j.contains("meter")) from_json(j.at("meter"), pt.meter);
@@ -1275,7 +1056,7 @@ inline void from_json(const json& j, PieceTemplate& pt) {
     pt.parts.clear();
     if (j.contains("parts")) {
         for (auto& pj : j.at("parts")) {
-            PartTemplate p; from_json(pj, p);
+            PartTemplate p; read_part_template(pj, p, codecs);
             pt.parts.push_back(std::move(p));
         }
     }
@@ -1286,6 +1067,7 @@ inline void from_json(const json& j, PieceTemplate& pt) {
     }
 
     pt.masterSeed = j.value("masterSeed", 0u);
+    return pt;
 }
 
 } // namespace mforce

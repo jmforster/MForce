@@ -8,15 +8,40 @@
 #include "mforce/music/piece_utils.h"
 #include <cmath>
 #include <iostream>
+#include <stdexcept>
 
 namespace mforce {
+
+// ===========================================================================
+// PeriodPhraseSettings — classical period (antecedent + consequent)
+// ===========================================================================
+
+struct PeriodPhraseSettings {
+  MelodicFigure basicIdea;           // opens both sub-phrases (parallel)
+  MelodicFigure antecedentTail;      // closes antecedent on halfCadenceTarget
+  MelodicFigure consequentTail;      // closes consequent on authentic cadence
+  int halfCadenceTarget{4};          // 0-indexed scale degree for half cadence
+};
+
+// ===========================================================================
+// SentencePhraseSettings — classical sentence (basic idea + repeat + continuation)
+// ===========================================================================
+
+struct SentencePhraseSettings {
+  MelodicFigure basicIdea;
+  int variationTransposition{0};     // scale-degree offset for the repetition
+  MelodicFigure continuation;
+};
 
 // ---------------------------------------------------------------------------
 // PeriodPhraseStrategy — classical period (antecedent + consequent)
 // ---------------------------------------------------------------------------
 class PeriodPhraseStrategy : public PhraseStrategy {
 public:
-  std::string name() const override { return "period_phrase"; }
+  static constexpr const char* kName = "period_phrase";
+  using Settings = PeriodPhraseSettings;
+
+  std::string name() const override { return kName; }
   Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 
@@ -25,7 +50,10 @@ public:
 // ---------------------------------------------------------------------------
 class SentencePhraseStrategy : public PhraseStrategy {
 public:
-  std::string name() const override { return "sentence_phrase"; }
+  static constexpr const char* kName = "sentence_phrase";
+  using Settings = SentencePhraseSettings;
+
+  std::string name() const override { return kName; }
   Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 
@@ -37,11 +65,10 @@ inline Phrase PeriodPhraseStrategy::compose_phrase(
     Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 
-  if (!phraseTmpl.periodConfig) {
-    std::cerr << "PeriodPhraseStrategy: phraseTmpl.periodConfig is empty; returning empty phrase\n";
-    return phrase;
+  if (!phraseTmpl.strategy.settings.has_value()) {
+    throw std::runtime_error("period_phrase: given no settings");
   }
-  const PeriodPhraseConfig& cfg = *phraseTmpl.periodConfig;
+  const Settings cfg = settings_of<Settings>(phraseTmpl.strategy);
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
 
@@ -90,11 +117,10 @@ inline Phrase SentencePhraseStrategy::compose_phrase(
     Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 
-  if (!phraseTmpl.sentenceConfig) {
-    std::cerr << "SentencePhraseStrategy: phraseTmpl.sentenceConfig is empty; returning empty phrase\n";
-    return phrase;
+  if (!phraseTmpl.strategy.settings.has_value()) {
+    throw std::runtime_error("sentence_phrase: given no settings");
   }
-  const SentencePhraseConfig& cfg = *phraseTmpl.sentenceConfig;
+  const Settings cfg = settings_of<Settings>(phraseTmpl.strategy);
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
 

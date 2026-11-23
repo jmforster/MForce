@@ -15,11 +15,10 @@
       "passages": {
         "Main": {
           "startingPitch": {"octave": 4, "pitch": "C"},
-          "strategy": "library_passage",
-          "phrases": [],
-          "libraryConfig": {
+          "strategy": {"name": "library_passage", "settings": {
             "patternName": "BillyLife"
-          }
+          }},
+          "phrases": []
         }
       }
     }

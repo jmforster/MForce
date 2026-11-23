@@ -500,6 +500,10 @@ static int run_compose(int argc, char** argv) {
         return 1;
     }
 
+    ComposeKit kit;
+    SettingsCodecs codecs;
+    register_builtin(kit, codecs);
+
     // Load template from JSON if specified
     PieceTemplate baseTmpl;
     if (!templatePath.empty()) {
@@ -509,13 +513,11 @@ static int run_compose(int argc, char** argv) {
         }
         std::ifstream tf(templatePath);
         json tj = json::parse(tf);
-        from_json(tj, baseTmpl);
+        baseTmpl = read_template(tj, codecs);
         apply_passage_melodies(baseTmpl);   // comp crawl: .psg melody -> phrases
         std::cout << "Loaded template: " << templatePath << "\n";
     }
 
-    ComposeKit kit;
-    register_builtin(kit);
     for (int i = 0; i < count; ++i)
         if (compose_one(baseTmpl, kit, patchPath, outPrefix, i) != 0) return 1;
     return 0;
@@ -872,6 +874,9 @@ static void lint_json_diff(const nlohmann::json& in, const nlohmann::json& out,
 static int run_lint_template(int argc, char** argv)
 {
     bool quiet = false;                       // --hard: hide DEFAULTED noise
+    ComposeKit kit;
+    SettingsCodecs codecs;
+    register_builtin(kit, codecs);
     int files = 0, bad = 0;
     int nDrop = 0, nDef = 0, nForm = 0, nChg = 0;
     for (int a = 2; a < argc; ++a) {
@@ -889,8 +894,8 @@ static int run_lint_template(int argc, char** argv)
         PieceTemplate t;
         nlohmann::json out;
         try {
-            from_json(in, t);
-            to_json(out, t);
+            t = read_template(in, codecs);
+            out = write_template(t, codecs);
         } catch (const std::exception& e) {
             std::cout << p << "\n  LOAD-ERROR " << e.what() << "\n";
             ++files; ++bad; continue;

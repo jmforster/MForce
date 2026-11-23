@@ -25,6 +25,7 @@
 #include "mforce/core/randomizer.h"
 
 #include <iostream>
+#include <stdexcept>
 #include <map>
 #include <set>
 #include <string>
@@ -32,9 +33,29 @@
 
 namespace mforce {
 
+// ===========================================================================
+// LibraryPassageSettings — the settings of LibraryPassageStrategy.
+// Picks (or accepts by name) a Pattern from the loaded PatternLibrary set
+// and deploys it.
+// ===========================================================================
+
+struct LibraryPassageSettings {
+    // Either a specific pattern name, or empty to pick by length.
+    std::string patternName;
+
+    // Length budget used by the picker when patternName is empty.
+    int barsHint{0};
+
+    // Seed for slot motif generation. 0 = derive from masterSeed + locus.
+    uint32_t seed{0};
+};
+
 class LibraryPassageStrategy : public PassageStrategy {
 public:
-    std::string name() const override { return "library_passage"; }
+    static constexpr const char* kName = "library_passage";
+    using Settings = LibraryPassageSettings;
+
+    std::string name() const override { return kName; }
     StrategyScope scope() const override { return StrategyScope::Melody; }
 
     Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
@@ -60,12 +81,10 @@ inline Passage LibraryPassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& passTmpl) {
     Passage passage;
 
-    if (!passTmpl.libraryConfig) {
-        std::cerr << "LibraryPassageStrategy: passTmpl.libraryConfig is empty; "
-                     "returning empty passage\n";
-        return passage;
+    if (!passTmpl.strategy.settings.has_value()) {
+        throw std::runtime_error("library_passage: given no settings");
     }
-    const LibraryPassageConfig& cfg = *passTmpl.libraryConfig;
+    const Settings cfg = settings_of<Settings>(passTmpl.strategy);
 
     auto& libs = library_passage_detail::cached_libraries();
     if (libs.empty()) {

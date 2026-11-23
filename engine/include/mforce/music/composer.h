@@ -167,7 +167,7 @@ struct Composer {
   }
 
   Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) {
-    PassageStrategy* s = &locus.kit->strategies.passage(passTmpl.strategy);
+    PassageStrategy* s = &locus.kit->strategies.passage(passTmpl.strategy.name);
     // Plan phase — strategy refines the template (may mutate motif pool).
     PassageTemplate planned = s->plan_passage(locus, passTmpl);
     // Persist the planned template to the plan for regeneration / lock semantics.
@@ -280,6 +280,20 @@ private:
     realize_motifs(tmpl, rng_);
   }
 
+  // How one harmony part's chords are voiced in one section: the passage's
+  // hints and selectors, and the chord voiced before (by value, at the
+  // length it was emitted at), which a voicing selector smooths away from.
+  struct ChordVoicing {
+    const PassageTemplate* passTmpl{nullptr};
+    ChordAccompanimentConfig cfg;
+    VoicingSelector* selector{nullptr};
+    std::unique_ptr<VoicingProfileSelector> profileSelector;
+    float sectionStart{0.0f};
+    float beatsPerBar{4.0f};
+    std::optional<Chord> previous;
+    int chordIdx{0};
+  };
+
   void realize_chord_parts_(Piece& piece, const PieceTemplate& tmpl) {
     for (int pi = 0; pi < (int)tmpl.parts.size(); ++pi) {
       const auto& partTmpl = tmpl.parts[pi];
@@ -290,163 +304,145 @@ private:
         if (p.name == partTmpl.name) { part = &p; break; }
       }
       if (!part) continue;
-      RealizationStrategy* blockStrat = &kit_.strategies.realization("block");
 
       for (int si = 0; si < (int)piece.sections.size(); ++si) {
-        const auto& sec = piece.sections[si];
-        const float beatOffset = section_start_beat(piece.sections, std::size_t(si));
+        realize_chord_section_(*part, partTmpl, pi, piece, si, tmpl.masterSeed);
+      }
+    }
+  }
 
-        auto passIt = partTmpl.passages.find(sec.name);
-        const PassageTemplate* passTmpl = (passIt != partTmpl.passages.end())
-            ? &passIt->second : nullptr;
-        ChordAccompanimentConfig cfg;
-        if (passTmpl && passTmpl->chordConfig) cfg = *passTmpl->chordConfig;
+  // One harmony part's events for one section: the harmony chosen, the
+  // voicing set up, and the passage's realization strategy run over it.
+  void realize_chord_section_(Part& part, const PartTemplate& partTmpl, int pi,
+                              const Piece& piece, int si, uint32_t masterSeed) {
+    const auto& sec = piece.sections[si];
+    const float beatOffset = section_start_beat(piece.sections, std::size_t(si));
 
-        // Harmony source: a passage-local progression wins over the section
-        // timeline, so two passages in one section can carry different
-        // chords. The section's own timeline is left untouched — melody
-        // chord-tone lookups still read it.
-        HarmonyTimeline localTimeline;
-        const HarmonyTimeline* timeline = &sec.harmonyTimeline;
-        if (passTmpl && passTmpl->chordProgression) {
-          localTimeline.set_segment(0.0f, sec.beats,
-                                    *passTmpl->chordProgression, "passage");
-          timeline = &localTimeline;
-        }
-        if (timeline->empty()) continue;
+    auto passIt = partTmpl.passages.find(sec.name);
+    const PassageTemplate* passTmpl = (passIt != partTmpl.passages.end())
+        ? &passIt->second : nullptr;
+    ChordAccompanimentConfig cfg;
+    if (passTmpl && passTmpl->chordConfig) cfg = *passTmpl->chordConfig;
 
-        // Rhythm-pattern source. Present = "pattern" mode: the bar pattern
-        // strikes and each strike samples the timeline. Absent = "span" mode:
-        // one event per authored chord, at the duration the progression
-        // already gives it. Span is the default because a progression carries
-        // its own durations; a rhythmPattern RE-articulates them.
-        const RhythmPattern* rp = (passTmpl && passTmpl->rhythmPattern)
-            ? &*passTmpl->rhythmPattern : nullptr;
+    // Harmony source: a passage-local progression wins over the section
+    // timeline, so two passages in one section can carry different
+    // chords. The section's own timeline is left untouched — melody
+    // chord-tone lookups still read it.
+    HarmonyTimeline localTimeline;
+    const HarmonyTimeline* timeline = &sec.harmonyTimeline;
+    if (passTmpl && passTmpl->chordProgression) {
+      localTimeline.set_segment(0.0f, sec.beats,
+                                *passTmpl->chordProgression, "passage");
+      timeline = &localTimeline;
+    }
+    if (timeline->empty()) return;
 
-        // Optional VoicingSelector (empty name = inversion/spread path).
-        VoicingSelector* selector = nullptr;
-        if (passIt != partTmpl.passages.end()
-            && !passIt->second.voicingSelector.empty()) {
-          selector = &kit_.voicings.selector(passIt->second.voicingSelector);
-        }
+    ChordVoicing v = plan_chord_voicing_(passTmpl, cfg, sec, beatOffset,
+        masterSeed ^ 0x566F6953u ^ (uint32_t(si) * 100u + uint32_t(pi)));
 
-        // VoicingProfileSelector: produces a VoicingProfile per chord.
-        // Empty name = "static" (baseline profile unchanged every chord).
-        // Only built when a VoicingSelector is in play.
-        std::unique_ptr<VoicingProfileSelector> profileSelector;
-        if (selector && passIt != partTmpl.passages.end()) {
-          profileSelector = kit_.voicings.make_profile_selector(
-              passIt->second.voicingProfileSelector);
-          if (auto* sw = dynamic_cast<StaticVoicingProfileSelector*>(
-                             profileSelector.get())) {
-            sw->configure(passIt->second.voicingProfile);
-          }
-          profileSelector->configure_from_json(
-              passIt->second.voicingProfileSelectorConfig);
-          uint32_t seed = tmpl.masterSeed ^ 0x566F6953u
-                        ^ (uint32_t(si) * 100u + uint32_t(pi));
-          profileSelector->reset(seed);
-        }
+    // The realization: empty name = "block", one event per authored chord at
+    // the length the progression gives it; "rhythm_pattern" strikes by the
+    // bar and samples the harmony at each strike.
+    const StrategyChoice noChoice;
+    const StrategyChoice& choice = passTmpl ? passTmpl->realization : noChoice;
+    RealizationStrategy& strategy = kit_.strategies.realization(choice.name);
+    RealizationContext ctx{*timeline, sec, beatOffset, choice,
+        [&](const ScaleChord& sc, float pos, float dur) {
+          return voice_chord_(v, sec, sc, pos, dur);
+        }};
+    strategy.realize(ctx, part.elementSequence);
+  }
 
-        float beatsPerBar = float(sec.meter.beats_per_bar());
-        int totalBars = int(sec.beats / beatsPerBar);
+  // The voicing selector and profile selector a passage names, the latter
+  // reset to its seed. Neither is built when the passage names no voicing
+  // selector.
+  ChordVoicing plan_chord_voicing_(const PassageTemplate* passTmpl,
+                                   const ChordAccompanimentConfig& cfg,
+                                   const Section& sec, float sectionStart,
+                                   uint32_t seed) {
+    ChordVoicing v;
+    v.passTmpl = passTmpl;
+    v.cfg = cfg;
+    v.sectionStart = sectionStart;
 
-        const Chord* prevChord = nullptr;
-        int chordIdx = 0;
+    // Optional VoicingSelector (empty name = inversion/spread path).
+    if (passTmpl && !passTmpl->voicingSelector.empty()) {
+      v.selector = &kit_.voicings.selector(passTmpl->voicingSelector);
+    }
 
-        // One voicing + realization path, shared by both emission modes, so
-        // span mode is not a second-class citizen of the voicing tier.
-        auto emit_chord = [&](const ScaleChord& sc, float pos, float dur) {
-          float beatInPassage = pos - beatOffset;
-          int bar = int(beatInPassage / beatsPerBar);
-          // Chords follow the section's key contexts, the way melody
-          // realization has since #6 stage 3. Without them active_scale_at
-          // returns the section scale, so this is a strict no-op for every
-          // template that does not modulate — and with them, one authored
-          // progression walks through keys (Matt's Bruckner pedal).
-          Scale activeScale = sec.active_scale_at(beatInPassage);
-          Chord chord;
-          if (sc.pin) {
-            // An authored VoicingPin outranks any selector: this chord's
-            // voicing is part of its identity (cadential role), not a
-            // preference for the motion-minimizer to trade away. The pinned
-            // chord still becomes prevChord below, so the NEXT chord's
-            // selector smooths away from the pinned voicing.
-            const VoicingPin& pin = *sc.pin;
-            int oct = pin.octave ? *pin.octave : cfg.octave;
-            chord = sc.resolve(activeScale, oct, dur, pin.inversion,
-                               pin.spread);
-            if (pin.topTone >= 0 && !chord.pitches.empty()) {
-              // Force the requested chord tone on top, doubling it in the
-              // first octave above the current top voice if the pinned
-              // voicing does not already end on it. Doubling is the point —
-              // a close triad can never end on its bass tone otherwise.
-              Chord ref = sc.resolve(activeScale, oct, dur, pin.topTone, 0);
-              if (!ref.pitches.empty()) {
-                float want = ref.pitches.front().note_number();
-                float top = chord.pitches.back().note_number();
-                int pcDiff = ((int(std::lround(top - want)) % 12) + 12) % 12;
-                if (pcDiff != 0) {
-                  float nn = want;
-                  while (nn < top + 1.0f) nn += 12.0f;
-                  chord.pitches.push_back(Pitch::from_note_number(nn));
-                }
-              }
-            }
-          } else if (selector) {
-            float beatInBar = beatInPassage - bar * beatsPerBar;
-            VoicingProfile profile = profileSelector
-                ? profileSelector->profile_for_chord(
-                      chordIdx, beatInBar, beatInPassage)
-                : passIt->second.voicingProfile;
-            VoicingRequest req{sc, &activeScale, cfg.octave, dur,
-                               prevChord, std::nullopt,
-                               profile,
-                               passIt->second.voicingDictionary};
-            chord = selector->select(req);
-          } else {
-            chord = sc.resolve(activeScale, cfg.octave, dur,
-                               cfg.inversion, cfg.spread);
-          }
-          RealizationRequest realReq{chord, pos, dur, bar + 1, nullptr};
-          blockStrat->realize(realReq, part->elementSequence);
-          prevChord = &part->elementSequence.elements.back().chord();
-          ++chordIdx;
-        };
+    // VoicingProfileSelector: produces a VoicingProfile per chord.
+    // Empty name = "static" (baseline profile unchanged every chord).
+    // Only built when a VoicingSelector is in play.
+    if (v.selector && passTmpl) {
+      v.profileSelector = kit_.voicings.make_profile_selector(
+          passTmpl->voicingProfileSelector.name, passTmpl->voicingProfile,
+          passTmpl->voicingProfileSelector.settings);
+      v.profileSelector->reset(seed);
+    }
 
-        if (rp) {
-          for (int bar = 0; bar < totalBars; ++bar) {
-            float barStart = beatOffset + bar * beatsPerBar;
-            const auto& pattern = rp->pattern_for_bar(bar + 1);
+    v.beatsPerBar = float(sec.meter.beats_per_bar());
+    return v;
+  }
 
-            float pos = barStart;
-            for (float dur : pattern) {
-              if (dur < 0) {
-                pos += (-dur);
-                continue;
-              }
-              const ScaleChord* sc = timeline->chord_at(pos - beatOffset);
-              if (sc) emit_chord(*sc, pos, dur);
-              pos += dur;
-            }
-          }
-        } else {
-          // Span mode: walk the timeline's own chord boundaries. Chords are
-          // emitted as authored, including any that overrun the section —
-          // clipping an authored cadence chord would be a silent edit.
-          for (const auto& seg : timeline->segments) {
-            float b = seg.startBeat;
-            for (int ci = 0; ci < seg.progression.count(); ++ci) {
-              float dur = seg.progression.pulses.get(ci);
-              if (dur > 0.0f) {
-                emit_chord(seg.progression.chords.get(ci), beatOffset + b, dur);
-              }
-              b += dur;
-            }
+  // One chord symbol voiced at piece beat `pos` for `dur` beats. The voiced
+  // chord, at `dur`, becomes the previous chord of the next call.
+  Chord voice_chord_(ChordVoicing& v, const Section& sec, const ScaleChord& sc,
+                     float pos, float dur) {
+    const ChordAccompanimentConfig& cfg = v.cfg;
+    float beatInPassage = pos - v.sectionStart;
+    int bar = int(beatInPassage / v.beatsPerBar);
+    // Chords follow the section's key contexts, as melody realization does.
+    // Without them active_scale_at returns the section scale; with them, one
+    // authored progression walks through keys (Matt's Bruckner pedal).
+    Scale activeScale = sec.active_scale_at(beatInPassage);
+    Chord chord;
+    if (sc.pin) {
+      // An authored VoicingPin outranks any selector: this chord's
+      // voicing is part of its identity (cadential role), not a
+      // preference for the motion-minimizer to trade away. The pinned
+      // chord still becomes the previous chord, so the NEXT chord's
+      // selector smooths away from the pinned voicing.
+      const VoicingPin& pin = *sc.pin;
+      int oct = pin.octave ? *pin.octave : cfg.octave;
+      chord = sc.resolve(activeScale, oct, dur, pin.inversion,
+                         pin.spread);
+      if (pin.topTone >= 0 && !chord.pitches.empty()) {
+        // Force the requested chord tone on top, doubling it in the
+        // first octave above the current top voice if the pinned
+        // voicing does not already end on it. Doubling is the point —
+        // a close triad can never end on its bass tone otherwise.
+        Chord ref = sc.resolve(activeScale, oct, dur, pin.topTone, 0);
+        if (!ref.pitches.empty()) {
+          float want = ref.pitches.front().note_number();
+          float top = chord.pitches.back().note_number();
+          int pcDiff = ((int(std::lround(top - want)) % 12) + 12) % 12;
+          if (pcDiff != 0) {
+            float nn = want;
+            while (nn < top + 1.0f) nn += 12.0f;
+            chord.pitches.push_back(Pitch::from_note_number(nn));
           }
         }
       }
+    } else if (v.selector) {
+      float beatInBar = beatInPassage - bar * v.beatsPerBar;
+      VoicingProfile profile = v.profileSelector
+          ? v.profileSelector->profile_for_chord(
+                v.chordIdx, beatInBar, beatInPassage)
+          : v.passTmpl->voicingProfile;
+      VoicingRequest req{sc, &activeScale, cfg.octave, dur,
+                         v.previous ? &*v.previous : nullptr, std::nullopt,
+                         profile,
+                         v.passTmpl->voicingDictionary};
+      chord = v.selector->select(req);
+    } else {
+      chord = sc.resolve(activeScale, cfg.octave, dur,
+                         cfg.inversion, cfg.spread);
     }
+    Chord emitted = chord;
+    emitted.dur = dur;
+    v.previous = emitted;
+    ++v.chordIdx;
+    return chord;
   }
 
   // ---- The passage composed for a section the part's template omits ------
@@ -543,7 +539,7 @@ private:
       for (const auto& s : tmpl.sections) {
         if (s.name == sectionName) { sd = &s; break; }
       }
-      PassageStrategy* strat = &kit_.strategies.passage(passIt->second.strategy);
+      PassageStrategy* strat = &kit_.strategies.passage(passIt->second.strategy.name);
       if (strat->scope() == StrategyScope::Melody
           && section && section->harmonyTimeline.empty()
           && sd && !sd->styleName.empty()) {
@@ -1242,7 +1238,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
 
       Locus phraseLocus = locus.with_phrase(i);
 
-      PhraseStrategy* ps = &locus.kit->strategies.phrase(phraseTmpl.strategy);
+      PhraseStrategy* ps = &locus.kit->strategies.phrase(phraseTmpl.strategy.name);
       Phrase phrase = ps->compose_phrase(phraseLocus, localTmpl);
 
       for (const auto& figPtr : phrase.figures)

@@ -4,9 +4,8 @@
 #include "mforce/music/figure_transforms.h"
 #include "mforce/music/figure_constraints.h"
 #include "mforce/music/structure.h"
-#include "mforce/music/realization_strategy.h"
+#include "mforce/music/strategy_choice.h"
 #include "mforce/music/voicing_profile.h"
-#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -207,75 +206,6 @@ struct Motif {
 };
 
 // ===========================================================================
-// PeriodPhraseConfig — classical period (antecedent + consequent)
-// ===========================================================================
-
-struct PeriodPhraseConfig {
-  MelodicFigure basicIdea;           // opens both sub-phrases (parallel)
-  MelodicFigure antecedentTail;      // closes antecedent on halfCadenceTarget
-  MelodicFigure consequentTail;      // closes consequent on authentic cadence
-  int halfCadenceTarget{4};          // 0-indexed scale degree for half cadence
-};
-
-// ===========================================================================
-// SentencePhraseConfig — classical sentence (basic idea + repeat + continuation)
-// ===========================================================================
-
-struct SentencePhraseConfig {
-  MelodicFigure basicIdea;
-  int variationTransposition{0};     // scale-degree offset for the repetition
-  MelodicFigure continuation;
-};
-
-// ===========================================================================
-// TwoFigurePhraseConfig — base + transform phrase (step 3, ComposerRefactor3)
-// ===========================================================================
-
-struct TwoFigurePhraseConfig {
-    enum class Method { ByCount, ByLength, Singleton };
-    Method method{Method::ByCount};
-    int   count{4};        // used when method == ByCount
-    float length{4.0f};    // used when method == ByLength
-
-    Constraints constraints;
-
-    // 0 means "use phraseTmpl.seed, else a deterministic default"
-    uint32_t seed{0};
-
-    // How figure 2 is derived from figure 1.
-    TransformOp transform{TransformOp::Invert};
-    int transformParam{0};
-};
-
-// ===========================================================================
-// ElaboratedPhraseConfig — RFB-built (or literal) skeleton + per-anchor
-// random Leave/Generate elaboration. First concrete middle-tier strategy.
-// ===========================================================================
-
-struct ElaboratedPhraseConfig {
-    // Optional literal skeleton. If absent, strategy builds via RFB.
-    std::optional<MelodicFigure> skeleton;
-
-    // RFB build spec (used when skeleton is absent).
-    enum class Method { ByCount, ByLength, Singleton };
-    Method buildMethod{Method::ByCount};
-    int   buildCount{4};       // ByCount
-    float buildLength{4.0f};   // ByLength
-    Constraints buildConstraints;
-
-    // Per-anchor choice mode. Random is the production default; AllLeave /
-    // AllGenerate exist for testability and direct authoring.
-    enum class ChoiceMode { Random, AllLeave, AllGenerate };
-    ChoiceMode choiceMode{ChoiceMode::Random};
-
-    // Constraints for RFB-generated elaboration figures (Generate path).
-    Constraints generateConstraints;
-
-    // 0 means "use phraseTmpl.seed, else a deterministic default".
-    uint32_t seed{0};
-};
-
-// ===========================================================================
 // PhraseTemplate — sequence of FigureTemplates
 // ===========================================================================
 
@@ -293,8 +223,8 @@ struct PhraseTemplate {
     //   JSON:  "figures": [A, B, C],  "connectors": [null, 1, -1]
     // REPEAT-OFFENDER WARNING (bit the 2026-09-21 structural-Mary round):
     // this is NOT an N-1 "between figures" list. Authoring [1, -1] for
-    // three figures shifts figure 0 by +1 — realize_phrase_to_events_
-    // applies connectors[f].leadStep to figure f's FIRST note.
+    // three figures shifts figure 0 by +1 — realize_events applies
+    // connectors[f].leadStep to figure f's FIRST note.
     std::vector<std::optional<FigureConnector>> connectors;
 
     // Phrase-level constraints
@@ -321,146 +251,21 @@ struct PhraseTemplate {
     uint32_t seed{0};
     bool locked{false};
 
-    // Strategy selection (Phase 3). Empty = default_phrase.
-    std::string strategy;
-
-    // Typed configs for specific phrase strategies. Only one is populated
-    // at a time (matching the selected strategy).
-    std::optional<PeriodPhraseConfig> periodConfig;
-    std::optional<SentencePhraseConfig> sentenceConfig;
-    std::optional<TwoFigurePhraseConfig> twoFigureConfig;
-    std::optional<ElaboratedPhraseConfig> elaboratedConfig;
+    // The phrase strategy and its settings. Empty name = default_phrase.
+    StrategyChoice strategy;
 };
 
 // ===========================================================================
-// PeriodVariant — how a period's consequent relates to its antecedent.
+// ChordAccompanimentConfig
 // ===========================================================================
 
-enum class PeriodVariant {
-    Parallel,     // consequent motifs = antecedent motifs (verbatim)
-    Modified,     // consequent motifs derived via transform from antecedent
-    Contrasting,  // consequent motifs independent
-};
-
-// ===========================================================================
-// PeriodSpec — one period inside a PassageTemplate.periods[] list.
-// ===========================================================================
-
-struct PeriodSpec {
-    PeriodVariant variant{PeriodVariant::Parallel};
-    float bars{4.0f};
-
-    PhraseTemplate antecedent;   // cadenceType typically 1 (HC)
-    PhraseTemplate consequent;   // cadenceType typically 2 (IAC or PAC)
-
-    // For Modified variant: how the consequent's basicIdea is derived from
-    // the antecedent's. Ignored for Parallel and Contrasting.
-    std::optional<TransformOp> consequentTransform;
-    int consequentTransformParam{0};
-
-    // Optional motif-pool name for a leading connective figure that bridges
-    // from the prior period's final cadence into this period's antecedent.
-    // First PeriodSpec in a list typically has no leadingConnective.
-    std::optional<std::string> leadingConnective;
-};
-
-// ===========================================================================
-// ChordAccompanimentConfig — rhythm pattern for chord parts.
-// Durations per bar; negative values = rest of that duration.
-// ===========================================================================
-
-// Voicing-hint carrier on PassageTemplate. Rhythm-pattern half (defaultPattern,
-// overrides, pattern_for_bar) was lifted out at Stage 11; the new home is
-// PassageTemplate.rhythmPattern (consumed by RhythmPatternRealizationStrategy).
-// The remaining octave/inversion/spread will move into VoicingProfile when
-// chord-walker integrates.
+// Voicing hints for a harmony part's chords: the octave, and the inversion
+// and spread used when the passage names no voicing selector. The rhythm a
+// part strikes its chords in is its realization's settings.
 struct ChordAccompanimentConfig {
     int octave{3};
     int inversion{0};
     int spread{0};
-};
-
-// ===========================================================================
-// LibraryPassageConfig — config for LibraryPassageStrategy.
-// Picks (or accepts by name) a Pattern from the loaded PatternLibrary set
-// and deploys it.
-// ===========================================================================
-
-struct LibraryPassageConfig {
-    // Either a specific pattern name, or empty to pick by length.
-    std::string patternName;
-
-    // Length budget used by the picker when patternName is empty.
-    int barsHint{0};
-
-    // Seed for slot motif generation. 0 = derive from masterSeed + locus.
-    uint32_t seed{0};
-};
-
-// ===========================================================================
-// Anchor-driven passage configs (backlog #6 stage 1).
-//
-// Both strategies below author their passage as "entry i starts on
-// scale-degree anchors[i]" and derive FC.leadStep mechanically; see
-// passage_strategies.h. Shared fields have the same meaning in both.
-// ===========================================================================
-
-// Config for PedalBuildupStrategy ("pedal_buildup"). The melody half of a
-// pedal-point buildup: levels of EQUAL span with DOUBLING density, climbing
-// `climbStep` scale-degrees per level, arrival note held. The pedal itself
-// stays a template-authored part (a passage strategy cannot add parts).
-struct PedalBuildupConfig {
-    int levels{0};            // 0 = pick 3 or 4 at random
-    int climbStep{2};         // degrees climbed per level (2 = a third)
-    float cellBeats{3.0f};    // target length of the level-0 cell
-    float holdBeats{2.0f};    // minimum duration of the arrival note
-    int rangeCap{19};         // semitone span guard (corpus range_p90); 0 = off
-    int maxTries{8};          // resamples allowed while over rangeCap
-    uint32_t seed{0};         // 0 = derive from masterSeed + locus
-};
-
-// Config for SequencePassageStrategy ("sequence_passage"). One cell restated
-// on anchors that alternate stepA / stepB. The circle-of-fifths default
-// (-4 / +3) walks I-IV-vii-iii-vi-ii-V-I in diatonic space; other pairs give
-// other sequences (e.g. -1/0 = a descending stepwise sequence).
-struct SequencePassageConfig {
-    int entries{8};           // number of cell entries
-    int stepA{-4};            // anchor delta applied on odd entries (down a 5th)
-    int stepB{3};             // ...and on even entries (up a 4th)
-    float cellBeats{1.5f};    // target length of the cell
-    int rangeCap{19};
-    int maxTries{8};
-    uint32_t seed{0};
-};
-
-// Config for ConnectivePassageStrategy ("connective_passage"). A bridge: the
-// PREVIOUS passage's tail becomes the link cell, sequenced toward a target
-// degree that the final note is guaranteed to land on.
-struct ConnectivePassageConfig {
-    int entries{3};           // sequenced restatements of the link cell
-    int targetDegree{-2};     // degree the FINAL note lands on, rel. to the
-                              // passage's startingPitch
-    int tailUnits{3};         // units harvested from the prior passage's end
-    float finalAugment{1.5f}; // the last entry broadens as it arrives
-    float cellBeats{2.0f};    // fallback cell length when there is no prior
-                              // passage to harvest (e.g. first section)
-    int rangeCap{19};
-    int maxTries{8};
-    uint32_t seed{0};
-};
-
-// Config for WanderingPassageStrategy ("wandering_passage"). The discursive
-// passage: distinct figures, cursor-continuous, no motif returns. It sits
-// DELIBERATELY at the bottom of the repetition screen — that is the shape,
-// not a defect, and it is reported rather than tuned away.
-struct WanderingPassageConfig {
-    int entries{0};           // 0 = pick 5..7 at random
-    int pullThreshold{5};     // cursor drift past +-this nudges the next entry
-    int pullAmount{2};        // ...by this many degrees, back toward centre
-    float cellBeats{2.0f};
-    int rangeCap{19};
-    int maxTries{8};
-    uint32_t seed{0};
 };
 
 // ===========================================================================
@@ -485,8 +290,8 @@ struct PassageTemplate {
     // held note got snapped into each new scale.
     std::string scaleOverride;
 
-    // Strategy selection. Empty = default_passage.
-    std::string strategy;
+    // The passage strategy and its settings. Empty name = default_passage.
+    StrategyChoice strategy;
 
     // Quantize the passage's total length to this grid, in beats, by adjusting
     // the LAST note (comp #18 — 17 of 23 passage renders ended mid-beat).
@@ -500,13 +305,8 @@ struct PassageTemplate {
     uint32_t seed{0};
     bool locked{false};
 
-    // Period scaffolding (optional). Consumed by period-aware strategies
-    // (PeriodPassageStrategy). Other passage strategies ignore this field.
-    std::vector<PeriodSpec> periods;
-
-    // Chord accompaniment config (optional). Used by Composer for
-    // Harmony-role parts. Rhythm-pattern half is migrating to rhythmPattern
-    // (below); voicing-hint half (octave/inversion/spread) stays here.
+    // Chord accompaniment config (optional): the voicing hints of a
+    // Harmony-role part (octave/inversion/spread).
     std::optional<ChordAccompanimentConfig> chordConfig;
 
     // Passage-local harmony (optional). When present, a Harmony-role part
@@ -517,11 +317,9 @@ struct PassageTemplate {
     // timeline is left alone: melody chord-tone lookups still read it.
     std::optional<ChordProgression> chordProgression;
 
-    // Realization-tier configuration (Stage 4+). Empty realizationStrategy
-    // defaults to "block". rhythmPattern is consumed by the "rhythm_pattern"
-    // strategy.
-    std::string realizationStrategy;
-    std::optional<RhythmPattern> rhythmPattern;
+    // How a Harmony-role part's chords become events: the realization
+    // strategy and its settings. Empty name = "block".
+    StrategyChoice realization;
 
     // Name of a registered VoicingSelector. Empty = legacy behavior
     // (use ChordAccompanimentConfig.inversion/spread uniformly per chord).
@@ -534,23 +332,15 @@ struct PassageTemplate {
     // as the baseline the profile selector modulates.
     VoicingProfile voicingProfile;
 
-    // Name of a registered VoicingProfileSelector that emits a
-    // VoicingProfile per chord. Empty = "static" (uses voicingProfile
-    // unchanged for every chord).
-    std::string voicingProfileSelector;
-
-    // Selector-specific config (e.g. RandomVoicingProfileSelector ranges,
-    // ScriptedVoicingProfileSelector sequence). Opaque to the template
-    // layer; each selector parses its own shape.
-    nlohmann::json voicingProfileSelectorConfig;
+    // The VoicingProfileSelector that emits a VoicingProfile per chord, and
+    // its settings. Empty name = "static" (uses voicingProfile unchanged for
+    // every chord).
+    StrategyChoice voicingProfileSelector;
 
     // ChordDictionary name used by the VoicingSelector for candidate voicings.
     // Empty = "Canonic" (smallest-interval close voicings). Names like "Piano",
     // "Guitar-Bar-6", etc. pull wider/idiomatic voicings from the registry.
     std::string voicingDictionary;
-
-    // Library-passage config (optional). Consumed by LibraryPassageStrategy.
-    std::optional<LibraryPassageConfig> libraryConfig;
 
     // Comp crawl (spec 2026-09-21): melody authored as a passage string in
     // a .psg file ('|' = structural phrase boundary). When set,
@@ -567,13 +357,6 @@ struct PassageTemplate {
     std::string anchorMode;
     // genre profile name (styles/<name>.json "melody" block); required when anchorMode == "harmonic"
     std::string melodyProfile;
-
-    // Anchor-driven passage configs (optional). Each is consumed by the
-    // matching strategy; absent means "use that strategy's defaults".
-    std::optional<PedalBuildupConfig> pedalBuildupConfig;
-    std::optional<SequencePassageConfig> sequenceConfig;
-    std::optional<ConnectivePassageConfig> connectiveConfig;
-    std::optional<WanderingPassageConfig> wanderingConfig;
 };
 
 // ===========================================================================

@@ -32,7 +32,10 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 class PhraseAwareFigureStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "phrase_aware_figure"; }
+  static constexpr const char* kName = "phrase_aware_figure";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
 
   Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
 

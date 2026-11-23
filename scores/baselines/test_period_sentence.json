@@ -17,11 +17,7 @@
             {
               "name": "Period_Phrase",
               "startingPitch": {"octave": 4, "pitch": "C"},
-              "strategy": "period_phrase",
-              "cadenceType": 2,
-              "cadenceTarget": 0,
-              "figures": [],
-              "periodConfig": {
+              "strategy": {"name": "period_phrase", "settings": {
                 "basicIdea": {
                   "units": [
                     {"step": 0, "duration": 1.0},
@@ -47,16 +43,15 @@
                   ]
                 },
                 "halfCadenceTarget": 4
-              }
+              }},
+              "cadenceType": 2,
+              "cadenceTarget": 0,
+              "figures": []
             },
             {
               "name": "Sentence_Phrase",
               "startingPitch": {"octave": 4, "pitch": "G"},
-              "strategy": "sentence_phrase",
-              "cadenceType": 2,
-              "cadenceTarget": 0,
-              "figures": [],
-              "sentenceConfig": {
+              "strategy": {"name": "sentence_phrase", "settings": {
                 "basicIdea": {
                   "units": [
                     {"step": 0, "duration": 1.0},
@@ -76,7 +71,10 @@
                     {"step": 0, "duration": 2.0}
                   ]
                 }
-              }
+              }},
+              "cadenceType": 2,
+              "cadenceTarget": 0,
+              "figures": []
             }
           ]
         }

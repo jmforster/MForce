@@ -44,6 +44,72 @@
 namespace mforce {
 
 // ===========================================================================
+// Anchor-driven passage settings.
+//
+// The strategies below author their passage as "entry i starts on
+// scale-degree anchors[i]" and derive FC.leadStep mechanically; see
+// below. Shared fields have the same meaning in each.
+// ===========================================================================
+
+// Settings for PedalBuildupStrategy ("pedal_buildup"). The melody half of a
+// pedal-point buildup: levels of EQUAL span with DOUBLING density, climbing
+// `climbStep` scale-degrees per level, arrival note held. The pedal itself
+// stays a template-authored part (a passage strategy cannot add parts).
+struct PedalBuildupSettings {
+    int levels{0};            // 0 = pick 3 or 4 at random
+    int climbStep{2};         // degrees climbed per level (2 = a third)
+    float cellBeats{3.0f};    // target length of the level-0 cell
+    float holdBeats{2.0f};    // minimum duration of the arrival note
+    int rangeCap{19};         // semitone span guard (corpus range_p90); 0 = off
+    int maxTries{8};          // resamples allowed while over rangeCap
+    uint32_t seed{0};         // 0 = derive from masterSeed + locus
+};
+
+// Settings for SequencePassageStrategy ("sequence_passage"). One cell restated
+// on anchors that alternate stepA / stepB. The circle-of-fifths default
+// (-4 / +3) walks I-IV-vii-iii-vi-ii-V-I in diatonic space; other pairs give
+// other sequences (e.g. -1/0 = a descending stepwise sequence).
+struct SequencePassageSettings {
+    int entries{8};           // number of cell entries
+    int stepA{-4};            // anchor delta applied on odd entries (down a 5th)
+    int stepB{3};             // ...and on even entries (up a 4th)
+    float cellBeats{1.5f};    // target length of the cell
+    int rangeCap{19};
+    int maxTries{8};
+    uint32_t seed{0};
+};
+
+// Settings for ConnectivePassageStrategy ("connective_passage"). A bridge: the
+// PREVIOUS passage's tail becomes the link cell, sequenced toward a target
+// degree that the final note is guaranteed to land on.
+struct ConnectivePassageSettings {
+    int entries{3};           // sequenced restatements of the link cell
+    int targetDegree{-2};     // degree the FINAL note lands on, rel. to the
+                              // passage's startingPitch
+    int tailUnits{3};         // units harvested from the prior passage's end
+    float finalAugment{1.5f}; // the last entry broadens as it arrives
+    float cellBeats{2.0f};    // fallback cell length when there is no prior
+                              // passage to harvest (e.g. first section)
+    int rangeCap{19};
+    int maxTries{8};
+    uint32_t seed{0};
+};
+
+// Settings for WanderingPassageStrategy ("wandering_passage"). The discursive
+// passage: distinct figures, cursor-continuous, no motif returns. It sits
+// DELIBERATELY at the bottom of the repetition screen — that is the shape,
+// not a defect, and it is reported rather than tuned away.
+struct WanderingPassageSettings {
+    int entries{0};           // 0 = pick 5..7 at random
+    int pullThreshold{5};     // cursor drift past +-this nudges the next entry
+    int pullAmount{2};        // ...by this many degrees, back toward centre
+    float cellBeats{2.0f};
+    int rangeCap{19};
+    int maxTries{8};
+    uint32_t seed{0};
+};
+
+// ===========================================================================
 // Shared anchor plumbing
 // ===========================================================================
 
@@ -269,7 +335,10 @@ inline Phrase compose_anchored_phrase(
 // same density, different contour. The final entry gets a held last note.
 class PedalBuildupStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "pedal_buildup"; }
+  static constexpr const char* kName = "pedal_buildup";
+  using Settings = PedalBuildupSettings;
+
+  std::string name() const override { return kName; }
   StrategyScope scope() const override { return StrategyScope::Melody; }
 
   Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
@@ -278,8 +347,7 @@ public:
 inline Passage PedalBuildupStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
   Passage passage;
-  const PedalBuildupConfig cfg =
-      pt.pedalBuildupConfig ? *pt.pedalBuildupConfig : PedalBuildupConfig{};
+  const Settings cfg = settings_of<Settings>(pt.strategy);
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   Pitch start = pt.startingPitch ? *pt.startingPitch
@@ -397,7 +465,10 @@ inline Passage PedalBuildupStrategy::compose_passage(
 // stage 3 of the port, not something this class can express.
 class SequencePassageStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "sequence_passage"; }
+  static constexpr const char* kName = "sequence_passage";
+  using Settings = SequencePassageSettings;
+
+  std::string name() const override { return kName; }
   StrategyScope scope() const override { return StrategyScope::Melody; }
 
   Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
@@ -406,8 +477,7 @@ public:
 inline Passage SequencePassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
   Passage passage;
-  const SequencePassageConfig cfg =
-      pt.sequenceConfig ? *pt.sequenceConfig : SequencePassageConfig{};
+  const Settings cfg = settings_of<Settings>(pt.strategy);
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   Pitch start = pt.startingPitch ? *pt.startingPitch
@@ -493,7 +563,10 @@ inline Passage SequencePassageStrategy::compose_passage(
 // above answers it without extending Locus.
 class ConnectivePassageStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "connective_passage"; }
+  static constexpr const char* kName = "connective_passage";
+  using Settings = ConnectivePassageSettings;
+
+  std::string name() const override { return kName; }
   StrategyScope scope() const override { return StrategyScope::Melody; }
 
   Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
@@ -502,8 +575,7 @@ public:
 inline Passage ConnectivePassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
   Passage passage;
-  const ConnectivePassageConfig cfg =
-      pt.connectiveConfig ? *pt.connectiveConfig : ConnectivePassageConfig{};
+  const Settings cfg = settings_of<Settings>(pt.strategy);
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   Pitch start = pt.startingPitch ? *pt.startingPitch
@@ -609,7 +681,10 @@ inline Passage ConnectivePassageStrategy::compose_passage(
 // still return to something is a taste question, queued rather than tuned.
 class WanderingPassageStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "wandering_passage"; }
+  static constexpr const char* kName = "wandering_passage";
+  using Settings = WanderingPassageSettings;
+
+  std::string name() const override { return kName; }
   StrategyScope scope() const override { return StrategyScope::Melody; }
 
   Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
@@ -618,8 +693,7 @@ public:
 inline Passage WanderingPassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
   Passage passage;
-  const WanderingPassageConfig cfg =
-      pt.wanderingConfig ? *pt.wanderingConfig : WanderingPassageConfig{};
+  const Settings cfg = settings_of<Settings>(pt.strategy);
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   Pitch start = pt.startingPitch ? *pt.startingPitch

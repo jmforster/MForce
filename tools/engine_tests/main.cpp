@@ -2992,8 +2992,25 @@ static void run_embedded_score_text_tests() {
 }
 
 #include "mforce/music/passage_melody.h"
+#include "mforce/music/register_builtin.h"
 #include "mforce/music/templates_json.h"
 #include <filesystem>
+
+// A template read through the built-in strategies' codecs.
+static mforce::PieceTemplate template_from(const nlohmann::json& j) {
+    mforce::ComposeKit kit;
+    mforce::SettingsCodecs codecs;
+    mforce::register_builtin(kit, codecs);
+    return mforce::read_template(j, codecs);
+}
+
+// A template written through the built-in strategies' codecs.
+static nlohmann::json json_of(const mforce::PieceTemplate& t) {
+    mforce::ComposeKit kit;
+    mforce::SettingsCodecs codecs;
+    mforce::register_builtin(kit, codecs);
+    return mforce::write_template(t, codecs);
+}
 
 static void run_passage_melody_tests() {
     using namespace mforce;
@@ -3100,8 +3117,7 @@ static void run_passage_melody_tests() {
               "melodyOctave": 5, "phrases": [] } }
           }]
         })");
-        PieceTemplate tmpl;
-        from_json(tj, tmpl);
+        PieceTemplate tmpl = template_from(tj);
         CHECK(tmpl.parts[0].passages.at("Main").melodyPassageFile
               == "renders/scratch/_pm_test.psg");
         CHECK(tmpl.parts[0].passages.at("Main").melodyOctave == 5);
@@ -3113,7 +3129,7 @@ static void run_passage_melody_tests() {
         CHECK(pass.phrases[1].figures.size() == 1);
 
         // Round-trip keeps the fields.
-        json out; to_json(out, tmpl.parts[0].passages.at("Main"));
+        const json out = json_of(tmpl)["parts"][0]["passages"]["Main"];
         CHECK(out.value("melodyPassageFile", std::string())
               == "renders/scratch/_pm_test.psg");
         CHECK(out.value("melodyOctave", 0) == 5);
@@ -3133,12 +3149,12 @@ static void run_passage_melody_tests() {
 #include "mforce/music/anchor_selector.h"
 #include "mforce/music/compose.h"
 #include "mforce/music/composer.h"
-#include "mforce/music/register_builtin.h"
 
 // Composes `tmpl` with every built-in strategy and voicing registered.
 static Composition compose_builtin(const PieceTemplate& tmpl) {
     ComposeKit kit;
-    register_builtin(kit);
+    SettingsCodecs codecs;
+    register_builtin(kit, codecs);
     return compose(tmpl, kit);
 }
 
@@ -3338,7 +3354,7 @@ static void run_walk1_tests() {
                           {"source": "reference", "motifName": "m1"},
                           {"source": "reference", "motifName": "m2"}]}]}}}]
         })");
-        PieceTemplate tmpl; from_json(tj, tmpl);
+        PieceTemplate tmpl = template_from(tj);
         Piece piece = compose_builtin(tmpl).piece;
         CHECK(!piece.parts.empty());
         CHECK(piece.parts[0].elementSequence.size() == 6);
@@ -3493,8 +3509,10 @@ static void run_walk3_tests() {
         CHECK(st.transitions.count("I") == 1);
         // Template round trip keeps melodyProfile.
         PassageTemplate pt; pt.melodyProfile = "nursery_v1";
-        json pj; to_json(pj, pt);
-        PassageTemplate back; from_json(pj, back);
+        PieceTemplate holder; holder.parts.push_back({"melody", PartRole::Melody, ""});
+        holder.parts[0].passages["Main"] = pt;
+        const PassageTemplate back =
+            template_from(json_of(holder)).parts[0].passages.at("Main");
         CHECK(back.melodyProfile == "nursery_v1");
     }
 
@@ -3700,7 +3718,7 @@ static void run_walk3_tests() {
         json base = json::parse(f);
         auto melody = [&](uint32_t seed) {
             json tj = base; tj["masterSeed"] = seed;
-            PieceTemplate tmpl; from_json(tj, tmpl);
+            PieceTemplate tmpl = template_from(tj);
             Piece piece = compose_builtin(tmpl).piece;
             std::vector<int> nns;
             for (auto& part : piece.parts) {
@@ -3730,15 +3748,9 @@ struct TemplateFootprint {
 };
 
 static TemplateFootprint footprint_of(const PieceTemplate& t) {
-    const json j = t;
+    const json j = json_of(t);
     return {j.dump(), t.motifs.size(), t.realizedMotifs.size(),
             t.realizedRhythms.size(), t.realizedContours.size()};
-}
-
-static PieceTemplate template_from(const json& j) {
-    PieceTemplate t;
-    from_json(j, t);
-    return t;
 }
 
 // One 8-beat section with two chords; a melody part with one phrase of two
@@ -3810,24 +3822,25 @@ static void run_compose_request_tests() {
 
 static void run_compose_kit_tests() {
     ComposeKit builtin;
-    register_builtin(builtin);
-    const json probe = compose_probe_json();
-    CHECK(!compose_builtin(template_from(probe)).piece.parts.empty());
+    SettingsCodecs codecs;
+    register_builtin(builtin, codecs);
+    const PieceTemplate probe = template_from(compose_probe_json());
+    CHECK(!compose_builtin(probe).piece.parts.empty());
 
-    // An unregistered name is an error that names it.
-    json j = probe;
-    j["parts"][0]["passages"]["Main"]["strategy"] = "no_such_passage";
-    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_passage"));
-    j = probe;
-    j["parts"][0]["passages"]["Main"]["phrases"][0]["strategy"] = "no_such_phrase";
-    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_phrase"));
-    j = probe;
-    j["parts"][1]["passages"]["Main"]["voicingSelector"] = "no_such_voicing";
-    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_voicing"));
-    j = probe;
-    j["parts"][1]["passages"]["Main"]["voicingSelector"] = "smooth";
-    j["parts"][1]["passages"]["Main"]["voicingProfileSelector"] = "no_such_profile";
-    CHECK(compose_throws_naming(template_from(j), builtin, "no_such_profile"));
+    // An unregistered name, set in code, is an error of compose that names it.
+    PieceTemplate t = probe;
+    t.parts[0].passages["Main"].strategy.name = "no_such_passage";
+    CHECK(compose_throws_naming(t, builtin, "no_such_passage"));
+    t = probe;
+    t.parts[0].passages["Main"].phrases[0].strategy.name = "no_such_phrase";
+    CHECK(compose_throws_naming(t, builtin, "no_such_phrase"));
+    t = probe;
+    t.parts[1].passages["Main"].voicingSelector = "no_such_voicing";
+    CHECK(compose_throws_naming(t, builtin, "no_such_voicing"));
+    t = probe;
+    t.parts[1].passages["Main"].voicingSelector = "smooth";
+    t.parts[1].passages["Main"].voicingProfileSelector.name = "no_such_profile";
+    CHECK(compose_throws_naming(t, builtin, "no_such_profile"));
 
     // A kit with the three defaults and the three shapes composes a melody
     // that names no strategy, and refuses one that names period_passage.
@@ -3838,12 +3851,12 @@ static void run_compose_kit_tests() {
     small.strategies.add(std::make_unique<ShapeCadentialApproachStrategy>());
     small.strategies.add(std::make_unique<ShapeSkippingStrategy>());
     small.strategies.add(std::make_unique<ShapeSteppingStrategy>());
-    json melodyOnly = probe;
-    melodyOnly["parts"].erase(1);
-    const Composition c = compose(template_from(melodyOnly), small);
+    PieceTemplate melodyOnly = probe;
+    melodyOnly.parts.erase(melodyOnly.parts.begin() + 1);
+    const Composition c = compose(melodyOnly, small);
     CHECK(!c.piece.parts.empty() && !c.piece.parts[0].elementSequence.empty());
-    melodyOnly["parts"][0]["passages"]["Main"]["strategy"] = "period_passage";
-    CHECK(compose_throws_naming(template_from(melodyOnly), small, "period_passage"));
+    melodyOnly.parts[0].passages["Main"].strategy.name = "period_passage";
+    CHECK(compose_throws_naming(melodyOnly, small, "period_passage"));
 }
 
 #include "mforce/music/dun_parser.h"
@@ -4032,6 +4045,240 @@ static void run_init_pitches_tests() {
         pinned = pinned && nns == pin.nns;
     }
     CHECK(pinned);
+}
+
+#include "mforce/music/elaborated_phrase_strategy_json.h"
+#include "mforce/music/library_passage_strategy_json.h"
+#include "mforce/music/passage_strategies_json.h"
+#include "mforce/music/period_passage_strategy_json.h"
+#include "mforce/music/phrase_strategies_json.h"
+#include "mforce/music/realization_strategy_json.h"
+#include "mforce/music/two_figure_phrase_strategy_json.h"
+#include "mforce/music/voicing_json.h"
+
+static void run_settings_of_tests() {
+    std::printf("settings_of: defaults when empty, the value when present, a named throw\n");
+    const StrategyChoice empty{"pedal_buildup", {}};
+    CHECK(settings_of<PedalBuildupSettings>(empty).climbStep == 2);
+    PedalBuildupSettings given;
+    given.levels = 3;
+    CHECK(settings_of<PedalBuildupSettings>(StrategyChoice{"pedal_buildup", given}).levels == 3);
+    bool named = false;
+    try {
+        (void)settings_of<SequencePassageSettings>(StrategyChoice{"pedal_buildup", given});
+    } catch (const std::exception& e) {
+        const std::string m = e.what();
+        named = m.find("pedal_buildup") != std::string::npos
+             && m.find("PedalBuildupSettings") != std::string::npos
+             && m.find("SequencePassageSettings") != std::string::npos;
+    }
+    CHECK(named);
+}
+
+// The settings of `name` at `level` read from `text`, written, read again and
+// written again: the two writes are equal and keep each authored key.
+static bool settings_round_trip(const SettingsCodecs& codecs, StrategyLevel level,
+                                const char* name, const char* text) {
+    const json in = json{{"name", name}, {"settings", json::parse(text)}};
+    const json once = codecs.write(codecs.read(in, level), level);
+    const json twice = codecs.write(codecs.read(once, level), level);
+    bool keeps = once == twice;
+    for (const auto& [k, v] : in["settings"].items()) keeps = keeps && once["settings"].contains(k);
+    return keeps;
+}
+
+static void run_settings_codec_tests() {
+    std::printf("every settings type through its codec: read, write, read again, equal\n");
+    ComposeKit kit;
+    SettingsCodecs codecs;
+    register_builtin(kit, codecs);
+    const char* fig = R"({"units": [{"duration": 1.0, "step": 0}, {"duration": 1.0, "step": 1}]})";
+    const std::string period = std::string(R"({"basicIdea": )") + fig + R"(, "antecedentTail": )" +
+        fig + R"(, "consequentTail": )" + fig + R"(, "halfCadenceTarget": 3})";
+    const std::string sentence = std::string(R"({"basicIdea": )") + fig +
+        R"(, "continuation": )" + fig + R"(, "variationTransposition": 2})";
+    using L = StrategyLevel;
+    struct Case { L level; const char* name; std::string text; };
+    const Case cases[] = {
+        {L::Phrase, "period_phrase", period},
+        {L::Phrase, "sentence_phrase", sentence},
+        {L::Phrase, "two_figure_phrase", R"({"method": "by_length", "length": 3.0, "seed": 9, "transform": "invert"})"},
+        {L::Phrase, "elaborated_phrase", R"({"buildMethod": "by_count", "buildCount": 5, "choiceMode": "all_leave", "seed": 4})"},
+        {L::Passage, "library_passage", R"({"patternName": "BillyLife", "barsHint": 8, "seed": 2})"},
+        {L::Passage, "pedal_buildup", R"({"levels": 3, "climbStep": 1})"},
+        {L::Passage, "sequence_passage", R"({"entries": 6, "stepA": -1, "stepB": 0})"},
+        {L::Passage, "connective_passage", R"({"entries": 2, "targetDegree": 3})"},
+        {L::Passage, "wandering_passage", R"({"entries": 5, "pullAmount": 1})"},
+        {L::Passage, "period_passage", R"({"periods": [{"variant": "Modified", "bars": 8,
+            "antecedent": {"figures": [{"source": "generate", "totalBeats": 4}], "cadenceType": 1},
+            "consequent": {"strategy": "default_phrase"},
+            "consequentTransform": "invert"}]})"},
+        {L::Realization, "rhythm_pattern", R"({"defaultPattern": [2, -1, 1], "overrides": [{"bars": [2], "pattern": [4]}]})"},
+        {L::ProfileSelector, "random", R"({"priorityMin": 0.25, "priorityMax": 0.75, "inversionProfiles": [[0], [1, 2]]})"},
+        {L::ProfileSelector, "drift", R"({"priorityStepMax": 0.5, "spreadProfiles": [[0, 1]]})"},
+        {L::ProfileSelector, "scripted", R"({"sequence": [{"priority": 0.5, "allowedInversions": [1]}]})"},
+    };
+    bool all = true;
+    for (const auto& c : cases) {
+        const bool ok = settings_round_trip(codecs, c.level, c.name, c.text.c_str());
+        if (!ok) std::printf("  round trip failed: %s\n", c.name);
+        all = all && ok;
+    }
+    CHECK(all);
+}
+
+// True when reading `j` throws and the message holds every one of `parts`.
+static bool read_throws_naming(const json& j, std::initializer_list<const char*> parts) {
+    try {
+        (void)template_from(j);
+    } catch (const std::exception& e) {
+        const std::string m = e.what();
+        for (const char* p : parts) if (m.find(p) == std::string::npos) return false;
+        return true;
+    }
+    return false;
+}
+
+static void run_template_refusal_tests() {
+    std::printf("templates: each old key is refused by name; an unregistered strategy too\n");
+    const json probe = compose_probe_json();
+    bool all = true;
+    for (const char* key : {"libraryConfig", "pedalBuildupConfig", "sequenceConfig",
+                            "connectiveConfig", "wanderingConfig", "periods",
+                            "realizationStrategy", "rhythmPattern",
+                            "voicingProfileSelectorConfig"}) {
+        json j = probe;
+        j["parts"][0]["passages"]["Main"][key] = json::object();
+        all = all && read_throws_naming(j, {key, "tools/convert_template.py"});
+    }
+    for (const char* key : {"periodConfig", "sentenceConfig", "twoFigureConfig",
+                            "elaboratedConfig"}) {
+        json j = probe;
+        j["parts"][0]["passages"]["Main"]["phrases"][0][key] = json::object();
+        all = all && read_throws_naming(j, {key, "tools/convert_template.py"});
+    }
+    CHECK(all);
+    json j = probe;
+    j["parts"][0]["passages"]["Main"]["strategy"] = "no_such_passage";
+    CHECK(read_throws_naming(j, {"no_such_passage"}));
+    j = probe;
+    j["parts"][1]["passages"]["Main"]["realization"] = "no_such_realization";
+    CHECK(read_throws_naming(j, {"no_such_realization"}));
+    j = probe;
+    j["parts"][0]["passages"]["Main"]["strategy"] = json{{"name", "default_passage"},
+                                                         {"settings", json::object()}};
+    CHECK(read_throws_naming(j, {"default_passage", "takes no settings"}));
+}
+
+// Realizes `strategy` over `harmony` in an 8-beat C major section starting at
+// piece beat 10; each voiced chord is a C major triad at the length asked.
+static ElementSequence realize_on(RealizationStrategy& strategy, const HarmonyTimeline& harmony,
+                                  const StrategyChoice& choice) {
+    const Section sec("Main", 8.0f, 120.0f, Meter::M_4_4, Scale::get("C", "Major"));
+    RealizationContext ctx{harmony, sec, 10.0f, choice,
+        [](const ScaleChord&, float, float beats) {
+            return Chord::create("C", 4, "Major", beats);
+        }};
+    ElementSequence out;
+    strategy.realize(ctx, out);
+    return out;
+}
+
+static void run_realization_strategy_tests() {
+    std::printf("realization: block one event per chord; rhythm_pattern by the bar\n");
+    const ChordDef* major = &ChordDef::get("Major");
+    ChordProgression prog;
+    prog.add(ScaleChord{0, 0, major}, 3.0f);
+    prog.add(ScaleChord{3, 0, major}, 0.0f);   // no length: no event
+    prog.add(ScaleChord{4, 0, major}, 2.0f);
+    HarmonyTimeline full;
+    full.set_segment(0.0f, 8.0f, prog, "test");
+    BlockRealizationStrategy block;
+    const ElementSequence b = realize_on(block, full, StrategyChoice{});
+    CHECK(b.elements.size() == 2);
+    if (b.elements.size() == 2) {
+        CHECK(b.elements[0].startBeats == 10.0f && b.elements[0].chord().dur == 3.0f);
+        CHECK(b.elements[1].startBeats == 13.0f && b.elements[1].chord().dur == 2.0f);
+    }
+
+    // Harmony only over the first bar; the pattern strikes 2, rests 1,
+    // strikes 1, in both bars: the second bar's strikes find no chord.
+    ChordProgression one;
+    one.add(ScaleChord{0, 0, major}, 4.0f);
+    HarmonyTimeline firstBar;
+    firstBar.set_segment(0.0f, 4.0f, one, "test");
+    RhythmPattern rp;
+    rp.defaultPattern = {2.0f, -1.0f, 1.0f};
+    RhythmPatternRealizationStrategy pattern;
+    const ElementSequence r = realize_on(pattern, firstBar, StrategyChoice{"rhythm_pattern", rp});
+    CHECK(r.elements.size() == 2);
+    if (r.elements.size() == 2) {
+        CHECK(r.elements[0].startBeats == 10.0f && r.elements[0].chord().dur == 2.0f);
+        CHECK(r.elements[1].startBeats == 13.0f && r.elements[1].chord().dur == 1.0f);
+    }
+}
+
+// The profile `p` as the capture printed it: priority, then the two lists.
+static bool profile_is(const VoicingProfile& p, float priority, std::vector<int> inv,
+                       std::vector<int> spr) {
+    return p.priority == priority && p.allowedInversions == inv && p.allowedSpreads == spr;
+}
+
+static void run_profile_selector_capture_tests() {
+    std::printf("profile selectors: the profiles captured before typed settings\n");
+    using V = std::vector<int>;
+    RandomVoicingProfileSelector random(json::parse(
+        R"({"priorityMin": 0.2, "priorityMax": 0.8, "inversionProfiles": [[0], [0, 1], [1, 2]], "spreadProfiles": [[0], [0, 1]]})")
+        .get<RandomProfileSettings>());
+    DriftVoicingProfileSelector drift(json::parse(
+        R"({"priorityMin": 0.8, "priorityMax": 0.1, "priorityStepMax": 0.3, "profileTransitionProb": 0.5, "inversionProfiles": [[0], [0, 1], [1, 2]], "spreadProfiles": [[0], [0, 1]]})")
+        .get<DriftProfileSettings>());
+    ScriptedVoicingProfileSelector scripted(json::parse(
+        R"({"sequence": [{"priority": 0.1, "allowedInversions": [0, 1], "allowedSpreads": [0]}, {"priority": 0.6, "allowedInversions": [2]}, {"priority": 0.9}]})")
+        .get<ScriptedProfileSettings>());
+    struct Want { float priority; V inv, spr; };
+    const Want wantRandom[8] = {
+        {0.757769644f, {1, 2}, {0}}, {0.278424382f, {0}, {0}}, {0.322736174f, {1, 2}, {0, 1}},
+        {0.519246757f, {0, 1}, {0, 1}}, {0.778708696f, {0, 1}, {0, 1}}, {0.754242897f, {1, 2}, {0}},
+        {0.592141926f, {0}, {0, 1}}, {0.73540622f, {1, 2}, {0}}};
+    const Want wantDrift[8] = {
+        {0.538384855f, {0, 1}, {0, 1}}, {0.800000012f, {1, 2}, {0, 1}}, {0.487242162f, {1, 2}, {0, 1}},
+        {0.408894598f, {1, 2}, {0, 1}}, {0.248676211f, {1, 2}, {0}}, {0.427068502f, {1, 2}, {0, 1}},
+        {0.1878957f, {0}, {0}}, {0.352164149f, {0}, {0}}};
+    const Want wantScripted[3] = {{0.100000001f, {0, 1}, {0}}, {0.600000024f, {2}, {}},
+                                  {0.899999976f, {}, {}}};
+    random.reset(12345u);
+    drift.reset(12345u);
+    scripted.reset(12345u);
+    bool same = true;
+    for (int c = 0; c < 8; ++c) {
+        const Want& r = wantRandom[c];
+        const Want& d = wantDrift[c];
+        const Want& s = wantScripted[c % 3];
+        same = same && profile_is(random.profile_for_chord(c, 0.0f, float(c)), r.priority, r.inv, r.spr)
+                    && profile_is(drift.profile_for_chord(c, 0.0f, float(c)), d.priority, d.inv, d.spr)
+                    && profile_is(scripted.profile_for_chord(c, 0.0f, float(c)), s.priority, s.inv, s.spr);
+    }
+    CHECK(same);
+}
+
+static void run_settings_required_tests() {
+    std::printf("the five strategies that need settings throw without them\n");
+    ComposeKit kit;
+    SettingsCodecs codecs;
+    register_builtin(kit, codecs);
+    const PieceTemplate probe = template_from(compose_probe_json());
+    bool all = true;
+    for (const char* name : {"period_phrase", "sentence_phrase", "two_figure_phrase",
+                             "elaborated_phrase"}) {
+        PieceTemplate t = probe;
+        t.parts[0].passages["Main"].phrases[0].strategy.name = name;
+        all = all && compose_throws_naming(t, kit, std::string(name) + ": given no settings");
+    }
+    PieceTemplate t = probe;
+    t.parts[0].passages["Main"].strategy.name = "library_passage";
+    all = all && compose_throws_naming(t, kit, "library_passage: given no settings");
+    CHECK(all);
 }
 
 #include "mforce/core/component.h"
@@ -15824,6 +16071,12 @@ int main() {
     run_harmony_timeline_tests();
     run_play_unrealized_warning_test();
     run_init_pitches_tests();
+    run_settings_of_tests();
+    run_settings_codec_tests();
+    run_template_refusal_tests();
+    run_realization_strategy_tests();
+    run_profile_selector_capture_tests();
+    run_settings_required_tests();
     run_passage_melody_tests();
     run_passage_parse_tests();
     run_onset_field_tests();

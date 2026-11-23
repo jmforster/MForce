@@ -3,60 +3,47 @@
 #include "mforce/music/voicing_profile_selector.h"
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include <vector>
 
 namespace mforce {
+
+// The settings of DriftVoicingProfileSelector.
+struct DriftProfileSettings {
+  float priorityMin{0.0f};
+  float priorityMax{1.0f};
+  float priorityStepMax{0.15f};        // gaussian stddev
+  float profileTransitionProb{0.2f};   // chance to rotate profile
+  std::vector<std::vector<int>> inversionProfiles;
+  std::vector<std::vector<int>> spreadProfiles;
+};
 
 // ---------------------------------------------------------------------------
 // DriftVoicingProfileSelector — coherent random walk over profile parameters.
 //
 // Priority drifts via gaussian steps (mean 0, stddev priorityStepMax),
-// clamped to [priorityMin, priorityMax]. At each chord, with probability
-// profileTransitionProb, rotate to the next configured inversion/spread
-// profile; otherwise retain the current one.
+// clamped to [priorityMin, priorityMax]; a reversed range is swapped at
+// construction. At each chord, with probability profileTransitionProb,
+// rotate to the next configured inversion/spread profile; otherwise retain
+// the current one.
 //
 // Produces more coherent variation than independent per-chord sampling:
 // each chord's profile is closely related to the previous one.
-//
-// Config (nlohmann::json):
-//   priorityMin             (float, default 0.0)
-//   priorityMax             (float, default 1.0)
-//   priorityStepMax         (float, default 0.15) — gaussian stddev
-//   profileTransitionProb   (float, default 0.2)  — chance to rotate profile
-//   inversionProfiles       (list-of-lists<int>)
-//   spreadProfiles          (list-of-lists<int>)
 // ---------------------------------------------------------------------------
 class DriftVoicingProfileSelector : public VoicingProfileSelector {
  public:
-  std::string name() const override { return "drift"; }
+  static constexpr const char* kName = "drift";
+  using Settings = DriftProfileSettings;
 
-  void configure_from_json(const nlohmann::json& cfg) override {
-    priorityMin_ = cfg.value("priorityMin", 0.0f);
-    priorityMax_ = cfg.value("priorityMax", 1.0f);
+  explicit DriftVoicingProfileSelector(const Settings& s)
+      : priorityMin_(s.priorityMin), priorityMax_(s.priorityMax),
+        priorityStepMax_(s.priorityStepMax),
+        profileTransitionProb_(s.profileTransitionProb),
+        inversionProfiles_(s.inversionProfiles), spreadProfiles_(s.spreadProfiles) {
     if (priorityMax_ < priorityMin_) std::swap(priorityMin_, priorityMax_);
-    priorityStepMax_ = cfg.value("priorityStepMax", 0.15f);
-    profileTransitionProb_ = cfg.value("profileTransitionProb", 0.2f);
-
-    inversionProfiles_.clear();
-    if (cfg.contains("inversionProfiles") && cfg["inversionProfiles"].is_array()) {
-      for (const auto& pj : cfg["inversionProfiles"]) {
-        if (!pj.is_array()) continue;
-        std::vector<int> prof;
-        for (const auto& v : pj) prof.push_back(v.get<int>());
-        inversionProfiles_.push_back(std::move(prof));
-      }
-    }
-
-    spreadProfiles_.clear();
-    if (cfg.contains("spreadProfiles") && cfg["spreadProfiles"].is_array()) {
-      for (const auto& pj : cfg["spreadProfiles"]) {
-        if (!pj.is_array()) continue;
-        std::vector<int> prof;
-        for (const auto& v : pj) prof.push_back(v.get<int>());
-        spreadProfiles_.push_back(std::move(prof));
-      }
-    }
   }
+
+  std::string name() const override { return kName; }
 
   void reset(uint32_t seed) override {
     rng_ = Randomizer(seed);

@@ -18,7 +18,10 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 class WrapperPhraseStrategy : public PhraseStrategy {
 public:
-  std::string name() const override { return "wrapper_phrase"; }
+  static constexpr const char* kName = "wrapper_phrase";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
   Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 

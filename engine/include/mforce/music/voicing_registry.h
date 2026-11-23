@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/music/voicing_profile_selector.h"
 #include "mforce/music/voicing_selector.h"
+#include <any>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -12,7 +13,9 @@ namespace mforce {
 
 // VoicingRegistry — the voicing selectors a host has registered, by name,
 // and one factory per voicing profile selector. A profile selector keeps
-// state for one passage, so each request for one builds a fresh instance.
+// state for one passage, so each request for one builds a fresh instance,
+// from the passage's baseline profile and the settings the passage gives
+// that selector (empty = its defaults).
 //
 // A name that is not registered throws std::runtime_error naming it. An
 // empty profile selector name means "static". A voicing selector has no
@@ -20,8 +23,8 @@ namespace mforce {
 // spread, and does not ask this registry.
 class VoicingRegistry {
 public:
-  using ProfileSelectorFactory =
-      std::function<std::unique_ptr<VoicingProfileSelector>()>;
+  using ProfileSelectorFactory = std::function<std::unique_ptr<VoicingProfileSelector>(
+      const VoicingProfile& baseline, const std::any& settings)>;
 
   void add(std::unique_ptr<VoicingSelector> s) {
     const std::string name = s->name();
@@ -43,7 +46,8 @@ public:
   }
 
   std::unique_ptr<VoicingProfileSelector>
-  make_profile_selector(std::string_view name) const {
+  make_profile_selector(std::string_view name, const VoicingProfile& baseline,
+                        const std::any& settings) const {
     const std::string key = name.empty() ? std::string("static")
                                          : std::string(name);
     auto it = profileFactories_.find(key);
@@ -51,7 +55,7 @@ public:
       throw std::runtime_error("no voicing profile selector named '" + key +
                                "' is registered");
     }
-    return it->second();
+    return it->second(baseline, settings);
   }
 
 private:

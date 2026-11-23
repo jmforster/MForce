@@ -12,6 +12,8 @@
 #include "mforce/music/pool_figure_builder.h"
 #include "mforce/music/two_figure_phrase_strategy.h"
 #include "mforce/music/elaborated_phrase_strategy.h"
+#include "mforce/music/elaborated_phrase_strategy_json.h"
+#include "mforce/music/two_figure_phrase_strategy_json.h"
 #include "mforce/core/randomizer.h"
 #include "mforce/patch/patch_json.h"
 #include "mforce/play/play.h"
@@ -65,7 +67,8 @@ int g_failed = 0;
 // Composes `tmpl` with every built-in strategy and voicing registered.
 static Composition compose_builtin(const PieceTemplate& tmpl) {
     ComposeKit kit;
-    register_builtin(kit);
+    SettingsCodecs codecs;
+    register_builtin(kit, codecs);
     return compose(tmpl, kit);
 }
 
@@ -102,7 +105,7 @@ ComposeResult compose_locked(const MelodicFigure& figure) {
 
     PhraseTemplate phrase;
     phrase.name = "wrap";
-    phrase.strategy = "wrapper_phrase";
+    phrase.strategy.name = "wrapper_phrase";
     phrase.startingPitch = Pitch::from_name("C", 4);
 
     FigureTemplate ft;
@@ -181,7 +184,7 @@ int test_smoke_round_trip() {
 
     PhraseTemplate phrase;
     phrase.name = "wrap";
-    phrase.strategy = "wrapper_phrase";
+    phrase.strategy.name = "wrapper_phrase";
     phrase.startingPitch = Pitch::from_name("C", 4);
 
     FigureTemplate ft;
@@ -737,7 +740,7 @@ int integ_pitch_realization() {
 
     PhraseTemplate phrase;
     phrase.name = "wrap";
-    phrase.strategy = "wrapper_phrase";
+    phrase.strategy.name = "wrapper_phrase";
     phrase.startingPitch = Pitch::from_name("C", 4);
 
     FigureTemplate ft;
@@ -784,7 +787,7 @@ struct TwoFigureResult {
     MelodicFigure fig2;
 };
 
-TwoFigureResult compose_two_figure(const TwoFigurePhraseConfig& cfg) {
+TwoFigureResult compose_two_figure(const TwoFigurePhraseSettings& cfg) {
     PieceTemplate tmpl;
     tmpl.keyName = "C";
     tmpl.scaleName = "Major";
@@ -806,9 +809,9 @@ TwoFigureResult compose_two_figure(const TwoFigurePhraseConfig& cfg) {
 
     PhraseTemplate phrase;
     phrase.name = "tf";
-    phrase.strategy = "two_figure_phrase";
+    phrase.strategy.name = "two_figure_phrase";
     phrase.startingPitch = Pitch::from_name("C", 4);
-    phrase.twoFigureConfig = cfg;
+    phrase.strategy.settings = cfg;
 
     passage.phrases.push_back(phrase);
     part.passages["Main"] = passage;
@@ -829,8 +832,8 @@ TwoFigureResult compose_two_figure(const TwoFigurePhraseConfig& cfg) {
 }
 
 int integ_two_figure_count_invert() {
-    TwoFigurePhraseConfig cfg;
-    cfg.method = TwoFigurePhraseConfig::Method::ByCount;
+    TwoFigurePhraseSettings cfg;
+    cfg.method = TwoFigurePhraseSettings::Method::ByCount;
     cfg.count = 4;
     cfg.seed = 0x2F1Cu;
     cfg.transform = TransformOp::Invert;
@@ -849,8 +852,8 @@ int integ_two_figure_count_invert() {
 }
 
 int integ_two_figure_length_retrograde() {
-    TwoFigurePhraseConfig cfg;
-    cfg.method = TwoFigurePhraseConfig::Method::ByLength;
+    TwoFigurePhraseSettings cfg;
+    cfg.method = TwoFigurePhraseSettings::Method::ByLength;
     cfg.length = 4.0f;
     cfg.seed = 0x2F1Du;
     cfg.transform = TransformOp::Reverse;
@@ -862,8 +865,8 @@ int integ_two_figure_length_retrograde() {
 }
 
 int integ_two_figure_singleton_stretch() {
-    TwoFigurePhraseConfig cfg;
-    cfg.method = TwoFigurePhraseConfig::Method::Singleton;
+    TwoFigurePhraseSettings cfg;
+    cfg.method = TwoFigurePhraseSettings::Method::Singleton;
     cfg.seed = 0x2F1Eu;
     cfg.transform = TransformOp::Stretch;
     cfg.transformParam = 2;
@@ -877,8 +880,8 @@ int integ_two_figure_singleton_stretch() {
 }
 
 int integ_two_figure_json_round_trip() {
-    TwoFigurePhraseConfig cfg;
-    cfg.method = TwoFigurePhraseConfig::Method::ByCount;
+    TwoFigurePhraseSettings cfg;
+    cfg.method = TwoFigurePhraseSettings::Method::ByCount;
     cfg.count = 3;
     cfg.seed = 0x2F1Fu;
     cfg.transform = TransformOp::Invert;
@@ -888,7 +891,7 @@ int integ_two_figure_json_round_trip() {
     if (!r1.ok) { std::cerr << "  FAIL: in-code compose\n"; return 1; }
 
     nlohmann::json j = cfg;
-    TwoFigurePhraseConfig cfg2;
+    TwoFigurePhraseSettings cfg2;
     from_json(j, cfg2);
 
     auto r2 = compose_two_figure(cfg2);
@@ -909,7 +912,7 @@ struct ElaboratedResult {
     std::vector<FigureConnector> connectors;
 };
 
-ElaboratedResult compose_elaborated(const ElaboratedPhraseConfig& cfg) {
+ElaboratedResult compose_elaborated(const ElaboratedPhraseSettings& cfg) {
     PieceTemplate tmpl;
     tmpl.keyName = "C";
     tmpl.scaleName = "Major";
@@ -931,9 +934,9 @@ ElaboratedResult compose_elaborated(const ElaboratedPhraseConfig& cfg) {
 
     PhraseTemplate phrase;
     phrase.name = "ep";
-    phrase.strategy = "elaborated_phrase";
+    phrase.strategy.name = "elaborated_phrase";
     phrase.startingPitch = Pitch::from_name("C", 4);
-    phrase.elaboratedConfig = cfg;
+    phrase.strategy.settings = cfg;
 
     passage.phrases.push_back(phrase);
     part.passages["Main"] = passage;
@@ -957,13 +960,13 @@ ElaboratedResult compose_elaborated(const ElaboratedPhraseConfig& cfg) {
 }
 
 int integ_elab_all_leave() {
-    ElaboratedPhraseConfig cfg;
+    ElaboratedPhraseSettings cfg;
     // Provide a literal skeleton so behavior is fully deterministic.
     cfg.skeleton = MelodicFigure{};
     cfg.skeleton->units = {
         {2.0f, 0}, {2.0f, +1}, {2.0f, +1}, {2.0f, -1}
     };
-    cfg.choiceMode = ElaboratedPhraseConfig::ChoiceMode::AllLeave;
+    cfg.choiceMode = ElaboratedPhraseSettings::ChoiceMode::AllLeave;
 
     auto r = compose_elaborated(cfg);
     if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
@@ -987,12 +990,12 @@ int integ_elab_all_leave() {
 }
 
 int integ_elab_all_generate() {
-    ElaboratedPhraseConfig cfg;
+    ElaboratedPhraseSettings cfg;
     cfg.skeleton = MelodicFigure{};
     cfg.skeleton->units = {
         {2.0f, 0}, {2.0f, +1}, {2.0f, -1}
     };
-    cfg.choiceMode = ElaboratedPhraseConfig::ChoiceMode::AllGenerate;
+    cfg.choiceMode = ElaboratedPhraseSettings::ChoiceMode::AllGenerate;
     cfg.seed = 0xE1AB0001u;
 
     auto r = compose_elaborated(cfg);
@@ -1025,19 +1028,19 @@ int integ_elab_all_generate() {
 }
 
 int integ_elab_json_round_trip() {
-    ElaboratedPhraseConfig cfg;
+    ElaboratedPhraseSettings cfg;
     cfg.skeleton = MelodicFigure{};
     cfg.skeleton->units = {
         {2.0f, 0}, {2.0f, +1}, {2.0f, -1}
     };
-    cfg.choiceMode = ElaboratedPhraseConfig::ChoiceMode::AllLeave;
+    cfg.choiceMode = ElaboratedPhraseSettings::ChoiceMode::AllLeave;
     cfg.seed = 0xE1AB1234u;
 
     auto r1 = compose_elaborated(cfg);
     if (!r1.ok) { std::cerr << "  FAIL: in-code compose\n"; return 1; }
 
     nlohmann::json j = cfg;
-    ElaboratedPhraseConfig cfg2;
+    ElaboratedPhraseSettings cfg2;
     from_json(j, cfg2);
 
     auto r2 = compose_elaborated(cfg2);
@@ -1104,7 +1107,7 @@ int run_render(int argc, char** argv) {
     auto make_phrase = [](const char* name, const MelodicFigure& fig) {
         PhraseTemplate ph;
         ph.name = name;
-        ph.strategy = "wrapper_phrase";
+        ph.strategy.name = "wrapper_phrase";
         ph.startingPitch = Pitch::from_name("C", 4);
         FigureTemplate ft;
         ft.source = FigureSource::Locked;

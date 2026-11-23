@@ -26,7 +26,10 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 class AlternatingFigureStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "alternating_figure"; }
+  static constexpr const char* kName = "alternating_figure";
+  using Settings = NoSettings;
+
+  std::string name() const override { return kName; }
 
   Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
 };

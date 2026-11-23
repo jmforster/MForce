@@ -15,6 +15,14 @@
       "engine/src/patch/node_json.cpp",
       "engine/include/mforce/music/music_json.h",
       "engine/include/mforce/music/templates_json.h",
+      "engine/include/mforce/music/elaborated_phrase_strategy_json.h",
+      "engine/include/mforce/music/library_passage_strategy_json.h",
+      "engine/include/mforce/music/passage_strategies_json.h",
+      "engine/include/mforce/music/period_passage_strategy_json.h",
+      "engine/include/mforce/music/phrase_strategies_json.h",
+      "engine/include/mforce/music/realization_strategy_json.h",
+      "engine/include/mforce/music/two_figure_phrase_strategy_json.h",
+      "engine/include/mforce/music/voicing_json.h",
       "engine/src/music/embedded_score.cpp",
       "tools/"
     ]

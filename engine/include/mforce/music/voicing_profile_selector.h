@@ -1,7 +1,6 @@
 #pragma once
 #include "mforce/music/voicing_profile.h"
 #include <cstdint>
-#include <nlohmann/json.hpp>
 #include <string>
 
 namespace mforce {
@@ -10,7 +9,8 @@ namespace mforce {
 // VoicingProfileSelector — produces a VoicingProfile per chord position.
 // The per-Passage "selector layer above the VoicingSelector": varies the
 // profile (priority, inversion allow-list, spread allow-list) chord-by-
-// chord under author-configurable policies.
+// chord under author-configurable policies. Each is constructed from its
+// own typed settings (the static one from the passage's baseline profile).
 //
 // Implementations ship with their own per-chord logic:
 //   StaticVoicingProfileSelector   — returns the same profile every chord
@@ -22,7 +22,6 @@ class VoicingProfileSelector {
  public:
   virtual ~VoicingProfileSelector() = default;
   virtual std::string name() const = 0;
-  virtual void configure_from_json(const nlohmann::json& /*cfg*/) {}
   virtual void reset(uint32_t seed) = 0;
 
   // Called per chord in chord order. `beatInBar` and `beatInPassage` are

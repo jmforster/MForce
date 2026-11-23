@@ -10,10 +10,51 @@
 
 namespace mforce {
 
+// ===========================================================================
+// PeriodVariant — how a period's consequent relates to its antecedent.
+// ===========================================================================
+
+enum class PeriodVariant {
+    Parallel,     // consequent motifs = antecedent motifs (verbatim)
+    Modified,     // consequent motifs derived via transform from antecedent
+    Contrasting,  // consequent motifs independent
+};
+
+// ===========================================================================
+// PeriodSpec — one period of a period passage's settings.
+// ===========================================================================
+
+struct PeriodSpec {
+    PeriodVariant variant{PeriodVariant::Parallel};
+    float bars{4.0f};
+
+    PhraseTemplate antecedent;   // cadenceType typically 1 (HC)
+    PhraseTemplate consequent;   // cadenceType typically 2 (IAC or PAC)
+
+    // For Modified variant: how the consequent's basicIdea is derived from
+    // the antecedent's. Ignored for Parallel and Contrasting.
+    std::optional<TransformOp> consequentTransform;
+    int consequentTransformParam{0};
+
+    // Optional motif-pool name for a leading connective figure that bridges
+    // from the prior period's final cadence into this period's antecedent.
+    // First PeriodSpec in a list typically has no leadingConnective.
+    std::optional<std::string> leadingConnective;
+};
+
+// ===========================================================================
+// PeriodPassageSettings — the settings of PeriodPassageStrategy: the periods
+// the passage is planned from, in order.
+// ===========================================================================
+
+struct PeriodPassageSettings {
+    std::vector<PeriodSpec> periods;
+};
+
 // ---------------------------------------------------------------------------
 // PeriodPassageStrategy — Option α (variant logic inlined).
 //
-// plan_passage: reads seed.periods[], resolves each period's variant into
+// plan_passage: reads its settings' periods, resolves each period's variant into
 // concrete PhraseTemplates for antecedent + consequent, flattens into
 // seed.phrases[] in order. Adds motifs to the plan's motif pool: generated
 // antecedent figures, and add_derived_motif for Modified-variant
@@ -27,7 +68,10 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 class PeriodPassageStrategy : public PassageStrategy {
 public:
-  std::string name() const override { return "period_passage"; }
+  static constexpr const char* kName = "period_passage";
+  using Settings = PeriodPassageSettings;
+
+  std::string name() const override { return kName; }
   StrategyScope scope() const override { return StrategyScope::MelodyAndHarmony; }
 
   PassageTemplate plan_passage(Locus locus, PassageTemplate seed) override;
@@ -121,21 +165,26 @@ private:
 inline PassageTemplate PeriodPassageStrategy::plan_passage(
     Locus locus, PassageTemplate seed) {
 
-  // If the seed has no periods[], there's nothing to plan — just return
+  // The periods are planned in a copy of the settings, which the planned
+  // template carries back: compose_passage reads the planned periods.
+  Settings settings = settings_of<Settings>(seed.strategy);
+  std::vector<PeriodSpec>& periods = settings.periods;
+
+  // If the settings have no periods, there's nothing to plan — just return
   // the seed unchanged. Author probably intends to drive via seed.phrases[]
   // with a different strategy; but if they pointed at period_passage
   // without periods, we pass through rather than throwing.
-  if (seed.periods.empty()) return seed;
+  if (periods.empty()) return seed;
 
-  // Reset phrases[]; we'll populate from periods[]. If the user supplied
+  // Reset phrases[]; we'll populate from the periods. If the user supplied
   // pre-resolved phrases alongside periods, we overwrite — periods win.
   seed.phrases.clear();
 
   // Auto-generate motifs for Generate-source figures in antecedents.
   // This converts them to Reference-source so the Parallel/Modified
   // variant logic can reuse/transform them in the consequent.
-  for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
-    PeriodSpec& p = seed.periods[pi];
+  for (int pi = 0; pi < (int)periods.size(); ++pi) {
+    PeriodSpec& p = periods[pi];
     auto autoGenFigures = [&](PhraseTemplate& phrase, const std::string& suffix) {
       MelodicFunction func = phrase.function;
       int numFigs = (int)phrase.figures.size();
@@ -171,8 +220,8 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
     autoGenFigures(p.consequent, "_c");
   }
 
-  for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
-    PeriodSpec& p = seed.periods[pi];
+  for (int pi = 0; pi < (int)periods.size(); ++pi) {
+    PeriodSpec& p = periods[pi];
 
     // --- Random harmonic skeleton (audition issue #1) ---
     // When cadences are unspecified, randomly choose the period's harmonic
@@ -282,6 +331,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
     }
   }
 
+  seed.strategy.settings = settings;
   return seed;
 }
 
@@ -308,7 +358,7 @@ inline Passage PeriodPassageStrategy::compose_passage(
       runningReader.set_pitch(*localTmpl.startingPitch);
     }
 
-    PhraseStrategy* ps = &locus.kit->strategies.phrase(localTmpl.strategy);
+    PhraseStrategy* ps = &locus.kit->strategies.phrase(localTmpl.strategy.name);
     Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
 
     for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {
@@ -329,13 +379,15 @@ inline Passage PeriodPassageStrategy::compose_passage(
     if (s.name == sec.name) { sd = &s; break; }
   }
 
+  const Settings settings = settings_of<Settings>(pt.strategy);
+  const std::vector<PeriodSpec>& periods = settings.periods;
   if (sd && !sd->styleName.empty() && sec.harmonyTimeline.empty()
-      && !pt.periods.empty()) {
+      && !periods.empty()) {
     auto style = StyleTable::load_by_name(sd->styleName);
     float beatOffset = 0.0f;
 
-    for (int pi = 0; pi < (int)pt.periods.size(); ++pi) {
-      const PeriodSpec& period = pt.periods[pi];
+    for (int pi = 0; pi < (int)periods.size(); ++pi) {
+      const PeriodSpec& period = periods[pi];
       float barsPerPhrase = period.bars / 2.0f;
       float beatsPerBar = float(sec.meter.beats_per_bar());
       float anteBeats = barsPerPhrase * beatsPerBar;

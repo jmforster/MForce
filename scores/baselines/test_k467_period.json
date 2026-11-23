@@ -207,8 +207,7 @@
       "passages": {
         "Main": {
           "startingPitch": {"octave": 4, "pitch": "C"},
-          "strategy": "period_passage",
-          "periods": [
+          "strategy": {"name": "period_passage", "settings": {"periods": [
             {
               "_comment": "Period 1: Modified, 4 bars. Bars 1-2 antecedent (HC at G), bars 3-4 consequent (IAC at 3rd). Consequent uses explicit figures since modification isn't a simple TransformOp.",
               "variant": "Modified",
@@ -279,7 +278,7 @@
                 "cadenceTarget": -1
               }
             }
-          ]
+          ]}}
         }
       }
     }

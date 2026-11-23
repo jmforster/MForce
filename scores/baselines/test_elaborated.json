@@ -24,10 +24,7 @@
             {
               "_comment": "Phrase 1: literal C-D-E-D skeleton as halves (4 anchors, 8 beats, ascending then back). Random Leave/Generate per anchor. Seeded.",
               "name": "literal_skel",
-              "strategy": "elaborated_phrase",
-              "startingPitch": {"octave": 4, "pitch": "C"},
-              "figures": [],
-              "elaboratedConfig": {
+              "strategy": {"name": "elaborated_phrase", "settings": {
                 "skeleton": {
                   "units": [
                     {"duration": 2.0, "step": 0},
@@ -42,15 +39,14 @@
                   "maxPulse": 1.0
                 },
                 "seed": 11111
-              }
+              }},
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "figures": []
             },
             {
               "_comment": "Phrase 2: RFB-built skeleton. defaultPulse 2.0 + buildCount 4 = 8-beat skeleton with 4 anchors of 2 beats each. RFB picks the pitch contour. Random elaboration on top.",
               "name": "rfb_skel",
-              "strategy": "elaborated_phrase",
-              "startingPitch": {"octave": 4, "pitch": "C"},
-              "figures": [],
-              "elaboratedConfig": {
+              "strategy": {"name": "elaborated_phrase", "settings": {
                 "buildMethod": "by_count",
                 "buildCount": 4,
                 "buildConstraints": {
@@ -62,7 +58,9 @@
                   "maxPulse": 1.0
                 },
                 "seed": 22222
-              }
+              }},
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "figures": []
             }
           ]
         }
