@@ -609,3 +609,28 @@ reversible; say so if you want any another way.
     the drag on every frame with no rebuild, as designed. If a setting
     should be heard while it is dragged, that is the "second message
     row" of 4.2, for a later slice.
+
+13. **What the pictures and the review added** (the fix wave).
+    - **Arrange.** 14 of the 131 patches, `oboe1` and `piano_default`
+      among them, were saved with groups. Their members' positions were
+      made for the old editor's collapsed groups and overlap when the
+      nodes are shown plainly, as this slice shows them. Nothing is
+      rearranged on open, so a save after a tweak keeps your layout.
+      `View > Arrange nodes` lays every node out afresh when you ask:
+
+      ```cpp
+      int  arrange_nodes(Patch& patch);   // ui_model: every node and the Output node, by the placement rule
+      void arrange(Session& s);           // ui_control: an unsaved change; the sound is untouched
+      ```
+
+    - **A node list at the top of the properties panel**, so a node
+      hidden under another can be selected and tweaked without moving
+      anything. And imnodes' minimap in a corner of the canvas.
+    - **A number on a list pin is a legal edit.** The first version of
+      `set_value` refused one. The engine reads, checks and plays it
+      (the review's one Major), so the edit accepts it.
+    - **Once a frame, `keep_up(Session&)`**: a value the player's queue
+      could not take is sent, and a player the output has finished with
+      is destroyed then and not at the next key press.
+    - **`Session::opened`** counts the files opened, so a view drops the
+      drawing state it kept for the patch before.
