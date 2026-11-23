@@ -37,6 +37,12 @@ public:
     return true;
   }
 
+  // Producer thread only. How many items the producer can push now; the
+  // consumer can only make it larger.
+  std::size_t space() const noexcept {
+    return N - (write_.load(std::memory_order_relaxed) - read_.load(std::memory_order_acquire));
+  }
+
   static constexpr std::size_t capacity() { return N; }
 
 private:

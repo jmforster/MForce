@@ -22,9 +22,6 @@ public:
   // Drum graphs have no file ids: a drum reports as "drum <number>".
   void collect_faults(std::vector<FaultReport>& out) override;
 
-  // The clock drum `drumNumber` computes on, for a host that pulls it.
-  SampleClock& clock_of(int drumNumber) { return *drums_[size_t(drumNumber)].clock; }
-
 private:
   struct Drum {
     std::shared_ptr<ValueSource> source;

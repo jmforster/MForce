@@ -36,7 +36,9 @@ struct PlayResult {
 // renders mono; the renders are summed; a sum of more than one instrument
 // whose peak passes 0.98 is scaled to 0.98; mono goes to both channels. The
 // length is the piece's seconds plus the tail. The instruments are cleared
-// after their render.
+// after their render: clear forgets what was rendered, not the voices' state
+// or the rotation, so a second play on the same instruments continues from
+// where the first left them.
 PlayResult play(const Piece& piece, const Ensemble& ensemble,
                 Conductor& conductor, float tailSeconds = 2.0f);
 

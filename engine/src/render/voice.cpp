@@ -65,6 +65,13 @@ std::set<std::string> template_only(const Graph& graph) {
   return inside;
 }
 
+// The id the build gave `node`; empty for a node it did not make.
+std::string id_of(const BuiltGraph& g, const Component* node) {
+  for (const auto& [id, n] : g.nodes)
+    if (n.get() == node) return id;
+  return {};
+}
+
 } // namespace
 
 Voice::Voice(const Graph& graph, const InstrumentBlock& block, std::shared_ptr<InstrumentState> state,
@@ -92,10 +99,21 @@ Voice::Voice(const Graph& graph, const InstrumentBlock& block, std::shared_ptr<I
     auto it = g.nodes.find(n.id);
     auto* env = it == g.nodes.end() ? nullptr : dynamic_cast<Envelope*>(it->second.get());
     if (!env) continue;
-    if (!templated.count(n.id)) envelopes_.push_back(env);
-    if (env->trigger.source || env->trigger.constant != 0.0f) triggers_.push_back(env);
+    if (!templated.count(n.id)) {
+      envelopes_.push_back(env);
+      description_.heldEnvelopes.push_back(n.id);
+    }
+    if (env->trigger.source || env->trigger.constant != 0.0f) {
+      triggers_.push_back(env);
+      description_.triggerEnvelopes.push_back(n.id);
+    }
   }
-  for (auto& pin : g.dynamicPins) pushBindings_.push_back({pin.node, pin.setting, pin.source});
+  for (auto& pin : g.dynamicPins) {
+    pushBindings_.push_back({pin.node, pin.setting, pin.source});
+    description_.dynamicPins.push_back({id_of(g, pin.node.get()), pin.setting, id_of(g, pin.source.get())});
+  }
+  for (const auto& a : g.advance) description_.tails.push_back(id_of(g, a.get()));
+  description_.output = id_of(g, source_.get());
   tails_ = std::move(g.advance);
   for (const auto& s : g.signals) signals_.push_back({s.id, s.node});
   nodes_ = std::move(g.nodes);

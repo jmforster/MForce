@@ -415,9 +415,9 @@ static void print_composed(const Piece& piece) {
 // Composition `i` of the template, played, written and printed.
 static int compose_one(const PieceTemplate& baseTmpl, const std::string& patchPath,
                        const std::string& outPrefix, int i) {
-    // Per-part instrument patches (comp rule 2026-09-21: melody oboe1,
-    // accompaniment piano_default — carried in instrumentPatch; the CLI
-    // patch argument is the fallback). One loaded instance per unique path.
+    // Per-part instrument patches: each part's instrumentPatch (the comp
+    // templates give melody oboe1 and accompaniment piano_default), the CLI
+    // patch argument the fallback. One loaded instance per unique path.
     std::map<std::string, FileInstrument> patchByPath;
     auto patch_for = [&](const std::string& p) -> FileInstrument& {
         const std::string& key = p.empty() ? patchPath : p;

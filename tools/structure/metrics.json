@@ -425,13 +425,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5519,
-     5534
+     5611,
+     5626
     ],
     [
      "tools/engine_tests/main.cpp",
-     5813,
-     5828
+     5905,
+     5920
     ]
    ]
   ],
@@ -855,18 +855,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5521,
-     5531
+     5613,
+     5623
     ],
     [
      "tools/engine_tests/main.cpp",
-     5815,
-     5825
+     5907,
+     5917
     ],
     [
      "tools/engine_tests/main.cpp",
-     6342,
-     6352
+     6434,
+     6444
     ]
    ]
   ],
@@ -1040,13 +1040,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     1575,
-     1583
+     1580,
+     1588
     ],
     [
      "tools/engine_tests/main.cpp",
-     4119,
-     4127
+     4211,
+     4219
     ]
    ]
   ],
@@ -1055,13 +1055,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     5483,
-     5491
+     5575,
+     5583
     ],
     [
      "tools/engine_tests/main.cpp",
-     6200,
-     6208
+     6292,
+     6300
     ]
    ]
   ],
@@ -1642,7 +1642,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 49,
+   "lines": 55,
    "longest_function": [
     7,
     "mforce::SpscQueue::push"
@@ -2862,7 +2862,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 47,
+   "lines": 49,
    "longest_function": [
     0,
     ""
@@ -2962,7 +2962,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 41,
+   "lines": 38,
    "longest_function": [
     1,
     "mforce::DrumKit::instrument_class"
@@ -3020,7 +3020,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 130,
+   "lines": 148,
    "longest_function": [
     0,
     ""
@@ -3098,7 +3098,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 75,
+   "lines": 80,
    "longest_function": [
     1,
     "mforce::PitchedInstrument::pool"
@@ -3128,7 +3128,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 134,
+   "lines": 138,
    "longest_function": [
     7,
     "mforce::Voice::next"
@@ -4598,12 +4598,12 @@
    "types": []
   },
   "engine/src/music/embedded_score.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 143,
+   "lines": 140,
    "longest_function": [
-    41,
+    39,
     "mforce::perform_notes"
    ],
    "module": "music",
@@ -4732,9 +4732,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 21,
+   "lines": 23,
    "longest_function": [
-    13,
+    15,
     "mforce::build_instrument"
    ],
    "module": "render",
@@ -4787,9 +4787,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 226,
+   "lines": 256,
    "longest_function": [
-    22,
+    29,
     "mforce::LivePlayer::start_fresh"
    ],
    "module": "render",
@@ -4826,7 +4826,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 166,
+   "lines": 167,
    "longest_function": [
     19,
     "mforce::PitchedInstrument::play_note"
@@ -4839,9 +4839,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 205,
+   "lines": 223,
    "longest_function": [
-    38,
+    49,
     "mforce::Voice::Voice"
    ],
    "module": "render",
@@ -5100,8 +5100,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 37,
-   "lines": 15503,
+   "dynamic_cast": 39,
+   "lines": 15619,
    "longest_function": [
     327,
     "run_envelope_table_tests"
@@ -5198,7 +5198,7 @@
    "types": []
   },
   "tools/mforce_cli/main.cpp": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 951,
@@ -5431,16 +5431,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 80,
+  "changelog_comments": 78,
   "const_cast": 10,
   "duplicate_blocks": 124,
-  "dynamic_cast": 53,
+  "dynamic_cast": 55,
   "file_level_mutable_vars": 24,
   "files": 270,
   "files_over_limit": 13,
   "functions_over_limit": 56,
   "include_violations": 6,
-  "lines": 55416,
+  "lines": 55612,
   "unmapped_files": 0
  }
 }

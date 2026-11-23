@@ -58,11 +58,10 @@ Note unphrased_note(const json& noteJson, float note, float velocity, float dura
 
 // The embedded score as one performance, in score order: a NotePerformer at
 // 60 bpm (beats are seconds, as the score's "time" and "duration" are), the
-// v2 keys "hold" and "onset", articulation and ornament on unphrased notes.
+// keys "hold" and "onset", articulation and ornament on unphrased notes.
 // A phrased note first concludes the note the performer holds pending.
 //
-// v2 score keys (spec 2026-09-20-note-onsets-v2 §3): every note is atomic
-// and carries its own two facts — "onset" (a name from the instrument's
+// The score's keys: every note is atomic and carries its own two facts — "onset" (a name from the instrument's
 // onsets[] vocabulary: how it begins) and "hold" (does the excitation
 // continue past its end). There is no phrase object, no grouping pass and no
 // lookahead: the engine derives continuation from its own state. A note with
@@ -83,9 +82,8 @@ Performance perform_notes(const InstrumentClass& cls, const json& score, ScoreWa
                        ? noteJson["time"].get<float>() : prevEnd;
         bool hold = noteJson.value("hold", false);
         std::string onset = noteJson.value("onset", std::string());
-        // The piano invariant (§2): a non-sustaining instrument never
-        // receives hold, so a phrase-marked score on it emits ordinary
-        // independent notes.
+        // The piano rule: a non-sustaining instrument never receives hold,
+        // so a phrase-marked score on it emits ordinary independent notes.
         if (hold && !cls.sustaining) {
             warn.hold_ignored();
             hold = false;
@@ -94,8 +92,7 @@ Performance perform_notes(const InstrumentClass& cls, const json& score, ScoreWa
 
         if (hold || lineOpen || !onset.empty()) {
             if (noteJson.contains("articulation") || noteJson.contains("ornament"))
-                throw std::runtime_error("score: articulation/ornament are unsupported on phrased notes "
-                                         "(spec 2026-09-20 §3)");
+                throw std::runtime_error("score: articulation/ornament are unsupported on phrased notes");
             performer.conclude(out);
             out.notes.push_back({.start = start, .duration = duration,
                                  .noteNumber = note, .velocity = velocity,

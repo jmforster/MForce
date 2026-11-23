@@ -7,7 +7,6 @@
 #include "mforce/render/perform_source.h"
 #include "mforce/source/envelope/envelope.h"
 #include <memory>
-#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -30,20 +29,21 @@ public:
     const PitchCurve* curve;
   };
 
-  // A dynamic pin: a setting the patch drives once per note. A setting is a
-  // number its node reads as the note starts; it has no source to pull, so
-  // the value is pushed through set_setting. `chain` is the signal wired to
-  // the pin, evaluated once at the note's Setup.
-  struct PushBinding {
-    std::shared_ptr<Component>   consumer;
-    std::string                  paramName;
-    std::shared_ptr<ValueSource> chain;
-  };
-
   // A signal node of the voice and its file id.
   struct Signal { std::string id; ValueSource* node; };
 
   using NodeMap = std::unordered_map<std::string, std::shared_ptr<Component>>;
+
+  // What the build made, by node id: the output; the tap-only tails; the
+  // envelopes a held line gates and those on the trigger list; the dynamic
+  // pins (the node, its setting, the node that feeds it). Each list is in the
+  // graph's node order.
+  struct Description {
+    struct Pin { std::string node, setting, source; };
+    std::string output;
+    std::vector<std::string> tails, heldEnvelopes, triggerEnvelopes;
+    std::vector<Pin> dynamicPins;
+  };
 
   // The voice `graph` describes, built for the instrument `block` and the
   // instrument's played state. A non-null `warnings` receives what the build
@@ -86,20 +86,23 @@ public:
   // Multiplex template.
   bool can_hold() const { return !envelopes_.empty(); }
 
-  // What hosts and tests read.
-  const RenderContext& context() const { return ctx_; }
+  // Every node of the voice by file id, for a host that reaches one.
   const NodeMap& nodes() const { return nodes_; }
+  // The signal nodes, in id order: faults and capture walk them.
   const std::vector<Signal>& signals() const { return signals_; }
-  const std::shared_ptr<ValueSource>& output() const { return source_; }
-  const std::shared_ptr<PerformSource>& perform_source() const { return performSource_; }
-  // The adapters every PerformNode of the graph resolves to.
-  const NoteSignals& note_signals() const { return note_; }
-  std::span<const std::shared_ptr<ValueSource>> tails() const { return tails_; }
-  const std::vector<Envelope*>& envelopes() const { return envelopes_; }
-  const std::vector<Envelope*>& triggers() const { return triggers_; }
-  const std::vector<PushBinding>& push_bindings() const { return pushBindings_; }
+  const Description& description() const { return description_; }
 
 private:
+  // A dynamic pin: a setting the patch drives once per note. A setting is a
+  // number its node reads as the note starts; it has no source to pull, so
+  // the value is pushed through set_setting. `chain` is the signal wired to
+  // the pin, evaluated once at the note's Setup.
+  struct PushBinding {
+    std::shared_ptr<Component>   consumer;
+    std::string                  paramName;
+    std::shared_ptr<ValueSource> chain;
+  };
+
   void deliver(const Note& n);
   void gate();
   void start_graph(int samples);
@@ -129,6 +132,7 @@ private:
   // may arrive on the audio thread, frees nothing.
   std::shared_ptr<Envelope>      glide_;
   std::shared_ptr<Envelope>      bend_;
+  Description                    description_;
 };
 
 } // namespace mforce

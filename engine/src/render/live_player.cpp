@@ -18,46 +18,72 @@ LivePlayer::LivePlayer(const Patch& patch, int voices) {
   sounding_.reserve(size_t(instrument_->pool().size()));
 }
 
+Voice& LivePlayer::voice(int v) { return instrument_->pool_.voice(v); }
+
 // --- control thread -------------------------------------------------------
 
 int LivePlayer::sample_rate() const { return sampleRate_; }
 
 void LivePlayer::set_wheel(float v) {
+  catch_up();
   instrument_->instrument_state()->wheel.store(v, std::memory_order_relaxed);
 }
 
 void LivePlayer::set_pressure(float v) {
+  catch_up();
   instrument_->instrument_state()->pressure.store(v, std::memory_order_relaxed);
 }
 
-void LivePlayer::set_volume(float v) { volume_.store(v, std::memory_order_relaxed); }
+void LivePlayer::set_volume(float v) {
+  catch_up();
+  volume_.store(v, std::memory_order_relaxed);
+}
 
 int LivePlayer::sounding() {
-  drain_done();
+  catch_up();
   return int(std::count_if(handed_.begin(), handed_.end(), [](const Handed& h) { return h.out; }));
 }
 
-// A voice given back is idle again, its envelopes ungated as a voice that
-// played no held line leaves them.
-void LivePlayer::drain_done() {
+// Every control call begins here: the voices given back are idle again,
+// their envelopes ungated as a voice that played no held line leaves them;
+// then a Release that could not be queued is sent.
+void LivePlayer::catch_up() {
   Done d;
   while (toControl_.pop(d)) {
-    instrument_->pool().voice(d.voice).ungate();
+    voice(d.voice).ungate();
     handed_[size_t(d.voice)] = Handed{};
   }
+  if (pendingRelease_ >= 0 && toAudio_.push(release_message(pendingRelease_))) pendingRelease_ = -1;
 }
 
+LivePlayer::Message LivePlayer::release_message(int v) const {
+  Message m;
+  m.kind = Message::Kind::Release;
+  m.voice = v;
+  return m;
+}
+
+LivePlayer::NoteId LivePlayer::take_id() {
+  const NoteId id = nextId_++;
+  if (nextId_ == 0) nextId_ = 1;   // 0 means "not sent"
+  return id;
+}
+
+// The idle voice after the one last started, in rotation, so a new note
+// keeps off the voice just used; -1 when none is idle.
 int LivePlayer::idle_voice() const {
-  for (size_t v = 0; v < handed_.size(); ++v)
-    if (!handed_[v].out) return int(v);
+  const int n = int(handed_.size());
+  for (int k = 1; k <= n; ++k) {
+    const int v = (lastStarted_ + k) % n;
+    if (!handed_[size_t(v)].out) return v;
+  }
   return -1;
 }
 
-// When as many voices sound, not fading, as the player may sound, one is
-// stolen: the released voice that started longest ago, else the voice that
-// started longest ago. It fades; a stolen line is closed. False when the
-// fade cannot be sent.
-bool LivePlayer::steal_if_full() {
+// When as many voices sound, not fading, as the player may sound: the voice
+// released longest ago, else the voice started longest ago. -1 when the
+// player is not full.
+int LivePlayer::steal_victim() const {
   int sounding = 0, victim = -1;
   for (size_t v = 0; v < handed_.size(); ++v) {
     const Handed& h = handed_[v];
@@ -65,20 +91,16 @@ bool LivePlayer::steal_if_full() {
     ++sounding;
     if (victim < 0) { victim = int(v); continue; }
     const Handed& best = handed_[size_t(victim)];
-    if ((h.released && !best.released) || (h.released == best.released && h.order < best.order)) victim = int(v);
+    const bool earlier = h.released ? (!best.released || h.releasedAt < best.releasedAt)
+                                    : (!best.released && h.startedAt < best.startedAt);
+    if (earlier) victim = int(v);
   }
-  if (sounding < voices_) return true;
-  Message m;
-  m.kind = Message::Kind::Fade;
-  m.voice = victim;
-  if (!toAudio_.push(m)) return false;
-  handed_[size_t(victim)].fading = true;
-  if (line_.open && line_.voice == victim) line_ = Line{};
-  return true;
+  return sounding < voices_ ? -1 : victim;
 }
 
 LivePlayer::NoteId LivePlayer::note_on(const PerformedNote& note) {
-  drain_done();
+  catch_up();
+  if (pendingRelease_ >= 0) return 0;
   const Voice::Note n{note_to_freq(note.noteNumber), note.velocity,
                       int(note.duration * float(sampleRate_)), note.duration, note.onset,
                       note.curve ? &*note.curve : nullptr};
@@ -92,73 +114,81 @@ LivePlayer::NoteId LivePlayer::carry(const PerformedNote& note, const Voice::Not
   Message m;
   m.kind = Message::Kind::Carry;
   m.voice = line_.voice;
-  m.id = nextId_;
   m.note = n;
   m.note.curve = nullptr;
   m.hold = note.hold;
   m.fromFreq = line_.lastFreq;
   if (!toAudio_.push(m)) return 0;
-  const NoteId id = nextId_++;
+  const NoteId id = take_id();
   Handed& h = handed_[size_t(line_.voice)];
   h.id = id;
   line_.id = id;
   line_.lastFreq = n.freq;
   if (!note.hold) {
     h.released = true;
+    h.releasedAt = nextOrder_++;
     line_ = Line{};
   }
   return id;
 }
 
 // A fresh note on an idle voice, a voice stolen first when the player is
-// full. The voice is started here, on the control side, then handed over.
+// full. Nothing is sent unless the queue has room for all of it. The voice is
+// started here, on the control side, then handed over.
 LivePlayer::NoteId LivePlayer::start_fresh(const PerformedNote& note, const Voice::Note& n) {
   const int v = idle_voice();
-  if (v < 0 || !steal_if_full()) return 0;
-  Voice& voice = instrument_->pool().voice(v);
-  const bool held = choose_delivery(false, note.hold, voice.can_hold()) == Delivery::OpenLine;
-  voice.start(n, held);
+  if (v < 0) return 0;
+  const int victim = steal_victim();
+  if (toAudio_.space() < (victim >= 0 ? 2u : 1u)) return 0;
+  if (victim >= 0) {
+    Message fade;
+    fade.kind = Message::Kind::Fade;
+    fade.voice = victim;
+    (void)toAudio_.push(fade);
+    handed_[size_t(victim)].fading = true;
+  }
+  Voice& started = voice(v);
+  const bool held = choose_delivery(false, note.hold, started.can_hold()) == Delivery::OpenLine;
+  started.start(n, held);
   Message m;
   m.kind = Message::Kind::Start;
   m.voice = v;
-  m.id = nextId_;
   m.gain = note.velocity;
   m.bodySamples = n.samples;
   m.held = held;
-  if (!toAudio_.push(m)) {
-    voice.ungate();
-    return 0;
-  }
-  const NoteId id = nextId_++;
-  handed_[size_t(v)] = Handed{true, id, nextOrder_++, !held, false};
+  (void)toAudio_.push(m);
+  const NoteId id = take_id();
+  const std::uint64_t order = nextOrder_++;
+  handed_[size_t(v)] = Handed{true, id, order, order, !held, false};
+  lastStarted_ = v;
   if (held) line_ = Line{true, v, id, n.freq};
   return id;
 }
 
+// The line is closed here whatever happens; a Release the queue cannot take
+// now waits and goes first at the next control call.
 void LivePlayer::note_off(NoteId id) {
-  drain_done();
+  catch_up();
   if (!line_.open || line_.id != id) return;
-  Message m;
-  m.kind = Message::Kind::Release;
-  m.voice = line_.voice;
-  m.id = id;
-  if (!toAudio_.push(m)) return;
-  handed_[size_t(line_.voice)].released = true;
+  Handed& h = handed_[size_t(line_.voice)];
+  h.released = true;
+  h.releasedAt = nextOrder_++;
+  if (!toAudio_.push(release_message(line_.voice))) pendingRelease_ = line_.voice;
   line_ = Line{};
 }
 
 // --- audio thread ---------------------------------------------------------
 
-LivePlayer::Sounding* LivePlayer::find(int voice) noexcept {
+LivePlayer::Sounding* LivePlayer::find(int v) noexcept {
   for (auto& s : sounding_)
-    if (s.voice == voice) return &s;
+    if (s.voice == v) return &s;
   return nullptr;
 }
 
 // The gate closes against the ending note's length; the release's remainder
 // is the rest of the body, then the ring-out.
 void LivePlayer::release(Sounding& s, int lastNoteSamples) noexcept {
-  const int rem = instrument_->pool().voice(s.voice).release(lastNoteSamples);
+  const int rem = voice(s.voice).release(lastNoteSamples);
   s.ring.set_body(s.played + rem);
   s.releaseAt = -1;
 }
@@ -173,7 +203,7 @@ void LivePlayer::apply(const Message& m) noexcept {
   if (!s || s->over) return;
   switch (m.kind) {
     case Message::Kind::Carry:
-      instrument_->pool().voice(m.voice).carry_on(m.note, m.fromFreq, glideSec_);
+      voice(m.voice).carry_on(m.note, m.fromFreq, glideSec_);
       s->noteSamples = 0;
       if (!m.hold) s->releaseAt = m.note.samples;
       break;
@@ -186,11 +216,11 @@ void LivePlayer::apply(const Message& m) noexcept {
 // One voice summed into the buffer: per sample, the voice times its gain,
 // the ring-out's shaping, the fade when fading, then the sum.
 void LivePlayer::render(Sounding& s, float* mono, int frames) noexcept {
-  Voice& voice = instrument_->pool().voice(s.voice);
+  Voice& v = voice(s.voice);
   for (int i = 0; i < frames; ++i) {
     if (s.releaseAt >= 0 && s.noteSamples == s.releaseAt) release(s, s.releaseAt);
     if (s.fadeLeft == 0 || !s.ring.more()) { s.over = true; return; }
-    float x = s.ring.shape(voice.next() * s.gain);
+    float x = s.ring.shape(v.next() * s.gain);
     if (s.fadeLeft > 0) {
       x *= float(s.fadeLeft) / float(fadeSamples_);
       --s.fadeLeft;

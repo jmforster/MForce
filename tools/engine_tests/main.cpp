@@ -1459,13 +1459,13 @@ static std::string difference(const std::vector<float>& a, const std::vector<flo
     return text;
 }
 // A C4 of `seconds` on the live path: one note through a LivePlayer, filled
-// in 256-frame buffers until no voice sounds (at most a minute).
+// in 256-frame buffers for the note and the fixed 0.4 s tail.
 static std::vector<float> live_c4(const mforce::Patch& patch, float seconds = 0.25f) {
     LivePlayer player(patch, 1);
     (void)player.note_on({.start = 0.0f, .duration = seconds, .noteNumber = 60.0f, .velocity = 0.8f});
     std::vector<float> out, buf(256);
-    const int most = 60 * player.sample_rate() / 256;
-    for (int k = 0; k == 0 || (player.sounding() > 0 && k < most); ++k) {
+    const int buffers = int((seconds + RingOut::kTailSeconds) * float(player.sample_rate())) / 256 + 1;
+    for (int k = 0; k < buffers; ++k) {
         player.fill(buf.data(), 256);
         out.insert(out.end(), buf.begin(), buf.end());
     }
@@ -1531,6 +1531,11 @@ static LoadedInstrument load_scoreless(const char* path) {
     auto j = nlohmann::json::parse(txt);
     j.erase("score");
     return load_inst(j.dump());
+}
+
+// The voice's output node as a signal, found by the build's description.
+static std::shared_ptr<ValueSource> output_of(const Voice& v) {
+    return std::dynamic_pointer_cast<ValueSource>(v.nodes().at(v.description().output));
 }
 
 // Plays `notes` on `inst` as one part: a held line among them ends when the
@@ -1827,7 +1832,7 @@ static void run_instrument_play_tests() {
     {
         auto ip = load_inst(hold_patch_json(15.0f));
         DrumKit kit;
-        kit.add(ip.instrument->pool().voice(0).output());
+        kit.add(output_of(ip.instrument->pool().voice(0)));
         kit.prepare(RenderContext{sr});
         kit.play(Performance{{held}, {}});
         CHECK(kit.rendered().empty());
@@ -1861,8 +1866,8 @@ static void run_drum_kit_play_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":180.0}}]}})";
     auto ip = load_inst(drum);
     DrumKit kit;
-    kit.add(ip.instrument->pool().voice(0).output());
-    kit.add(ip.instrument->pool().voice(1).output());
+    kit.add(output_of(ip.instrument->pool().voice(0)));
+    kit.add(output_of(ip.instrument->pool().voice(1)));
     kit.prepare(RenderContext{48000});
     Performance part;
     part.notes.push_back({.start = 0.0f, .duration = 0.1f, .noteNumber = 60.0f, .velocity = 0.8f});
@@ -1956,7 +1961,7 @@ static void run_multiplex_held_line_tests() {
       {"id":"mux","type":"MultiplexSource","params":{"count":2,"source":{"ref":"osc"}}})";
     auto inside = load_inst(head + "mux" + nodes + "]}}");
     PitchedInstrument& pi = *inside.instrument;
-    CHECK(!pi.pool().voice(0).can_hold() && pi.pool().voice(0).envelopes().empty());
+    CHECK(!pi.pool().voice(0).can_hold() && pi.pool().voice(0).description().heldEnvelopes.empty());
     play_notes(pi, {note_at(0.0f, 0.4f, 60.0f, 0.8f, true), note_at(0.4f, 0.4f, 64.0f)});
     CHECK(pi.rendered().size() == 2);
     float second = 0.0f;
@@ -1967,7 +1972,7 @@ static void run_multiplex_held_line_tests() {
       {"id":"amp","type":"Envelope","params":{"preset":"adsr","attack":0.01,"decay":0.05,"sustainLevel":0.7,"release":0.05}},
       {"id":"out","type":"CombinedSource","params":{"source1":{"ref":"mux"},"source2":{"ref":"amp"},"operation":"Multiply"}}]}})");
     const Voice& v = outside.instrument->pool().voice(0);
-    CHECK(v.can_hold() && v.envelopes().size() == 1 && v.envelopes()[0] == v.nodes().at("amp").get());
+    CHECK(v.can_hold() && v.description().heldEnvelopes == std::vector<std::string>{"amp"});
 }
 
 // The capture: one node id over a one-note play is zero outside the note and
@@ -2199,6 +2204,93 @@ static void run_live_volume_tests() {
     CHECK(follows && std::any_of(full.begin(), full.end(), [](float s) { return s != 0.0f; }));
     CHECK(std::all_of(loud.begin(), loud.end(), [](float s) { return std::fabs(s) <= 0.999f; }));
     CHECK(std::any_of(loud.begin(), loud.end(), [](float s) { return std::fabs(s) > 0.95f; }));
+}
+
+// The steal takes the voice released longest ago. A line held two seconds
+// and released (its release a quarter of that, still sounding), then a
+// classic note, then a third note: the line is the victim, so a second later
+// the classic note and the third still sound. (A fresh note starts only when
+// no line is open, so every voice a steal weighs is released; with one line
+// at a time, released-first and started-first agree.)
+static void run_live_steal_policy_tests() {
+    std::printf("the live player: the victim is the voice released longest ago\n");
+    const Patch patch = patch_door::read_text(live_patch_json());
+    LivePlayer player(patch, 2);
+    const int k = 375;                                               // two seconds of buffers
+    const LivePlayer::NoteId line = player.note_on(note_at(0.0f, seconds_of(k * 256), 60.0f, 0.3f, true));
+    (void)live_buffers(player, k);
+    player.note_off(line);                                           // released first
+    (void)live_buffers(player, 2);
+    CHECK(player.note_on(note_at(0.0f, 3.0f, 64.0f, 0.3f)) != 0);   // released at its start, later
+    (void)live_buffers(player, 2);
+    CHECK(player.sounding() == 2);                                   // the line is still releasing
+    CHECK(player.note_on(note_at(0.0f, 3.0f, 67.0f, 0.3f)) != 0);   // full: a steal
+    (void)live_buffers(player, int(1.0f * 48000.0f) / 256);
+    if (player.sounding() != 2) std::printf("  sounding: %d\n", player.sounding());
+    CHECK(player.sounding() == 2);
+}
+
+// A key-up is never lost: with the queue full, note_off closes the line and
+// keeps its Release, note_on returns 0 while it waits, and after a fill the
+// next control call sends it, so the line rings out.
+static void run_live_key_up_tests() {
+    std::printf("the live player: a key-up the full queue cannot take waits and is sent\n");
+    const Patch patch = patch_door::read_text(live_patch_json());
+    LivePlayer player(patch, 1);
+    LivePlayer::NoteId last = player.note_on(note_at(0.0f, 2.0f, 60.0f, 0.3f, true));
+    CHECK(last != 0);
+    int carried = 0;
+    for (LivePlayer::NoteId id; (id = player.note_on(note_at(0.0f, 2.0f, 62.0f, 0.3f, true))) != 0; ++carried) last = id;
+    CHECK(carried > 0);                                              // the queue is full now
+    player.note_off(last);
+    CHECK(player.note_on(note_at(0.0f, 0.1f, 64.0f, 0.3f)) == 0);   // the Release waits
+    (void)live_buffers(player, 1);
+    CHECK(player.sounding() == 1);                                   // the Release is sent here
+    (void)live_buffers(player, -1);
+    CHECK(player.sounding() == 0);
+}
+
+// Two real threads: an audio thread filling in a loop while the control
+// thread sends classic notes, held lines and bursts that steal. Afterwards,
+// with fill still running, every voice comes back (none a note_on handed
+// over is lost) and every sample written was finite.
+static void run_live_threads_tests() {
+    std::printf("the live player: an audio thread and a control thread, a few thousand notes\n");
+    const Patch patch = patch_door::read_text(live_patch_json());
+    LivePlayer player(patch, 2);
+    std::atomic<bool> stop{false}, finite{true};
+    std::thread audio([&] {
+        std::vector<float> buf(256);
+        while (!stop.load()) {
+            player.fill(buf.data(), 256);
+            for (float s : buf) if (!std::isfinite(s)) finite.store(false);
+        }
+    });
+    int sent = 0;
+    LivePlayer::NoteId held = 0;
+    for (int i = 0; i < 3000; ++i) {
+        const float nn = 48.0f + float(i % 24);
+        if (i % 10 == 3) {
+            held = player.note_on(note_at(0.0f, 0.05f, nn, 0.2f, true));
+        } else if (i % 10 == 6) {
+            const LivePlayer::NoteId next = player.note_on(note_at(0.0f, 0.05f, nn, 0.2f, true));
+            if (next) held = next;
+        } else if (i % 10 == 8) {
+            player.note_off(held);
+        } else if (i % 50 == 0) {
+            for (int k = 0; k < 5; ++k) sent += player.note_on(note_at(0.0f, 0.03f, nn + float(k), 0.2f)) != 0;
+        } else {
+            sent += player.note_on(note_at(0.0f, 0.02f, nn, 0.2f)) != 0;
+        }
+        if (i % 7 == 0) std::this_thread::yield();
+    }
+    player.note_off(held);
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    while (player.sounding() > 0 && std::chrono::steady_clock::now() < until) std::this_thread::yield();
+    const int left = player.sounding();
+    stop.store(true);
+    audio.join();
+    CHECK(sent > 0 && left == 0 && finite.load());
 }
 
 // One tempo maps beats to seconds bit for bit as b * 60 / bpm; across two
@@ -7363,7 +7455,7 @@ static std::shared_ptr<ValueSource> make_multiplex_voice() {
           "params": { "count": 3, "source": { "ref": "osc" } } } ] }
     })");
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-    return pi->pool().voice(0).output();
+    return output_of(pi->pool().voice(0));
 }
 
 static void run_combine_mod_pin_split_tests() {
@@ -8677,16 +8769,16 @@ static void run_alloc_probe_tests() {
 
 // Allocation-free start() and next(): one note through the live player —
 // note_on (the note's Setup and start on the control side) and fill in
-// 256-frame buffers until the player is silent — armed from note-on to the
-// last sample, must count nothing. Returns the count.
+// 256-frame buffers over the note and the fixed tail — armed from note-on to
+// the last sample, must count nothing. Returns the count.
 static std::size_t allocations_in_one_note(const char* patchJson, float noteNumber = 60.0f) {
     LivePlayer player(patch_door::read_text(patchJson), 1);
     std::vector<float> buf(256);
-    const int most = 60 * player.sample_rate() / 256;
+    const int most = int((0.1f + RingOut::kTailSeconds) * float(player.sample_rate())) / 256 + 1;
     alloc_probe::reset();
     alloc_probe::arm();
     (void)player.note_on({.start = 0.0f, .duration = 0.1f, .noteNumber = noteNumber, .velocity = 0.8f});
-    for (int k = 0; k == 0 || (player.sounding() > 0 && k < most); ++k) player.fill(buf.data(), 256);
+    for (int k = 0; k < most; ++k) player.fill(buf.data(), 256);
     alloc_probe::disarm();
     if (alloc_probe::count())
         std::printf("  [alloc] %zu allocation(s), %zu bytes, in one note of the patch beginning %.60s\n",
@@ -8883,19 +8975,17 @@ static void run_allocation_tests_pins() {
     }
 
     // The drum kit has no library or baselines patch: one hit's engine path
-    // through a kit built by hand from a loaded voice — the drum source's
-    // start and every next on the kit's clock. The kit adds only play_hit's
-    // pre-render buffer, the offline host's, outside the arm.
+    // is its drum's start and one next per sample on a clock of the drum's
+    // own, as the kit pulls it. The kit adds only its pre-render buffer, the
+    // offline host's, outside the arm.
     {
         const char* drum = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
           {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.001,"decay":0.1,"sustainLevel":0.0,"release":0.05}},
           {"id":"osc","type":"SineSource","params":{"frequency":180.0,"amplitude":{"ref":"env"}}}]}})";
         auto ip = load_inst(drum);
-        DrumKit kit;
-        const auto drumSource = ip.instrument->pool().voice(0).output();
-        kit.add(drumSource);
-        kit.prepare(RenderContext{48000});
-        SampleClock& clock = kit.clock_of(0);
+        const auto drumSource = output_of(ip.instrument->pool().voice(0));
+        SampleClock clock;
+        drumSource->prepare(RenderContext{48000}.with_clock(&clock));
         alloc_probe::reset();
         alloc_probe::arm();
         drumSource->start(4800);
@@ -10832,8 +10922,9 @@ static void run_review_gap_lifecycle_tests() {
         const char* probed = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"p","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
           {"id":"p","type":"ReseedProbe"}]}})";
-        auto ip = load_inst(probed);
-        Voice& voice = ip.instrument->pool().voice(0);
+        const Patch patch = patch_door::read_text(probed);
+        Voice voice(patch.graph, *patch.instrument, std::make_shared<InstrumentState>(), nullptr);
+        voice.prepare(RenderContext{48000});
         voice.start({note_to_freq(60.0f), 0.8f, 4800, 0.1f, 0, nullptr}, false);
         voice.carry_on({note_to_freq(62.0f), 0.8f, 4800, 0.1f, 0, nullptr}, 261.6f, 0.0f);
         auto* probe = dynamic_cast<ReseedProbe*>(voice.nodes().at("p").get());
@@ -12790,11 +12881,23 @@ static int perform_field_of(const nlohmann::json& perfNode, std::string& refusal
     const J doc = {{"sampleRate", 48000}, {"instrument", J{{"polyphony", 1}}},
                    {"graph", J{{"output", "osc"}, {"nodes", J::array({perfNode, osc})}}}};
     try {
-        auto ip = load_inst(doc.dump());
-        const auto& v = ip.instrument->pool().voice(0);
-        const Component* f = v.nodes().at("f").get();
-        for (int k = 0; k < 6; ++k)
-            if (f == v.note_signals().field(k).get()) return k;
+        // A note whose six fields all differ: the node's value says which it reads.
+        const Patch patch = patch_door::read_text(doc.dump());
+        auto state = std::make_shared<InstrumentState>();
+        state->wheel.store(0.5f);
+        Voice v(patch.graph, *patch.instrument, state, nullptr);
+        v.prepare(RenderContext{48000});
+        v.start({440.25f, 0.375f, 4800, 0.6875f, 3, nullptr}, false);
+        (void)v.next();                                          // the wheel smoother moves off 0
+        const auto* f = dynamic_cast<const PerformOut*>(v.nodes().at("f").get());
+        if (!f) return -1;
+        const float x = f->current();
+        if (x == 440.25f) return 0;
+        if (x == 0.375f) return 1;
+        if (x == 0.6875f) return 4;
+        if (x == 3.0f) return 5;
+        if (x > 0.0f && x < 0.5f) return 2;
+        if (x == 0.0f) return 3;
         return -1;
     }
     catch (const std::exception& e) { refusal = e.what(); }
@@ -12998,7 +13101,8 @@ static std::vector<float> render_trigger_line(int trigger, int constant, bool& l
             env->trigger.constant = float(constant);
         }
         listed = listed && env->trigger.source == nullptr
-              && std::find(vg.triggers().begin(), vg.triggers().end(), env.get()) != vg.triggers().end();
+              && std::find(vg.description().triggerEnvelopes.begin(), vg.description().triggerEnvelopes.end(),
+                           "env1") != vg.description().triggerEnvelopes.end();
     }
     play_notes(*pi, {{.start = 0.0f, .duration = 0.1f, .noteNumber = 57.0f, .velocity = 0.8f, .onset = 0, .hold = true},
                      {.start = 0.1f, .duration = 0.1f, .noteNumber = 59.0f, .velocity = 0.8f, .onset = 0, .hold = true},
@@ -14955,16 +15059,18 @@ static void run_build_instrument_tests() {
     CHECK(build_instrument(p, 5)->pool().size() == 5 && build_instrument(p, 2)->pool().size() == 3);
     for (const auto& vg : pi->pool()) {
         const auto at = [&](const char* id) { return vg.nodes().at(id).get(); };
-        CHECK(vg.output().get() == at("out"));
-        CHECK(vg.envelopes().size() == 3 && vg.envelopes()[0] == at("env") && vg.envelopes()[1] == at("env0") &&
-              vg.envelopes()[2] == at("envW"));
-        CHECK(vg.triggers().size() == 2 && vg.triggers()[0] == at("env") && vg.triggers()[1] == at("envW"));
-        CHECK(vg.push_bindings().size() == 1 && vg.push_bindings()[0].consumer.get() == at("ks") &&
-              vg.push_bindings()[0].paramName == "t60" && vg.push_bindings()[0].chain.get() == at("c"));
-        CHECK(vg.tails().size() == 1 && vg.tails()[0].get() == at("T"));
+        const Voice::Description& d = vg.description();
+        CHECK(d.output == "out");
+        CHECK(d.heldEnvelopes == std::vector<std::string>({"env", "env0", "envW"}));
+        CHECK(d.triggerEnvelopes == std::vector<std::string>({"env", "envW"}));
+        CHECK(d.dynamicPins.size() == 1 && d.dynamicPins[0].node == "ks" &&
+              d.dynamicPins[0].setting == "t60" && d.dynamicPins[0].source == "c");
+        CHECK(d.tails == std::vector<std::string>({"T"}));
         CHECK(vg.signals().size() == vg.nodes().size() && std::is_sorted(vg.signals().begin(), vg.signals().end(),
                                                                          [](const auto& x, const auto& y) { return x.id < y.id; }));
-        CHECK(at("pf") == vg.note_signals().frequency.get() && vg.perform_source() != nullptr);
+        // pf is the voice's frequency adapter: at rest it reads the PerformSource's 440 Hz.
+        const auto* pf = dynamic_cast<const PerformOut*>(at("pf"));
+        CHECK(pf != nullptr && pf->current() == 440.0f);
     }
     CHECK(pi->pool().voice(0).nodes().at("out") != pi->pool().voice(1).nodes().at("out"));
     Patch partOut = load_text(inst(R"({"id":"o","type":"SineSource"},{"id":"parts","type":"FullPartials"})", "o"));
@@ -14975,9 +15081,16 @@ static void run_build_instrument_tests() {
     msg.clear();
     try { (void)build_instrument(load_text(plain(R"({"id":"o","type":"SineSource"})", "o"))); } catch (const std::exception& e) { msg = e.what(); }
     CHECK(msg == "Patch has no 'instrument' section");
+    // The voice learns the patch's rate: a 100 Hz sine rises through zero 100
+    // times in 22050 samples at 22050.
     const Patch slow = load_text(R"({"sampleRate":22050,"instrument":{"polyphony":1},)"
-                                 R"("graph":{"output":"o","nodes":[{"id":"o","type":"SineSource"}]}})");
-    CHECK(build_instrument(slow)->pool().voice(0).context().sampleRate == 22050);
+                                 R"("graph":{"output":"o","nodes":[{"id":"o","type":"SineSource","params":{"frequency":100.0}}]}})");
+    auto slowInst = build_instrument(slow);
+    play_notes(*slowInst, {note_at(0.0f, 1.5f, 60.0f, 0.8f)});
+    const auto& slowNote = slowInst->rendered().at(0).samples;
+    int rises = 0;
+    for (size_t i = 1; i < 22050 && i < slowNote.size(); ++i) rises += slowNote[i - 1] < 0.0f && slowNote[i] >= 0.0f;
+    CHECK(slowInst->render_context().sampleRate == 22050 && std::abs(rises - 100) <= 1);
 }
 
 // build_sound: the base's seven plain-sound hashes; the sharing refusal's
@@ -15403,6 +15516,9 @@ int main() {
     run_live_steal_tests();
     run_live_note_off_tests();
     run_live_volume_tests();
+    run_live_steal_policy_tests();
+    run_live_key_up_tests();
+    run_live_threads_tests();
     run_note_wire_tests();
     run_multiplex_bend_tests();
     run_note_reseed_tests();

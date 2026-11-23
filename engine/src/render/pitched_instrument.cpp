@@ -23,8 +23,9 @@ float last_ms_peak(const std::vector<float>& buf, int sampleRate) {
 
 } // namespace
 
-PitchedInstrument::PitchedInstrument(InstrumentClass cls, float glideSec)
-    : class_(std::move(cls)), glideSec_(glideSec) {}
+PitchedInstrument::PitchedInstrument(InstrumentClass cls, float glideSec, VoicePool pool,
+                                     std::shared_ptr<InstrumentState> state)
+    : class_(std::move(cls)), glideSec_(glideSec), state_(std::move(state)), pool_(std::move(pool)) {}
 
 void PitchedInstrument::prepare(const RenderContext& c) {
   Instrument::prepare(c);

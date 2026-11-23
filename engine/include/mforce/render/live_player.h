@@ -14,11 +14,15 @@ namespace mforce {
 // One instrument played live behind one function, fill().
 //
 // A voice is touched by one thread at a time, and ownership passes with a
-// message. The control thread (one thread: note_on, note_off and the setters)
-// owns the idle voices and its records of the voices it has handed over; it
-// starts a voice before sending it. The audio thread (fill) owns the voices
-// it was sent and its sounding set, and gives each voice back when it is
-// over. The two queues and the volume are the only members both touch.
+// message. The control thread (one thread: note_on, note_off, the setters and
+// sounding) owns the idle voices and its records of the voices it has handed
+// over; it starts a voice before sending it. The audio thread (fill) owns the
+// voices it was sent and its sounding set, and gives each voice back when it
+// is over, so both threads touch the voices, never the same one at once.
+// Both also touch the two queues, the volume, and the instrument's played
+// state (wheel and pressure: atomics the control thread writes and the audio
+// thread reads). The audio thread reads the instrument's peakGuard, which
+// must not change while the player runs.
 class LivePlayer {
 public:
   using NoteId = std::uint32_t;
@@ -30,9 +34,13 @@ public:
 
   // --- control thread ---
   // The note at the top of the next buffer, or carried onto the open held
-  // line. 0 when it is not sent: no idle voice, or the queue is full.
+  // line. 0 when it is not sent: no idle voice, the queue has no room for
+  // everything the note needs, or a key-up is still waiting to be sent.
+  // An id is never 0.
   NoteId note_on(const PerformedNote& note);
   // Releases the open line when `id` is its current note; otherwise nothing.
+  // A key-up the queue cannot take now is kept and sent first by the next
+  // control call: it is never lost.
   void note_off(NoteId id);
   void set_wheel(float v);
   void set_pressure(float v);
@@ -52,7 +60,6 @@ private:
     enum class Kind : std::uint8_t { Start, Carry, Release, Fade };
     Kind  kind{Kind::Start};
     int   voice{-1};
-    NoteId id{0};
     float gain{1.0f};          // Start: the note's velocity
     int   bodySamples{0};      // Start: the note's length in samples
     bool  held{false};         // Start: the voice opens a held line
@@ -78,8 +85,9 @@ private:
   struct Handed {
     bool     out{false};       // handed to the audio thread
     NoteId   id{0};
-    std::uint64_t order{0};    // when it started
-    bool     released{false};  // no key holds it
+    std::uint64_t startedAt{0};
+    std::uint64_t releasedAt{0};   // when no key held it any more
+    bool     released{false};      // no key holds it
     bool     fading{false};
   };
   // The open held line, on the control side.
@@ -92,20 +100,28 @@ private:
 
   static constexpr std::size_t kQueueSize = 256;
 
+  // The voice `v` of the instrument's pool: the player is the instrument's
+  // other driver.
+  Voice& voice(int v);
+
   // Control thread.
-  void drain_done();
+  void catch_up();
+  Message release_message(int v) const;
+  NoteId take_id();
   int  idle_voice() const;
-  bool steal_if_full();
+  int  steal_victim() const;
   NoteId carry(const PerformedNote& note, const Voice::Note& n);
   NoteId start_fresh(const PerformedNote& note, const Voice::Note& n);
   // Audio thread.
   void apply(const Message& m) noexcept;
-  Sounding* find(int voice) noexcept;
+  Sounding* find(int v) noexcept;
   void release(Sounding& s, int lastNoteSamples) noexcept;
   void render(Sounding& s, float* mono, int frames) noexcept;
   void give_back() noexcept;
 
-  // Fixed at construction; read by both threads, written by neither.
+  // Set at construction. The instrument's voices pass between the threads
+  // by hand-over; its played state is atomics; nothing else of it changes
+  // while the player runs.
   std::unique_ptr<PitchedInstrument> instrument_;
   int sampleRate_{0};
   int voices_{0};
@@ -120,6 +136,8 @@ private:
   // Control thread only.
   std::vector<Handed> handed_;   // one per voice of the pool
   Line line_;
+  int pendingRelease_{-1};   // the voice whose Release waits for room; -1 for none
+  int lastStarted_{-1};
   NoteId nextId_{1};
   std::uint64_t nextOrder_{0};
 

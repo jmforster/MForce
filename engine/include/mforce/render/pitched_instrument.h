@@ -17,8 +17,10 @@ namespace mforce {
 class PitchedInstrument final : public Instrument {
 public:
   // `cls` from the instrument block; `glideSec` is the legato retune time of
-  // a held line (0 retunes at once).
-  PitchedInstrument(InstrumentClass cls, float glideSec);
+  // a held line (0 retunes at once); `pool` the voices, built for `state`,
+  // the instrument as played.
+  PitchedInstrument(InstrumentClass cls, float glideSec, VoicePool pool,
+                    std::shared_ptr<InstrumentState> state);
 
   const InstrumentClass& instrument_class() const override { return class_; }
   // Each note of the part in the order given, then an open line is ended.
@@ -30,7 +32,6 @@ public:
   // order.
   void collect_faults(std::vector<FaultReport>& out) override;
 
-  VoicePool& pool() { return pool_; }
   const VoicePool& pool() const { return pool_; }
   // The instrument as played (mod wheel, channel pressure), outliving every
   // note; each voice's PerformSource smooths and reports it.
@@ -40,6 +41,10 @@ public:
   const NodeCapture& capture() const { return capture_; }
 
 private:
+  // The live player is the instrument's other driver: it starts and pulls
+  // the pool's voices itself.
+  friend class LivePlayer;
+
   // The held line: one per instrument. Its voice renders each note's samples
   // and stays warm between them; the release, the tail and the ring-out run
   // when a note without `hold` ends it.
@@ -65,7 +70,7 @@ private:
 
   InstrumentClass class_;
   float glideSec_;
-  std::shared_ptr<InstrumentState> state_{std::make_shared<InstrumentState>()};
+  std::shared_ptr<InstrumentState> state_;
   VoicePool pool_;
   NodeCapture capture_;
   HeldLine line_;
