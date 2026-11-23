@@ -76,20 +76,57 @@ report and the new headers, staged, ran the meter and committed; one review
 of the whole range, one fix wave. The comp gate's last stage is `p5s6`.
 Usage: weekly Fable 9 percent at the signature, 13 at the close (the
 execution, the review and the docs cost four Fable points); all-models 5 to
-10. NEXT: PART 6 (MUSIC)'S DESIGN, in Part 5's shape: short, the interfaces,
-for Matt to sign before any code (the target's sections 3.5 to 3.8 and 3.10
-and row 6 of its section 7: the model / voicing / compose / perform split,
-harmony stored once, the form of per-strategy settings, the template as
-in-and-out or a separate record, hand-built pieces made audible, the
-shelved generators, the spine fixes; the six JSON includes the meter still
-lists). WHAT PART 5 LEAVES IT: the performers, `time_map.h`,
-`embedded_score` and `pitch_gestures.h` sit under `music/` and become the
-`perform` module there; a truncated section's effect on later start times is
-unwritten (CLEANUP 125); `--melody` and `--dun` are silent and `--josie` is
-dead (CLEANUP 124); composed pieces do not gain onsets or holds. Then Part 8
-(build), then the editor's design, whose engine half for its first slice
-(`LivePlayer`) exists. GIT: main pushed to origin on Matt's word ("Push", 2026-11-22), through the
-docs commit that records this; GOALS.md is Matt's own, never staged. Everything below this
+10. PART 6 (MUSIC) IS DESIGNED, SIGNED, BUILT AND
+COMMITTED, ALL ON 2026-11-22 (session XXV, Fable 5.2 xhigh for the design,
+the briefs and the commits; one Opus 5.5 executor for the four steps and the
+fix wave; one Opus 5.5 reviewer). Matt signed
+`docs/architecture/part6-music.md` with one rename ("Plan it is. Proceed.":
+the record `compose` returns is `plan`); its section 14 holds three
+amendments made before any code and its section 16 says where the code
+differs. COMMITS: `699d577`, `662ce12` (the design and its amendment),
+`4d3ad66` (`compose(request, kit)` returns `Composition {piece, plan}` and
+never writes to the request; the registries are objects in a `ComposeKit`;
+the random source travels in `Locus`), `983a241` (harmony stored once in the
+timeline; `realize_events` in the model; the truncated-tail rule;
+`init_pitches`), `6e400c7` (`StrategyChoice`; each strategy's settings and
+codec beside it; `SettingsCodecs`; the realization strategies; the template
+file form and `tools/convert_template.py`), `795eacf` (the folders `music/`,
+`voicing/`, `compose/`, `perform/`, `engine/shelved/`; `composer.h` gone),
+`2c52e0e` (the review's fix wave), then the docs commit. REPORT R23:
+`docs/autonomy/refactor/reports/2026-11-22-part6-music.md`. R23 AWAITS MATT
+in the refactor REVIEW: two DUN renders for his ears
+(`renders/comp/audition/part6_dun/`), the three amendments, and what his
+"Proceed" was read as covering without his saying it (the shelved list; four
+generator faults left to the comp lane). AT THE CLOSE: `engine_tests` 12,054
+checks; null gate 77 of 77 and comp gate 21 same at every step; allocation
+gate 0 of 131; tool tests 370; the meter against `662ce12`: include edges 6
+to 0, `const_cast` 10 to 1, files over the limit 13 to 10, functions 56 to
+52, lines 55,612 to 56,973. The review: 0 Critical, 1 Major (the default
+passage was composed as part 0, section 0 and overwrote part 0's passage in
+the plan; fixed), 9 Minor (8 fixed, 1 booked). CLEANUP rows 131 to 141 are
+new and 125 is closed; comp backlog 26 holds F084, F109, F123, F124. HOW IT
+RAN: as Part 5. Briefs, one rules file and one gate script under
+`renders/scratch/ab6/` (`python renders/scratch/ab6/gates.py <stage>`; the
+comp gate's base is `p6base`, its last stage `p6s5`); one executor carried
+through the four steps and the fix wave by `SendMessage`; the coordinator
+read each report and the new headers, staged, ran the meter and committed;
+one review, one fix wave. Three faults of the design were found while
+writing the briefs and written into the design the same hour, before code.
+Usage: weekly Fable 14 percent at the session's start, 22 at the close;
+all-models 10 to 18. NEXT: PART 8 (BUILD)'S DESIGN, in the same shape, for
+Matt to sign before any code (the target's row 8 of section 7 and item 7 of
+section 8: a target per module, warnings as errors, third-party sources, the
+test layout with `test_figures` folded into the engine tests, the shelved
+target and its option, the meter, the comment purge; then phase 2's gates).
+WHAT PART 6 LEAVES IT: shelved code is compiled into the engine target and
+every host registers it (the option that leaves it out is Part 8's); the
+compose code shows two `/W4` warnings (CLEANUP 137); the meter's count of
+file-level mutable variables does not see a function-local `static`
+(CLEANUP 134); the strategies are header-only; `tools/structure/metrics.json`
+is a snapshot at `2c52e0e`. Then the editor's design, whose engine half for
+its first slice (`LivePlayer`) exists. GIT: main is ahead of origin by the
+Part 6 commits (nothing pushed; push only on Matt's word); GOALS.md is
+Matt's own, never staged. Everything below this
 block predates the reset and is history.
 
 Updated: 2026-11-20 (refactor session XXII, Fable 5.2 xhigh for the survey

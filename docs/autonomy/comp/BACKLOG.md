@@ -78,6 +78,23 @@ reports + this file's git history. Tags per WORKFLOW.md.
     has to carry it. Design question, wants Matt's steer before it becomes
     a task.
 
+26. **[bugs] Four generator faults the refactor left for a listening
+    session** — found by the 2026-10-02 review, confirmed, and left out of
+    refactor Part 6 (2026-11-22) because each changes the notes a
+    generator produces, so fixing one re-rolls baselines:
+    (F084) `figure_transforms.h`: `split`, `retrograde_steps`,
+    `add_neighbor`, `add_turn` and `vary_rhythm` build a unit from its
+    duration and step alone and drop its rest, accidental, articulation
+    and ornament, so a 2-beat rest through `Complexify` becomes two
+    sounding quarters; (F109) `RandomFigureBuilder::build` never checks
+    the count or length it was asked for (zigzag gives one unit fewer for
+    an even count, neighbor one more, `wander_` pads or cuts the pulses);
+    (F123) the chord walker's labels are keyed on chord-definition names
+    that do not exist, so V7 relabels as V and viio falls to I; (F124) a
+    style table's overrides can never fire, because the walker pushes the
+    current label before it looks one up. Full text:
+    `docs/audits/2026-10-02-raw/findings_verified.md`.
+
 ## Gated on Matt
 
 14. **[build] Voicing priority ladder collapses** — `_p05` and `_p1` are

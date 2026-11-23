@@ -19,6 +19,44 @@ given.
 
 ## Awaiting
 
+**R23 — Part 6: music** (2026-11-22, commits `4d3ad66`, `983a241`,
+`6e400c7`, `795eacf`, fix wave `2c52e0e`; design
+`docs/architecture/part6-music.md`, signed that day; report
+`docs/autonomy/refactor/reports/2026-11-22-part6-music.md`). No composed
+piece in a gate moved: the 21 comp baselines and the null gate's 77 are the
+same at every step.
+- **For your ears, two renders.** `--dun` plays again.
+  `renders/comp/audition/part6_dun/` holds `k467_bars_1_to_12.wav` and
+  `k467_bars_1_to_27.wav`, on oboe1. The second is the one that uses a new
+  rule: its first section has a 4-beat truncated tail, and the second
+  section now enters at the cut, where it would have entered 4 beats
+  later. "Fine" closes it; if the join at the cut is wrong, say so.
+- **Ten of your template files were rewritten**, three of them in
+  `scores/pending` (`test_jazz_turnaround_drift`, `_random`, `_scripted`).
+  Only the strategy settings changed shape (`"strategy": {"name": ...,
+  "settings": {...}}`), and each composes to the same piece as before.
+  The originals are in `renders/scratch/ab6/s3/scores_before/`. A template
+  that still holds an old key is refused and names
+  `python tools/convert_template.py <file or folder>`.
+- **Three corrections to the design you signed**, made before any code and
+  written into its section 14: the JSON codecs stand beside `ComposeKit`
+  and not inside it; `Composition` has no `warnings` list yet; the four
+  file readers are defined in `.cpp` files. Say so if you want any of the
+  three another way.
+- **What I read your "Proceed" as covering, and you did not say:** the
+  shelved list (eleven strategies are now under `engine/shelved/`;
+  `phrase_aware_figure` and `wrapper_phrase` stayed in compose), and
+  leaving four generator faults to the comp lane (comp backlog 26). Either
+  is a small change to reverse.
+- **One decision of mine you can reverse.** The review found that a part
+  with no passage for a section was composed as if it were part 0 in
+  section 0, and overwrote part 0's passage in the plan. It is fixed. A
+  template of that shape composes different music now; no baseline has
+  the shape.
+- Try: `python tools/comp_template_null_gate.py compare p6base p6s5` (21
+  same); `mforce_cli --dun scores/baselines/k467_bars_1_to_12.dun
+  patches/library/winds/oboe1.json renders/scratch/dun.wav`.
+
 **R21 — checkpoint 4.6: the module, beside the loader** (2026-11-19, commits
 `c74ba17`..`37f7ba8`, fix wave `a994e18`; report
 `docs/autonomy/refactor/reports/2026-11-19-checkpoint-4.6.md`). Nothing for

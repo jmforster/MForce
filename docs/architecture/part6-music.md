@@ -545,3 +545,76 @@ from anywhere. It is why every `Composer` re-registered everything and
 why a test could not compose with two strategies and nothing else. A
 `ComposeKit` passed by reference is constructor injection: the caller
 decides what is registered, which is all "shelved" means.
+
+## 16. As built (2026-11-22)
+
+Built the day it was signed, in the four steps of section 12 and one fix
+wave: `4d3ad66`, `983a241`, `6e400c7`, `795eacf`, `2c52e0e`. The report is
+`docs/autonomy/refactor/reports/2026-11-22-part6-music.md`. Where the code
+differs from the text above, the code is right and this section says how.
+Section 14's three amendments stand as written there.
+
+- **Section 2.** The module is named `shelved`, after its include folder
+  (`mforce/shelved/`), not `compose_shelved`. Voicing, compose and
+  perform each include `core` for the random source, as the model does.
+  `play` includes perform and the model, not compose. Shelved code is
+  built into the engine target until Part 8 gives it its own.
+- **Section 3.**
+  - Each strategy has `static constexpr const char* kName` and `using
+    Settings`. A strategy with nothing to set uses `NoSettings`
+    (`voicing/no_settings.h`: a voicing selector and a compose strategy
+    both name it, and voicing is the lower module).
+  - `SettingsCodecs` is keyed by level and name (phrase, passage,
+    realization, profile selector). `add<Strategy>()` registers settings
+    whose JSON functions are the ordinary pair;
+    `add_holding_templates<Strategy>()` registers settings that hold
+    templates and so take the codecs (`period_passage`).
+    `register_strategy(kit, codecs)` does both registrations in one line.
+  - A name the codecs do not know, settings for a strategy that takes
+    none, and any member of a choice object other than `name` and
+    `settings` are refused when the template is read.
+  - `settings_of` gives a strategy's defaults when none were given, as
+    written. The five strategies that cannot work without settings
+    (`period_phrase`, `sentence_phrase`, `two_figure_phrase`,
+    `elaborated_phrase`, `library_passage`) check first and throw.
+  - Every strategy method is `const`, and the registries hand out `const`
+    references: composing cannot change a kit.
+  - `StrategyRegistry::find_figure` returns null for a name that is not
+    registered. The default figure strategy uses it to try a shape's own
+    strategy before the generic generator.
+  - The template's reader and writer are `read_template` /
+    `write_template`, with `read_` / `write_` functions for the passage,
+    phrase and part levels, each taking the codecs.
+- **Section 4.** `Composer` is in an anonymous namespace in
+  `engine/src/compose/compose.cpp`. `realize_motifs` is a declared free
+  function (`compose/compose.h`); tests call it. The default passage for
+  a part with no passage in a section is composed at that part and
+  section and recorded there in the plan; before the fix wave it was
+  composed as part 0, section 0 and replaced part 0's first passage.
+- **Section 5.** `HarmonyTimeline` gained `chord_at_or_last(beat)` (the
+  realize step's rule: the first chord whose end is past the beat, the
+  last chord past the end) and `progression()` (every segment's chords
+  and pulses, unclipped).
+- **Section 6.** `play`'s own length sum and the tool's beat counts go
+  through `section_start_beat`. `--play` and `--melody` call
+  `realize_events` as `dun_to_piece` does. A piece's JSON does not carry
+  a truncated tail (CLEANUP 131).
+- **Section 7.** As written. `"realization": "rhythm_pattern"` with no
+  settings plays the default pattern.
+- **Section 8.** Each profile selector is constructed from the baseline
+  profile and its typed settings; `VoicingRegistry`'s factory takes the
+  settings as a `const std::any&` and the registration's lambda makes the
+  typed call.
+- **Section 9.** `passage_strategies.h` became one header per strategy;
+  the helpers only they use are `shelved/passage_anchors.h`, and
+  `grid_complete`, which the composer calls on every passage, is
+  `compose/grid_complete.h`. `chord_walk::advance` is in compose (the
+  phrase-aware strategy uses it). `tools/ppl_to_json` is
+  `tools/shelved/ppl_to_json`.
+- **Section 12.** `default_strategies.h` became one header per default
+  strategy, with the two functions both bodies need in
+  `compose/default_strategy_shared.h`. The strategies stay header-only.
+- **Section 14, the readers.** Where a test parses from a JSON value, a
+  small `_json.h` declares that one entry (`melody_profile_json.h`,
+  `pool_figure_builder_json.h`); the loaders a strategy calls are
+  declared in the plain headers.
