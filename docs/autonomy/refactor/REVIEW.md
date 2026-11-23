@@ -20,9 +20,10 @@ given.
 ## Awaiting
 
 **R25 — the new editor's design** (2026-11-23,
-`docs/architecture/editor.md`; no code exists). For your signature, as the
-designs of Parts 5, 6 and 8 were. It builds on the UI section of the target
-architecture you decided on 2026-10-05 and on the reset's rules.
+`docs/architecture/editor.md`). **Signed 2026-11-23 ("Signed, proceed");
+slice 1 is being built and lands here as R26 when it is on your desk.**
+It builds on the UI section of the target architecture you decided on
+2026-10-05 and on the reset's rules.
 - **The idea in one line:** the patch record is the one truth, a view
   changes nothing itself and calls an edit function, and every edit
   function is plain code with tests that need no window.

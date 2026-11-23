@@ -1,6 +1,7 @@
 # The new editor
 
-Status: **proposed 2026-11-23, awaiting Matt's signature. No code exists.**
+Status: **signed 2026-11-23 ("Signed, proceed"), with the corrections of
+section 12. Slice 1 is being built.**
 Parent: `target-architecture.md` section 4 (the UI, decided 2026-10-05)
 and the 2026-11-21 reset in `CLAUDE.md` ("written fresh on the `patch`
 module ... its logic is operations on plain data with tests; the window
