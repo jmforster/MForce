@@ -31,6 +31,9 @@ void run_live_slur_back_refused_tests();
 void run_live_slur_back_velocity_tests();
 void run_play_status_tests();
 void run_plain_follows_tests();
+void run_faults_to_status_tests();
+void run_new_patch_round_trip_tests();
+void run_note_tab_tests();
 void run_undo_redo_tests();
 void run_wire_tests();
 void run_unwire_tests();
@@ -80,6 +83,9 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_live_slur_back_velocity_tests", run_live_slur_back_velocity_tests},
   {"run_play_status_tests", run_play_status_tests},
   {"run_plain_follows_tests", run_plain_follows_tests},
+  {"run_faults_to_status_tests", run_faults_to_status_tests},
+  {"run_new_patch_round_trip_tests", run_new_patch_round_trip_tests},
+  {"run_note_tab_tests", run_note_tab_tests},
   {"run_undo_redo_tests", run_undo_redo_tests},
   {"run_wire_tests", run_wire_tests},
   {"run_unwire_tests", run_unwire_tests},

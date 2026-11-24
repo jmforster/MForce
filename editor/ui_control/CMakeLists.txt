@@ -23,4 +23,5 @@ mforce_tests(ui_control
           tests/history_census_tests.cpp
           tests/keyboard_tests.cpp
           tests/live_and_sounds_tests.cpp
-          tests/generating_tests.cpp)
+          tests/generating_tests.cpp
+          tests/parity_tests.cpp)
