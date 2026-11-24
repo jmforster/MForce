@@ -20,8 +20,8 @@ given.
 ## Awaiting
 
 **R29 — slice 3's page: generate** (2026-11-23,
-`docs/architecture/editor-slice3.md`; no code). For your signature, as
-slice 2's was.
+`docs/architecture/editor-slice3.md`; no code). **SIGNED (2026-11-23,
+"Signed, proceed"), its eleven rulings as written; slice 3 is in build.**
 - **What it restores**: the transport (Note, Passage, Chords, Drums),
   Generate, Play, Stop and Space, Save WAV, passage and chord files, the
   Live checkbox, a plain sound's sound, the piano showing every sounding
