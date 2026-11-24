@@ -69,7 +69,7 @@ struct AudioAdapter::Device {
 
 AudioAdapter::AudioAdapter() = default;
 
-// The device first, so its thread no longer fills; then the players.
+// The device first, so its thread no longer fills; then the sounds.
 AudioAdapter::~AudioAdapter() { device_.reset(); }
 
 void AudioAdapter::open() {
@@ -92,7 +92,7 @@ void AudioAdapter::open() {
       return;
     }
     rate_ = int(rt.getStreamSampleRate());
-    fadeSamples_ = std::max(1, rate_ / 200);
+    for (SoundLine& l : lines_) l.set_fade(rate_ / 200);
     if (rt.startStream() != RTAUDIO_NO_ERROR) {
       openError_ = "the sound device did not start: " + rt.getErrorText();
       device_.reset();

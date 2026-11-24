@@ -1,7 +1,8 @@
 mforce_module(ui_audio
   SOURCES src/audio_adapter.cpp
           src/audio_device.cpp
-  USES    patch render contract
+          src/sound_line.cpp
+  USES    render
   LIBS    rtaudio)
 
 mforce_tests(ui_audio

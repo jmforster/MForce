@@ -16,7 +16,7 @@ namespace mforce::ui {
 struct Keyboard {
   int   octave{4};
   float velocity{0.8f};      // a computer key's
-  float seconds{1.0f};       // a struck note's length
+  float seconds{2.0f};       // a note's length: a struck note's, and a held note's as its envelopes are laid out
   bool  computerKeys{true};  // the PC Keyboard button: off, the note keys and the arrows do nothing
 };
 

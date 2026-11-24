@@ -27,7 +27,7 @@ void run_step_tests() {
   register_all_sources();
   Session s;
   start(s, control_patch());
-  REQUIRE(s.audio.player() != nullptr && s.status.empty());
+  REQUIRE(s.live.player() != nullptr && s.status.empty());
   const Patch opened = s.open.patch;
 
   edit_value(s, "nope", "x", 1.0f);                       // a refusal: nothing changes, no step
@@ -57,14 +57,14 @@ void run_step_tests() {
 void run_sound_follows_tests() {
   Session s;
   start(s, control_patch());
-  REQUIRE(s.audio.player() != nullptr);
+  REQUIRE(s.live.player() != nullptr);
   unwire(s, PinEnd{Kind::PatchOutput, {}, {}}, 0);        // the patch can no longer be built
-  CHECK(s.audio.player() == nullptr);
+  CHECK(s.live.player() == nullptr);
   CHECK(s.status == "nothing is wired to the Output yet: wire a node's output to it to hear the patch");
   (void)sounds(s, 1);
   CHECK(!sounds(s, 2));
   wire(s, PinEnd{Kind::PatchOutput, {}, {}}, out_of("osc"));
-  CHECK(s.audio.player() != nullptr && s.status.empty());
+  CHECK(s.live.player() != nullptr && s.status.empty());
 
   Patch plain = control_patch();
   plain.instrument.reset();
@@ -72,7 +72,7 @@ void run_sound_follows_tests() {
   plain.graph.nodes.erase(plain.graph.nodes.begin());     // the face's PerformNode
   plain.graph.nodes[1].wires.erase("frequency");
   start(s, plain);
-  CHECK(s.audio.player() == nullptr && s.status.rfind("a plain sound", 0) == 0);
+  CHECK(s.live.player() == nullptr && s.status.rfind("a plain sound", 0) == 0);
 }
 
 // An undo that changes nothing the build reads keeps the player and the
@@ -82,17 +82,17 @@ void run_undo_keeps_player_tests() {
   start(s, control_patch());
   edit_position(s, "lfo", Vec2{9, 9});
   end_gesture(s);
-  LivePlayer* player = s.audio.player();
+  LivePlayer* player = s.live.player();
   REQUIRE(player != nullptr);
   undo(s);
-  CHECK(s.audio.player() == player);
+  CHECK(s.live.player() == player);
   redo(s);
-  CHECK(s.audio.player() == player);
+  CHECK(s.live.player() == player);
   wire(s, out_of("lfo"), in_of("l", "source"));
-  LivePlayer* wired = s.audio.player();
+  LivePlayer* wired = s.live.player();
   CHECK(wired != player);
   undo(s);
-  CHECK(s.audio.player() != wired && s.audio.player() != nullptr);
+  CHECK(s.live.player() != wired && s.live.player() != nullptr);
 }
 
 void run_undo_redo_tests() {
@@ -110,7 +110,7 @@ void run_undo_redo_tests() {
   CHECK(title(s) == "MForce - mforce_ui_control_undo.json");   // back at the saved state: no star
   Patch want = saved;
   want.layout.panning = Vec2{77, 88};                    // the panning stays where it is
-  CHECK(s.open.patch == want && s.audio.player() != nullptr);
+  CHECK(s.open.patch == want && s.live.player() != nullptr);
   redo(s);
   CHECK(title(s) == "MForce - mforce_ui_control_undo.json *");
   want = wired;

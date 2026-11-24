@@ -1,18 +1,18 @@
-// AudioAdapter, all through fill() and never open(): silence before a
-// player, a player's note on both channels, the fade of a swap, the newest
-// of several swaps, no allocation in fill, the peak, and a player refused for
-// its rate.
+// AudioAdapter, all through fill() and never open(), over a stand-in sound
+// of the test's own: silence, a line's sound on both channels, the two lines
+// summed, a sum past 1 clipped and both peaks, the fade of a swap, many
+// swaps on both lines losing and leaking nothing, never destroying inside a
+// fill and never filling a sound after it was destroyed, and no allocation
+// in fill.
 #include "mforce/testing/check.h"
 #include "mforce/testing/alloc_probe.h"
-#include "mforce/patch/patch.h"
-#include "mforce/render/live_player.h"
-#include "mforce/source/register_all_sources.h"
+#include "mforce/render/limiter.h"
 #include "mforce/ui_audio/audio_adapter.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
-#include <stdexcept>
+#include <random>
 #include <vector>
 
 using namespace mforce;
@@ -22,157 +22,148 @@ namespace {
 
 constexpr int kFrames = 256;
 constexpr int kFade = 240;                               // 5 ms at 48 kHz
+using Line = AudioAdapter::Line;
 
-// A sine instrument, its amplitude a constant, at `rate`.
-Patch sine(int rate = 48000) {
-  Node pf;
-  pf.id = "pf";
-  pf.type = "PerformNode";
-  pf.settings["field"] = 0.0f;
-  Node osc;
-  osc.id = "osc";
-  osc.type = "SineSource";
-  osc.wires["frequency"] = {Wire{"pf"}};
-  osc.values["amplitude"] = 0.5f;
-  Patch p;
-  p.graph.nodes = {pf, osc};
-  p.graph.output = "osc";
-  p.instrument = InstrumentBlock{};
-  p.instrument->polyphony = 1;
-  p.sampleRate = rate;
-  return p;
-}
+// What the stand-in sounds did: how many are alive, and whether one was
+// destroyed inside a fill or filled after it was destroyed.
+struct Ledger {
+  bool inFill{false};
+  int alive{0};
+  bool destroyedInFill{false};
+  bool filledAfterDestroy{false};
+  std::vector<int> fills;                                // by sound id
+  std::vector<bool> destroyed;                           // by sound id
+};
 
-PerformedNote long_note(float noteNumber = 60.0f) {
-  PerformedNote n;
-  n.duration = 2.0f;
-  n.noteNumber = noteNumber;
-  return n;
-}
-
-// One stereo buffer from the adapter, as its two channels.
-struct Stereo { std::vector<float> left, right; };
-Stereo fill_once(AudioAdapter& a, int frames = kFrames) {
-  std::vector<float> interleaved(size_t(2 * frames));
-  a.fill(interleaved.data(), frames);
-  Stereo s;
-  for (int i = 0; i < frames; ++i) {
-    s.left.push_back(interleaved[size_t(2 * i)]);
-    s.right.push_back(interleaved[size_t(2 * i + 1)]);
+// A constant level on both channels; counts its fills in the ledger.
+class Level final : public Sound {
+public:
+  Level(Ledger& ledger, float level) : ledger_(ledger), level_(level), id_(int(ledger.fills.size())) {
+    ledger.fills.push_back(0);
+    ledger.destroyed.push_back(false);
+    ++ledger.alive;
   }
-  return s;
-}
+  ~Level() override {
+    --ledger_.alive;
+    if (ledger_.inFill) ledger_.destroyedInFill = true;
+    ledger_.destroyed[size_t(id_)] = true;
+  }
+  void fill(float* stereo, int frames) noexcept override {
+    if (ledger_.destroyed[size_t(id_)]) ledger_.filledAfterDestroy = true;
+    ++ledger_.fills[size_t(id_)];
+    std::fill(stereo, stereo + 2 * frames, level_);
+  }
+  int id() const { return id_; }
 
-std::vector<float> mono_once(LivePlayer& p, int frames = kFrames) {
-  std::vector<float> out(static_cast<size_t>(frames));
-  p.fill(out.data(), frames);
+private:
+  Ledger& ledger_;
+  float level_;
+  int id_;
+};
+
+std::vector<float> fill_once(AudioAdapter& a, Ledger& ledger, int frames = kFrames) {
+  std::vector<float> out(size_t(2 * frames));
+  ledger.inFill = true;
+  a.fill(out.data(), frames);
+  ledger.inFill = false;
   return out;
 }
 
-bool silent(const std::vector<float>& v, size_t from = 0) {
-  return std::all_of(v.begin() + std::ptrdiff_t(from), v.end(), [](float s) { return s == 0.0f; });
+bool all_are(const std::vector<float>& v, float x) {
+  return std::all_of(v.begin(), v.end(), [x](float s) { return s == x; });
 }
 
 }  // namespace
 
-void run_adapter_silence_and_note_tests() {
-  register_all_sources();
+// Silence before any sound; a sound on one line on both channels; the two
+// lines summed; a sum past 1 clipped, with the peak before and after.
+void run_adapter_lines_tests() {
+  std::printf("the adapter: silence, one line, two lines summed, the sum clipped\n");
+  Ledger ledger;
   AudioAdapter a;
-  CHECK(a.sample_rate() == 48000);
-  CHECK(a.player() == nullptr);
-  CHECK(!a.error().empty());                             // no device was opened
-  const Stereo before = fill_once(a);
-  CHECK(silent(before.left) && silent(before.right));
-  CHECK(a.peak() == 0.0f);
-
-  a.play(std::make_unique<LivePlayer>(sine(), 1));
-  LivePlayer twin(sine(), 1);
-  REQUIRE(a.player() != nullptr);
-  CHECK(a.player()->note_on(long_note()) != 0);
-  CHECK(twin.note_on(long_note()) != 0);
-  for (int k = 0; k < 4; ++k) {
-    const Stereo s = fill_once(a);
-    const std::vector<float> m = mono_once(twin);
-    CHECK(s.left == m && s.right == m);
-    float most = 0.0f;
-    for (float x : m) most = std::max(most, std::fabs(x));
-    CHECK(a.peak() == most);
-    CHECK(most > 0.0f);
-  }
+  CHECK(all_are(fill_once(a, ledger), 0.0f) && a.peak() == 0.0f && a.peak_before_clip() == 0.0f);
+  CHECK(a.playing(Line::Keys) == nullptr && a.playing(Line::Playback) == nullptr);
+  a.play(Line::Keys, std::make_unique<Level>(ledger, 0.25f));
+  CHECK(all_are(fill_once(a, ledger), 0.25f) && a.peak() == 0.25f && a.peak_before_clip() == 0.25f);
+  a.play(Line::Playback, std::make_unique<Level>(ledger, 0.5f));
+  CHECK(all_are(fill_once(a, ledger), 0.75f) && a.peak() == 0.75f);
+  CHECK(a.playing(Line::Keys) != nullptr && a.playing(Line::Playback) != a.playing(Line::Keys));
+  a.play(Line::Keys, std::make_unique<Level>(ledger, 0.8f));
+  a.play(Line::Playback, std::make_unique<Level>(ledger, 0.7f));
+  (void)fill_once(a, ledger);                            // the fades of both swaps
+  const auto out = fill_once(a, ledger);
+  CHECK(all_are(out, soft_clip(1.5f)) && out[0] < 1.0f);
+  CHECK(std::fabs(a.peak_before_clip() - 1.5f) < 1e-6f && a.peak() == soft_clip(1.5f));
 }
 
-// The player sounding when a silent one is handed over fades to nothing
-// within 5 ms; then the new one's note sounds as its twin's does.
+// A swap: the sound before fades over 5 ms from the next buffer's top while
+// the new one sounds whole; then the old one is filled no more, and the next
+// control call destroys it.
 void run_adapter_swap_tests() {
+  std::printf("the adapter: a swap fades the sound before in 5 ms, then destroys it\n");
+  Ledger ledger;
   AudioAdapter a;
-  a.play(std::make_unique<LivePlayer>(sine(), 1));
-  CHECK(a.player()->note_on(long_note()) != 0);
-  (void)fill_once(a);
-  a.play(std::make_unique<LivePlayer>(sine(), 1));
-  const Stereo swap = fill_once(a);
-  CHECK(!silent(std::vector<float>(swap.left.begin(), swap.left.begin() + 16)));   // the fade begins at full sound
-  CHECK(silent(swap.left, kFade));                       // and is over within 5 ms
-  float nearEnd = 0.0f;
-  for (int i = kFade - 40; i < kFade; ++i) nearEnd = std::max(nearEnd, std::fabs(swap.left[size_t(i)]));
-  CHECK(nearEnd < 0.1f);                                 // near nothing as it ends
-  LivePlayer twin(sine(), 1);
-  CHECK(a.player()->note_on(long_note(67.0f)) != 0);
-  CHECK(twin.note_on(long_note(67.0f)) != 0);
-  CHECK(fill_once(a).left == mono_once(twin));
-}
-
-// Three players handed over between two buffers: the last one sounds.
-void run_adapter_three_swaps_tests() {
-  AudioAdapter a;
-  a.play(std::make_unique<LivePlayer>(sine(), 1));
-  (void)fill_once(a);
-  for (float pitch : {50.0f, 55.0f, 62.0f}) {
-    a.play(std::make_unique<LivePlayer>(sine(), 1));
-    CHECK(a.player()->note_on(long_note(pitch)) != 0);
+  a.play(Line::Keys, std::make_unique<Level>(ledger, 0.5f));
+  (void)fill_once(a, ledger);
+  a.play(Line::Keys, std::make_unique<Level>(ledger, 0.25f));
+  const auto out = fill_once(a, ledger);
+  bool faded = true;
+  for (int i = 0; i < kFrames; ++i) {
+    const float want = i < kFade ? 0.25f + 0.5f * (float(kFade - i) / float(kFade)) : 0.25f;
+    faded = faded && out[size_t(2 * i)] == want && out[size_t(2 * i + 1)] == want;
   }
-  LivePlayer twin(sine(), 1);
-  CHECK(twin.note_on(long_note(62.0f)) != 0);
-  // The first player was silent, so its fade adds nothing: the newest alone.
-  CHECK(fill_once(a).left == mono_once(twin));
-  CHECK(fill_once(a).left == mono_once(twin));
-  a.play(nullptr);                                       // silence: the last one fades out
-  const Stereo out = fill_once(a);
-  CHECK(silent(out.left, kFade));
-  CHECK(a.player() == nullptr);
+  CHECK(faded);
+  const int oldFills = ledger.fills[0];
+  (void)fill_once(a, ledger);
+  CHECK(ledger.fills[0] == oldFills && ledger.alive == 2);   // handed back, not yet destroyed
+  (void)a.playing(Line::Keys);
+  CHECK(ledger.alive == 1 && ledger.destroyed[0] && !ledger.destroyedInFill);
 }
 
+// Many swaps on both lines, some with no fill between (the sound offered and
+// never taken is destroyed at once), in a seeded order; then silence on both
+// and the fades played out: every sound destroyed, none inside a fill, none
+// filled after it was destroyed.
+void run_adapter_many_swaps_tests() {
+  std::printf("the adapter: many swaps on both lines lose and leak nothing\n");
+  Ledger ledger;
+  std::mt19937 rng(7u);
+  {
+    AudioAdapter a;
+    for (int k = 0; k < 2000; ++k) {
+      const unsigned r = rng() % 10;
+      if (r < 3) a.play(Line::Keys, std::make_unique<Level>(ledger, 0.1f));
+      else if (r < 6) a.play(Line::Playback, std::make_unique<Level>(ledger, 0.2f));
+      else if (r == 6) a.play(r % 2 ? Line::Keys : Line::Playback, nullptr);
+      else (void)fill_once(a, ledger, 1 + int(rng() % 600));
+    }
+    a.play(Line::Keys, nullptr);
+    a.play(Line::Playback, nullptr);
+    for (int k = 0; k < 4; ++k) (void)fill_once(a, ledger);
+    (void)a.playing(Line::Keys);
+    (void)a.playing(Line::Playback);
+    CHECK(ledger.alive == 0);
+  }
+  CHECK(ledger.alive == 0 && !ledger.destroyedInFill && !ledger.filledAfterDestroy && ledger.fills.size() > 500);
+}
+
+// fill allocates nothing: two lines sounding, and through a swap's fade.
 void run_adapter_allocation_tests() {
+  std::printf("the adapter: fill allocates nothing\n");
+  Ledger ledger;
+  ledger.fills.reserve(8);
+  ledger.destroyed.reserve(8);
   AudioAdapter a;
-  a.play(std::make_unique<LivePlayer>(sine(), 1));
-  CHECK(a.player()->note_on(long_note()) != 0);
-  std::vector<float> buf(2 * 1024);
-  a.fill(buf.data(), 1024);
+  std::vector<float> out(2 * 1500);
+  a.play(Line::Keys, std::make_unique<Level>(ledger, 0.3f));
+  a.play(Line::Playback, std::make_unique<Level>(ledger, 0.3f));
+  a.fill(out.data(), 256);
+  a.play(Line::Keys, std::make_unique<Level>(ledger, 0.4f));   // the control side may allocate
   alloc_probe::reset();
   alloc_probe::arm();
-  a.fill(buf.data(), 1024);                              // two chunks, no swap
-  alloc_probe::disarm();
-  CHECK(alloc_probe::count() == 0);
-  a.play(std::make_unique<LivePlayer>(sine(), 1));       // the control side may allocate
-  a.play(std::make_unique<LivePlayer>(sine(), 1));
-  alloc_probe::reset();
-  alloc_probe::arm();
-  a.fill(buf.data(), 1024);                              // the swap and the fade
-  a.fill(buf.data(), 1024);
+  a.fill(out.data(), 1500);                                     // longer than a chunk: filled in pieces
+  a.fill(out.data(), 256);
   alloc_probe::disarm();
   if (alloc_probe::count()) std::printf("  %zu allocation(s) in fill\n", alloc_probe::count());
   CHECK(alloc_probe::count() == 0);
-}
-
-void run_adapter_rate_tests() {
-  AudioAdapter a;
-  a.play(std::make_unique<LivePlayer>(sine(), 1));
-  LivePlayer* before = a.player();
-  bool refused = false;
-  try {
-    a.play(std::make_unique<LivePlayer>(sine(22050), 1));
-  } catch (const std::invalid_argument&) {
-    refused = true;
-  }
-  CHECK(refused);
-  CHECK(a.player() == before);
 }

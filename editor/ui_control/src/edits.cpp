@@ -22,7 +22,7 @@ const std::string kMove = "move";
 void edit_value(Session& s, std::string_view node, std::string_view pin, float v) {
   const std::string gesture = "value:" + std::string(node) + "." + std::string(pin);
   if (!step(s, gesture, [&](Patch& p) { return set_value(p, node, pin, v); })) return;
-  LivePlayer* player = s.audio.player();
+  LivePlayer* player = s.live.player();
   if (!player || !player->set_value(node, pin, v)) sound_follows(s);
 }
 

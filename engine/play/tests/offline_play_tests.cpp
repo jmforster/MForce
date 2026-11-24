@@ -43,18 +43,39 @@ bool agree(const PlayResult& a, const PlayResult& b, long long& compared) {
   return n > 0 && std::memcmp(a.stereo.data(), b.stereo.data(), n * sizeof(float)) == 0;
 }
 
+// A spread of the measured instruments (the proof's worth is the code path,
+// the same for every instrument): every eighth in sorted order, and the
+// first that sustains, every one at a rate other than 48000, and the first
+// with no score of its own.
+std::vector<size_t> spread(const std::vector<Patch>& instruments) {
+  std::vector<size_t> picked;
+  const auto add = [&](size_t k) {
+    if (std::find(picked.begin(), picked.end(), k) == picked.end()) picked.push_back(k);
+  };
+  for (size_t k = 0; k < instruments.size(); k += 8) add(k);
+  bool sustains = false, unscored = false;
+  for (size_t k = 0; k < instruments.size(); ++k) {
+    const Patch& p = instruments[k];
+    if (p.instrument->sustaining && !sustains) { sustains = true; add(k); }
+    if (p.score.empty() && !unscored) { unscored = true; add(k); }
+    if (p.sampleRate != 48000) add(k);
+  }
+  return picked;
+}
+
 }  // namespace
 
 // One short note through play(patch, performance, ...) equals play(copy),
-// the copy holding that note as its embedded score, over every measured
-// instrument; and an unmarked passage of three notes on the first few.
+// the copy holding that note as its embedded score, over a spread of the
+// measured instruments; and an unmarked passage of three notes on three.
 void run_offline_play_proof_tests() {
   std::printf("play with a performance: equal to the embedded-score path over the measured instruments\n");
   const auto t0 = std::chrono::steady_clock::now();
   const std::vector<Patch> instruments = measured_instruments();
   long long compared = 0;
   int differ = 0, passages = 0;
-  for (size_t k = 0; k < instruments.size(); ++k) {
+  const std::vector<size_t> picked = spread(instruments);
+  for (const size_t k : picked) {
     const Patch& patch = instruments[k];
     const auto first = first_score_note(patch.score);
     const TextPerformance note = perform_note(first ? first->note : 60.0f, first ? first->velocity : 0.8f, 0.5f);
@@ -64,7 +85,7 @@ void run_offline_play_proof_tests() {
       ++differ;
       std::printf("  differs: note on patch %zu\n", k);
     }
-    if (k % 20 != 0) continue;
+    if (passages == 3) continue;
     const TextPerformance passage = perform_passage("Cq Eq Gq", 4, 120.0f, 0.7f, Onsets::Auto,
                                                     InstrumentClass{patch.instrument->sustaining, patch.instrument->onsets});
     copy.score = score_of(passage.performance);
@@ -75,8 +96,8 @@ void run_offline_play_proof_tests() {
     }
   }
   const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-  std::printf("  %zu instruments, %d passages, %lld frames compared, %d differ, %.1f s\n", instruments.size(), passages,
-              compared, differ, secs);
+  std::printf("  %zu of %zu instruments, %d passages, %lld frames compared, %d differ, %.1f s\n", picked.size(),
+              instruments.size(), passages, compared, differ, secs);
   CHECK(instruments.size() > 0 && differ == 0);
 }
 

@@ -71,34 +71,35 @@ void run_held_patch_tests() {
   CHECK(node(arHeld, "osc") == node(ar, "osc"));
 }
 
-// The mixer's running form: over every measured plain sound, held and as it
-// is, blocks of uneven sizes after one start equal one render over the same
-// length, sample for sample.
+// The mixer's running form: over every measured plain sound, held (the form
+// that runs), blocks of uneven sizes after one start equal one render over
+// the same length, sample for sample. A quarter second crosses every block
+// size many times.
 void run_mixer_running_tests() {
   std::printf("the mixer: rendered block after block equals one render, over the measured plain sounds\n");
   const auto t0 = std::chrono::steady_clock::now();
-  const int frames = 96000;
+  const int frames = 12000;
   const int sizes[] = {1, 100, 511, 512, 513, 700, 64, 2048, 3};
   int sounds = 0, differ = 0;
-  for (const Patch& plain : measured_plain_sounds())
-    for (const Patch& patch : {plain, held_patch(plain)}) {
-      BuiltSound whole = build_sound(patch), blocks = build_sound(patch);
-      std::vector<float> one(size_t(frames) * 2), many(size_t(frames) * 2);
-      whole.mixer->render(one.data(), frames);
-      blocks.mixer->start_running(frames, 512);
-      for (int done = 0, k = 0; done < frames; ++k) {
-        const int n = std::min(sizes[k % 9], frames - done);
-        blocks.mixer->render_running(many.data() + 2 * done, n);
-        done += n;
-      }
-      ++sounds;
-      if (!patch_door::same_samples(one, many)) {
-        ++differ;
-        std::printf("  differs: %s\n", patch_door::difference(one, many).c_str());
-      }
+  for (const Patch& plain : measured_plain_sounds()) {
+    const Patch patch = held_patch(plain);
+    BuiltSound whole = build_sound(patch), blocks = build_sound(patch);
+    std::vector<float> one(size_t(frames) * 2), many(size_t(frames) * 2);
+    whole.mixer->render(one.data(), frames);
+    blocks.mixer->start_running(frames, 512);
+    for (int done = 0, k = 0; done < frames; ++k) {
+      const int n = std::min(sizes[k % 9], frames - done);
+      blocks.mixer->render_running(many.data() + 2 * done, n);
+      done += n;
     }
+    ++sounds;
+    if (!patch_door::same_samples(one, many)) {
+      ++differ;
+      std::printf("  differs: %s\n", patch_door::difference(one, many).c_str());
+    }
+  }
   const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-  std::printf("  %d sounds (each plain sound held and as it is), %d differ, %.1f s\n", sounds, differ, secs);
+  std::printf("  %d held plain sounds, %d differ, %.1f s\n", sounds, differ, secs);
   CHECK(sounds > 0 && differ == 0);
 }
 

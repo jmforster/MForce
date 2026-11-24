@@ -18,6 +18,15 @@ void run_control_keep_up_tests();
 void run_control_key_act_tests();
 void run_step_tests();
 void run_sound_follows_tests();
+void run_sounds_tests();
+void run_live_keys_tests();
+void run_live_slur_back_tests();
+void run_live_stop_and_last_note_tests();
+void run_generate_tabs_tests();
+void run_generate_refusal_tests();
+void run_play_tests();
+void run_transport_files_tests();
+void run_seed_tests();
 void run_undo_redo_tests();
 void run_wire_tests();
 void run_unwire_tests();
@@ -54,6 +63,15 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_control_key_act_tests", run_control_key_act_tests},
   {"run_step_tests", run_step_tests},
   {"run_sound_follows_tests", run_sound_follows_tests},
+  {"run_sounds_tests", run_sounds_tests},
+  {"run_live_keys_tests", run_live_keys_tests},
+  {"run_live_slur_back_tests", run_live_slur_back_tests},
+  {"run_live_stop_and_last_note_tests", run_live_stop_and_last_note_tests},
+  {"run_generate_tabs_tests", run_generate_tabs_tests},
+  {"run_generate_refusal_tests", run_generate_refusal_tests},
+  {"run_play_tests", run_play_tests},
+  {"run_transport_files_tests", run_transport_files_tests},
+  {"run_seed_tests", run_seed_tests},
   {"run_undo_redo_tests", run_undo_redo_tests},
   {"run_wire_tests", run_wire_tests},
   {"run_unwire_tests", run_unwire_tests},

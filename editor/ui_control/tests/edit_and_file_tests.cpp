@@ -96,17 +96,17 @@ void run_control_edit_tests() {
   key_down(s, 1, 60);
   key_down(twin, 1, 60);
   CHECK(buffer(s, 1024) == buffer(twin, 1024));
-  LivePlayer* first = s.audio.player();
+  LivePlayer* first = s.live.player();
   edit_value(s, "Formant1", "cutoffFreq", 1800.0f);
   CHECK(unsaved(s.open) && s.status.empty());
-  CHECK(s.audio.player() == first);                     // followed, not rebuilt
+  CHECK(s.live.player() == first);                     // followed, not rebuilt
   CHECK(buffer(s, 1024) != buffer(twin, 1024));          // the sounding note heard it
 
   edit_value(s, "Ampl_env", "trigger", 0.5f);            // a constant no player follows: a rebuild
-  CHECK(s.audio.player() != first && s.status.empty());
-  LivePlayer* second = s.audio.player();
+  CHECK(s.live.player() != first && s.status.empty());
+  LivePlayer* second = s.live.player();
   edit_setting(s, "Formant1", "normalize", 1.0f);        // a setting: a new player
-  CHECK(s.audio.player() != second && s.status.empty());
+  CHECK(s.live.player() != second && s.status.empty());
 
   const Patch before = s.open.patch;
   edit_value(s, "nope", "x", 1.0f);
@@ -115,12 +115,12 @@ void run_control_edit_tests() {
 
   Session same;
   open_file(same, kOboe);
-  LivePlayer* p = same.audio.player();
+  LivePlayer* p = same.live.player();
   edit_value(same, "Formant1", "cutoffFreq", 1500.0f);
   edit_setting(same, "Formant1", "normalize", 0.0f);
   edit_position(same, "Formant1", same.open.patch.layout.positions.at("Formant1"));
   CHECK(!unsaved(same.open));                               // the same values again
-  CHECK(same.audio.player() == p);
+  CHECK(same.live.player() == p);
   pan_canvas(same, Vec2{12, 34});
   CHECK(!unsaved(same.open) && same.open.patch.layout.panning == (Vec2{12, 34}));
   edit_position(same, "Formant1", Vec2{1, 2});
@@ -141,11 +141,11 @@ void run_control_failed_rebuild_tests() {
   Session s;
   open_file(s, folder.file("probe.json"));
   REQUIRE(s.status.empty());
-  REQUIRE(s.audio.player() != nullptr);
+  REQUIRE(s.live.player() != nullptr);
   key_down(s, 1, 60);
   edit_setting(s, "probe", "refuse", 1.0f);
   CHECK(s.status == "node 'probe' (CheckProbe): probe says no");
-  CHECK(s.audio.player() == nullptr);
+  CHECK(s.live.player() == nullptr);
   CHECK(unsaved(s.open) && s.open.patch.graph.nodes[2].settings.at("refuse") == 1.0f);
   (void)buffer(s);                                       // the fade of the one before
   CHECK(!sounds(s, 4));
@@ -176,11 +176,11 @@ void run_control_file_tests() {
 
   Session missing;
   open_file(missing, kOboe);
-  LivePlayer* before = missing.audio.player();
+  LivePlayer* before = missing.live.player();
   const Patch shown = missing.open.patch;
   missing.recent.paths.insert(missing.recent.paths.begin(), "patches/library/no_such_patch.json");
   open_file(missing, "patches/library/no_such_patch.json");
-  CHECK(missing.open.path == kOboe && missing.audio.player() == before && missing.recent.paths.size() == 1);
+  CHECK(missing.open.path == kOboe && missing.live.player() == before && missing.recent.paths.size() == 1);
   CHECK(missing.open.patch == shown && !unsaved(missing.open));
   CHECK(missing.status.rfind("patches/library/no_such_patch.json", 0) == 0);
 }
@@ -240,9 +240,9 @@ void run_control_rate_tests() {
   Session s;
   open_file(s, kSlowRate);
   REQUIRE(s.open.patch.instrument.has_value());
-  REQUIRE(s.audio.player() != nullptr);
+  REQUIRE(s.live.player() != nullptr);
   CHECK(s.open.patch.sampleRate == 22050);
-  CHECK(s.audio.player()->sample_rate() == 48000);
+  CHECK(s.live.player()->sample_rate() == 48000);
   CHECK(s.status == "the file is at 22050 Hz and plays here at 48000 Hz, the output's rate; a render uses the "
                     "file's 22050 Hz");
 }
@@ -275,15 +275,15 @@ void run_control_string_tests() {
   save_patch(folder.file("gate.json"), p);
   Session s;
   open_file(s, folder.file("gate.json"));
-  REQUIRE(s.audio.player() != nullptr);
-  LivePlayer* before = s.audio.player();
+  REQUIRE(s.live.player() != nullptr);
+  LivePlayer* before = s.live.player();
   edit_string(s, "g", "name", "attack");
   CHECK(unsaved(s.open) && s.open.patch.graph.nodes[3].strings.at("name") == "attack");
-  CHECK(s.audio.player() != before);
+  CHECK(s.live.player() != before);
   save_file(s);
-  LivePlayer* saved = s.audio.player();
+  LivePlayer* saved = s.live.player();
   edit_string(s, "g", "name", "attack");
-  CHECK(!unsaved(s.open) && s.audio.player() == saved);
+  CHECK(!unsaved(s.open) && s.live.player() == saved);
   edit_string(s, "g", "nope", "x");
   CHECK(s.status == "node 'g' (NameGate): 'nope' is not a string setting of NameGate");
 }
@@ -293,12 +293,12 @@ void run_control_string_tests() {
 void run_control_arrange_tests() {
   Session s;
   open_file(s, "patches/library/keys/acoustic_piano/piano_default.json");
-  LivePlayer* player = s.audio.player();
+  LivePlayer* player = s.live.player();
   edit_value(s, "nope", "x", 1.0f);
   REQUIRE(!s.status.empty());
   arrange(s);
   CHECK(unsaved(s.open) && s.status.empty());
-  CHECK(s.audio.player() == player);
+  CHECK(s.live.player() == player);
   CHECK(!s.open.patch.layout.panning.has_value());
 }
 

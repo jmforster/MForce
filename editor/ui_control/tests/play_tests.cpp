@@ -32,7 +32,7 @@ float loudest(Session& s, float seconds) {
   return most;
 }
 
-int sounding(Session& s) { return s.audio.player() ? s.audio.player()->sounding() : 0; }
+int sounding(Session& s) { return s.live.player() ? s.live.player()->sounding() : 0; }
 
 }  // namespace
 
@@ -50,12 +50,12 @@ void run_control_open_census_tests() {
       CHECK(s.open.path == file);
       if (!s.open.patch.instrument) {
         ++plain;
-        CHECK(s.audio.player() == nullptr);
+        CHECK(s.live.player() == nullptr);
         CHECK(s.status.find("plain sound") != std::string::npos);
         continue;
       }
       ++instruments;
-      if (!s.audio.player()) {
+      if (!s.live.player()) {
         ++refused;
         std::printf("  no player for %s: %s\n", file.c_str(), s.status.c_str());
         continue;
@@ -103,6 +103,7 @@ void run_control_key_tests() {
   open_file(s, kStruck);
   REQUIRE(s.open.patch.instrument && !s.open.patch.instrument->sustaining);
   s.keyboard.seconds = 1.0f;
+  s.transport.live = false;                              // a key strikes a note of the keyboard's length
   key_down(s, 4, 60);
   key_down(s, 4, 60);                                    // the same key again: played once
   key_up(s, 4);                                          // ignored by a struck note

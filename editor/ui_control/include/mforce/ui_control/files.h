@@ -13,11 +13,13 @@ struct Session;
 // the sound following it (sound_follows), the path first among the recent
 // files. A file that cannot be read leaves the session as it was and says
 // why in status; one that is not there any more also leaves the recent
-// files. status says why there is no sound, or that the file's rate differs
-// from the output's.
+// files, the take dropped and its playback stopped, and the transport seeded
+// from the patch's embedded score (seed_from_score). status says why there
+// is no sound, or that the file's rate differs from the output's.
 void open_file   (Session& s, const std::string& path);
 // Starts the patch File > New gives (new_patch, with two seeds from
-// session.seeds) at once, with no file, as open_file starts one.
+// session.seeds, three seconds long, with the default embedded score) at
+// once, with no file, as open_file starts one.
 void new_file    (Session& s);
 // Saves to the patch's own file, which then becomes the newest of the recent
 // files; a drag under way ends there. A patch with no file, or a save that

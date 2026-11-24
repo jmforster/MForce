@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <string>
 #include <utility>
+#include "mforce/perform/embedded_score.h"
+#include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_model/new_patch.h"
@@ -24,7 +26,8 @@ std::string rate_note(const Session& s) {
 }
 
 // `next` becomes the open patch, as one that was never edited: nothing
-// selected, offered, waiting or in a drag; the views told; the sound follows.
+// selected, offered, waiting or in a drag; the take dropped and its playback
+// stopped; the views told; the sound follows.
 void take(Session& s, OpenPatch next) {
   (void)gather_note_faces(next.patch);
   (void)drop_unread_face_nodes(next.patch);
@@ -34,6 +37,8 @@ void take(Session& s, OpenPatch next) {
   s.offered.clear();
   s.gesture.clear();
   s.unsaved = Unsaved{};
+  s.take = Take{};
+  s.audio.play(AudioAdapter::Line::Playback, nullptr);
   ++s.opened;
   s.status.clear();
   sound_follows(s);
@@ -52,12 +57,16 @@ void open_file(Session& s, const std::string& path) {
     return;
   }
   take(s, std::move(next));
+  seed_from_score(s);
   note_opened(s.recent, path);
 }
 
 void new_file(Session& s) {
   const std::uint32_t sineSeed = s.seeds(), envelopeSeed = s.seeds();
-  take(s, OpenPatch{new_patch(sineSeed, envelopeSeed), {}, History{}});
+  Patch fresh = new_patch(sineSeed, envelopeSeed);
+  fresh.seconds = 3.0;
+  fresh.score = default_embedded_score();
+  take(s, OpenPatch{std::move(fresh), {}, History{}});
 }
 
 void save_file(Session& s) {

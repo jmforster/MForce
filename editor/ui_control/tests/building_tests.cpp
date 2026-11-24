@@ -82,9 +82,9 @@ void run_unwire_tests() {
   start(s, control_patch());
   const Patch opened = s.open.patch;
   unwire(s, end(Kind::PatchOutput), 0);                   // one step; the patch then has no sound
-  CHECK(s.open.patch.graph.output.empty() && s.audio.player() == nullptr && steps(s) == 1);
+  CHECK(s.open.patch.graph.output.empty() && s.live.player() == nullptr && steps(s) == 1);
   undo(s);
-  CHECK(s.open.patch == opened && s.audio.player() != nullptr);
+  CHECK(s.open.patch == opened && s.live.player() != nullptr);
   wire(s, end(Kind::Output, "lfo"), end(Kind::SettingPin, "env", "timeScale"));
   const Patch fed = s.open.patch;
   unwire(s, end(Kind::SettingPin, "env", "timeScale"), 0);
@@ -157,7 +157,7 @@ void run_create_tests() {
   block.polyphony = 6;
   block.sustaining = true;
   edit_instrument(s, block);
-  CHECK(*s.open.patch.instrument == block && s.audio.player() != nullptr);
+  CHECK(*s.open.patch.instrument == block && s.live.player() != nullptr);
 
   Session plain;
   Patch p = control_patch();
@@ -208,7 +208,7 @@ void run_new_patch_tests() {
   answer_unsaved(s, Answer::Discard);
   CHECK(node_of(s, "Sine") && node_of(s, "Envelope") && s.open.patch.graph.nodes.size() == 2);
   CHECK(s.open.path.empty() && title(s) == "MForce - untitled" && steps(s) == 0 && s.opened == opened + 1);
-  CHECK(s.audio.player() == nullptr);
+  CHECK(s.live.player() == nullptr);
   CHECK(s.status == "nothing is wired to the Output yet: wire a node's output to it to hear the patch");
   request_new(s);                                         // nothing unsaved: at once
   CHECK(s.unsaved.waiting == Unsaved::Waiting::Nothing && s.opened == opened + 2);
