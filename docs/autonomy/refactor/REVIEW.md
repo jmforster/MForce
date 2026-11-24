@@ -21,8 +21,9 @@ given.
 
 **R27 — what "done" is, and slice 2's page** (2026-11-23,
 `docs/architecture/editor-parity.md` and
-`docs/architecture/editor-slice2.md`; no code). For your signature on the
-second; the first is yours to strike lines from.
+`docs/architecture/editor-slice2.md`; no code). **The second is SIGNED
+(2026-11-23, "Signed, proceed"), its eleven rulings as written; slice 2 is
+in build.** The first stays yours to strike lines from at any time.
 - **The parity list.** Everything a person could do with the old editor,
   taken from its 13,506 lines: 229 capabilities, each with where it
   stands. Slice 1 covers 65, the five slices to come 153, and 11 are not

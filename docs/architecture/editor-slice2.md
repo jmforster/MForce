@@ -1,6 +1,7 @@
 # The editor, slice 2: build
 
-Status: **proposed 2026-11-23, awaiting Matt's signature. No code exists.**
+Status: **signed by Matt 2026-11-23 ("Signed, proceed"), all eleven rulings
+of section 4 as written. In build.**
 Parent: `editor.md` (signed 2026-11-23; its three rules, five modules and
 limits hold here unchanged). What it must restore is row 2 of
 `editor-parity.md`, A1: 41 capabilities of the old editor, about 1,450 of
