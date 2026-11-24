@@ -79,8 +79,19 @@ Replicate legacy functionality of node-based UI to:
     (4) the editor in slices, the first being open, play, tweak, hear, save
     (slice 1 BUILT 11-23 and on Matt's desk, REVIEW R26; each later slice
     gets a page of interfaces for his signature before its code).
-  + When the freeze lifts is Matt's to say; until then, still no feature
-    work. The 11-21 wording here, "the freeze lifts for sound work", was a
+  + WHEN THE REFACTOR IS DONE (Matt 2026-11-23): "I want the refactor to
+    be entirely done before we resume adding features." Done means "when
+    all the capability that existed previously is restored": every slice
+    of the editor, measured against the list of what the old editor did
+    (`docs/architecture/editor-parity.md`). Then "we will take a pause and
+    I will try to empirically reassure myself that the code does not suck
+    (have reached out to some old C++ colleagues, for eg)". Features
+    resume only after that pause, on his word. Do not propose lifting the
+    freeze earlier or building a capability between slices. He does not
+    want Max effort ("it just turns into Hamlet ... unable to move
+    forward (and that's been bad enuf on xhigh)"): decide what is yours to
+    decide and keep moving.
+  + The 11-21 wording here, "the freeze lifts for sound work", was a
     misreading, corrected by Matt 2026-11-23: "I am not engaged in 'sound
     work' other than to try out new capabilities of MForce - eg, you build
     physical modeling capability, I create an oboe patch to test it out.

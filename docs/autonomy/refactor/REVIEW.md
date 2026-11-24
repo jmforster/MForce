@@ -70,11 +70,13 @@ is the slice's last proof, and anything wrong in it is worth one line back.
      (Reworded 2026-11-23 after your correction: this asked when the
      freeze lifts "for sound work", which misread what you are doing. You
      are building MForce; a patch is how a new capability gets tried.)
-     My read: after slice 3. Slice 2 lets you make a patch from nothing
-     and slice 3 lets you see what it does; with those the editor is the
-     bench for whatever we build next. Slices 4 to 6 (render a score in
-     the editor; groups, copy and paste, MIDI; the shape editors) are
-     then built when a capability needs them, under the same limits.
+     ANSWERED 2026-11-23: "I want the refactor to be entirely done before
+     we resume adding features", done meaning "when all the capability
+     that existed previously is restored"; then a pause while you and
+     your C++ colleagues judge the code; features after. So all the
+     slices come first, measured against the list of what the old editor
+     did (`docs/architecture/editor-parity.md`). My read "after slice 3"
+     is withdrawn.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design
