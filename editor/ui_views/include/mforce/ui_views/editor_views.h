@@ -23,6 +23,7 @@ public:
   void draw(Session& session);       // between the caller's ImGui::NewFrame() and ImGui::Render()
   Vec2 canvas_origin() const { return canvas_.origin(); }   // the canvas's top-left corner on screen
   Vec2 canvas_size() const { return canvas_.size(); }       // and its size
+  Vec2 piano_origin() const { return keyboard_.piano_origin(); }   // the on-screen piano's top-left corner
   // The centre of the transport's tab or button with this label, as last drawn.
   std::optional<Vec2> transport_item(const std::string& label) const { return transport_.centre_of(label); }
 

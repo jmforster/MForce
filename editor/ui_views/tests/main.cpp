@@ -12,6 +12,12 @@ void run_create_item_tests();
 void run_pin_tooltip_tests();
 void run_transport_tabs_draw_tests();
 void run_transport_click_tests();
+void run_canvas_click_tests();
+void run_canvas_drag_tests();
+void run_canvas_menu_tests();
+void run_canvas_minimap_tests();
+void run_canvas_wheel_tests();
+void run_piano_mouse_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -26,6 +32,12 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_pin_tooltip_tests", run_pin_tooltip_tests},
   {"run_transport_tabs_draw_tests", run_transport_tabs_draw_tests},
   {"run_transport_click_tests", run_transport_click_tests},
+  {"run_canvas_click_tests", run_canvas_click_tests},
+  {"run_canvas_drag_tests", run_canvas_drag_tests},
+  {"run_canvas_menu_tests", run_canvas_menu_tests},
+  {"run_canvas_minimap_tests", run_canvas_minimap_tests},
+  {"run_canvas_wheel_tests", run_canvas_wheel_tests},
+  {"run_piano_mouse_tests", run_piano_mouse_tests},
 };
 }  // namespace
 

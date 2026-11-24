@@ -79,13 +79,16 @@ void NodeCanvas::carry_moves(Session& s, const CanvasTable& t) {
 }
 
 // A click on a node or face selects it, on the Output node or the empty
-// canvas selects nothing; the record's selection is what imnodes shows.
+// canvas selects nothing; the record's selection is what imnodes shows,
+// except while the left button is down: imnodes drags what it holds selected,
+// and that is how the Output node, which the record never selects, is moved.
 void NodeCanvas::carry_selection(Session& s, const CanvasTable& t) {
-  if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImNodes::IsEditorHovered()) {
+  if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && overCanvas_) {
     int hovered = -1;
     const CanvasNode* n = ImNodes::IsNodeHovered(&hovered) ? t.node(hovered) : nullptr;
     select_node(s, n ? n->name : std::string());
   }
+  if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) return;
   ImNodes::ClearNodeSelection();
   for (const auto& n : t.nodes)
     if (!s.selected.empty() && n.name == s.selected) ImNodes::SelectNode(n.id);
@@ -104,6 +107,9 @@ void NodeCanvas::draw(Session& s) {
   origin_ = vec(ImGui::GetCursorScreenPos());
   size_ = vec(ImGui::GetContentRegionAvail());
   ImNodes::BeginNodeEditor();
+  // Asked here, of the editor's own window: once EndNodeEditor has closed it
+  // the window is the one around it, which the mouse is never directly over.
+  overCanvas_ = ImGui::IsWindowHovered();
   show_record(s, table);
   draw_nodes(s, table);
   draw_links(table);

@@ -24,4 +24,5 @@ mforce_tests(ui_views
           tests/headless_draw_tests.cpp
           tests/canvas_table_tests.cpp
           tests/canvas_selection_tests.cpp
+          tests/mouse_tests.cpp
           tests/transport_view_tests.cpp)

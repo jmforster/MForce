@@ -78,7 +78,7 @@ void NodeCanvas::carry_keys(Session& s, const CanvasTable& t) {
 // The wheel, over the canvas: vertical; Shift or a horizontal wheel, across.
 void NodeCanvas::carry_wheel(Session& s) {
   const ImGuiIO& io = ImGui::GetIO();
-  if (!ImNodes::IsEditorHovered() || io.WantTextInput) return;
+  if (!overCanvas_ || io.WantTextInput) return;
   float across = io.MouseWheelH, down = io.MouseWheel;
   if (io.KeyShift && across == 0.0f) std::swap(across, down);
   if (across == 0.0f && down == 0.0f) return;

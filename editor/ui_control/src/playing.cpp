@@ -12,7 +12,6 @@ namespace {
 constexpr int kLowestOctave = 0, kHighestOctave = 8;
 constexpr float kShortestNote = 0.05f, kLongestNote = 30.0f;
 
-
 }  // namespace
 
 void sound_follows(Session& s) {
@@ -55,9 +54,10 @@ std::vector<int> held_notes(const Session& s) { return s.live.held_notes(); }
 void keep_up(Session& s) {
   (void)s.audio.playing(AudioAdapter::Line::Keys);
   if (std::string f = s.live.faults(); !f.empty()) s.status = std::move(f);
-  if (Sound* playback = s.audio.playing(AudioAdapter::Line::Playback); playback && playback->over())
+  if (Sound* playback = s.audio.playing(AudioAdapter::Line::Playback); playback && playback->over()) {
     s.audio.play(AudioAdapter::Line::Playback, nullptr);
     s.runningPlain = nullptr;
+  }
 }
 
 void change_octave(Session& s, int by) {

@@ -33,11 +33,24 @@ public:
   // Whether the last frame drew a transport tab or button with these words.
   bool drawn(const std::string& label) const;
   Vec2 canvas_size() const;         // the canvas's size on screen, from the last frame
+  Vec2 canvas_origin() const;       // and its top-left corner
+  Vec2 piano_origin() const;        // the on-screen piano's top-left corner, from the last frame
+  // The mouse as a hand moves it, at a point on screen: it arrives, rests two
+  // frames, then each change of a button is a frame of its own.
+  void click_at(Vec2 at);           // the left button down and up
+  void right_click_at(Vec2 at);     // the right button down and up
+  void mouse_down_at(Vec2 at);      // the left button down, and kept down
+  void mouse_up();                  // the left button let go where the mouse is
+  void drag(Vec2 from, Vec2 to);    // the left button down at `from`, the mouse moved in steps to `to`, let go
+  void wheel_at(Vec2 at, float notches);   // the wheel turned, a positive number away from the hand
+  bool popup_open() const;          // whether a menu is open
   void select_link(int id);         // imnodes' own SelectLink
   int  selected_links() const;      // imnodes' own NumSelectedLinks
 
 private:
   void press(int key);              // an ImGuiKey, as its number: no ImGui type in this header
+  void rest_at(Vec2 at);            // the mouse moved there, then two frames
+  void click_button(int button);    // an ImGuiMouseButton, as its number, down and up
   struct Parts;                     // the contexts and the views, in the .cpp
   std::unique_ptr<Parts> parts_;
   Session& session_;

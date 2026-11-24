@@ -182,6 +182,7 @@ void KeyboardView::meter(Session& s) {
 void KeyboardView::piano(Session& s) {
   const int first = s.keyboard.octave * 12;
   const ImVec2 origin = ImGui::GetCursorScreenPos();
+  pianoOrigin_ = Vec2{origin.x, origin.y};
   const float width = std::max(ImGui::GetContentRegionAvail().x, 200.0f);
   ImGui::InvisibleButton("piano", ImVec2(width, kPianoHeight));
   const std::vector<PianoKey> keys = piano_keys(origin, width, first, piano_octaves(width));

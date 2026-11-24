@@ -1,4 +1,5 @@
 #pragma once
+#include "mforce/patch/layout.h"
 #include "mforce/ui_control/session.h"
 
 namespace mforce::ui {
@@ -16,6 +17,7 @@ namespace mforce::ui {
 class KeyboardView {
 public:
   void draw(Session& s);
+  Vec2 piano_origin() const { return pianoOrigin_; }   // the piano's top-left corner on screen, from the last frame
 
 private:
   void computer_keys(Session& s);
@@ -23,6 +25,7 @@ private:
   void piano(Session& s);
   void meter(Session& s);
 
+  Vec2 pianoOrigin_{};                             // the piano's top-left corner on screen
   int mouseNote_{-1};                              // the note the mouse holds down; -1 for none
   float meter_{0.0f};                              // the peak after the clip, falling slowly
   float meterBeforeClip_{0.0f};                    // and before it

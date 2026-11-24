@@ -44,7 +44,7 @@ const CreateItem* families_menu(const std::vector<CreateFamily>& families) {
 // record's coordinates: the screen point less the canvas's origin and its
 // panning.
 void NodeCanvas::open_menus(const CanvasTable& t) {
-  if (!ImNodes::IsEditorHovered() || !ImGui::IsMouseReleased(ImGuiMouseButton_Right)) return;
+  if (!overCanvas_ || !ImGui::IsMouseReleased(ImGuiMouseButton_Right)) return;
   int hovered = -1;
   if (ImNodes::IsNodeHovered(&hovered)) {
     const CanvasNode* n = t.node(hovered);

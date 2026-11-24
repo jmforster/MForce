@@ -55,6 +55,7 @@ private:
   CreateMenu menu_ = create_menu();
   int seenOpened_{-1};                             // session.opened when names_ was begun
   bool gesture_{false};                            // a drag or a pan is under way: the canvas keeps the user's
+  bool overCanvas_{false};                         // the mouse is on the canvas itself this frame: not on a menu over it, nor the mini-map
   Vec2 shownPanning_{};                            // the panning given to imnodes this frame
   Vec2 origin_{};                                  // the canvas's top-left corner on screen
   Vec2 size_{};                                    // the canvas's size on screen

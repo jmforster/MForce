@@ -223,9 +223,10 @@ void run_play_status_tests() {
   CHECK(first != std::string::npos && s.status.find(sentence, first + 1) == std::string::npos);
 }
 
-// A plain sound running follows the patch: a setting edit leaves another
-// sound on the line; a drag of a number leaves the same one until the drag
-// ends, then another; with nothing running, an edit builds nothing.
+// A plain sound running follows the patch, with the program's loop turning
+// (keep_up once a frame): a setting edit leaves another sound on the line; a
+// drag of a number leaves the same one until the drag ends, then another;
+// with nothing running, an edit builds nothing.
 void run_plain_follows_tests() {
   std::printf("a running plain sound follows the patch: a setting at once, a number at the drag's end\n");
   Session s;
@@ -235,12 +236,16 @@ void run_plain_follows_tests() {
   play(s);
   const Sound* first = s.audio.playing(AudioAdapter::Line::Playback);
   REQUIRE(first != nullptr);
+  keep_up(s);
   edit_setting(s, "ampEnv", "timeScale", 1.5f);
   const Sound* second = s.audio.playing(AudioAdapter::Line::Playback);
   CHECK(second != nullptr && second != first && playing(s));
+  keep_up(s);
   edit_value(s, "fm", "frequency", 450.0f);
+  keep_up(s);
   edit_value(s, "fm", "frequency", 460.0f);
   CHECK(s.audio.playing(AudioAdapter::Line::Playback) == second);
+  keep_up(s);
   end_gesture(s);
   const Sound* third = s.audio.playing(AudioAdapter::Line::Playback);
   CHECK(third != nullptr && third != second && run(s, 10) > 0.0f);
