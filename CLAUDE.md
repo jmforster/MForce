@@ -77,7 +77,7 @@ Replicate legacy functionality of node-based UI to:
     in that order (render and music DONE 11-22; build DONE 11-23); (3) the
     new editor's design (`docs/architecture/editor.md`, SIGNED 11-23);
     (4) the editor in slices, the first being open, play, tweak, hear, save
-    (slices 1 and 2 BUILT 11-23 and on Matt's desk, REVIEW R28; each later slice
+    (slices 1 to 3 BUILT by 11-24 and on Matt's desk, REVIEW R30; each later slice
     gets a page of interfaces for his signature before its code).
   + WHEN THE REFACTOR IS DONE (Matt 2026-11-23): "I want the refactor to
     be entirely done before we resume adding features." Done means "when
@@ -179,8 +179,9 @@ Replicate legacy functionality of node-based UI to:
   MinGW). Matt's `build/` is configured with `-DMFORCE_SHELVED=ON`; the
   default is off (Part 8, 2026-11-23).
 - Tests and gates: `python tools/gates.py --fast` (the per-module test
-  programs, the structure gate, the tool tests) or `python tools/gates.py`
-  (adds the null, allocation and comp gates). Neither builds.
+  programs, the structure gate, the tool tests; about a minute and a half)
+  or `python tools/gates.py` (adds the null, allocation and comp gates;
+  about four minutes). Neither builds.
 - The engine is one folder per module, `engine/<module>/{include,src,tests}`;
   a module's `CMakeLists.txt` names what it may use and the compiler
   refuses anything else. The structure limits are a gate:

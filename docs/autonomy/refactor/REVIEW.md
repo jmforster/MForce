@@ -19,106 +19,108 @@ given.
 
 ## Awaiting
 
-**R29 — slice 3's page: generate** (2026-11-23,
-`docs/architecture/editor-slice3.md`; no code). **SIGNED (2026-11-23,
-"Signed, proceed"), its eleven rulings as written; slice 3 is in build.**
-- **What it restores**: the transport (Note, Passage, Chords, Drums),
-  Generate, Play, Stop and Space, Save WAV, passage and chord files, the
-  Live checkbox, a plain sound's sound, the piano showing every sounding
-  note, the level before the clip, "Last note". 26 lines of the parity
-  list and the three parts the checks moved here.
-- **The engine work is in one place**, the live player: a held key on a
-  patch not marked sustaining holds its own voice (today only the one
-  legato line holds), Stop, and reporting what is sounding. The offline
-  render it uses exists; the passage, chord and drum texts become notes in
-  the engine (`perform`), where the parsers already are, not in the
-  editor.
-- **The three rulings to read first** (its section 4):
-  1. Live is on at start, as it was. That changes the keyboard you have
-     in slice 1 and 2: a key holds its note on any patch, and unchecking
-     Live gives the struck note of fixed length back (ruling 5).
-  2. A render is made at the file's rate, so Save WAV is what the command
-     line renders; when the sound card runs at another rate, Play
-     resamples it and says so (ruling 2).
-  3. Keys sound over a playing render, as they did. So the output plays
-     two sounds at once, through one small interface (`Sound`) with three
-     implementations: the page's section 2.4 shows the old and new code
-     and the names I passed over, and section 6 says why an interface
-     and not a list of cases (ruling 4).
-- **Size**: my estimate is a session, as slice 2 was.
-
-**R28 — the editor, slice 2: build** (2026-11-23, commits `dcba0b3`,
-`d7a06de`, `9ac1e59`, `94a7c60`, fix wave `f4b4212`, parity wave `34febff`;
-page `docs/architecture/editor-slice2.md`, signed that day (R27); report
-`docs/autonomy/refactor/reports/2026-11-23-editor-slice2.md`). It is on
-your desk and replaces R26: slice 1's list is folded in below. Every gate
-passes; no render moved. Nobody has put a hand on the mouse in it. Each
-gesture is one call of the canvas library decoded through a tested table
-into a tested function, and two of them (Delete after the wires change,
-and F) run under a test; the rest have only been read. So this list is the
-slice's last proof, and anything wrong in it is worth one line back.
-- **Start it** from the repo root, with no file:
-  `build\editor\ui_app\Release\mforce_editor.exe`
-  You should see a Sine, an Envelope and the Output node, unwired, and the
-  status line saying nothing is wired to the Output yet.
-- **Wire.** Drag from the Sine's `out` to the Output node's pin: Q now
-  plays a note. Drag the Envelope's `out` to the Sine's `amplitude`: the
-  note has a shape.
-- **Create.** Right-click empty canvas: Note; Curve, Envelope, Var,
-  Range; then the families. Pick one: it appears where you clicked,
-  selected. Make a Note and drag its `frequency` to the Sine's
-  `frequency`: the keys now play pitches.
-- **Unwire and delete.** Drag a wire's end off the pin it feeds. Or click
-  a wire and press Delete. Select a node and press Delete, or right-click
-  it and choose Delete.
-- **Undo.** Ctrl+Z back, step by step, to the new patch; Ctrl+Y forward.
-  A drag of a number or of a node is one step.
-- **A refusal.** Wire two nodes into a loop: the second wire is refused
-  and the status line says "a cycle with no tap in it". Make the same
-  wire from the small teal `tap` pin instead: it is taken.
-- **Rename.** Select a node, type a new name in the panel's name field,
-  Enter. A name with "." in it is refused in the status line.
-- **A setting driven per note.** Select the Envelope; click the small mark
-  beside `timeScale`: a gold pin appears on the node. Wire a Var to it.
-  Click the mark again: the pin and its wire go.
-- **The instrument.** Click empty canvas: the panel shows polyphony,
-  sustaining, onsets and glide.
-- **Finding your way.** The wheel pans; Shift and the wheel pans across;
-  Shift with an arrow pans; F or the Fit button centres the graph; the
-  status line counts nodes and wires. A plain arrow is still the octave
-  or the note length.
-- **The keyboard.** The PC Keyboard button turns the computer's note keys
-  off and on. The piano is as wide as the window, with note names and the
-  computer keys on it. Click low on a key for a loud note, high for a
-  soft one. "voices=N" counts what is sounding; the level turns yellow,
-  then red.
-- **Save.** File > New asks first when there are unsaved changes. Ctrl+S
-  on a new patch asks for a file. The title's star goes when you save, and
-  when you undo back to the saved state. Open Recent shows names (the path
-  on hover) and has Clear. Close the window with changes: Save, Discard
-  or Cancel.
-- **Your grouped patches.** `patches\library\winds\oboe1.json` now shows
-  its three Notes as nodes, in the old colours. It is still an overlapping
-  pile, because groups are slice 5; `View > Arrange nodes` or the list at
-  the top of the panel, as before.
-- **Still from slice 1, never tried by hand:** hold a note and drag a
-  number (the sounding note should follow); a setting's drag applying on
-  release; `patches\baselines\phrase_smoke_phrased.json` (a key holds
-  until you let go).
-- **Decided without you, each reversible** (the report's section 6): a
-  patch the engine cannot build is silent, with the reason in the status
-  line (in slice 1 the old sound carried on); a Note's node that nothing
-  reads is dropped when a file is opened, as the old save dropped it; the
-  create menu lists each type once; the counts leave the Output node out;
-  new Notes are "Note1", "Note2"; the engine's edit lets a plain sound be
-  given an instrument block, though the window offers no way to do it.
+**R30 — the editor, slice 3: generate** (2026-11-24, commits `b341e96`,
+`99e5100`, `15c115f`, `5faeedd`, fix wave `e0a108f`, parity wave `9875f8a`;
+page `docs/architecture/editor-slice3.md`, signed 2026-11-23 (R29); report
+`docs/autonomy/refactor/reports/2026-11-24-editor-slice3.md`). It is on your
+desk and replaces R28, whose list is kept at the end of this one. Every
+gate passes; no render moved. Still nobody has put a hand on the mouse or
+an ear to it: Generate, Play, Stop and Space run under a test in an editor
+with no window, and what they sound like, the dialogs and the sound card
+do not. So this list is the slice's last proof.
+- **Start it** from the repo root:
+  `build\editor\ui_app\Release\mforce_editor.exe patches\library\keys\acoustic_piano\piano_default.json`
+  The transport is the strip across the top. The Note tab shows the note
+  the file's score holds.
+- **Hold keys.** Hold Q, W and E together: three notes, each ending when
+  you let its own key go. (In slices 1 and 2 a key struck a note of fixed
+  length; Live is on at start, as it was in the old editor.) Uncheck
+  Live: every key strikes a note of the Duration.
+- **Generate, Play, Stop.** Generate: the button reads "Generating..."
+  while it works and the status says "Generated note". Play plays it and
+  the button reads Stop while anything sounds. Space does both. Change
+  the velocity and press Play: it renders again first.
+- **A passage.** On the Passage tab type `Cq Dq Eq Fq`, Generate, Play.
+  Save Passage, change the text, Load Passage.
+- **Phrase marks.** Open `patches\baselines\phrase_smoke_phrased.json`
+  (the one measured patch marked sustaining) and try `Cq Dq Dq | Eq Fq`.
+  On the piano the same text says the marks are ignored.
+- **The slur back**, on that patch with Live on: hold Q, then W, then let
+  W go: the line should slide back to Q without a new attack.
+- **Chords and drums.** The Chords tab with a chord text of yours. The
+  Drums tab with `KK1,3;HH1,2,3,4/4/2`: its map starts with the library's
+  kick and hi-hat.
+- **Save WAV** writes the last render; its dialog starts in `renders`.
+- **A plain sound.** Open `patches\baselines\fm_bell_test.json` and press
+  Play: it runs until Stop. Change a setting while it runs: it restarts
+  with the change.
+- **Stop is the panic.** While a key's note rings, the button reads Stop
+  and Space stops it.
+- **What is sounding.** A key on the piano stays lit while its release
+  rings. Hold a loud chord: "pre=" passes 1 while "post=" stays under.
+- **Decided without you, each reversible** (the report's section 6; all
+  twenty-six are the page's section 7): Play stops everything first, keys
+  too, and then keys sound over the render; one clip, at the output;
+  drums are not normalised (the old code never did); a WAV is written at
+  the render's rate; an error from Chords or Drums stays on screen; the
+  Delay field starts at 15 and means what it shows; a plain sound's
+  envelopes are held on the patch record.
 - **Yours to say:**
   1. What is wrong or missing at the window, in any words.
   2. Lines to strike from or add to the parity list
-     (`docs/architecture/editor-parity.md`), at any time. Slice 2's 58
-     lines were each checked against the code by the reviewer after it
-     was built (its A6).
-  3. Slice 3's page is R29, above.
+     (`docs/architecture/editor-parity.md`), at any time. Slice 3's 32
+     lines were each checked against the code after it was built (A7).
+  3. Slice 4, See (the waveform strips, the spectrum, Listen), gets its
+     page of interfaces for your signature next.
+- **From slices 1 and 2, still untried by hand:**
+  - **Start it** from the repo root, with no file:
+    `build\editor\ui_app\Release\mforce_editor.exe`
+    You should see a Sine, an Envelope and the Output node, unwired, and the
+    status line saying nothing is wired to the Output yet.
+  - **Wire.** Drag from the Sine's `out` to the Output node's pin: Q now
+    plays a note. Drag the Envelope's `out` to the Sine's `amplitude`: the
+    note has a shape.
+  - **Create.** Right-click empty canvas: Note; Curve, Envelope, Var,
+    Range; then the families. Pick one: it appears where you clicked,
+    selected. Make a Note and drag its `frequency` to the Sine's
+    `frequency`: the keys now play pitches.
+  - **Unwire and delete.** Drag a wire's end off the pin it feeds. Or click
+    a wire and press Delete. Select a node and press Delete, or right-click
+    it and choose Delete.
+  - **Undo.** Ctrl+Z back, step by step, to the new patch; Ctrl+Y forward.
+    A drag of a number or of a node is one step.
+  - **A refusal.** Wire two nodes into a loop: the second wire is refused
+    and the status line says "a cycle with no tap in it". Make the same
+    wire from the small teal `tap` pin instead: it is taken.
+  - **Rename.** Select a node, type a new name in the panel's name field,
+    Enter. A name with "." in it is refused in the status line.
+  - **A setting driven per note.** Select the Envelope; click the small mark
+    beside `timeScale`: a gold pin appears on the node. Wire a Var to it.
+    Click the mark again: the pin and its wire go.
+  - **The instrument.** Click empty canvas: the panel shows polyphony,
+    sustaining, onsets and glide.
+  - **Finding your way.** The wheel pans; Shift and the wheel pans across;
+    Shift with an arrow pans; F or the Fit button centres the graph; the
+    status line counts nodes and wires. A plain arrow is still the octave
+    or the note length.
+  - **The keyboard.** The PC Keyboard button turns the computer's note keys
+    off and on. The piano is as wide as the window, with note names and the
+    computer keys on it. Click low on a key for a loud note, high for a
+    soft one. "voices=N" counts what is sounding; the level turns yellow,
+    then red.
+  - **Save.** File > New asks first when there are unsaved changes. Ctrl+S
+    on a new patch asks for a file. The title's star goes when you save, and
+    when you undo back to the saved state. Open Recent shows names (the path
+    on hover) and has Clear. Close the window with changes: Save, Discard
+    or Cancel.
+  - **Your grouped patches.** `patches\library\winds\oboe1.json` now shows
+    its three Notes as nodes, in the old colours. It is still an overlapping
+    pile, because groups are slice 5; `View > Arrange nodes` or the list at
+    the top of the panel, as before.
+  - **Still from slice 1, never tried by hand:** hold a note and drag a
+    number (the sounding note should follow); a setting's drag applying on
+    release; `patches\baselines\phrase_smoke_phrased.json` (a key holds
+    until you let go).
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design
@@ -589,6 +591,10 @@ answer any time), and the consequences of the two deletions are named.
 - Refuter: byte-identity upheld with the refuter's own A/B (the eleven rewritten scope files and three controls 14/14, eight synthetics of its own 8/8, five archived copies through the tool); no Critical; two Majors, both in the editor's new Preset Apply (the cached `sustainLevel` — 0 on every two- or three-stage node — pushed over a fresh ADSR's four slots, and that push outside the audio lock); three Minors (the tool carried keys a class never read into a form that reads them, seven archived files would have moved; the refusal test pinned one knob of eleven; the whole-corpus roundtrip gate permanently red since 3.2); two Flags. The wave (`b1d0222`) fixed all but the standing Flag — Apply re-pulls under the lock through one function with a headless `--apply-preset` twin that proved it on `bassoon1` and `reed_test`; the tool drops the dead keys by name; the gate's known set is the backlog-79 six and the run is green. Re-review: closeable, nothing introduced, four Flags — two one-line fixes taken (an upper-case preset name; an ASCII note), one coverage correction accepted (the three in-scope `as` nodes are dead in the render, so `as` is render-pinned by the synthetic sets and the tests, not by the scope — CLEANUP 30), one stale scratch label.
 
 ## Resolved
+
+**R29 — slice 3's page: generate** — SIGNED 2026-11-23 (Matt): "Signed, proceed", the page's eleven rulings as written. Built the next day: R30. The page's section 7 holds the twenty-six rulings made while building.
+
+**R28 — the editor, slice 2: build** — SUPERSEDED 2026-11-24 by R30 (slice 3, built on it before a verdict). Its list of what to try is carried at the end of R30's. Report `docs/autonomy/refactor/reports/2026-11-23-editor-slice2.md`; commits `dcba0b3`..`34febff`.
 
 **R27 — what "done" is, and slice 2's page** — SIGNED 2026-11-23 (Matt): "Signed, proceed", the page's eleven rulings as written. The parity list (`docs/architecture/editor-parity.md`, 229 capabilities of the old editor) is the measure of done and stays his to strike lines from. Slice 2 was built that day: R28.
 

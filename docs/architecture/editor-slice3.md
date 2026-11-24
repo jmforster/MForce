@@ -1,7 +1,8 @@
 # The editor, slice 3: generate
 
 Status: **signed by Matt 2026-11-23 ("Signed, proceed"), all eleven rulings
-of section 4 as written. In build.**
+of section 4 as written. BUILT 2026-11-24 (report R30); section 7 is what
+the build changed, and it wins over the sections before it.**
 Parent: `editor.md` (signed 2026-11-23; its three rules, five modules and
 limits hold here unchanged). What it must restore is row 3 of
 `editor-parity.md`, A1: 26 capabilities of the old editor, about 1,240 of
@@ -323,3 +324,114 @@ list the compiler checks, like a C# discriminated union if it had one),
 would put the engine's types back into `ui_audio`'s header, which is the
 thing the interface removes. The cost of the virtual call is one indirect
 call per buffer of 512 frames, which is nothing.
+
+## 7. What the build changed (2026-11-24)
+
+Step 1 read the old editor's code and the engine's seams before any
+brief was written and found sixteen places where the signed text and
+the code disagreed. Each was ruled on then, and ten more as the build
+went. Report: `docs/autonomy/refactor/reports/2026-11-24-editor-slice3.md`.
+
+1. `Transport` and `Take` live in `ui_control` (beside `Keyboard`), not
+   `ui_model`: `Transport` holds `Onsets`, which is `perform`'s, and
+   `ui_model` may use `patch` only.
+2. `Level::Normalised` renders the instrument directly (the mixer clips
+   every sample, so the guard cannot be turned off through it): volume 1,
+   guard off, scaled by 0.95/peak only when the peak passes 0.95, as the
+   old chords did. `Level::Guarded` goes through the mixer as `play(patch)`
+   does. DRUMS ARE GUARDED, not normalised: the old drums' normalise never
+   ran (its kit kept the guard on).
+3. A render's length is the last note's end plus the ring-out's tail
+   (0.4 s), the old Generate's rule. The proof against `play(patch)` is
+   sample for sample over the frames both have.
+4. `play_drums`: each drum's patch is built as one voice's graph with its
+   note never set (as the old kit did), by drum number; `DrumKit` gains a
+   gap (a number with no drum) and ignores a hit on one instead of
+   crashing. It renders at the rate the caller gives (the open patch's).
+   The drum map's text is parsed in `perform` (`parse_drum_map` existed
+   only in the old editor). The default map names library percussion
+   patches that exist (the old default named files that no longer do).
+5. A plain sound running until stopped needs engine work the page did not
+   list: a mixer that renders block after block without starting again or
+   allocating, and the envelopes held (absolute time, a hold stage), as
+   the old stream did. Built in step 3 as `build_running_sound`.
+6. `LivePlay` keeps the `LivePlayer*` of the `KeysSound` it handed over and
+   drops it at each swap; every `audio.player()` call becomes
+   `live.player()`.
+7. `Sound::over()` is backed by an atomic. The adapter no longer checks a
+   rate: a sound is made for the adapter's rate by its maker.
+8. The adapter soft-clips the SUM of its two lines, once, as the old
+   callback did, and reports the peak before and after. So the keys'
+   player is built with its own guard off (`LivePlayer`'s new constructor
+   argument) and `take_peak_before_clip` is not built.
+9. Defaults, the old code's: note length 2.0 s (the keyboard's `seconds`
+   becomes 2.0); note "C4" (48; note 60 is "C5" here); duration field 0.1
+   to 30 by 0.1, arrows halve and double within 0.05 to 30; "Last note"
+   with two spaces between fields. DECIDED DIFFERENT: the Delay field
+   starts at 15 and means what it shows (old: 0, meaning 15); PC Keyboard
+   on at start (old: off; slice 2's choice); octave 0 to 8 (old arrows 0
+   to 20; slice 2's choice).
+10. `perform` gains "the first score note as written" (the seed reads the
+    score's first entry raw, not as performed) and the default embedded
+    score's text; `new_patch` gets `seconds` 3.0 and that score.
+11. `FileDialogs` takes a kind (patch, wav, passage, chords): filters,
+    default names and remembered folders by kind.
+12. Old faults not restored: the Chords refusal and every Drums error were
+    overwritten by the success line; Chords errors went to stderr; drums
+    were rendered, and every WAV labelled, at the device's rate. New: an
+    error shows and stays; a WAV is at the render's rate.
+13. Play follows the old order exactly: it stops everything that sounds
+    (keys too), then plays; keys pressed after that sound over it.
+    `playing()` is true while the playback line plays OR any voice sounds,
+    so the button and Space say Stop while a key's note or its release
+    rings (that is the panic).
+14. A carried note takes "slur" (in the player, step 2). The slur back to
+    a key still held is `LivePlay`'s (its record of the keys down). The
+    3 ms cut is the player's.
+15. One measured instrument sustains (`phrase_smoke_phrased`): the line's
+    refinements are proven on it alone.
+16. `perform_chords` takes no instrument class (nothing read it). Chord
+    velocity is 1.0 and the patch's volume is ignored, as before.
+
+Also from section A:
+- Capture set at Generate: every signal node of the graph by id (Note
+  nodes included); Chords and Drums capture nothing.
+- The seed (at every open of a file that has a score): note as "%g" text,
+  velocity, duration clamped 0.05 to 30, octave = note / 12 clamped 0 to
+  8. A file with no score leaves the transport as it was.
+- "Last note" is set by a struck note, a held note, a carry, and Note
+  Generate; not by Passage, Chords, Drums or the slur back.
+- Status words are the old ones where the page says "as before" (step 1,
+  A4 to A7 list them).
+
+Added while writing step 4's brief:
+17. `Sound::fill` WRITES its frames (the page said "added"): the adapter
+    owns the mixing and the 5 ms fade of the sound before.
+18. `ui_control` may use `music` as well as `play` and `perform` (the page's
+    ruling 11 named two): the note and drum-map parsers are `music`'s, and
+    a forwarding function in `perform` to dodge the rule would be worse.
+19. Opening or starting another patch drops the take and stops the playback.
+20. `LivePlayer::collect_faults` reads every voice's fault byte (an atomic
+    the audio thread sets): the one thing of a sounding voice the control
+    thread touches.
+
+From the build and the review:
+21. `ui_control` may use `core` too, for `note_to_freq` in the last note's
+    text (one function, not a third copy of the formula).
+22. The drum status is "Generated N hits", the hits performed. The old
+    line's "x R repeats" is not restored (the parser expands repeats, so
+    the old line printed 1).
+23. While a plain sound runs it follows the patch: a change the build
+    reads, or the end of a drag of a number, replaces it with one built
+    from the patch as it now is (the old stream read the live objects).
+24. The proof that ties the new offline path to the gated one runs over a
+    spread of the measured instruments (every eighth, plus the one that
+    sustains, the two at 22050 Hz and one with no score), not all 104: it
+    ran once over all of them, 3.5 million frames with none different,
+    and the code path is the same for each.
+25. `Transport` holds no octave, velocity or duration of its own: they are
+    the keyboard's (`Session::keyboard`), which the Note tab, the arrows
+    and the keyboard strip all move.
+26. A Note take is stale also when the last take was not a Note's: Note,
+    Play after a Passage, Chords or Drums Generate renders the note (the
+    old one replayed whatever buffer there was).

@@ -16,10 +16,10 @@ never-working things. Of the 229, slice 1 covers 65, the five slices to
 come 153, and 11 are not coming back (A2). The line counts in A1 are the
 old file's lines behind each slice's capabilities, as a measure of size.
 
-Where it stands (2026-11-23): slices 1 and 2 are built, and each was then
-checked against the code line by line by an agent that had not written it
-(A5, A6). Slices 3 to 6 remain: 26, 15, 31 and 40 capabilities by the first
-count, plus the parts the two checks moved to them.
+Where it stands (2026-11-24): slices 1, 2 and 3 are built, and each was
+then checked against the code line by line by an agent that had not
+written it (A5, A6, A7). Slices 4, 5 and 6 remain: 15, 31 and 40
+capabilities by the first count, plus the parts the checks moved to them.
 
 ## A1. The slices from here
 
@@ -32,7 +32,7 @@ Generate exists.
 |---|---|---|---|
 | 1. Open, play, tweak, hear, save | DONE 2026-11-23 | 65 by the first count; checked since (A5): 48 done whole, 8 in part, 2 no longer apply, 7 were not done | `patch/edit.h`, `LivePlayer::set_value` |
 | 2. Build | DONE 2026-11-23 (checked line by line: A6). a new patch; the create menu (families, the Experimental shelf, Note, Output); delete; wire, unwire, taps, the wiring refusals; the note face as one node; dynamic pins (promote, demote, feed, unfeed); rename; the instrument's polyphony, sustaining, onsets and glide; canvas fit and pan keys; the status bar's counts | 41, and from slice 1's area the 7 not done and the open parts of the 8 (A5); about 1,450 lines | the rest of the edits in `patch/edit.h` |
-| 3. Generate | the transport's four tabs (Note, Passage, Chords, Drums); Generate, Play, Stop; Save WAV; passage and chord files; the Live checkbox and holding several keys; a plain sound's sound; continuous play | 26; about 1,240 lines | the live player holds more than one line; a plain sound played live |
+| 3. Generate | DONE 2026-11-24 (checked line by line: A7). the transport's four tabs (Note, Passage, Chords, Drums); Generate, Play, Stop; Save WAV; passage and chord files; the Live checkbox and holding several keys; a plain sound's sound; continuous play | 26; about 1,240 lines | the live player holds more than one line; a plain sound played live |
 | 4. See | the waveform strips (output and every node) with zoom, scroll, columns and pop-outs; the spectrum; the Listen tap; the audio device's watchdog and restart | 15; about 790 lines | a node's signal read out of a render (exists) and out of a live voice (Listen) |
 | 5. Arrange | groups (make, open, add to, remove from, rename, ungroup, the breadcrumb); wormholes; copy, cut, paste, duplicate, replace-with; multiple selection; MIDI in; the build-stamp banner | 31; about 1,720 lines | `Fragment` edits in `patch/edit.h` |
 | 6. Shape | tables and arrays in the panel; the Envelope, Curve, Segment and Shaper editors; the shape editor window; the partials and formant strips with the scrubber; the mapping table; audition; the crash log | 40; about 2,810 lines | none known |
@@ -143,6 +143,18 @@ Wormhole's missing tap pin to slice 5, the other table types' starting
 rows to slice 6. One is a look, decided: the panel's header shows the
 registered type's name ("SineSource"), not the old short one ("Sine").
 
+## A7. Slice 3, checked
+
+Built 2026-11-24 (report R30). The reviewer then checked each of the 32
+lines this list gave to slice 3 against the code, as for slice 2: all
+restored, none open (19 done; 12 done with a part deliberately different,
+each by a ruling in the page's section 7; 1 that no longer applies). One
+difference had no ruling and was given one (a Note Play after another
+tab's Generate renders the note). Seven lines had misdescribed the old
+editor and are reworded where they stand (the Delay field's 0 that meant
+15; a drum normalise that never ran; errors the old success line
+overwrote). Its last wave added the tests the check found missing.
+
 ## B. The list
 
 Line ranges are the old file's. [U] a user used it; [H] a headless or test
@@ -165,7 +177,7 @@ stands. "slice N" is the table of A1.
 
 File menu (12499-12577):
 - [U] File > New > Patch Graph (12500-12504) — done in slice 2 (it asks first when there are unsaved changes)
-- [U] File > New > Node Graph (12505-12508) — deleted by section 10 ("the node-graph mode flag"); a plain sound opens in slice 1, sounds in slice 3
+- [U] File > New > Node Graph (12505-12508) — deleted by section 10 ("the node-graph mode flag"); a plain sound opens since slice 1 and sounds since slice 3 (Play runs it until Stop)
 - [U] File > Open (Ctrl+O), Win32 open dialog, JSON filter, remembered folder (12511-12513, 2222-2233, 1269-1283) — done in slice 1
 - [U] File > Open Recent: up to 12, filename shown, full path in tooltip, missing file removed with "File not found" (12514-12559, 2165-2220) — done (the list in slice 1; twelve of them, the name with its path in a tooltip, a missing file leaving the list in slice 2)
 - [U] File > Open Recent > Clear (12531-12534) — done in slice 2 (the emptied list is written when the program closes)
@@ -181,7 +193,7 @@ Edit menu (12584-12610):
 - [U] Edit > Restart audio (Ctrl+Shift+A) (12603-12608) — slice 4
 
 Menu-bar play items (12612-12628):
-- [U] Play (Space) / Stop (Space) in the menu bar (12618-12627) — slice 3, Play and Stop of a render and Stop of live notes (checked: nothing stops a note today)
+- [U] Play (Space) / Stop (Space) in the menu bar (12618-12627) — done in slice 3 (a Transport menu; Stop stops live notes too)
 - [U] Stream (S): play the graph continuously (12622-12623) — deleted by section 10 ("its own streaming DSP graph")
 
 Canvas right-click create menu (9873-9976):
@@ -200,7 +212,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 
 - [U] Ctrl+S save, global (12674-12675) — done in slice 1
 - [U] Ctrl+O open, global (12676-12677) — done in slice 1
-- [U] Space: Play, or Stop when anything plays, unless typing (12678-12683) — slice 3
+- [U] Space: Play, or Stop when anything plays, unless typing (12678-12683) — done in slice 3
 - [U] S (no Ctrl): Stream, or Stop when playing, unless typing (12684-12689); collides with the QWERTY note key S (4787) when PC Keyboard is on — deleted by section 10 ("its own streaming DSP graph")
 - [U] F: centre the canvas on all nodes (13274-13295) — done in slice 2
 - [U] Arrow keys (held): pan the canvas, Shift faster; active whenever no text field has focus (13297-13306) — done in slice 2: Shift with an arrow pans, at the old Shift speed; a plain arrow is the octave or the note length (ruling 10)
@@ -271,7 +283,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 
 - [U] Add a Note node from the create menu, patch graph only (9883-9897) — done in slice 2
 - [U] See a Note as one node, title "Note", its own colour, six output pins frequency, velocity, wheel, pressure, duration, onset, no inputs (492-507, 146, 164, 8107-8232) — done in slice 2
-- [U] Wire any Note field to any input; each pin previews a fixed value on the canvas (440, 0.8, 0, 0, 1, 0) (369-381, 977-983, 4183-4194) — the wiring: done in slice 2; the fixed values were stand-ins inside the old preview render, not text on the canvas, and belong to slice 3 or 4 if a preview there needs them
+- [U] Wire any Note field to any input; each pin previews a fixed value on the canvas (440, 0.8, 0, 0, 1, 0) (369-381, 977-983, 4183-4194) — the wiring: done in slice 2; the fixed values were stand-ins inside the old preview render, which the new render does not need (it plays real notes): no longer applies
 - [U] Load: the file's per-field PerformNodes are merged into faces by layout "faces", else greedy-packed in file order, stragglers given their own pin (1564-1579, 1806-1877) — done in slice 2
 - [U] Save: one PerformNode per WIRED face pin, id kept from the file or a fresh __perf_<field>[n], prepended, comments kept, layout "faces" with each face's position (2634-2663, 2841-2847, 2939-2948) — done in slice 2 (a Note's node that nothing reads goes when its last reader does, and one a file brings in unread goes at open)
 - [U] Rename a Note face (its face label) in Properties (8444-8461) — done in slice 2
@@ -358,49 +370,49 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 ### 14. Live play
 
 - [U] PC Keyboard toggle button (green when on, disabled outside a patch graph) gating the QWERTY keys (7979-7999, 7063-7064) — done in slice 2
-- [U] Live checkbox: checked = keys and mouse hold the note until release; unchecked = fixed-Duration notes, key-up ignored (4632-4643, 7859-7864, 7079-7090, 7277-7287) — slice 3 (needs the live player to hold several keys on a patch not marked sustaining: A4)
-- [U] On-screen piano: octaves chosen from width (1..10, keys 25-45 px), from the transport octave, ending on a top C; sounding notes highlighted; QWERTY labels on keys when PC Keyboard is on (7109-7224) — done (from the octave in slice 1; the octaves from the width, the top C, the key labels and the note names in slice 2), but for one part: a note still sounding after its key is up shown as sounding: slice 3 (the live player must report it)
+- [U] Live checkbox: checked = keys and mouse hold the note until release; unchecked = fixed-Duration notes, key-up ignored (4632-4643, 7859-7864, 7079-7090, 7277-7287) — done in slice 3 (on a patch not marked sustaining, a voice per held key)
+- [U] On-screen piano: octaves chosen from width (1..10, keys 25-45 px), from the transport octave, ending on a top C; sounding notes highlighted; QWERTY labels on keys when PC Keyboard is on (7109-7224) — done (from the octave in slice 1; the octaves from the width, the top C, the key labels and the note names in slice 2; a note still sounding after its key is up shown as sounding in slice 3)
 - [U] Click an on-screen key: velocity from where on the key you click (0.125 at top to 1.0 at bottom); held until mouse-up anywhere (7226-7288) — done (held until mouse-up in slice 1, velocity from the height in slice 2)
 - [U] Up to 16 mixed voices; steal same-source, then free, then nearest-done (3338-3453); per-instrument pool slots, held notes stolen last (3465-3483) — done in slice 1 (eight notes)
 - [U] Notes ring out adaptively past their length and fade the last chunk instead of clicking (3371-3380, 3543-3569) — done in slice 1 (checked: the engine's ring-out)
-- [U] Held notes: envelopes gated on key-down, released on key-up with the longest release plus the reflection allowance; MultiplexSource graphs fall back to scheduled notes (4319-4433, 4435-4471) — on a patch marked sustaining: done in slice 1 (checked); on any patch, with Live: slice 3 (A4)
-- [U] Sustaining patches play as a mono legato line: overlap slurs the living voice, a gap cuts the previous release with a 3 ms fade, lifting the sounding key slurs back to a still-held key (4228-4237, 4359-4394, 4437-4462) — the line and the slur: done in slice 1; the 3 ms cut of the release before it and the slur back to a key still held: slice 3
+- [U] Held notes: envelopes gated on key-down, released on key-up with the longest release plus the reflection allowance; MultiplexSource graphs fall back to scheduled notes (4319-4433, 4435-4471) — done (on a patch marked sustaining in slice 1; on any patch, with Live, in slice 3)
+- [U] Sustaining patches play as a mono legato line: overlap slurs the living voice, a gap cuts the previous release with a 3 ms fade, lifting the sounding key slurs back to a still-held key (4228-4237, 4359-4394, 4437-4462) — done (the line and the slur in slice 1; the 3 ms cut and the slur back to a key still held in slice 3)
 - [U] Live instrument cached and rebuilt only after an edit, "Instrument rebuilt: N voices, M ms" status (4212-4270) — done in slice 1 (rebuild/swap, 4.2)
 - [U] MIDI in: first port auto-opened at start; combo "MIDI: name|none" re-enumerating ports, "(none)" closes (4645-4694, 8002-8032) — slice 5
 - [U] MIDI note on/off (velocity per note), CC1 mod wheel and channel pressure into the instrument state (4696-4744) — slice 5
 - [D] MIDI sustain pedal, pitch bend, poly aftertouch: explicitly deferred, ignored (4739-4742)
-- [U] AUDIO line in the Keyboard tab: voices=N, pre-clip and post-clip peaks, green/yellow/red, decaying (3286-3292, 3636-3643, 7041-7058) — done (the peak, decaying, in slice 1; voices=N and the three colours in slice 2), but for the pre-clip peak: slice 3 (the live player must report it)
+- [U] AUDIO line in the Keyboard tab: voices=N, pre-clip and post-clip peaks, green/yellow/red, decaying (3286-3292, 3636-3643, 7041-7058) — done (the peak, decaying, in slice 1; voices=N and the three colours in slice 2; the peak before the clip in slice 3)
 - [U] Soft clip on the mix; no polyphony scaling (3509-3515, 3624-3627) — done in slice 1 (checked: the clip follows the instrument's peak guard, which is on unless a test turns it off)
-- [U] "Last note: 60 C5 261.6Hz vel 0.80" right-aligned in the transport (7489-7497, 8046-8059) — slice 3
-- [U] Panic: no separate control; Stop (button, Space, menu) stops every voice and stream (4599-4607) — slice 3, with Stop (checked: not done)
+- [U] "Last note: 60 C5 261.6Hz vel 0.80" right-aligned in the transport (7489-7497, 8046-8059) — done in slice 3
+- [U] Panic: no separate control; Stop (button, Space, menu) stops every voice and stream (4599-4607) — done in slice 3
 - [D] A volume control: none exists (only per-patch instrument volume, carried, 638-641)
 
 ### 15. Transport and generating audio
 
-- [U] Transport tabs Note | Passage | Chords | Drums select the mode (3236-3268, 7820-7827) — slice 3
-- [U] Note tab: pitch combo C..B + octave spinner composing "C#4", velocity, duration, Live (7831-7866) — slice 3
-- [U] Passage tab: two-line text, octave, BPM 20-300, velocity, Onsets auto|all tongue|all slur|all breath (7868-7888) — slice 3
-- [U] Passage phrase marks "|" on a sustaining patch stamp breath/tongue/slur and hold (3991-4035, 7559-7614); non-sustaining patch reports "phrase marks ignored" — slice 3
-- [U] Save Passage / Load Passage as .psg/.txt with its own folder memory (7773-7805, 7889-7896, 1285-1321) — slice 3
-- [U] Chords tab: text, Group (dictionary), Figure, octave, BPM, Delay (spread ms, default 15) (7900-7933, 7615-7635) — slice 3
+- [U] Transport tabs Note | Passage | Chords | Drums select the mode (3236-3268, 7820-7827) — done in slice 3
+- [U] Note tab: pitch combo C..B + octave spinner composing "C#4", velocity, duration, Live (7831-7866) — done in slice 3
+- [U] Passage tab: two-line text, octave, BPM 20-300, velocity, Onsets auto|all tongue|all slur|all breath (7868-7888) — done in slice 3
+- [U] Passage phrase marks "|" on a sustaining patch stamp breath/tongue/slur and hold (3991-4035, 7559-7614); non-sustaining patch reports "phrase marks ignored" — done in slice 3 (the rule is the engine's now, in `perform`)
+- [U] Save Passage / Load Passage as .psg/.txt with its own folder memory (7773-7805, 7889-7896, 1285-1321) — done in slice 3
+- [U] Chords tab: text, Group (dictionary), Figure, octave, BPM, Delay (spread ms, default 15) (7900-7933, 7615-7635) — done in slice 3 (Delay starts at 15 and means what it shows; the old field started at 0, which meant 15. Inversion and Spread, which nothing read, are not restored)
 - [D] Chords tab Inversion and Spread spinners (7926-7929): transport_generate never reads them (7615-7635)
-- [U] Save Chords / Load Chords as .chd/.txt (7913-7921) — slice 3
-- [U] Chords render through Conductor/ChordPerformer with Josie figures, peak-normalised to 0.95, no per-node strips; refuses when the patch was never saved ("No patch file loaded") although it renders the in-memory graph (7301-7382) — slice 3
-- [U] Drums tab: pattern text, drum map "KK=path;SN=path", BPM; one patch per drum loaded from disk, repeats from the pattern, peak-normalised (7935-7944, 7384-7487, 7636-7652) — slice 3
+- [U] Save Chords / Load Chords as .chd/.txt (7913-7921) — done in slice 3
+- [U] Chords render through Conductor/ChordPerformer with Josie figures, peak-normalised to 0.95, no per-node strips; refuses when the patch was never saved ("No patch file loaded") although it renders the in-memory graph (7301-7382) — done in slice 3 (the patch in the window, saved or not; an error shows and stays, where the old success line overwrote it)
+- [U] Drums tab: pattern text, drum map "KK=path;SN=path", BPM; one patch per drum loaded from disk, repeats from the pattern, peak-normalised (7935-7944, 7384-7487, 7636-7652) — done in slice 3 (guarded, not normalised: the old normalise never ran; rendered at the open patch's rate)
 - [D] TransportState::repeats (3262): no widget, never read (the pattern's own repeats are used, 7451)
 - [D] render_chords_waveforms' figurePrefix argument (7303-7304): unused inside the function
-- [U] Generate: one engine render of the in-memory patch fills the output buffer and every node's strip, with the voice tail added; "Generating..." button state drawn before the blocking render (3971-4171, 3271-3277, 7949-7964, 12439-12448, 13478-13484) — slice 3
-- [U] Generate in Note mode renders one note; Passage schedules notes back to back with rests as gaps (7532-7614) — slice 3
-- [U] The patch's score seeds the transport note, velocity, duration and keyboard octave at load (4746-4773, 1507-1522) — slice 3
+- [U] Generate: one engine render of the in-memory patch fills the output buffer and every node's strip, with the voice tail added; "Generating..." button state drawn before the blocking render (3971-4171, 3271-3277, 7949-7964, 12439-12448, 13478-13484) — done in slice 3 (every signal node captured; the strips are drawn in slice 4)
+- [U] Generate in Note mode renders one note; Passage schedules notes back to back with rests as gaps (7532-7614) — done in slice 3
+- [U] The patch's score seeds the transport note, velocity, duration and keyboard octave at load (4746-4773, 1507-1522) — done in slice 3
 - [D] Render the patch's embedded score from the window: not possible, no control does it (only --gencheck, 11855-11916); slice 4 names it, so it would be new — was never possible from the window; not added (A3)
-- [U] Play: Note mode replays the last render, regenerating when note, velocity or duration changed; Passage replays the last render without regenerating; Chords and Drums regenerate every Play (7656-7704) — slice 3
-- [U] Play / Stop button flips with playback state (7967-7976) — slice 3
+- [U] Play: Note mode replays the last render, regenerating when note, velocity or duration changed; Passage replays the last render without regenerating; Chords and Drums regenerate every Play (7656-7704) — done in slice 3 (one difference, decided: a Note Play after another tab's Generate renders the note, where the old one replayed whatever buffer there was)
+- [U] Play / Stop button flips with playback state (7967-7976) — done in slice 3 (Stop while anything sounds, a ringing key included, as before)
 - [D] Loop playback: none exists
-- [U] Save WAV: the last render as 16-bit stereo (mono duplicated), default folder renders/ then remembered, status with frame count (7706-7749, 8035-8037) — slice 3
-- [U] Faults the render's nodes reported shown in the status line; the live pool's faults shown once a frame (4037-4046, 4119, 7549, 7810-7816) — slice 3
+- [U] Save WAV: the last render as 16-bit stereo (mono duplicated), default folder renders/ then remembered, status with frame count (7706-7749, 8035-8037) — done in slice 3 (at the render's rate; the old one labelled every WAV with the sound card's)
+- [U] Faults the render's nodes reported shown in the status line; the live pool's faults shown once a frame (4037-4046, 4119, 7549, 7810-7816) — done in slice 3
 - [U] Status line in the transport, green or red (7499-7502, 8039-8044) — done in slice 1 (session status)
-- [U] "Output node has no source connected" / "No patch loaded" precondition messages (7504-7521) — slice 3
-- [U] Node graph Play/Stream: stream the Mixer live in stereo (channel volume, equal-power pan, gainL/R) (4473-4581, 7656-7664) — deleted by section 10 ("its own streaming DSP graph"); plain sounds sound in slice 3
+- [U] "Output node has no source connected" / "No patch loaded" precondition messages (7504-7521) — done in slice 3
+- [U] Node graph Play/Stream: stream the Mixer live in stereo (channel volume, equal-power pan, gainL/R) (4473-4581, 7656-7664) — deleted by section 10 ("its own streaming DSP graph"); a plain sound runs until Stop since slice 3, and follows edits while it runs
 - [U] Patch graph Stream: the Output's source pulled continuously, envelopes held in seconds with a hold stage appended for 2 h (3862-3962, 4479-4498) — deleted by section 10 ("its own streaming DSP graph")
 
 ### 16. Displays of sound
@@ -423,7 +435,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Read patch JSON: graph.nodes/output, params (numbers, refs, taps, lists), dynamicPins, comments, instrument, score, seconds, layout positions/output/panning/groups/faces (1408-2162) — done in slice 1
 - [U] Load refusals with the engine's sentences, leaving the open graph untouched: instrument.paramMap, retired top/node/feed keys, non-string comments, a list pin holding a non-link, a PerformNode's bad field, an Envelope with both preset and stages, ragged tables, a non-string string setting, a bad enum label in a column (1408-1483, 1661-1669, 1712-1721, 1731-1749, 1329-1372) — done in slice 1 (checked)
 - [U] A failure after the refusals leaves an empty, unnamed, clean editor (1484-1496) — not applicable (checked: a load is all or nothing, so a failure leaves the patch that was open, open)
-- [U] Write patch JSON: nodes topologically sorted (taps not counted), ids = sanitised labels, settings as bool/label/int/float, columns with labels, Envelope stage table even empty, sustainLevel not written, seed, unmodeled params verbatim and winning, comments, sampleRate, the file's score and seconds verbatim, no score added when the file had none, the default note (60, 0.8, 2 s, seconds 3) for a fresh patch, layout (2298-2961) — done in slice 1 (save); the default note for a fresh patch: slice 3, with the transport whose note it is
+- [U] Write patch JSON: nodes topologically sorted (taps not counted), ids = sanitised labels, settings as bool/label/int/float, columns with labels, Envelope stage table even empty, sustainLevel not written, seed, unmodeled params verbatim and winning, comments, sampleRate, the file's score and seconds verbatim, no score added when the file had none, the default note (60, 0.8, 2 s, seconds 3) for a fresh patch, layout (2298-2961) — done (save in slice 1; the default note for a fresh patch in slice 3)
 - [U] Write a plain node graph: output = the Mixer, else the file's output; seconds as loaded or 5 (2963-3102) — deleted by section 10 ("the node-graph mode flag") for the mode; a plain sound saves in slice 1
 - [U] The file's top-level comment and node comments carried and written back, shown nowhere (273-275, 643-645) — done in slice 1 (checked; a node's comment is now shown in the panel)
 - [U] Save adds the file to Open Recent (3104-3112) — done in slice 2
@@ -431,8 +443,8 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Recent files persisted in mforce_recents.json in the working directory, normalised and de-duplicated (2165-2220) — done in slice 1 (%APPDATA%, 13.8)
 - [U] Per-feature folder memory (open, save, wav, audition, passage, chords) and the curated folder in mforce_ui_settings.json in the working directory (2235-2296, 1228-1250) — a patch's open and save: done in slice 2, kept in %APPDATA%\MForce\; the other kinds with each feature's slice
 - [U] ImGui's imgui.ini in the working directory (floating window sizes; the dock layout is rebuilt each launch) (12321-12341, 12638) — done in slice 1 (%APPDATA%)
-- [U] WAV out (16-bit stereo) (7724-7749) and WAV in for audition (5006-5035) — WAV out: slice 3; WAV in for audition: slice 6
-- [U] Text files .psg/.chd/.txt for passages and chords (7773-7805) — slice 3
+- [U] WAV out (16-bit stereo) (7724-7749) and WAV in for audition (5006-5035) — WAV out: done in slice 3; WAV in for audition: slice 6
+- [U] Text files .psg/.chd/.txt for passages and chords (7773-7805) — done in slice 3
 - [D] Templates, import, export of other formats, autosave: none exist
 - [U] Unsaved-changes prompt on window close, taskbar close and File > Quit: Save / Don't Save / Cancel; a cancelled Save dialog keeps the prompt (689-695, 12309-12316, 12411-12437, 13420-13462) — done in slice 1
 - [U] File > New and File > Open discard unsaved changes WITHOUT asking (1200-1222, 2222-2233, 1408-1497) — a fault (A2.2), mended: Open asks since slice 1, New since slice 2
