@@ -27,6 +27,10 @@ struct MonoSignal final : MonoSource {
   }
   void render(float* out, int frames) override {
     src->start(frames);
+    render_running(out, frames);
+  }
+  void start_running(int frames) override { src->start(frames); }
+  void render_running(float* out, int frames) noexcept override {
     for (int i = 0; i < frames; ++i) { clock.tick(); out[i] = src->next(); }
   }
 };

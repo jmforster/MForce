@@ -2,6 +2,7 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/figures.h"
+#include <map>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -453,6 +454,31 @@ inline ParsedDrumPattern parse_drum_pattern(const char* str) {
 
     result.figure.totalTime = beatOffset;
     result.repeats = 1;  // repeats already expanded into the figure
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Drum map parser: "KK=patches/kick.json;SN=patches/snare.json" to drum
+// number -> patch path. Entries are separated by ';'. An entry with no '=',
+// or with its '=' before the third character, is skipped; the drum id is the
+// entry's first two characters (parse_drum_id, which throws on an unknown
+// one); the path is what follows the '=', with spaces trimmed at both ends;
+// an empty path is skipped. A later entry for the same drum replaces an
+// earlier one.
+// ---------------------------------------------------------------------------
+inline std::map<int, std::string> parse_drum_map(const std::string& text) {
+    std::map<int, std::string> result;
+    std::istringstream iss(text);
+    std::string entry;
+    while (std::getline(iss, entry, ';')) {
+        const auto eq = entry.find('=');
+        if (eq == std::string::npos || eq < 2) continue;
+        std::string path = entry.substr(eq + 1);
+        while (!path.empty() && path.front() == ' ') path.erase(0, 1);
+        while (!path.empty() && path.back() == ' ') path.pop_back();
+        if (path.empty()) continue;
+        result[parse_drum_id(entry.substr(0, 2))] = path;
+    }
     return result;
 }
 

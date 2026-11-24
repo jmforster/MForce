@@ -61,6 +61,9 @@ void run_live_guard_tests();
 void run_live_line_refinement_tests();
 void run_live_scramble_tests();
 void run_allocation_tests_live_holds();
+void run_held_patch_tests();
+void run_mixer_running_tests();
+void run_running_sound_tests();
 void run_live_set_value_first_note_tests();
 void run_live_set_value_sounding_tests();
 void run_live_set_value_false_tests();
@@ -157,6 +160,9 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_live_line_refinement_tests", run_live_line_refinement_tests},
   {"run_live_scramble_tests", run_live_scramble_tests},
   {"run_allocation_tests_live_holds", run_allocation_tests_live_holds},
+  {"run_held_patch_tests", run_held_patch_tests},
+  {"run_mixer_running_tests", run_mixer_running_tests},
+  {"run_running_sound_tests", run_running_sound_tests},
   {"run_note_wire_tests", run_note_wire_tests},
   {"run_multiplex_bend_tests", run_multiplex_bend_tests},
   {"run_note_reseed_tests", run_note_reseed_tests},

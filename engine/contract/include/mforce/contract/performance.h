@@ -27,6 +27,11 @@ struct PerformedHit {
   float velocity{1.0f};
 };
 
+// How long a voice plays on past the end of its note before the ring-out
+// rule decides whether it is quiet: a performance whose last note ends at t
+// is heard to t plus this.
+inline constexpr float kVoiceTailSeconds = 0.4f;
+
 // What a performer made of one part, in the order it is to be played.
 struct Performance {
   std::vector<PerformedNote> notes;

@@ -9,6 +9,8 @@ void DrumKit::add(std::shared_ptr<ValueSource> source) {
   drums_.push_back(std::move(d));
 }
 
+void DrumKit::add_gap() { drums_.push_back(Drum{}); }
+
 void DrumKit::prepare(const RenderContext& c) {
   Instrument::prepare(c);
   for (auto& d : drums_) {
@@ -35,6 +37,7 @@ void DrumKit::play_hit(int drumNumber, float velocity, float duration, float sta
   if (drumNumber < 0 || drumNumber >= int(drums_.size())) return;
 
   auto& d = drums_[size_t(drumNumber)];
+  if (!d.source) return;
   int durSamples = int(duration * float(render_context().sampleRate));
 
   d.source->start(durSamples);

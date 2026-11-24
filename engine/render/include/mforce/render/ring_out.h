@@ -1,4 +1,5 @@
 #pragma once
+#include "mforce/contract/performance.h"
 #include "mforce/core/dsp/one_pole.h"
 #include <algorithm>
 #include <cmath>
@@ -20,7 +21,7 @@ namespace mforce {
 // fades.
 class RingOut {
 public:
-  static constexpr float kTailSeconds = 0.4f;
+  static constexpr float kTailSeconds = kVoiceTailSeconds;
   static constexpr float kFloor       = 0.001f;
   static constexpr float kMaxSeconds  = 8.0f;
 

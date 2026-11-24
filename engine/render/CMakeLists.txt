@@ -7,6 +7,7 @@ mforce_module(render
           src/mixer.cpp
           src/node_capture.cpp
           src/pitched_instrument.cpp
+          src/running_sound.cpp
           src/voice.cpp
           src/wav_reader.cpp
           src/wav_writer.cpp
@@ -41,6 +42,7 @@ mforce_tests(render
           tests/prepare_start_source_tests.cpp
           tests/prepare_start_tests.cpp
           tests/retired_form_load_tests.cpp
+          tests/running_sound_tests.cpp
           tests/review_gap_tests.cpp
           tests/setting_loader_tests.cpp
           tests/shared_source_tests.cpp

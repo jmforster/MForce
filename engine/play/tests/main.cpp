@@ -16,6 +16,10 @@ void run_embedded_score_end_tests();
 void run_embedded_score_delivery_tests();
 void run_retired_form_table_tests();
 void run_build_sound_tests();
+void run_offline_play_proof_tests();
+void run_offline_strip_tests();
+void run_offline_normalised_tests();
+void run_offline_drums_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -34,6 +38,10 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_embedded_score_delivery_tests", run_embedded_score_delivery_tests},
   {"run_retired_form_table_tests", run_retired_form_table_tests},
   {"run_build_sound_tests", run_build_sound_tests},
+  {"run_offline_play_proof_tests", run_offline_play_proof_tests},
+  {"run_offline_strip_tests", run_offline_strip_tests},
+  {"run_offline_normalised_tests", run_offline_normalised_tests},
+  {"run_offline_drums_tests", run_offline_drums_tests},
 };
 }  // namespace
 

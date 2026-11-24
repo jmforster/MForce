@@ -28,6 +28,14 @@ struct Mixer {
   // channel renders into it, and the mix loop pulls the gains, volumes and
   // pans once per sample per channel on this mixer's clock.
   void render(float* outLR, int frames);
+  // Running: the gains, volumes, pans and channels started once, over
+  // `frames`, and a buffer of `largestBlock` frames made for the channels.
+  // Then render_running gives the next `frames` stereo frames, WRITTEN to
+  // `outLR`, block after block with no start and no allocation: the mix
+  // render gives, block by block (with a channel's gains and pans pulled per
+  // block, as render pulls them per call).
+  void start_running(int frames, int largestBlock);
+  void render_running(float* outLR, int frames) noexcept;
   // Every channel's faults, in channel order, then each listed signal's under
   // its id, cleared as they are read.
   void collect_faults(std::vector<FaultReport>& out) {
@@ -39,8 +47,11 @@ struct Mixer {
   }
 
 private:
+  void mix(Channel& ch, const float* mono, float* outLR, int frames);
+
   SampleClock clock_;
   RenderContext ctx_;
+  std::vector<float> scratch_;   // the running blocks' channel buffer
 };
 
 } // namespace mforce

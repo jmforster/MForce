@@ -3,11 +3,14 @@
 #include "mforce/perform/time_map.h"
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/build_sound.h"
+#include "mforce/render/drum_kit.h"
+#include "mforce/render/voice.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <memory>
 #include <stdexcept>
+#include <string>
 
 namespace mforce {
 
@@ -67,6 +70,45 @@ std::vector<float> mix(const std::vector<Instrument*>& instruments, PlayResult& 
     for (int k = 0; k < frames; ++k) mono[k] *= r.scale;
   }
   return mono;
+}
+
+// `mono` to both channels of the result's stereo frames.
+void to_stereo(PlayResult& r, const std::vector<float>& mono) {
+  r.stereo.resize(size_t(r.frames) * 2);
+  for (int j = 0; j < r.frames; ++j) {
+    r.stereo[size_t(j) * 2] = mono[size_t(j)];
+    r.stereo[size_t(j) * 2 + 1] = mono[size_t(j)];
+  }
+}
+
+// The instrument alone at volume 1 with its guard off, scaled by 0.95 over
+// its peak when the peak passes 0.95.
+void render_normalised(Instrument& inst, PlayResult& r) {
+  inst.volume = 1.0f;
+  inst.peakGuard = false;
+  std::vector<float> mono(size_t(r.frames), 0.0f);
+  inst.render(mono.data(), r.frames);
+  inst.collect_faults(r.faults);
+  for (float s : mono) r.mixPeak = std::max(r.mixPeak, std::fabs(s));
+  if (r.mixPeak > 0.95f) {
+    r.scale = 0.95f / r.mixPeak;
+    for (float& s : mono) s *= r.scale;
+  }
+  to_stereo(r, mono);
+}
+
+// One drum: the graph of its patch as a voice builds and prepares it, never
+// started, its output as the kit's source (the kit prepares it again on its
+// own clock). The source shares the voice's ownership, so the
+// voice (and every node it holds) lives as long as the kit holds the drum.
+std::shared_ptr<ValueSource> drum_source(const Patch& patch, int number, std::vector<std::string>& warnings) {
+  const InstrumentBlock block = patch.instrument ? *patch.instrument : InstrumentBlock{};
+  auto voice = std::make_shared<Voice>(patch.graph, block, std::make_shared<InstrumentState>(), &warnings);
+  voice->prepare(RenderContext{patch.sampleRate});
+  for (const auto& s : voice->signals())
+    if (s.id == voice->description().output) return std::shared_ptr<ValueSource>(voice, s.node);
+  throw std::runtime_error("drum " + std::to_string(number) + ": the output '" + voice->description().output +
+                           "' is not a signal");
 }
 
 } // namespace
@@ -130,6 +172,74 @@ PlayResult play(const Patch& patch) {
   mixer->render(r.stereo.data(), r.frames);
   const auto t2 = Clock::now();
   mixer->collect_faults(r.faults);
+  measure(r);
+  r.buildMs = ms_between(t0, t1);
+  r.renderMs = ms_between(t1, t2);
+  return r;
+}
+
+PlayResult play(const Patch& patch, const Performance& performance, double seconds,
+                Level level, const std::vector<std::string>& capture) {
+  if (!patch.instrument)
+    throw std::invalid_argument("play: a plain sound has no instrument to play a note; it plays as itself");
+  const auto t0 = Clock::now();
+  PlayResult r;
+  r.sampleRate = patch.sampleRate;
+  r.frames = int(std::lround(seconds * patch.sampleRate));
+  auto inst = build_instrument(patch, 0, &r.warnings);
+  if (!capture.empty()) inst->capture().begin(inst->pool(), capture, r.frames);
+  inst->play(performance);
+  if (!capture.empty()) {
+    r.strips = inst->capture().buffers();
+    inst->capture().end();
+  }
+  const auto t1 = Clock::now();
+  if (level == Level::Normalised) {
+    render_normalised(*inst, r);
+  } else {
+    auto mixer = instrument_mixer(std::move(inst), patch.sampleRate);
+    r.stereo.resize(size_t(r.frames) * 2);
+    mixer->render(r.stereo.data(), r.frames);
+    mixer->collect_faults(r.faults);
+  }
+  const auto t2 = Clock::now();
+  measure(r);
+  r.buildMs = ms_between(t0, t1);
+  r.renderMs = ms_between(t1, t2);
+  return r;
+}
+
+PlayResult play(const Patch& patch, const Performance& performance, double seconds, Level level) {
+  return play(patch, performance, seconds, level, {});
+}
+
+PlayResult play_drums(const std::vector<std::pair<int, Patch>>& drums, const Performance& hits,
+                      double seconds, int sampleRate) {
+  const auto t0 = Clock::now();
+  PlayResult r;
+  r.sampleRate = sampleRate;
+  r.frames = int(std::lround(seconds * sampleRate));
+  std::vector<const Patch*> byNumber;
+  for (const auto& [number, patch] : drums) {
+    if (number < 0) throw std::invalid_argument("play_drums: drum number " + std::to_string(number) + " is negative");
+    if (size_t(number) >= byNumber.size()) byNumber.resize(size_t(number) + 1, nullptr);
+    if (byNumber[size_t(number)])
+      throw std::invalid_argument("play_drums: drum " + std::to_string(number) + " is named twice");
+    byNumber[size_t(number)] = &patch;
+  }
+  DrumKit kit;
+  for (size_t k = 0; k < byNumber.size(); ++k) {
+    if (byNumber[k]) kit.add(drum_source(*byNumber[k], int(k), r.warnings));
+    else kit.add_gap();
+  }
+  kit.prepare(RenderContext{sampleRate});
+  kit.play(hits);
+  const auto t1 = Clock::now();
+  std::vector<float> mono(size_t(r.frames), 0.0f);
+  kit.render(mono.data(), r.frames);
+  kit.collect_faults(r.faults);
+  to_stereo(r, mono);
+  const auto t2 = Clock::now();
   measure(r);
   r.buildMs = ms_between(t0, t1);
   r.renderMs = ms_between(t1, t2);

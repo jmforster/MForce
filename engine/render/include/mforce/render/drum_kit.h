@@ -10,14 +10,16 @@ namespace mforce {
 // pull loop. A hit plays its drum for the hit's length.
 class DrumKit final : public Instrument {
 public:
-  // A drum whose number is the count of drums added before it.
+  // A drum whose number is the count of drums and gaps added before it.
   void add(std::shared_ptr<ValueSource> source);
+  // A number with no drum: a hit on it is ignored.
+  void add_gap();
 
   // A kit has no onsets and does not sustain.
   const InstrumentClass& instrument_class() const override { return class_; }
   void prepare(const RenderContext& c) override;
-  // Each hit of the part in the order given; a hit on a drum the kit lacks
-  // is ignored. A kit plays no notes.
+  // Each hit of the part in the order given; a hit on a gap or on a number
+  // past the last is ignored. A kit plays no notes.
   void play(const Performance& part) override;
   // Drum graphs have no file ids: a drum reports as "drum <number>".
   void collect_faults(std::vector<FaultReport>& out) override;

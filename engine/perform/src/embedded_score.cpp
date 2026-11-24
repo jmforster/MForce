@@ -137,4 +137,23 @@ EmbeddedScore perform_embedded_score(const std::string& scoreJson, const Instrum
     return result;
 }
 
+std::optional<ScoreNote> first_score_note(const std::string& scoreJson)
+{
+    if (scoreJson.empty()) return std::nullopt;
+    const json score = json::parse(scoreJson, nullptr, false);
+    if (!score.is_array() || score.empty() || !score[0].is_object()) return std::nullopt;
+    const json& first = score[0];
+    ScoreNote n;
+    n.note = first.value("note", n.note);
+    n.velocity = first.value("velocity", n.velocity);
+    n.duration = first.value("duration", n.duration);
+    return n;
+}
+
+std::string default_embedded_score()
+{
+    const json note = {{"note", 60}, {"velocity", 0.8}, {"time", 0.0}, {"duration", 2.0}};
+    return json::array({note}).dump();
+}
+
 } // namespace mforce

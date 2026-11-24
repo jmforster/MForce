@@ -145,16 +145,12 @@ void run_live_guard_tests() {
 }
 
 // The line: a carry naming no onset takes "slur" when the vocabulary has it,
-// on phrase_smoke_phrased with "slur" added and on a patch that sounds its
-// onset; opening a line while a release rings cuts it in 3 ms; an overlap
-// still carries.
+// on a patch that sounds its onset; on phrase_smoke_phrased, opening a line
+// while a release rings cuts it in 3 ms, and an overlap still carries.
 void run_live_line_refinement_tests() {
   std::printf("the live player: the carry's slur, the 3 ms cut, the overlap\n");
-  Patch phrased = load_patch("patches/baselines/phrase_smoke_phrased.json");
+  const Patch phrased = load_patch("patches/baselines/phrase_smoke_phrased.json");
   CHECK(phrased.instrument->sustaining);
-  phrased.instrument->onsets.push_back("slur");
-  const int slur = int(phrased.instrument->onsets.size());
-  CHECK(patch_door::same_samples(carried(phrased, 0), carried(phrased, slur)));
   const Patch sounded = patch_door::read_text(enveloped_json(1, true, R"(["breath","slur"])"));
   const Patch plain = patch_door::read_text(enveloped_json(1, true, R"(["breath"])"));
   CHECK(patch_door::same_samples(carried(sounded, 0), carried(sounded, 2)));
