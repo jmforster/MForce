@@ -1,7 +1,8 @@
 # The editor, slice 2: build
 
 Status: **signed by Matt 2026-11-23 ("Signed, proceed"), all eleven rulings
-of section 4 as written. In build.**
+of section 4 as written. BUILT that day (report R28); section 7 is what
+the build changed.**
 Parent: `editor.md` (signed 2026-11-23; its three rules, five modules and
 limits hold here unchanged). What it must restore is row 2 of
 `editor-parity.md`, A1: 41 capabilities of the old editor, about 1,450 of
@@ -280,3 +281,68 @@ values copies deeply by default. That is the practical reason the engine
 keeps the patch as data apart from the objects that make sound: the data
 can be copied, compared and saved, and the sounding objects are rebuilt
 from it.
+
+## 7. What the build changed (2026-11-23)
+
+Built the day it was signed; report
+`docs/autonomy/refactor/reports/2026-11-23-editor-slice2.md`. Where this
+section and an earlier one disagree, this one is what the code does.
+
+1. **How an edit refuses** (2.1). Each structural edit finds what it
+   names, applies itself to a copy of the patch and asks `check()` of the
+   copy: it throws `check()`'s sentence or the copy becomes the patch. So
+   "what each refuses is what the reader and `check()` refuse" is kept by
+   construction, with two named exceptions (a number that is not finite; a
+   note field that is not one of the six).
+2. **`set_instrument` is not refused on a plain sound** (2.1's comment
+   said it was): no reader refuses a block on any patch. The window still
+   offers no way to do it (`edit_instrument` refuses it there).
+3. **Added to `patch/edit.h`**: `fresh_face_label`. `fresh_id` also gives
+   "Note", "Channel" and "Mixer", as the old editor's code did.
+4. **A Note's node that nothing reads goes** only when the edit itself
+   removed its last read; one already unread in a file is left alone.
+5. **The proof, exactly** (2.1): each measured patch is made again from a
+   patch holding its rate, length, score and comment, through the edits,
+   and equals the file as read after three things a new node always has
+   and a file may lack are removed (a seed, a position, a starting table)
+   and two things no edit of this slice makes are copied (a node's
+   comment, the groups). One shape cannot be made by the edits: a Curve
+   with no knots, because no edit removes a column of a table.
+6. **`OpenPatch` has no `dirty`** (2.2's snippet kept it): `unsaved(open)`
+   asks the history. A save ends the open drag.
+7. **`step`** (2.2's `begin_edit`): one function runs any edit as one undo
+   step; a drag is one step; several engine edits in one step are all or
+   nothing; an edit that changes nothing leaves no step.
+8. **`sound_follows`**: after any change the build reads, a new player, or
+   silence with the reason. This also changed slice 1's setting edits,
+   which used to leave the old player sounding when a rebuild failed. An
+   undo or redo that changes nothing the build reads does not rebuild.
+9. **Added to the control** (2.3): `new_file`; `fit_canvas` takes the
+   canvas's size and centres the graph; `onsets_from_text` and
+   `onsets_text`; `toggle_computer_keys`, `key_down` with a velocity,
+   `sounding_voices`. To the model: `fit_panning`, `centred_panning`,
+   `canvas_counts`, `node_slot`, `face_slot`, `output_slot`, `forget` (a
+   recent file).
+10. **The canvas table** (2.4): `ui_views/canvas_table.h`, a plain
+    function from the patch to what the canvas shows, with tests; the
+    create menu's content likewise (`create_menu.h`). The canvas clears
+    imnodes' wire selection whenever the wires it draws change.
+11. **A deleted node's driven setting pins stay on offer**, as an unwired
+    one does.
+12. **Step 1's mends** (the parity list's A5), built here: the window's
+    place on the screen, one click to type a number, the wheel, a bad
+    position placed afresh, hints, the node's and the panel header's
+    family colour, the wire's width, grey input-only pins, twelve recent
+    files with names and tooltips, a save entering them, a missing one
+    leaving; the PC Keyboard button, the piano's width, labels and note
+    names, velocity from the click, the voice count and the level's
+    colours; a node's right-click menu with Delete.
+
+13. **The closing check and its wave.** After the build the reviewer
+    checked each of the 58 lines the parity list gives this slice against
+    the code (48 done, 9 in part, 1 not done; the list's A6). Closed the
+    same day: Note greyed in the create menu on a plain sound; F from
+    anywhere; a tooltip on a per-note pin; a Note's node that a file brings
+    in unread dropped at open (ruling 8, which the edits apply only when an
+    edit removes the last read); both computer keys on a shared piano key;
+    the file dialogs remembering their folder (`ui_model/folder_memory.h`).

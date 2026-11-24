@@ -237,10 +237,47 @@ capabilities from its 13,506 lines (inventory by one Opus agent, raw at
 26, 15, 31 and 40, and 11 are not coming back (its A2). The order changed:
 Build, GENERATE, SEE, Arrange, Shape (the old strips were drawn from a
 render). One engine gap found: the old editor held several keys on any patch
-with Live on; `LivePlayer` holds one line (slice 3). NEXT: MATT'S SIGNATURE
-ON SLICE 2'S PAGE (`docs/architecture/editor-slice2.md`, REVIEW R27, eleven
-rulings), then slice 2 as slice 1 ran; and his verdict on R26 at the window.
-R24 (where BACKLOG row 8 goes) and R23 (two DUN renders) still await him. GIT: main is ahead of origin by this session's commits
+with Live on; `LivePlayer` holds one line (slice 3). SLICE 2 (BUILD) IS SIGNED,
+BUILT AND ON MATT'S DESK, ALL ON 2026-11-23, the same session (R27 signed:
+"Signed, proceed"; REVIEW R28, which replaces R26 and carries its list;
+report `docs/autonomy/refactor/reports/2026-11-23-editor-slice2.md`; the
+page's section 7 says where the code differs from the signed text).
+COMMITS: `bca5db9` (the parity list after slice 1's 23 unvouched lines were
+checked against the code: 7 done, 2 moot, 10 mended in slice 2, Stop of
+live notes and two meter parts to slice 3), `dcba0b3` (the rest of
+`patch/edit.h`: every structural edit applies to a copy and asks `check()`
+of it, so an edit refuses exactly what `check()` refuses; proofs over the
+131 patches), `d7a06de` (History as a stack of patch copies and no dirty
+flag; `step` and `sound_follows` in `ui_control`; note faces gathered at
+open; wire, unwire, delete_these, create, rename, the setting-pin offers,
+undo, redo, request_new), `9ac1e59` (the views: the canvas draws from
+`ui_views/canvas_table.h`, a plain tested table; the create menu; the
+panel; menus; the status line), `94a7c60` (the keyboard's missing parts; a
+node's Delete menu), `f4b4212` (the review's fix wave: imnodes' stale link
+selection is cleared whenever the drawn links change; `HeadlessEditor`, a
+headless editor a test can click and press keys in), `34febff` (the parity
+wave: six of the ten lines the closing check found open). AT THE CLOSE:
+`python tools/gates.py` ALL GATES PASS, 15,449 checks; `mforce_cli.exe`
+one hash from step 2 on; the editor is 4,999 lines of code and 2,614 of
+tests, largest file 225 lines, nothing in the baseline. HOW IT RAN, FOR
+SLICE 3: (a) one Opus 5.5 executor carried by SendMessage through nine
+briefs (`renders/scratch/ed2/briefs/`), about 730k tokens; one Opus 5.5
+reviewer, reused for the closing parity check; (b) THE PARITY CHECK CLOSES
+EVERY SLICE: before the list says "done", an agent that did not write the
+code reads each of the slice's lines against the code, strictly, and a
+small wave closes what it finds (slice 1's lines were marked from a report
+and 17 were wrong); (c) a rule the page states ("a refusal names its
+reader") was made structural (copy, `check()`, adopt) instead of a list in
+a brief; (d) gestures are under a test only where `HeadlessEditor` reaches
+(a click, Delete, F, a selected link): widen it in slice 3 rather than
+leave every gesture to Matt's hand. NOBODY HAS PUT A HAND ON THE MOUSE IN
+SLICE 1 OR 2: R28's list is the last proof. NEXT: SLICE 3'S PAGE
+(Generate: the transport's tabs, Generate, Play, Stop, Save WAV, passage
+and chord files, Live and holding several keys, a plain sound's sound; the
+engine work is in the live player: more than one held line, Stop, and
+reporting the sounding notes and a pre-clip level), for his signature
+before code; and his verdict on R28 at the window. R24 (where BACKLOG row
+8 goes) and R23 (two DUN renders) still await him. GIT: main is ahead of origin by this session's commits
 (nothing pushed). Usage: weekly Fable 35 percent at the session's start.
 Everything below this
 block predates the reset and is history.

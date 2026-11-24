@@ -77,7 +77,7 @@ Replicate legacy functionality of node-based UI to:
     in that order (render and music DONE 11-22; build DONE 11-23); (3) the
     new editor's design (`docs/architecture/editor.md`, SIGNED 11-23);
     (4) the editor in slices, the first being open, play, tweak, hear, save
-    (slice 1 BUILT 11-23 and on Matt's desk, REVIEW R26; each later slice
+    (slices 1 and 2 BUILT 11-23 and on Matt's desk, REVIEW R28; each later slice
     gets a page of interfaces for his signature before its code).
   + WHEN THE REFACTOR IS DONE (Matt 2026-11-23): "I want the refactor to
     be entirely done before we resume adding features." Done means "when
