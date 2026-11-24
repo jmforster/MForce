@@ -30,7 +30,18 @@ void sound_follows(Session& s) {
   s.status = why;
 }
 
-void key_down(Session& s, int key, int noteNumber) { s.live.key_down(key, noteNumber, s.keyboard); }
+void key_down(Session& s, int key, int noteNumber) { s.live.key_down(key, noteNumber, s.keyboard, s.keyboard.velocity); }
+
+void key_down(Session& s, int key, int noteNumber, float velocity) {
+  s.live.key_down(key, noteNumber, s.keyboard, velocity);
+}
+
+void toggle_computer_keys(Session& s) { s.keyboard.computerKeys = !s.keyboard.computerKeys; }
+
+int sounding_voices(Session& s) {
+  LivePlayer* player = s.audio.player();
+  return player ? player->sounding() : 0;
+}
 
 void key_up(Session& s, int key) { s.live.key_up(key); }
 

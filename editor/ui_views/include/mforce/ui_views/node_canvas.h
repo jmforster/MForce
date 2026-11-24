@@ -15,6 +15,7 @@ namespace mforce::ui {
 //   a wire dragged off its pin       unwire
 //   Delete or Backspace              delete_these (the selected wires, then the selected node or face)
 //   a right click on empty canvas    the create menu: create_node or create_note at the click
+//   a right click on a node or Note  its menu: Delete, delete_these with its name
 //   a drag of nodes or faces         edit_position for each, then end_gesture when the mouse lets go
 //   the wheel, Shift with an arrow   pan_canvas
 //   F                                fit_canvas
@@ -38,9 +39,9 @@ private:
   void carry_wiring(Session& s, const CanvasTable& t);
   void carry_keys(Session& s, const CanvasTable& t);
   void carry_wheel(Session& s);
-  // canvas_menu.cpp: the create menu.
-  void open_create_menu();
-  void draw_create_menu(Session& s);
+  // canvas_menu.cpp: the create menu and a node's menu.
+  void open_menus(const CanvasTable& t);
+  void draw_menus(Session& s);
 
   CanvasNames names_;
   CreateMenu menu_ = create_menu();
@@ -50,6 +51,7 @@ private:
   Vec2 origin_{};                                  // the canvas's top-left corner on screen
   Vec2 size_{};                                    // the canvas's size on screen
   Vec2 menuAt_{};                                  // where in the record the create menu was opened
+  std::string menuNode_;                           // the node or Note whose menu is open
 };
 
 }  // namespace mforce::ui

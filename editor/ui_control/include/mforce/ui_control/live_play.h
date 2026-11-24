@@ -27,8 +27,8 @@ public:
   // holds its note until it goes up, and a second key carries the line on;
   // on one that does not, a key strikes a note `how.seconds` long and its
   // going up does nothing. A key already down is not played again; with no
-  // player, nothing is played.
-  void key_down(int key, int noteNumber, const Keyboard& how);
+  // player, nothing is played. The note's velocity is `velocity`.
+  void key_down(int key, int noteNumber, const Keyboard& how, float velocity);
   void key_up(int key);
   void all_keys_up();
   // The note numbers of the keys down, lowest first.

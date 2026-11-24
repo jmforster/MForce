@@ -17,4 +17,5 @@ mforce_tests(ui_control
           tests/play_tests.cpp
           tests/step_tests.cpp
           tests/building_tests.cpp
-          tests/history_census_tests.cpp)
+          tests/history_census_tests.cpp
+          tests/keyboard_tests.cpp)

@@ -32,13 +32,13 @@ std::string LivePlay::rebuild(const Patch& patch) {
 
 bool LivePlay::playing() const { return audio_.player() != nullptr; }
 
-void LivePlay::key_down(int key, int noteNumber, const Keyboard& how) {
+void LivePlay::key_down(int key, int noteNumber, const Keyboard& how, float velocity) {
   LivePlayer* player = audio_.player();
   if (!player || noteNumber < 0 || down_.count(key)) return;
   PerformedNote note;
   note.duration = how.seconds;
   note.noteNumber = float(noteNumber);
-  note.velocity = how.velocity;
+  note.velocity = velocity;
   note.hold = sustaining_;
   const LivePlayer::NoteId id = player->note_on(note);
   if (id != 0) down_[key] = Down{id, noteNumber};

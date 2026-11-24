@@ -98,13 +98,13 @@ void NodeCanvas::draw(Session& s) {
   draw_links(table);
   ImNodes::MiniMap(kMiniMapShare, ImNodesMiniMapLocation_BottomRight);
   ImNodes::EndNodeEditor();
-  open_create_menu();
+  open_menus(table);
   carry_wiring(s, table);
   carry_moves(s, table);
   carry_selection(s, table);
   carry_keys(s, table);
   carry_wheel(s);
-  draw_create_menu(s);
+  draw_menus(s);
 }
 
 }  // namespace mforce::ui
