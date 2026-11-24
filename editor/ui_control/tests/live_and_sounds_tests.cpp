@@ -115,6 +115,7 @@ void run_live_slur_back_tests() {
   key_up(s, 2);
   (void)run(s, 200);                                     // two seconds: a release would have ended
   CHECK((sounding_notes(s) == std::vector<int>{60}) && sounding_voices(s) == 1);
+  CHECK(last_note(s).rfind("Last note: 64 ", 0) == 0);  // the slur back is not a note played
   key_up(s, 1);
   CHECK(until_quiet(s));
 

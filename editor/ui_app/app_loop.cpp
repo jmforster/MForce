@@ -1,6 +1,7 @@
 #include "app_loop.h"
 #include <string>
 #include "mforce/ui_control/files.h"
+#include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/unsaved.h"
 
@@ -19,6 +20,7 @@ void run(AppWindow& window, Session& session, EditorViews& views, const Options&
     window.begin_frame();
     views.draw(session);
     window.end_frame(frame + 1 == o.frames ? o.shot : std::string());
+    run_requested(session);                         // a Generate asked for, once its frame is shown
     if (const std::string t = title(session); t != shownTitle) {
       window.set_title(t);
       shownTitle = t;

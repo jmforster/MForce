@@ -8,6 +8,7 @@ namespace {
 constexpr float kPanelWidth = 360.0f;
 constexpr float kKeyboardHeight = 112.0f;
 constexpr float kStatusHeight = 26.0f;
+constexpr float kTransportHeight = 172.0f;
 
 constexpr ImGuiWindowFlags kMainFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                                         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
@@ -16,7 +17,7 @@ constexpr ImGuiWindowFlags kMainFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindo
 
 }  // namespace
 
-EditorViews::EditorViews(FileDialogs& dialogs) : menu_(dialogs), prompt_(dialogs) {}
+EditorViews::EditorViews(FileDialogs& dialogs) : menu_(dialogs), transport_(dialogs), prompt_(dialogs) {}
 
 EditorViews::~EditorViews() = default;
 
@@ -26,6 +27,9 @@ void EditorViews::draw(Session& session) {
   ImGui::SetNextWindowSize(view->WorkSize);
   ImGui::Begin("MForce", nullptr, kMainFlags);
   menu_.draw(session);
+  ImGui::BeginChild("transport", ImVec2(0.0f, kTransportHeight), ImGuiChildFlags_Borders);
+  transport_.draw(session);
+  ImGui::EndChild();
   const ImVec2 room = ImGui::GetContentRegionAvail();
   const float spacing = ImGui::GetStyle().ItemSpacing.y;
   const float upper = room.y - kKeyboardHeight - kStatusHeight - 2.0f * spacing;

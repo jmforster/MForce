@@ -4,6 +4,7 @@
 #include "mforce/ui_control/building.h"
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
+#include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/unsaved.h"
 
 namespace mforce::ui {
@@ -20,7 +21,7 @@ bool shortcut(ImGuiKeyChord keys) { return ImGui::Shortcut(keys, ImGuiInputFlags
 MenuBar::MenuBar(FileDialogs& dialogs) : dialogs_(dialogs) {}
 
 void MenuBar::open(Session& s) {
-  const std::string path = dialogs_.pick_open();
+  const std::string path = dialogs_.pick_open(FileKind::Patch);
   if (!path.empty()) request_open(s, path);
 }
 
@@ -30,7 +31,7 @@ void MenuBar::save(Session& s) {
 }
 
 void MenuBar::save_as(Session& s) {
-  const std::string path = dialogs_.pick_save(s.open.path);
+  const std::string path = dialogs_.pick_save(FileKind::Patch, s.open.path);
   if (!path.empty()) save_file_as(s, path);
 }
 
@@ -42,6 +43,12 @@ void MenuBar::shortcuts(Session& s) {
   if (ImGui::GetIO().WantTextInput) return;
   if (shortcut(ImGuiMod_Ctrl | ImGuiKey_Z)) undo(s);
   if (shortcut(ImGuiMod_Ctrl | ImGuiKey_Y)) redo(s);
+  if (ImGui::IsKeyPressed(ImGuiKey_Space, false)) play_or_stop(s);
+}
+
+void MenuBar::play_or_stop(Session& s) {
+  if (playing(s)) stop(s);
+  else play(s);
 }
 
 // Each file by its name, its full path as the tooltip; then Clear.
@@ -75,6 +82,14 @@ void MenuBar::draw(Session& s) {
   if (ImGui::BeginMenu("Edit")) {
     if (ImGui::MenuItem("Undo", "Ctrl+Z", false, !s.open.history.past.empty())) undo(s);
     if (ImGui::MenuItem("Redo", "Ctrl+Y", false, !s.open.history.future.empty())) redo(s);
+    ImGui::EndMenu();
+  }
+  if (ImGui::BeginMenu("Transport")) {
+    if (playing(s)) {
+      if (ImGui::MenuItem("Stop", "Space")) stop(s);
+    } else if (ImGui::MenuItem("Play", "Space")) {
+      play(s);
+    }
     ImGui::EndMenu();
   }
   if (ImGui::BeginMenu("View")) {

@@ -3,6 +3,7 @@
 #include <string>
 #include <imgui.h>
 #include <imnodes.h>
+#include "mforce/ui_control/generating.h"
 #include "mforce/ui_views/editor_views.h"
 
 namespace mforce::ui {
@@ -15,8 +16,8 @@ constexpr int kFrames = 3;
 
 class CancelledDialogs final : public FileDialogs {
 public:
-  std::string pick_open() override { return {}; }
-  std::string pick_save(const std::string&) override { return {}; }
+  std::string pick_open(FileKind) override { return {}; }
+  std::string pick_save(FileKind, const std::string&) override { return {}; }
 };
 
 // The two contexts, made by the constructor and destroyed by the destructor
@@ -59,7 +60,21 @@ void HeadlessEditor::frames(int n) {
     ImGui::NewFrame();
     parts_->views.draw(session_);
     ImGui::Render();
+    run_requested(session_);
   }
+}
+
+bool HeadlessEditor::click(const std::string& label) {
+  const auto at = parts_->views.transport_item(label);
+  if (!at) return false;
+  ImGuiIO& io = ImGui::GetIO();
+  io.AddMousePosEvent(at->x, at->y);
+  frames(1);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  frames(1);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  frames(1);
+  return true;
 }
 
 void HeadlessEditor::click_canvas_corner() {
@@ -85,6 +100,8 @@ void HeadlessEditor::press(int key) {
 void HeadlessEditor::press_delete() { press(ImGuiKey_Delete); }
 
 void HeadlessEditor::press_f() { press(ImGuiKey_F); }
+
+void HeadlessEditor::press_space() { press(ImGuiKey_Space); }
 
 Vec2 HeadlessEditor::canvas_size() const { return parts_->views.canvas_size(); }
 

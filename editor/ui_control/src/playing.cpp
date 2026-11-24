@@ -65,6 +65,10 @@ void change_note_length(Session& s, float factor) {
   s.keyboard.seconds = std::clamp(s.keyboard.seconds * factor, kShortestNote, kLongestNote);
 }
 
+void set_note_length(Session& s, float seconds) { s.keyboard.seconds = std::clamp(seconds, kShortestNote, kLongestNote); }
+
+void set_velocity(Session& s, float velocity) { s.keyboard.velocity = std::clamp(velocity, 0.0f, 1.0f); }
+
 float output_peak(const Session& s) { return s.audio.peak(); }
 
 float output_peak_before_clip(const Session& s) { return s.audio.peak_before_clip(); }

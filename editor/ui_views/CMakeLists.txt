@@ -13,6 +13,8 @@ mforce_module(ui_views
           src/panel_node.cpp
           src/properties_panel.cpp
           src/status_line.cpp
+          src/transport_fields.cpp
+          src/transport_view.cpp
           src/unsaved_prompt.cpp
   USES    ui_model ui_control patch core
   LIBS    imgui)
@@ -21,4 +23,5 @@ mforce_tests(ui_views
   SOURCES tests/main.cpp
           tests/headless_draw_tests.cpp
           tests/canvas_table_tests.cpp
-          tests/canvas_selection_tests.cpp)
+          tests/canvas_selection_tests.cpp
+          tests/transport_view_tests.cpp)

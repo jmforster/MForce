@@ -154,9 +154,20 @@ void KeyboardView::controls(Session& s) {
   meter(s);
 }
 
+// The voices sounding, the peak before the clip and after it, each falling
+// slowly and coloured by its band, and a bar of the clipped one.
 void KeyboardView::meter(Session& s) {
   meter_ = std::max(output_peak(s), meter_ * kMeterFall);
-  ImGui::Text("   voices=%d  peak", sounding_voices(s));
+  meterBeforeClip_ = std::max(output_peak_before_clip(s), meterBeforeClip_ * kMeterFall);
+  ImGui::Text("   voices=%d", sounding_voices(s));
+  ImGui::SameLine();
+  ImGui::PushStyleColor(ImGuiCol_Text, band_colour(level_band(meterBeforeClip_)));
+  ImGui::Text("  pre=%.2f", double(meterBeforeClip_));
+  ImGui::PopStyleColor();
+  ImGui::SameLine();
+  ImGui::PushStyleColor(ImGuiCol_Text, band_colour(level_band(meter_)));
+  ImGui::Text("  post=%.2f", double(meter_));
+  ImGui::PopStyleColor();
   ImGui::SameLine();
   ImGui::PushStyleColor(ImGuiCol_PlotHistogram, band_colour(level_band(meter_)));
   ImGui::ProgressBar(std::min(meter_, 1.0f), ImVec2(160.0f, 0.0f), "");
@@ -164,7 +175,8 @@ void KeyboardView::meter(Session& s) {
 }
 
 // As many octaves as the room keeps a white key 25 to 45 points wide, from
-// the keyboard octave to a top C; a held note is drawn pressed; a press of
+// the keyboard octave to a top C; a key down or a note still sounding is
+// drawn pressed; a press of
 // the mouse plays the key under it, louder further down the key, until the
 // mouse lets go anywhere.
 void KeyboardView::piano(Session& s) {
@@ -173,7 +185,9 @@ void KeyboardView::piano(Session& s) {
   const float width = std::max(ImGui::GetContentRegionAvail().x, 200.0f);
   ImGui::InvisibleButton("piano", ImVec2(width, kPianoHeight));
   const std::vector<PianoKey> keys = piano_keys(origin, width, first, piano_octaves(width));
-  const std::vector<int> held = held_notes(s);
+  std::vector<int> held = held_notes(s);
+  const std::vector<int> ringing = sounding_notes(s);
+  held.insert(held.end(), ringing.begin(), ringing.end());
   ImDrawList* draw = ImGui::GetWindowDrawList();
   for (const auto& k : keys) {
     const bool down = std::find(held.begin(), held.end(), k.note) != held.end();

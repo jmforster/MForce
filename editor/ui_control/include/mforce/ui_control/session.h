@@ -32,6 +32,7 @@ struct Session {
   Transport    transport;
   Take         take;         // the last render; empty before one
   LastNote     lastNote;
+  int          generating{0};  // frames still to show before a requested Generate runs; 0 for none
   RecentFiles  recent;
   std::string  selected;     // a node's id or a face's label (one namespace), or empty
   std::string  status;       // the last thing worth telling: a refusal, why there is no sound

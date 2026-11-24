@@ -10,6 +10,8 @@ void run_canvas_selection_tests();
 void run_fit_key_tests();
 void run_create_item_tests();
 void run_pin_tooltip_tests();
+void run_transport_tabs_draw_tests();
+void run_transport_click_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -22,6 +24,8 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_fit_key_tests", run_fit_key_tests},
   {"run_create_item_tests", run_create_item_tests},
   {"run_pin_tooltip_tests", run_pin_tooltip_tests},
+  {"run_transport_tabs_draw_tests", run_transport_tabs_draw_tests},
+  {"run_transport_click_tests", run_transport_click_tests},
 };
 }  // namespace
 

@@ -30,6 +30,8 @@ int  sounding_voices(Session& s);                    // the voices the player ha
 std::vector<int> sounding_notes(Session& s);         // their notes, lowest first: keys up and still ringing too
 void change_octave(Session& s, int by);              // kept within 0 to 8
 void change_note_length(Session& s, float factor);   // kept within 0.05 to 30 seconds
+void set_note_length(Session& s, float seconds);     // kept within 0.05 to 30 seconds
+void set_velocity(Session& s, float velocity);       // a computer key's, kept within 0 to 1
 float       output_peak(const Session& s);             // the output's peak after the clip
 float       output_peak_before_clip(const Session& s); // and before it
 std::string sound_trouble(const Session& s);         // the adapter's error, or empty

@@ -10,6 +10,13 @@ struct Session;
 
 // A field of the transport changed. Not an undo step.
 void set_transport(Session& s, const Transport& t);
+// The Note tab's note as a number, as Generate reads its text; 60 for a
+// number too large to read.
+int note_tab_number(const Session& s);
+// The Note tab's pitch (0 for C to 11 for B) and octave (kept within 0 to
+// 8): the note's text composed ("C#4"), and the keyboard's octave moved to
+// it, as the old transport's were.
+void set_note_tab(Session& s, int pitchClass, int octave);
 
 // Renders the patch in the window, saved or not, at its own rate, as the tab
 // says, into session.take, a playing take stopped first:
@@ -25,6 +32,14 @@ void set_transport(Session& s, const Transport& t);
 // status and stays; the take is then empty. What the render's nodes
 // reported goes to status after the success line.
 void generate(Session& s);
+
+// Generate as the window asks for it: the button reads "Generating..." on
+// the frame after the click, and the render runs once that frame has been
+// shown. request_generate asks; run_requested, called after each frame is
+// presented, counts the frames down and renders on the second.
+void request_generate(Session& s);
+bool generate_requested(const Session& s);
+void run_requested(Session& s);
 
 // Everything that sounds stops, keys too; then the take plays on the
 // playback line: a Note take rendered again first when it is stale (the

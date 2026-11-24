@@ -16,7 +16,7 @@ UnsavedPrompt::UnsavedPrompt(FileDialogs& dialogs) : dialogs_(dialogs) {}
 
 void UnsavedPrompt::save(Session& s) {
   if (s.open.path.empty()) {
-    const std::string path = dialogs_.pick_save({});
+    const std::string path = dialogs_.pick_save(FileKind::Patch, {});
     if (path.empty()) return;                       // no file chosen: the question stays
     save_file_as(s, path);
   }

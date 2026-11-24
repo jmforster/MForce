@@ -139,6 +139,29 @@ void play_plain(Session& s) {
 
 void set_transport(Session& s, const Transport& t) { s.transport = t; }
 
+int note_tab_number(const Session& s) {
+  try {
+    return int(parse_note_input(s.transport.note.c_str()));
+  } catch (const std::exception&) {               // a number std::stof cannot hold
+    return 60;
+  }
+}
+
+void set_note_tab(Session& s, int pitchClass, int octave) {
+  static constexpr const char* kPitch[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+  const int oct = std::clamp(octave, 0, 8);
+  s.transport.note = kPitch[((pitchClass % 12) + 12) % 12] + std::to_string(oct);
+  s.keyboard.octave = oct;
+}
+
+void request_generate(Session& s) { s.generating = 2; }
+
+bool generate_requested(const Session& s) { return s.generating > 0; }
+
+void run_requested(Session& s) {
+  if (s.generating > 0 && --s.generating == 0) generate(s);
+}
+
 void generate(Session& s) {
   s.audio.play(Line::Playback, nullptr);
   s.take = Take{};
