@@ -331,7 +331,7 @@ real loop. `HeadlessEditor` now moves a mouse (`click_at`, `right_click_at`,
 holds a test per canvas gesture and the piano's press. MATT'S SECOND PASS (same day, after the fix): almost
 all of R30's list worked, the piano's press included (no cause was found
 for its first failure; nothing in the fix is on its path). Open with him:
-whether "post=" ever read above 0.99. FOR SLICE 4: every gesture a view offers gets such a test before
+whether "post=" ever read above 0.99 (ANSWERED: 0.99, "My mistake ... Working as designed. Ok to proceed."). R30 IS RESOLVED on those words (REVIEW, under Resolved) and SLICE 4'S BUILD BEGAN in the same session (XXVII), scratch `renders/scratch/ed4/`. FOR SLICE 4: every gesture a view offers gets such a test before
 it reaches him. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
