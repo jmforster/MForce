@@ -379,7 +379,14 @@ its tests; (3) `LivePlayer::set_value` and its tests; (4) `ui_model`,
 `ui_audio`, `ui_control` with their tests, no window; (5) the views and
 the headless draw test; (6) on your desk.
 
-**After it, my read of the order, yours to change:**
+**After it.** Superseded 2026-11-23 by `editor-parity.md`: the list of
+everything the old editor did, which is what "done" is measured against
+(Matt: done is "when all the capability that existed previously is
+restored"). Its part A1 has the slices as now ordered and what each must
+restore; the table below is the first guess, kept for the record. Slice
+2's page is `editor-slice2.md`.
+
+**The first guess at the order:**
 
 | Slice | You can then |
 |---|---|

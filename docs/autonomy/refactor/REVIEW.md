@@ -19,6 +19,42 @@ given.
 
 ## Awaiting
 
+**R27 — what "done" is, and slice 2's page** (2026-11-23,
+`docs/architecture/editor-parity.md` and
+`docs/architecture/editor-slice2.md`; no code). For your signature on the
+second; the first is yours to strike lines from.
+- **The parity list.** Everything a person could do with the old editor,
+  taken from its 13,506 lines: 229 capabilities, each with where it
+  stands. Slice 1 covers 65, the five slices to come 153, and 11 are not
+  coming back. The refactor is done when the list is.
+- **What is not coming back** (its A2): the node-graph mode, the old
+  streaming graph and the second clipboard, which you deleted on
+  2026-10-05; the headless modes; and faults (one Ctrl+V pasting twice,
+  keys with two jobs, New and Open losing unsaved work without asking,
+  controls that did nothing). One change is yours to overrule: a file
+  with an unknown node type used to open with that node inert, and is
+  now refused with the type named.
+- **What the first slice table had missed**, now placed: wormholes, the
+  Listen tap, editing dynamic pins, rename, the instrument's own
+  settings, the Live checkbox, passage and chord files, Save WAV,
+  pop-out strips, the audio watchdog. And one gap in the engine: with
+  Live on, the old editor held as many keys as you pressed on any patch;
+  the live player holds one line. That is slice 3's engine work.
+- **The order changed in one place**: Generate before See, because the
+  old waveform strips were drawn from a render and never from live play.
+  Three things the first table had slipped in as if they were
+  restorations are out: live strips, rendering the embedded score from
+  the window, a left and right output display.
+- **The size of what is left**: slices 2 to 6 restore 41, 26, 15, 31 and
+  40 capabilities, from about 1,450, 1,240, 790, 1,720 and 2,810 lines of
+  the old file. My estimate: a session each for 2 to 5, two for 6.
+- **Slice 2's page** has eleven rulings in its section 4. The three to
+  read first: undo and redo stay although the old editor had none (strike
+  the line and they come out); a pin you unwire takes its declared
+  default, where the old editor gave back the number it had before; and
+  each key gets one job (the arrows stay octave and note length, Shift
+  with an arrow pans).
+
 **R26 — the editor, slice 1: open, play, tweak, hear, save** (2026-11-23,
 commits `947d021`, `dc3ebf3`, `3414a43`, `737583a`, `e40ad75`, fix wave
 `98603b6`; design `docs/architecture/editor.md`, signed that day (R25);
