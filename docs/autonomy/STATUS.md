@@ -271,12 +271,17 @@ reader") was made structural (copy, `check()`, adopt) instead of a list in
 a brief; (d) gestures are under a test only where `HeadlessEditor` reaches
 (a click, Delete, F, a selected link): widen it in slice 3 rather than
 leave every gesture to Matt's hand. NOBODY HAS PUT A HAND ON THE MOUSE IN
-SLICE 1 OR 2: R28's list is the last proof. NEXT: SLICE 3'S PAGE
-(Generate: the transport's tabs, Generate, Play, Stop, Save WAV, passage
-and chord files, Live and holding several keys, a plain sound's sound; the
-engine work is in the live player: more than one held line, Stop, and
-reporting the sounding notes and a pre-clip level), for his signature
-before code; and his verdict on R28 at the window. R24 (where BACKLOG row
+SLICE 1 OR 2: R28's list is the last proof. SLICE 3'S PAGE IS WRITTEN AND UNSIGNED
+(`docs/architecture/editor-slice3.md`, REVIEW R29, eleven rulings: the
+transport's tabs, Generate, Play, Stop, Save WAV, passage and chord files,
+Live, a plain sound's sound; the engine work is the live player holding a
+voice per held key, `stop`, and reporting sounding notes, a pre-clip peak
+and faults; texts become performances in `perform`; `play` gains a patch
+played with a performance and capture; `ui_audio` plays `Sound`s on two
+lines, keys and playback). NEXT: MATT'S SIGNATURE ON IT, then slice 3 as
+slice 2 ran (rules and gate script from `renders/scratch/ed2/`; its step 1
+reads the old Live, chord and drum code and the transport's defaults
+before any brief names them); and his verdict on R28 at the window. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main is ahead of origin by this session's commits
 (nothing pushed). Usage: weekly Fable 35 percent at the session's start.
 Everything below this

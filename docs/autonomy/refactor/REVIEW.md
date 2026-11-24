@@ -19,6 +19,34 @@ given.
 
 ## Awaiting
 
+**R29 — slice 3's page: generate** (2026-11-23,
+`docs/architecture/editor-slice3.md`; no code). For your signature, as
+slice 2's was.
+- **What it restores**: the transport (Note, Passage, Chords, Drums),
+  Generate, Play, Stop and Space, Save WAV, passage and chord files, the
+  Live checkbox, a plain sound's sound, the piano showing every sounding
+  note, the level before the clip, "Last note". 26 lines of the parity
+  list and the three parts the checks moved here.
+- **The engine work is in one place**, the live player: a held key on a
+  patch not marked sustaining holds its own voice (today only the one
+  legato line holds), Stop, and reporting what is sounding. The offline
+  render it uses exists; the passage, chord and drum texts become notes in
+  the engine (`perform`), where the parsers already are, not in the
+  editor.
+- **The three rulings to read first** (its section 4):
+  1. Live is on at start, as it was. That changes the keyboard you have
+     in slice 1 and 2: a key holds its note on any patch, and unchecking
+     Live gives the struck note of fixed length back (ruling 5).
+  2. A render is made at the file's rate, so Save WAV is what the command
+     line renders; when the sound card runs at another rate, Play
+     resamples it and says so (ruling 2).
+  3. Keys sound over a playing render, as they did. So the output plays
+     two sounds at once, through one small interface (`Sound`) with three
+     implementations: the page's section 2.4 shows the old and new code
+     and the names I passed over, and section 6 says why an interface
+     and not a list of cases (ruling 4).
+- **Size**: my estimate is a session, as slice 2 was.
+
 **R28 — the editor, slice 2: build** (2026-11-23, commits `dcba0b3`,
 `d7a06de`, `9ac1e59`, `94a7c60`, fix wave `f4b4212`, parity wave `34febff`;
 page `docs/architecture/editor-slice2.md`, signed that day (R27); report
@@ -90,8 +118,7 @@ slice's last proof, and anything wrong in it is worth one line back.
      (`docs/architecture/editor-parity.md`), at any time. Slice 2's 58
      lines were each checked against the code by the reviewer after it
      was built (its A6).
-  3. Slice 3, Generate, gets its page of interfaces for your signature
-     next.
+  3. Slice 3's page is R29, above.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design
