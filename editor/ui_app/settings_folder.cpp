@@ -33,7 +33,7 @@ SettingsFiles settings_files() {
   std::error_code failed;
   std::filesystem::create_directories(folder, failed);
   if (failed) return {};
-  return {(folder / "recent_files.txt").string(), (folder / "imgui.ini").string()};
+  return {(folder / "recent_files.txt").string(), (folder / "folders.txt").string(), (folder / "imgui.ini").string()};
 }
 
 }  // namespace mforce::ui

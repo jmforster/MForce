@@ -45,6 +45,8 @@ std::vector<CreateFamily> shelf(Shelf which) {
 
 }  // namespace
 
+bool can_create(const CreateItem& item, const Patch& patch) { return !item.type.empty() || patch.instrument.has_value(); }
+
 CreateMenu create_menu() {
   (void)declared_types();                         // the declarations table registers every source on first use
   CreateMenu menu;

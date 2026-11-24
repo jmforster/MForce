@@ -68,9 +68,13 @@ std::string note_name(int noteNumber) {
 }
 
 std::string key_label(int offset) {
+  std::string label;
   for (const KeyNote& k : kUpperZone)
-    if (k.offset == offset) return std::string(1, k.key);
-  return {};
+    if (k.offset == offset) label = std::string(1, k.key);
+  if (label.empty()) return label;
+  for (const KeyNote& k : kLowerZone)
+    if (k.offset == offset) label += std::string(" ") + k.key;
+  return label;
 }
 
 float velocity_at(float fraction) { return kSoftest + std::clamp(fraction, 0.0f, 1.0f) * (1.0f - kSoftest); }

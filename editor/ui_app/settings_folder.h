@@ -8,6 +8,7 @@ namespace mforce::ui {
 // the folder cannot be found or made).
 struct SettingsFiles {
   std::string recentFiles;   // the recent files, one path per line
+  std::string folders;       // the dialogs' folders, one kind=folder per line
   std::string imguiIni;      // ImGui's window settings
 };
 

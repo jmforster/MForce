@@ -21,6 +21,7 @@ public:
   EditorViews& operator=(const EditorViews&) = delete;
   void draw(Session& session);       // between the caller's ImGui::NewFrame() and ImGui::Render()
   Vec2 canvas_origin() const { return canvas_.origin(); }   // the canvas's top-left corner on screen
+  Vec2 canvas_size() const { return canvas_.size(); }       // and its size
 
 private:
   MenuBar menu_;

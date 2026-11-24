@@ -73,13 +73,20 @@ void HeadlessEditor::click_canvas_corner() {
   frames(2);
 }
 
-void HeadlessEditor::press_delete() {
+// A key down for a frame, then up for a frame.
+void HeadlessEditor::press(int key) {
   ImGuiIO& io = ImGui::GetIO();
-  io.AddKeyEvent(ImGuiKey_Delete, true);
+  io.AddKeyEvent(ImGuiKey(key), true);
   frames(1);
-  io.AddKeyEvent(ImGuiKey_Delete, false);
+  io.AddKeyEvent(ImGuiKey(key), false);
   frames(1);
 }
+
+void HeadlessEditor::press_delete() { press(ImGuiKey_Delete); }
+
+void HeadlessEditor::press_f() { press(ImGuiKey_F); }
+
+Vec2 HeadlessEditor::canvas_size() const { return parts_->views.canvas_size(); }
 
 void HeadlessEditor::select_link(int id) { ImNodes::SelectLink(id); }
 

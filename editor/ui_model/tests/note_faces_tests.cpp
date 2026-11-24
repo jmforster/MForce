@@ -5,6 +5,7 @@
 #include "mforce/ui_model/note_faces.h"
 #include <cstdio>
 #include <filesystem>
+#include <algorithm>
 #include <map>
 #include <string>
 
@@ -90,6 +91,62 @@ void run_note_faces_census_tests() {
     }
   std::printf("  note faces: %d patches, gathered in %d, %d faces made\n", patches, gatheredIn, faces);
   CHECK(patches > 0);
+  CHECK(faults == 0);
+}
+
+// A face's node nothing reads goes, with its field; a read one stays.
+void run_drop_unread_face_node_tests() {
+  Patch p;
+  p.instrument = InstrumentBlock{};
+  Node osc;
+  osc.id = "osc";
+  osc.type = "SineSource";
+  osc.wires["frequency"] = {Wire{"f"}};
+  p.graph.nodes = {perform("f", 0), perform("v", 1), osc};
+  p.graph.output = "osc";
+  p.layout.faces = {NoteFace{"Note1", {{"frequency", "f"}, {"velocity", "v"}}, Vec2{}}};
+  CHECK(drop_unread_face_nodes(p) == 1);
+  CHECK(p.graph.nodes.size() == 2 && p.graph.nodes[0].id == "f");
+  CHECK((p.layout.faces[0].fields == std::map<std::string, std::string>{{"frequency", "f"}}));
+  CHECK(p.check().empty() && drop_unread_face_nodes(p) == 0);
+}
+
+// Over every measured patch, after gathering as opening does: every node a
+// face names is read afterwards, and nothing else changed.
+void run_drop_unread_face_node_census_tests() {
+  int patches = 0, had = 0, dropped = 0, faults = 0;
+  for (const char* folder : {"patches/library", "patches/baselines"})
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(folder)) {
+      if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
+      Patch before = load_patch(entry.path().generic_string());
+      (void)gather_note_faces(before);
+      Patch p = before;
+      ++patches;
+      const int went = drop_unread_face_nodes(p);
+      if (went > 0) ++had;
+      dropped += went;
+      bool allRead = true;
+      for (const auto& f : p.layout.faces)
+        for (const auto& [field, id] : f.fields) {
+          bool read = p.graph.output == id;
+          for (const auto& n : p.graph.nodes) {
+            for (const auto& [pin, feeds] : n.wires)
+              for (const auto& w : feeds) read = read || w.source == id;
+            for (const auto& [s, src] : n.dynamicPins) read = read || src == id;
+          }
+          allRead = allRead && read;
+        }
+      Patch rest = before;                              // the same, less the nodes that went and their fields
+      std::erase_if(rest.graph.nodes, [&](const Node& n) {
+        return std::none_of(p.graph.nodes.begin(), p.graph.nodes.end(), [&](const Node& m) { return m.id == n.id; });
+      });
+      rest.layout.faces = p.layout.faces;
+      if (!allRead || !(rest == p) || !p.check().empty()) {
+        ++faults;
+        std::printf("  %s: dropping a face's unread node broke a rule\n", entry.path().generic_string().c_str());
+      }
+    }
+  std::printf("  unread face nodes: %d patches, %d had one, %d nodes went\n", patches, had, dropped);
   CHECK(faults == 0);
 }
 

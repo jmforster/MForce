@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "mforce/patch/patch.h"
 
 namespace mforce::ui {
 
@@ -26,5 +27,9 @@ struct CreateMenu {
 // by its own name (Note is how a person asks for one). A family with nothing
 // to offer is left out.
 CreateMenu create_menu();
+
+// Whether the item can be chosen for `patch` now: the Note is greyed on a
+// plain sound, which has no note to read; every other item can.
+bool can_create(const CreateItem& item, const Patch& patch);
 
 }  // namespace mforce::ui

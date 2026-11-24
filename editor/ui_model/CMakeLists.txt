@@ -1,5 +1,6 @@
 mforce_module(ui_model
   SOURCES src/canvas_view.cpp
+          src/folder_memory.cpp
           src/history.cpp
           src/new_patch.cpp
           src/note_faces.cpp
@@ -16,4 +17,5 @@ mforce_tests(ui_model
           tests/recent_files_tests.cpp
           tests/history_tests.cpp
           tests/note_faces_tests.cpp
-          tests/placement_face_tests.cpp)
+          tests/placement_face_tests.cpp
+          tests/folder_memory_tests.cpp)

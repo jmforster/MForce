@@ -20,6 +20,9 @@ void run_new_patch_tests();
 void run_placement_face_tests();
 void run_placement_fault_tests();
 void run_centred_panning_tests();
+void run_folder_memory_tests();
+void run_drop_unread_face_node_tests();
+void run_drop_unread_face_node_census_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -42,6 +45,9 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_placement_face_tests", run_placement_face_tests},
   {"run_placement_fault_tests", run_placement_fault_tests},
   {"run_centred_panning_tests", run_centred_panning_tests},
+  {"run_folder_memory_tests", run_folder_memory_tests},
+  {"run_drop_unread_face_node_tests", run_drop_unread_face_node_tests},
+  {"run_drop_unread_face_node_census_tests", run_drop_unread_face_node_census_tests},
 };
 }  // namespace
 

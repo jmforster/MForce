@@ -19,7 +19,7 @@ namespace mforce::ui {
 //   a right click on a node or Note  its menu: Delete, delete_these with its name
 //   a drag of nodes or faces         edit_position for each, then end_gesture when the mouse lets go
 //   the wheel, Shift with an arrow   pan_canvas
-//   F                                fit_canvas
+//   F, wherever the mouse is         fit_canvas
 // The record holds the positions, the panning and the selected node or
 // face: each frame the canvas shows them. imnodes itself holds which wires
 // are selected, as slots of its own pool, not by wire; so whenever the links

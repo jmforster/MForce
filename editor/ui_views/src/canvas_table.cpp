@@ -39,7 +39,9 @@ CanvasNode graph_node(const Node& n, const Offers& offered, CanvasNames& names, 
   const auto input = [&](const std::string& name, Look look, Kind kind) {
     const int id = pin_id(c.id, row++);
     places.taking[n.id + (kind == Kind::SettingPin ? "|=" : "|") + name] = id;
-    c.inputs.push_back(CanvasPin{id, PinEnd{kind, n.id, name}, look, name, false});
+    const auto drive = kind == Kind::SettingPin ? n.dynamicPins.find(name) : n.dynamicPins.end();
+    c.inputs.push_back(CanvasPin{id, PinEnd{kind, n.id, name}, look, name, false,
+                                 drive == n.dynamicPins.end() ? std::string() : drive->second});
   };
   if (d) {
     for (const auto& p : d->params) input(p.name, Look::Param, Kind::Input);
@@ -128,6 +130,18 @@ void mark_fed(CanvasTable& t) {
 }
 
 }  // namespace
+
+std::string pin_tooltip(const CanvasPin& pin) {
+  if (pin.look != Look::Setting) return {};
+  if (!pin.driver.empty())
+    return "Dynamic pin: '" + pin.label + "' set once at note-on by '" + pin.driver + "',\n"
+           "frozen for the life of the note.\n"
+           "Drag a node's output here to change the driver;\n"
+           "delete the wire to unwire, withdraw the pin with the panel's mark.";
+  return "Dynamic pin (unwired): '" + pin.label + "'. Drag a node's output\n"
+         "here. Until wired, the panel's value applies.\n"
+         "Withdraw the pin with the panel's mark.";
+}
 
 int CanvasNames::node(const std::string& key) {
   const auto [it, fresh] = nodes_.try_emplace(key, nextNode_);

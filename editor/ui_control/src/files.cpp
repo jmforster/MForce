@@ -27,6 +27,7 @@ std::string rate_note(const Session& s) {
 // selected, offered, waiting or in a drag; the views told; the sound follows.
 void take(Session& s, OpenPatch next) {
   (void)gather_note_faces(next.patch);
+  (void)drop_unread_face_nodes(next.patch);
   (void)place_unplaced_nodes(next.patch);
   s.open = std::move(next);
   s.selected.clear();

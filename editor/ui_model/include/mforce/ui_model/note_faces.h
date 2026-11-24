@@ -16,4 +16,9 @@ namespace mforce::ui {
 // directly, since no edit of the engine names an existing node for a field.
 int gather_note_faces(Patch& patch);
 
+// Every node a face names for a field that no feed, no dynamic pin and not
+// the output reads goes, with its field, through the engine's remove_node,
+// as the old editor's save dropped such a node. Returns how many went.
+int drop_unread_face_nodes(Patch& patch);
+
 }  // namespace mforce::ui

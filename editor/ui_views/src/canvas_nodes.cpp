@@ -37,6 +37,7 @@ void input_row(const Node* n, const CanvasPin& pin) {
     ImNodes::PushColorStyle(ImNodesCol_Pin, kDynamicColour);
     ImNodes::BeginInputAttribute(pin.id, pin.fed ? ImNodesPinShape_QuadFilled : ImNodesPinShape_Quad);
     ImGui::TextColored(kDynamicText, "%s", pin.label.c_str());
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", pin_tooltip(pin).c_str());
     ImNodes::EndInputAttribute();
     ImNodes::PopColorStyle();
   } else {

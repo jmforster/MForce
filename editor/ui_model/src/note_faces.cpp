@@ -2,6 +2,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
 #include "mforce/patch/edit.h"
 #include "mforce/patch/type_declarations.h"
 
@@ -27,7 +28,33 @@ int free_slot(const Layout& l, const std::string& field) {
   return -1;
 }
 
+// True when a feed, a dynamic pin or the output reads `id`.
+bool is_read(const Patch& p, const std::string& id) {
+  if (p.graph.output == id) return true;
+  for (const auto& n : p.graph.nodes) {
+    for (const auto& [pin, feeds] : n.wires)
+      for (const auto& w : feeds)
+        if (w.source == id) return true;
+    for (const auto& [setting, source] : n.dynamicPins)
+      if (source == id) return true;
+  }
+  return false;
+}
+
 }  // namespace
+
+int drop_unread_face_nodes(Patch& patch) {
+  std::vector<std::string> unread;
+  for (const auto& f : patch.layout.faces)
+    for (const auto& [field, id] : f.fields)
+      if (!is_read(patch, id)) unread.push_back(id);
+  int dropped = 0;
+  for (const auto& id : unread) {
+    (void)remove_node(patch, id);
+    ++dropped;
+  }
+  return dropped;
+}
 
 int gather_note_faces(Patch& patch) {
   std::set<std::string> named;

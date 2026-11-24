@@ -51,7 +51,7 @@ void NodeCanvas::carry_wiring(Session& s, const CanvasTable& t) {
 // Delete or Backspace, with the canvas holding the keyboard and no text field
 // active: the selected wires, then the selected node or face (never the
 // Output node). The links then differ, and the next frame clears imnodes'
-// link selection. F, with the mouse over the canvas: fit.
+// link selection. F, wherever the mouse is and with no Ctrl: fit.
 // Shift with an arrow, held: the canvas pans.
 void NodeCanvas::carry_keys(Session& s, const CanvasTable& t) {
   const ImGuiIO& io = ImGui::GetIO();
@@ -62,7 +62,7 @@ void NodeCanvas::carry_keys(Session& s, const CanvasTable& t) {
     if (!s.selected.empty()) names.push_back(s.selected);
     delete_these(s, selected_wires(t), names);
   }
-  if (ImNodes::IsEditorHovered() && !io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) fit_canvas(s, size_);
+  if (!io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) fit_canvas(s, size_);
   if (!io.KeyShift) return;
   Vec2 by{};
   if (ImGui::IsKeyDown(ImGuiKey_LeftArrow)) by.x += kArrowStep;

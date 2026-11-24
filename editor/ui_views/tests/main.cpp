@@ -7,6 +7,9 @@ void run_canvas_table_tests();
 void run_canvas_rewire_tests();
 void run_create_menu_tests();
 void run_canvas_selection_tests();
+void run_fit_key_tests();
+void run_create_item_tests();
+void run_pin_tooltip_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -16,6 +19,9 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_canvas_rewire_tests", run_canvas_rewire_tests},
   {"run_create_menu_tests", run_create_menu_tests},
   {"run_canvas_selection_tests", run_canvas_selection_tests},
+  {"run_fit_key_tests", run_fit_key_tests},
+  {"run_create_item_tests", run_create_item_tests},
+  {"run_pin_tooltip_tests", run_pin_tooltip_tests},
 };
 }  // namespace
 

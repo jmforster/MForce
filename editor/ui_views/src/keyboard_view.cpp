@@ -1,5 +1,6 @@
 #include "mforce/ui_views/keyboard_view.h"
 #include <algorithm>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -89,11 +90,19 @@ void key_labels(ImDrawList* draw, const PianoKey& k, int first, bool computerKey
     const ImVec2 size = ImGui::CalcTextSize(name.c_str());
     draw->AddText(ImVec2(k.lo.x + (width - size.x) * 0.5f, k.hi.y - size.y - 3.0f), IM_COL32(60, 60, 60, 255), name.c_str());
   }
+  // The computer keys, one a line: a key the two zones share shows both, the
+  // upper zone's first ("Q ,"), stacked so each fits the key.
   const std::string label = computerKeys ? key_label(k.note - first) : std::string();
-  if (label.empty()) return;
-  const ImVec2 size = ImGui::CalcTextSize(label.c_str());
-  draw->AddText(ImVec2(k.lo.x + (width - size.x) * 0.5f, k.lo.y + 3.0f),
-                k.black ? IM_COL32(200, 200, 100, 255) : IM_COL32(0, 0, 0, 255), label.c_str());
+  float y = k.lo.y + 3.0f;
+  for (std::size_t start = 0; start < label.size();) {
+    const std::size_t end = std::min(label.find(' ', start), label.size());
+    const std::string part = label.substr(start, end - start);
+    const ImVec2 size = ImGui::CalcTextSize(part.c_str());
+    draw->AddText(ImVec2(k.lo.x + (width - size.x) * 0.5f, y),
+                  k.black ? IM_COL32(200, 200, 100, 255) : IM_COL32(0, 0, 0, 255), part.c_str());
+    y += size.y;
+    start = end + 1;
+  }
 }
 
 }  // namespace
@@ -171,8 +180,8 @@ void KeyboardView::piano(Session& s) {
     const ImU32 fill = down ? IM_COL32(90, 150, 230, 255) : (k.black ? IM_COL32(20, 20, 24, 255) : IM_COL32(225, 225, 225, 255));
     draw->AddRectFilled(k.lo, k.hi, fill);
     draw->AddRect(k.lo, k.hi, IM_COL32(60, 60, 60, 255));
-    key_labels(draw, k, first, s.keyboard.computerKeys);
   }
+  for (const auto& k : keys) key_labels(draw, k, first, s.keyboard.computerKeys);   // over every key, none hidden
   const ImVec2 mouse = ImGui::GetIO().MousePos;
   const PianoKey* hit = key_at(keys, mouse);
   if (ImGui::IsItemActivated() && hit && hit->note >= 0 && hit->note <= 127) {

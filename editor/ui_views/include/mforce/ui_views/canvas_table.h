@@ -42,7 +42,12 @@ struct CanvasPin {
   Look look{Look::Param};
   std::string label;            // the pin's, setting's or field's name; "out", "tap", or the output's source
   bool fed{false};              // a feed, a drive or the output reaches it
+  std::string driver;           // a setting's pin: the node that drives it; empty when nothing does
 };
+
+// What hovering a setting's pin on the canvas says: the setting set once a
+// note by its driver, or that nothing drives it yet; empty for any other pin.
+std::string pin_tooltip(const CanvasPin& pin);
 
 // One thing drawn as a node: a graph node no face names, a face, or the
 // canvas's Output node.

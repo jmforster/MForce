@@ -8,8 +8,12 @@
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_control/wiring.h"
 #include "mforce/ui_views/canvas_table.h"
+#include "mforce/ui_model/canvas_view.h"
+#include "mforce/ui_views/create_menu.h"
 #include "mforce/ui_views/headless.h"
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace mforce;
@@ -70,4 +74,49 @@ void run_canvas_selection_tests() {
   REQUIRE(before.size() == 2);
   editor.press_delete();
   CHECK(feeds_of(s) == before);
+}
+
+// F centres the graph with the mouse nowhere near the canvas.
+void run_fit_key_tests() {
+  Session s;
+  s.open = OpenPatch{list_patch(), {}, History{}};
+  s.open.patch.layout.panning = Vec2{5000, 5000};
+  HeadlessEditor editor(s);
+  editor.frames(3);
+  editor.press_f();
+  CHECK(s.open.patch.layout.panning == centred_panning(s.open.patch, editor.canvas_size()));
+}
+
+// The Note greyed on a plain sound; any other item, and the Note on an
+// instrument, can be chosen.
+void run_create_item_tests() {
+  const CreateMenu menu = create_menu();
+  Patch instrument = list_patch();
+  Patch plain;
+  CHECK(can_create(menu.favourites[0], instrument) && !can_create(menu.favourites[0], plain));
+  CHECK(can_create(menu.favourites[1], plain) && can_create(menu.favourites[1], instrument));
+}
+
+// What a setting's pin on the canvas says when hovered.
+void run_pin_tooltip_tests() {
+  Patch p = list_patch();
+  (void)add_node(p, "Envelope", "env", 7, Vec2{100, 100});
+  (void)feed_setting(p, "env", "timeScale", "lfo3");
+  CanvasNames names;
+  std::set<std::pair<std::string, std::string>> offered;
+  const CanvasTable t = canvas_table(p, offered, names);
+  bool seen = false;
+  for (const auto& n : t.nodes)
+    for (const auto& pin : n.inputs) {
+      if (pin.look != CanvasPin::Look::Setting) {
+        CHECK(pin_tooltip(pin).empty());
+        continue;
+      }
+      seen = true;
+      CHECK(pin.driver == "lfo3");
+      CHECK(pin_tooltip(pin).find("set once at note-on by 'lfo3'") != std::string::npos);
+    }
+  CHECK(seen);
+  CanvasPin unwired{0, PinEnd{PinEnd::Kind::SettingPin, "l", "x"}, CanvasPin::Look::Setting, "x", false, {}};
+  CHECK(pin_tooltip(unwired).find("Dynamic pin (unwired)") == 0);
 }

@@ -70,7 +70,8 @@ void NodeCanvas::draw_menus(Session& s) {
   const CreateItem* chosen = nullptr;
   for (size_t k = 0; k < menu_.favourites.size(); ++k) {
     if (k == 1) ImGui::Separator();
-    if (ImGui::MenuItem(menu_.favourites[k].label.c_str())) chosen = &menu_.favourites[k];
+    const CreateItem& item = menu_.favourites[k];
+    if (ImGui::MenuItem(item.label.c_str(), nullptr, false, can_create(item, s.open.patch))) chosen = &item;
   }
   ImGui::Separator();
   if (const CreateItem* c = families_menu(menu_.main)) chosen = c;

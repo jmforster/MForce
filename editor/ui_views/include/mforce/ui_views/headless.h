@@ -22,10 +22,13 @@ public:
   void frames(int n);
   void click_canvas_corner();       // a left click just inside the canvas's top-left: the canvas takes the keyboard
   void press_delete();
+  void press_f();                   // the F key, with the mouse wherever it was left
+  Vec2 canvas_size() const;         // the canvas's size on screen, from the last frame
   void select_link(int id);         // imnodes' own SelectLink
   int  selected_links() const;      // imnodes' own NumSelectedLinks
 
 private:
+  void press(int key);              // an ImGuiKey, as its number: no ImGui type in this header
   struct Parts;                     // the contexts and the views, in the .cpp
   std::unique_ptr<Parts> parts_;
   Session& session_;

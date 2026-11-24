@@ -21,7 +21,7 @@ namespace {
 // zero, the list by a second zero.
 constexpr char kFilter[] = "Patches (*.json)\0*.json\0All files (*.*)\0*.*\0";
 
-std::string start_folder() {
+std::string default_folder() {
   std::error_code failed;
   const auto folder = std::filesystem::absolute("patches", failed);
   return !failed && std::filesystem::is_directory(folder) ? folder.string() : std::string();
@@ -41,23 +41,33 @@ OPENFILENAMEA dialog_fields(std::array<char, MAX_PATH>& path, const std::string&
   return d;
 }
 
+// The folder a patch was last picked from, else the default.
+std::string first_folder(const FolderMemory& folders) {
+  const std::string remembered = start_folder(folders, kPatchFiles);
+  return remembered.empty() ? default_folder() : remembered;
+}
+
 }  // namespace
 
 std::string Win32FileDialogs::pick_open() {
   std::array<char, MAX_PATH> path{};
-  const std::string folder = start_folder();
+  const std::string folder = first_folder(folders_);
   OPENFILENAMEA d = dialog_fields(path, folder);
   d.Flags |= OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-  return GetOpenFileNameA(&d) ? std::string(path.data()) : std::string();
+  if (!GetOpenFileNameA(&d)) return {};
+  remember_folder(folders_, kPatchFiles, path.data());
+  return path.data();
 }
 
 std::string Win32FileDialogs::pick_save(const std::string& suggested) {
   std::array<char, MAX_PATH> path{};
   std::memcpy(path.data(), suggested.c_str(), std::min(suggested.size(), path.size() - 1));
-  const std::string folder = start_folder();
+  const std::string folder = first_folder(folders_);
   OPENFILENAMEA d = dialog_fields(path, folder);
   d.Flags |= OFN_OVERWRITEPROMPT;
-  return GetSaveFileNameA(&d) ? std::string(path.data()) : std::string();
+  if (!GetSaveFileNameA(&d)) return {};
+  remember_folder(folders_, kPatchFiles, path.data());
+  return path.data();
 }
 
 #else

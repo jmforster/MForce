@@ -6,8 +6,9 @@ namespace mforce::ui {
 struct Session;
 
 // Opens the file: the patch, its PerformNodes no face names gathered into
-// faces and a position for everything the canvas draws that has none
-// (neither is an undo step or an unsaved change), a fresh history, the
+// faces, a face's node nothing reads dropped, and a position for everything
+// the canvas draws that has none (none of these is an undo step or an
+// unsaved change), a fresh history, the
 // selection, the offered pins, the drag and any waiting question cleared,
 // the sound following it (sound_follows), the path first among the recent
 // files. A file that cannot be read leaves the session as it was and says

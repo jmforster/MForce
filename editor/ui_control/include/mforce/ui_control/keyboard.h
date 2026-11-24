@@ -44,7 +44,9 @@ int piano_octaves(float width);
 // The note's name without its octave: "C", "C#", ... "B".
 std::string note_name(int noteNumber);
 // The upper zone's computer key for a note `offset` semitones above the
-// keyboard octave's C ("Q" for 0, "2" for 1, ...); empty where it has none.
+// keyboard octave's C ("Q" for 0, "2" for 1, ...), and where the lower zone
+// reaches the same note its key too, upper first ("Q ,"); empty where the
+// upper zone has none.
 std::string key_label(int offset);
 // A click's velocity from where on a key it fell: `fraction` 0 at the key's
 // top gives 0.125, 1 at its bottom 1.0; outside, the nearer end.

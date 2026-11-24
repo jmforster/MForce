@@ -20,6 +20,7 @@
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_model/folder_memory.h"
 #include "mforce/ui_model/recent_files.h"
 #include "mforce/ui_views/editor_views.h"
 
@@ -38,10 +39,12 @@ int main(int argc, char** argv) {
     if (options.patch.empty()) new_file(session);
     else open_file(session, options.patch);
     if (!options.select.empty()) select_node(session, options.select);
-    Win32FileDialogs dialogs;
+    FolderMemory folders = files.folders.empty() ? FolderMemory{} : read_folder_memory(files.folders);
+    Win32FileDialogs dialogs(folders);
     EditorViews views(dialogs);
     run(window, session, views, options);
     if (!files.recentFiles.empty()) write_recent_files(session.recent, files.recentFiles);
+    if (!files.folders.empty()) write_folder_memory(folders, files.folders);
     return 0;
   } catch (const std::exception& e) {
     show_error_box(windowUp ? "MForce stopped" : "MForce could not start", e.what());

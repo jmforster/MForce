@@ -45,7 +45,8 @@ void run_piano_octaves_tests() {
 
 void run_key_label_tests() {
   CHECK(note_name(60) == "C" && note_name(61) == "C#" && note_name(71) == "B" && note_name(0) == "C");
-  CHECK(key_label(0) == "Q" && key_label(1) == "2" && key_label(12) == "I" && key_label(19) == "]");
+  CHECK(key_label(0) == "Q ," && key_label(1) == "2 L" && key_label(4) == "E /");   // the zones share 0 to 4
+  CHECK(key_label(5) == "R" && key_label(12) == "I" && key_label(19) == "]");
   CHECK(key_label(-1).empty() && key_label(20).empty());
   for (int offset = 0; offset < 20; ++offset) CHECK(key_offset(key_label(offset)[0]) == offset);
 }
