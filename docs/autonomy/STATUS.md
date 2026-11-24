@@ -221,11 +221,26 @@ briefs, rules, gate script (`gates.py s<N>`: configure, build, stop on a
 failed build, `tools/gates.py`), review and fix-wave briefs under
 `renders/scratch/ed1/`; the coordinator looked at pictures of the real
 window (`--shot`, converted by `renders/scratch/ed1/s5/bmp_to_png.py`) and
-found two layout faults the gates could not. NEXT: MATT'S VERDICT ON R26
-(what is wrong at the window; the next slice, my read slice 2 "Build", which
-gets a page of interfaces for his signature first; after which slice the
-freeze lifts). R24 (where BACKLOG row 8 goes) and R23 (two DUN renders)
-still await him. GIT: main is ahead of origin by this session's commits
+found two layout faults the gates could not. MATT'S END LINE (2026-11-23,
+the same session, after I twice proposed lifting the freeze early): "I want
+the refactor to be entirely done before we resume adding features", done
+meaning "when all the capability that existed previously is restored"; then
+a pause while he and C++ colleagues judge the code; features after. He is
+building MForce, not doing "sound work" (CLAUDE.md, "Scope right now", has
+both in his words): report what is left as the distance to building
+capability, and do not propose lifting the freeze early. WHAT DONE IS
+MEASURED AGAINST: `docs/architecture/editor-parity.md`, the old editor's 229
+capabilities from its 13,506 lines (inventory by one Opus agent, raw at
+`renders/scratch/ed2/old_editor_inventory.md`, regenerated into the doc by
+`renders/scratch/ed2/make_parity.py`): slice 1 covers 65 (22 marked
+"unclear", to be checked in slice 2's first step), slices 2 to 6 restore 41,
+26, 15, 31 and 40, and 11 are not coming back (its A2). The order changed:
+Build, GENERATE, SEE, Arrange, Shape (the old strips were drawn from a
+render). One engine gap found: the old editor held several keys on any patch
+with Live on; `LivePlayer` holds one line (slice 3). NEXT: MATT'S SIGNATURE
+ON SLICE 2'S PAGE (`docs/architecture/editor-slice2.md`, REVIEW R27, eleven
+rulings), then slice 2 as slice 1 ran; and his verdict on R26 at the window.
+R24 (where BACKLOG row 8 goes) and R23 (two DUN renders) still await him. GIT: main is ahead of origin by this session's commits
 (nothing pushed). Usage: weekly Fable 35 percent at the session's start.
 Everything below this
 block predates the reset and is history.
