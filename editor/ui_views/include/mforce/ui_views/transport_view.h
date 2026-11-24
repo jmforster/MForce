@@ -25,8 +25,9 @@ class TransportView {
 public:
   explicit TransportView(FileDialogs& dialogs);
   void draw(Session& s);
-  // Where the tab or button with this label was drawn last frame, its
-  // centre; none when it was not drawn. For a test to click it.
+  // Where the tab or button with this label (its words as drawn) was drawn
+  // last frame, its centre; none when it was not drawn. For a test to click
+  // it, or to see what it said.
   std::optional<Vec2> centre_of(const std::string& label) const;
 
 private:
@@ -41,7 +42,7 @@ private:
   void remember(const std::string& label);         // the last item drawn, under `label`
 
   FileDialogs& dialogs_;
-  std::map<std::string, Vec2> centres_;            // drawing state: where each named item was last drawn
+  std::map<std::string, Vec2> centres_;            // drawing state: where each named item was drawn last frame
 };
 
 }  // namespace mforce::ui

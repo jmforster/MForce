@@ -27,6 +27,10 @@ void run_generate_refusal_tests();
 void run_play_tests();
 void run_transport_files_tests();
 void run_seed_tests();
+void run_live_slur_back_refused_tests();
+void run_live_slur_back_velocity_tests();
+void run_play_status_tests();
+void run_plain_follows_tests();
 void run_undo_redo_tests();
 void run_wire_tests();
 void run_unwire_tests();
@@ -72,6 +76,10 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_play_tests", run_play_tests},
   {"run_transport_files_tests", run_transport_files_tests},
   {"run_seed_tests", run_seed_tests},
+  {"run_live_slur_back_refused_tests", run_live_slur_back_refused_tests},
+  {"run_live_slur_back_velocity_tests", run_live_slur_back_velocity_tests},
+  {"run_play_status_tests", run_play_status_tests},
+  {"run_plain_follows_tests", run_plain_follows_tests},
   {"run_undo_redo_tests", run_undo_redo_tests},
   {"run_wire_tests", run_wire_tests},
   {"run_unwire_tests", run_unwire_tests},

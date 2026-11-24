@@ -134,7 +134,7 @@ void run_adapter_many_swaps_tests() {
       const unsigned r = rng() % 10;
       if (r < 3) a.play(Line::Keys, std::make_unique<Level>(ledger, 0.1f));
       else if (r < 6) a.play(Line::Playback, std::make_unique<Level>(ledger, 0.2f));
-      else if (r == 6) a.play(r % 2 ? Line::Keys : Line::Playback, nullptr);
+      else if (r == 6) a.play(rng() % 2 ? Line::Keys : Line::Playback, nullptr);
       else (void)fill_once(a, ledger, 1 + int(rng() % 600));
     }
     a.play(Line::Keys, nullptr);

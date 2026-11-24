@@ -6,6 +6,8 @@
 #include "mforce/render/running_sound.h"
 #include "mforce/ui_control/sounds.h"
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <vector>
 
@@ -100,9 +102,8 @@ void run_live_keys_tests() {
 }
 
 // On the instrument that sustains: a second key carries the line; letting it
-// go while the first is down carries the line back, at the first's own
-// velocity, with no release; letting go of the key the line has moved on
-// from only forgets it.
+// go while the first is down carries the line back with no release; letting
+// go of the key the line has moved on from only forgets it.
 void run_live_slur_back_tests() {
   std::printf("the keys: the slur back to a key still down, and the forgotten key\n");
   Session s;
@@ -125,6 +126,56 @@ void run_live_slur_back_tests() {
   (void)run(s, 200);
   CHECK((sounding_notes(s) == std::vector<int>{64}));
   key_up(s, 2);
+  CHECK(until_quiet(s));
+}
+
+// A slur back the player refuses (its queue full of values) releases the
+// line instead: with both keys up and the fills run, nothing sounds.
+void run_live_slur_back_refused_tests() {
+  std::printf("the keys: a slur back the player refuses releases the line\n");
+  Session s;
+  open_file(s, kSustaining);
+  key_down(s, 1, 60);
+  key_down(s, 2, 64);
+  (void)run(s, 4);
+  for (int k = 0; k < 300; ++k) (void)s.live.player()->set_value("Sine1", "phase", 0.0f);
+  key_up(s, 2);                                          // the carry back is refused
+  key_up(s, 1);
+  CHECK(held_notes(s).empty() && until_quiet(s));
+}
+
+// The carried note goes at the velocity of the key it returns to: on a
+// sustaining patch whose loudness is the note's velocity, the line after the
+// slur back is as loud as it was under that key alone, and a third of its
+// level under the louder key.
+void run_live_slur_back_velocity_tests() {
+  std::printf("the keys: the slur back carries the note at its own key's velocity\n");
+  const std::string path = (std::filesystem::temp_directory_path() / "mforce_velocity_line.json").string();
+  {
+    std::ofstream f(path);
+    f << R"({"sampleRate":48000,"instrument":{"polyphony":1,"sustaining":true},"graph":{"output":"out","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"vel","type":"PerformNode","params":{"field":"velocity"}},
+      {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.01,"decay":0.01,"sustainLevel":1.0,"release":0.1}},
+      {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":{"ref":"vel"}}},
+      {"id":"out","type":"CombinedSource","params":{"source1":{"ref":"osc"},"source2":{"ref":"env"},"operation":1}}]}})";
+  }
+  Session s;
+  open_file(s, path);
+  REQUIRE(s.live.player() != nullptr);
+  key_down(s, 1, 60, 0.3f);
+  (void)run(s, 30);
+  const float alone = run(s, 20);
+  key_down(s, 2, 64, 0.9f);
+  (void)run(s, 30);
+  const float louder = run(s, 20);
+  key_up(s, 2);
+  (void)run(s, 30);
+  const float back = run(s, 20);
+  std::printf("  levels: %.4f alone, %.4f under the louder key, %.4f after the slur back\n", double(alone), double(louder),
+              double(back));
+  CHECK(alone > 0.0f && std::fabs(back - alone) < 0.05f * alone && std::fabs(louder - 3.0f * alone) < 0.15f * alone);
+  key_up(s, 1);
   CHECK(until_quiet(s));
 }
 

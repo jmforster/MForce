@@ -59,10 +59,13 @@ void run_transport_click_tests() {
   CHECK(editor.click("Note") && s.transport.mode == Mode::Note);
   s.keyboard.seconds = 0.3f;
   editor.frames(1);
-  CHECK(!editor.click("Generating..."));
+  CHECK(editor.drawn("Generate") && !editor.drawn("Generating..."));
   CHECK(editor.click("Generate") && generate_requested(s) && s.take.stereo.empty());
   editor.frames(1);                                       // "Generating..." drawn and shown, then the render
+  CHECK(editor.drawn("Generating...") && !editor.drawn("Generate"));
   CHECK(!s.take.stereo.empty() && s.status == "Generated note" && !generate_requested(s));
+  editor.frames(1);
+  CHECK(editor.drawn("Generate"));
   stop(s);
   s.take = Take{};
   request_generate(s);

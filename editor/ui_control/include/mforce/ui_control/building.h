@@ -54,7 +54,8 @@ void withdraw_setting_pin(Session& s, std::string_view node, std::string_view se
 // in status.
 void undo(Session& s);
 void redo(Session& s);
-// The drag under way is over: the next edit is a step of its own.
+// The drag under way is over: the next edit is a step of its own, and a
+// plain sound running hears a number dragged (plain_follows).
 void end_gesture(Session& s);
 // The panning that centres the whole patch in a canvas of `canvasSize`
 // (centred_panning). Not a step.

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/session.h"
 
 namespace mforce::ui {
@@ -20,6 +21,7 @@ void sound_follows(Session& s) {
   if (!p.instrument) why = "a plain sound: Play runs it until Stop; the keys play nothing on it";
   else if (p.graph.output.empty()) why = "nothing is wired to the Output yet: wire a node's output to it to hear the patch";
   else why = s.live.rebuild(p);
+  plain_follows(s);
   if (why.empty()) return;
   s.live.silence();
   s.status = why;
@@ -55,6 +57,7 @@ void keep_up(Session& s) {
   if (std::string f = s.live.faults(); !f.empty()) s.status = std::move(f);
   if (Sound* playback = s.audio.playing(AudioAdapter::Line::Playback); playback && playback->over())
     s.audio.play(AudioAdapter::Line::Playback, nullptr);
+    s.runningPlain = nullptr;
 }
 
 void change_octave(Session& s, int by) {

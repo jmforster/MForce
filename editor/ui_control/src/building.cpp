@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include "mforce/patch/edit.h"
+#include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_model/canvas_view.h"
@@ -169,7 +170,13 @@ void withdraw_setting_pin(Session& s, std::string_view node, std::string_view se
   if (step(s, "", [&](Patch& p) { return unfeed_setting(p, node, setting); })) sound_follows(s);
 }
 
-void end_gesture(Session& s) { s.gesture.clear(); }
+// The end of a drag of a number is when a running plain sound hears it: not
+// every tick of the drag, which would start it again sixty times a second.
+void end_gesture(Session& s) {
+  const bool value = s.gesture.rfind("value:", 0) == 0;
+  s.gesture.clear();
+  if (value) plain_follows(s);
+}
 
 void fit_canvas(Session& s, Vec2 canvasSize) {
   (void)set_panning(s.open.patch, centred_panning(s.open.patch, canvasSize));

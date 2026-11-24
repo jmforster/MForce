@@ -99,6 +99,8 @@ void HeadlessEditor::press(int key) {
 
 void HeadlessEditor::press_delete() { press(ImGuiKey_Delete); }
 
+bool HeadlessEditor::drawn(const std::string& label) const { return parts_->views.transport_item(label).has_value(); }
+
 void HeadlessEditor::press_f() { press(ImGuiKey_F); }
 
 void HeadlessEditor::press_space() { press(ImGuiKey_Space); }

@@ -4,6 +4,8 @@
 #include "mforce/testing/check.h"
 #include "transport_fixture.h"
 #include "mforce/perform/embedded_score.h"
+#include "mforce/ui_control/building.h"
+#include "mforce/ui_control/edits.h"
 #include "mforce/render/build_sound.h"
 #include "mforce/render/wav_reader.h"
 #include <cstdio>
@@ -207,4 +209,42 @@ void run_seed_tests() {
   Session s;
   new_file(s);
   CHECK(s.open.patch.seconds && *s.open.patch.seconds == 3.0 && s.open.patch.score == default_embedded_score());
+}
+
+// Play's status is its own each time: three Plays of a take at another rate
+// than the output's say the rate once.
+void run_play_status_tests() {
+  std::printf("play: the rate sentence said once, however often Play is pressed\n");
+  Session s;
+  open_file(s, kSlowRate);
+  for (int k = 0; k < 3; ++k) play(s);
+  const std::string sentence = "the render is at 22050 Hz";
+  const size_t first = s.status.find(sentence);
+  CHECK(first != std::string::npos && s.status.find(sentence, first + 1) == std::string::npos);
+}
+
+// A plain sound running follows the patch: a setting edit leaves another
+// sound on the line; a drag of a number leaves the same one until the drag
+// ends, then another; with nothing running, an edit builds nothing.
+void run_plain_follows_tests() {
+  std::printf("a running plain sound follows the patch: a setting at once, a number at the drag's end\n");
+  Session s;
+  open_file(s, kPlain);
+  edit_setting(s, "ampEnv", "timeScale", 2.0f);
+  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr);
+  play(s);
+  const Sound* first = s.audio.playing(AudioAdapter::Line::Playback);
+  REQUIRE(first != nullptr);
+  edit_setting(s, "ampEnv", "timeScale", 1.5f);
+  const Sound* second = s.audio.playing(AudioAdapter::Line::Playback);
+  CHECK(second != nullptr && second != first && playing(s));
+  edit_value(s, "fm", "frequency", 450.0f);
+  edit_value(s, "fm", "frequency", 460.0f);
+  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == second);
+  end_gesture(s);
+  const Sound* third = s.audio.playing(AudioAdapter::Line::Playback);
+  CHECK(third != nullptr && third != second && run(s, 10) > 0.0f);
+  stop(s);
+  edit_setting(s, "ampEnv", "timeScale", 1.0f);
+  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr);
 }

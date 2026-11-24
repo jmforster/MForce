@@ -60,10 +60,11 @@ void TransportView::buttons(Session& s) {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, kGeneratingColour);
     ImGui::Button("Generating...");
     ImGui::PopStyleColor(3);
-  } else if (ImGui::Button("Generate")) {
-    request_generate(s);
+    remember("Generating...");
+  } else {
+    if (ImGui::Button("Generate")) request_generate(s);
+    remember("Generate");
   }
-  remember("Generate");
   ImGui::SameLine();
   if (playing(s)) {
     if (ImGui::Button("Stop")) stop(s);
@@ -104,6 +105,7 @@ void TransportView::text_buttons(Session& s, const char* save, const char* load,
 }
 
 void TransportView::draw(Session& s) {
+  centres_.clear();                               // only what this frame draws
   tabs(s);
   switch (s.transport.mode) {
     case Mode::Note:    note_fields(s); break;

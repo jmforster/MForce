@@ -50,6 +50,12 @@ void run_requested(Session& s);
 void play(Session& s);
 // The playback line silenced, and every sounding voice faded out.
 void stop(Session& s);
+// While a plain sound runs on the playback line: one built from the patch as
+// it now is replaces it (the line's own 5 ms fade). sound_follows calls this
+// after a change the build reads, and end_gesture at the end of a drag of a
+// number; nothing is built when no plain sound runs. A build the engine
+// refuses leaves the one running and says why in status.
+void plain_follows(Session& s);
 // The playback line has a sound that is not over, or a voice is sounding.
 bool playing(Session& s);
 

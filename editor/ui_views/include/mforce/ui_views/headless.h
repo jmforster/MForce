@@ -30,6 +30,8 @@ public:
   // A left click on the transport's tab or button with this label, where the
   // last frame drew it; false when it was not drawn.
   bool click(const std::string& label);
+  // Whether the last frame drew a transport tab or button with these words.
+  bool drawn(const std::string& label) const;
   Vec2 canvas_size() const;         // the canvas's size on screen, from the last frame
   void select_link(int id);         // imnodes' own SelectLink
   int  selected_links() const;      // imnodes' own NumSelectedLinks

@@ -128,7 +128,9 @@ bool note_take_stale(const Session& s) {
 
 void play_plain(Session& s) {
   try {
-    s.audio.play(Line::Playback, std::make_unique<PlainSound>(s.open.patch, s.audio.sample_rate()));
+    auto sound = std::make_unique<PlainSound>(s.open.patch, s.audio.sample_rate());
+    s.runningPlain = sound.get();
+    s.audio.play(Line::Playback, std::move(sound));
     s.status = "Streaming the plain sound (Space or Stop to end)";
   } catch (const std::exception& e) {
     s.status = e.what();
@@ -163,6 +165,7 @@ void run_requested(Session& s) {
 }
 
 void generate(Session& s) {
+  s.runningPlain = nullptr;
   s.audio.play(Line::Playback, nullptr);
   s.take = Take{};
   const bool drums = s.transport.mode == Mode::Drums && s.open.patch.instrument;
@@ -184,6 +187,7 @@ void generate(Session& s) {
 
 void play(Session& s) {
   stop(s);
+  s.status.clear();                               // what this Play says, afresh
   if (!s.open.patch.instrument && !s.open.patch.graph.nodes.empty()) {
     play_plain(s);
     return;
@@ -201,8 +205,24 @@ void play(Session& s) {
 }
 
 void stop(Session& s) {
+  s.runningPlain = nullptr;
   s.audio.play(Line::Playback, nullptr);
   s.live.stop();
+}
+
+void plain_follows(Session& s) {
+  if (!s.runningPlain) return;
+  if (s.audio.playing(Line::Playback) != s.runningPlain) {   // replaced since: nothing of ours runs
+    s.runningPlain = nullptr;
+    return;
+  }
+  try {
+    auto sound = std::make_unique<PlainSound>(s.open.patch, s.audio.sample_rate());
+    s.runningPlain = sound.get();
+    s.audio.play(Line::Playback, std::move(sound));
+  } catch (const std::exception& e) {
+    s.status = e.what();                          // the sound before keeps running
+  }
 }
 
 bool playing(Session& s) {

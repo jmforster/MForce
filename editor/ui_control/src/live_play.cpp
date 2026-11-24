@@ -65,17 +65,20 @@ bool LivePlay::key_down(int key, int noteNumber, const Keyboard& how, float velo
 }
 
 // The line carried to `to`'s note, held, at its own velocity: the player
-// gives a carried note that names no onset the instrument's "slur".
-void LivePlay::carry_back(const Down& to) {
+// gives a carried note that names no onset the instrument's "slur". False,
+// and nothing changed, when the player refused the note.
+bool LivePlay::carry_back(const Down& to) {
   PerformedNote note;
   note.duration = to.seconds;
   note.noteNumber = float(to.noteNumber);
   note.velocity = to.velocity;
   note.hold = true;
   const LivePlayer::NoteId id = player_->note_on(note);
+  if (id == 0) return false;
   for (Down& d : down_)
     if (d.key == to.key) d.id = id;
-  lineKey_ = id ? to.key : -1;
+  lineKey_ = to.key;
+  return true;
 }
 
 void LivePlay::key_up(int key) {
@@ -91,8 +94,11 @@ void LivePlay::key_up(int key) {
   if (key != lineKey_) return;                    // a note the line has moved on from: forgotten
   const auto back = std::find_if(down_.rbegin(), down_.rend(), [](const Down& d) { return d.id != 0; });
   if (back != down_.rend()) {
-    carry_back(*back);
-    return;
+    if (carry_back(*back)) return;
+    // Refused (the player's queue is full, or a key-up or stop waits): the
+    // line is released instead, which the player keeps until it can send it,
+    // and no key down holds a note of it any more.
+    for (Down& d : down_) d.id = 0;
   }
   player_->note_off(up.id);
   lineKey_ = -1;

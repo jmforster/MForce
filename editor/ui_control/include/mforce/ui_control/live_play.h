@@ -59,7 +59,7 @@ private:
     LivePlayer::NoteId id;   // 0 when its note was not sent or no longer sounds
   };
   Down* find(int key);
-  void carry_back(const Down& to);
+  bool carry_back(const Down& to);
 
   AudioAdapter& audio_;
   LivePlayer* player_{nullptr};                  // owned by the KeysSound the adapter holds

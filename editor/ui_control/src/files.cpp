@@ -38,6 +38,7 @@ void take(Session& s, OpenPatch next) {
   s.gesture.clear();
   s.unsaved = Unsaved{};
   s.take = Take{};
+  s.runningPlain = nullptr;
   s.audio.play(AudioAdapter::Line::Playback, nullptr);
   ++s.opened;
   s.status.clear();
