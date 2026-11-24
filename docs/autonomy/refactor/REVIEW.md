@@ -19,40 +19,6 @@ given.
 
 ## Awaiting
 
-**R31 — slice 4's page: see** (2026-11-24,
-`docs/architecture/editor-slice4.md`; no code). For your signature.
-- **What it restores**: the bottom pane and its tabs; the waveform strips
-  (the output and every node) with zoom, scroll, columns and pop-outs;
-  the spectrum; Listen; the sound card's watchdog and the restart by
-  hand. 15 lines of the parity list. Nothing in the engine changes: the
-  strips have been captured at Generate since slice 3.
-- **Written after the old code was read**, line by line, for every one of
-  those 15 (slice 3's page was written from the list's summaries and
-  needed twenty-six rulings while building). The read found the old
-  editor doing several things you may not have meant, and the page rules
-  on each.
-- **The three rulings to read first** (its section 4):
-  1. The bottom pane is three tabs as before, Waveforms, Spectrum,
-     Keyboard, so the piano goes behind a tab while you look at strips
-     (the computer's keys still play). Slices 1 to 3 showed the keyboard
-     all the time; with a strips pane as well, the canvas would be left
-     about 350 pixels of a 900-pixel window. Say the word and the
-     keyboard stays in sight.
-  2. Listen is for the keys. A render is always of the patch's own
-     output, so the strips, Play and Save WAV never depend on a tap. The
-     old editor was the same for Note and Passage; its Chords listened to
-     the tap, which is not restored.
-  3. Coming back to the window does not cut the sound. The old editor
-     restarted the audio stream every time the window regained focus
-     after two seconds away. Here it restarts then only when the default
-     device changed or the stream is not running; the watchdog and the
-     restart by hand cover the rest. Say if you want the old restart.
-- **Also ruled, each a fault of the old one mended**: the spectrum drawn
-  at the render's rate and remade after Chords and Drums; Fit and the
-  scroll limit using the width a strip really has; the watchdog trying
-  again after a failed reopen; one job per key over the strips.
-- **Size**: the smallest slice left; my estimate is well under a session.
-
 **R30 — the editor, slice 3: generate** (2026-11-24, commits `b341e96`,
 `99e5100`, `15c115f`, `5faeedd`, fix wave `e0a108f`, parity wave `9875f8a`;
 page `docs/architecture/editor-slice3.md`, signed 2026-11-23 (R29); report
@@ -104,7 +70,7 @@ do not. So this list is the slice's last proof.
   2. Lines to strike from or add to the parity list
      (`docs/architecture/editor-parity.md`), at any time. Slice 3's 32
      lines were each checked against the code after it was built (A7).
-  3. Slice 4's page is R31, above.
+  3. Slice 4's page is signed (R31, under Resolved); its build is next.
 - **From slices 1 and 2, still untried by hand:**
   - **Start it** from the repo root, with no file:
     `build\editor\ui_app\Release\mforce_editor.exe`
@@ -624,6 +590,8 @@ answer any time), and the consequences of the two deletions are named.
 - Refuter: byte-identity upheld with the refuter's own A/B (the eleven rewritten scope files and three controls 14/14, eight synthetics of its own 8/8, five archived copies through the tool); no Critical; two Majors, both in the editor's new Preset Apply (the cached `sustainLevel` — 0 on every two- or three-stage node — pushed over a fresh ADSR's four slots, and that push outside the audio lock); three Minors (the tool carried keys a class never read into a form that reads them, seven archived files would have moved; the refusal test pinned one knob of eleven; the whole-corpus roundtrip gate permanently red since 3.2); two Flags. The wave (`b1d0222`) fixed all but the standing Flag — Apply re-pulls under the lock through one function with a headless `--apply-preset` twin that proved it on `bassoon1` and `reed_test`; the tool drops the dead keys by name; the gate's known set is the backlog-79 six and the run is green. Re-review: closeable, nothing introduced, four Flags — two one-line fixes taken (an upper-case preset name; an ASCII note), one coverage correction accepted (the three in-scope `as` nodes are dead in the render, so `as` is render-pinned by the synthetic sets and the tests, not by the scope — CLEANUP 30), one stale scratch label.
 
 ## Resolved
+
+**R31 — slice 4's page: see** — SIGNED 2026-11-24 (Matt): "Signed, proceed", the page's thirteen rulings as written (`docs/architecture/editor-slice4.md`). Not built yet: the build runs in a new session, from the read of the old code kept at `renders/scratch/ed4/old_read.md`.
 
 **R29 — slice 3's page: generate** — SIGNED 2026-11-23 (Matt): "Signed, proceed", the page's eleven rulings as written. Built the next day: R30. The page's section 7 holds the twenty-six rulings made while building.
 

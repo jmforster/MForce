@@ -303,15 +303,20 @@ slice; (c) the reviewer's parity check ran beside the fix wave, read only;
 (d) a new proof's cost in gate time is asked at once (a 50 s proof over
 all instruments became 5 s over a spread, after one full run). NOBODY HAS
 PUT A HAND ON THE MOUSE OR AN EAR TO SLICES 1 TO 3: R30's list is the last
-proof. SLICE 4'S PAGE IS WRITTEN AND UNSIGNED
-(`docs/architecture/editor-slice4.md`, REVIEW R31, thirteen rulings), from
-a line-by-line read of the old code kept at `renders/scratch/ed4/old_read.md`
-(the bottom pane as three tabs; strips, extents, the spectrum, Listen and
-the watchdog as plain tested data in `ui_control`; no engine change).
-NEXT: MATT'S SIGNATURE ON IT, then slice 4 as slice 3 ran (rules and gate
-script from `renders/scratch/ed3/`); and his verdict on R30 at the window. R24 (where BACKLOG row
-8 goes) and R23 (two DUN renders) still await him. GIT: main is ahead of origin by this session's commits
-(nothing pushed). Usage: weekly Fable 35 percent at the session's start.
+proof. SLICE 4'S PAGE IS SIGNED (Matt 2026-11-24,
+"Signed, proceed"; `docs/architecture/editor-slice4.md`, REVIEW R31 under
+Resolved, thirteen rulings), written from a line-by-line read of the old
+code kept at `renders/scratch/ed4/old_read.md` (the bottom pane as three
+tabs; strips, extents, the spectrum, Listen and the watchdog as plain
+tested data in `ui_control`; no engine change). NO SLICE 4 CODE EXISTS.
+NEXT, IN A NEW SESSION (Matt's choice): BUILD SLICE 4 as slice 3 ran:
+rules and gate script made from `renders/scratch/ed3/` into
+`renders/scratch/ed4/`, the base being the commit that records the
+signature, briefs that cite the read, a fresh Opus executor through the
+page's steps, one review, one fix wave, the parity check, the report. And
+his verdict on R30 at the window. R24 (where BACKLOG row
+8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
+(it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
 Everything below this
 block predates the reset and is history.
 
