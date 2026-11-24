@@ -25,8 +25,8 @@ Generate exists.
 
 | Slice | Restores | Capabilities, and the old code behind them | Engine work it needs |
 |---|---|---|---|
-| 1. Open, play, tweak, hear, save | DONE 2026-11-23 | 65 (22 of them still to be checked: A5) | `patch/edit.h`, `LivePlayer::set_value` |
-| 2. Build | a new patch; the create menu (families, the Experimental shelf, Note, Output); delete; wire, unwire, taps, the wiring refusals; the note face as one node; dynamic pins (promote, demote, feed, unfeed); rename; the instrument's polyphony, sustaining, onsets and glide; canvas fit and pan keys; the status bar's counts | 41; about 1,450 lines | the rest of the edits in `patch/edit.h` |
+| 1. Open, play, tweak, hear, save | DONE 2026-11-23 | 65 by the first count; checked since (A5): 48 done whole, 8 in part, 2 no longer apply, 7 were not done | `patch/edit.h`, `LivePlayer::set_value` |
+| 2. Build | a new patch; the create menu (families, the Experimental shelf, Note, Output); delete; wire, unwire, taps, the wiring refusals; the note face as one node; dynamic pins (promote, demote, feed, unfeed); rename; the instrument's polyphony, sustaining, onsets and glide; canvas fit and pan keys; the status bar's counts | 41, and from slice 1's area the 7 not done and the open parts of the 8 (A5); about 1,450 lines | the rest of the edits in `patch/edit.h` |
 | 3. Generate | the transport's four tabs (Note, Passage, Chords, Drums); Generate, Play, Stop; Save WAV; passage and chord files; the Live checkbox and holding several keys; a plain sound's sound; continuous play | 26; about 1,240 lines | the live player holds more than one line; a plain sound played live |
 | 4. See | the waveform strips (output and every node) with zoom, scroll, columns and pop-outs; the spectrum; the Listen tap; the audio device's watchdog and restart | 15; about 790 lines | a node's signal read out of a render (exists) and out of a live voice (Listen) |
 | 5. Arrange | groups (make, open, add to, remove from, rename, ungroup, the breadcrumb); wormholes; copy, cut, paste, duplicate, replace-with; multiple selection; MIDI in; the build-stamp banner | 31; about 1,720 lines | `Fragment` edits in `patch/edit.h` |
@@ -103,11 +103,25 @@ not marked sustaining is engine work, in slice 3.
 
 ## A5. Lines to check
 
-22 lines of slice 1's area are marked "unclear" in part B: the inventory
-could not tell from the report whether slice 1 does them (velocity from
-where on a key you click, the key labels on the piano, a voice count
-beside the peak, and the like). Slice 2's first step checks each against
-the code and either ticks it or gives it a slice.
+Checked in slice 2's first step (2026-11-23), each against the code: the
+23 lines the inventory could not vouch for, and what else the check turned
+up. 7 are done as the list said (holding a note only on a patch marked
+sustaining, as A4 says). 2 no longer apply: a failed load cannot leave an
+empty editor, because a load is all or nothing, and the instrument block
+has no keys the editor does not carry. 10 were not done, or done in part,
+and are small: they are mended inside slice 2 (the window's place on the
+screen; one click to type a number; the wheel panning the canvas; a bad
+position placed afresh; a pin's hint; the PC Keyboard button; the piano's
+width, labels and note names; velocity from where a key is clicked; the
+voice count and colours of the level; a save entering the recent files).
+2 are Stop of live notes, which goes to slice 3 with the transport, as do
+two parts that need the live player to report more than it does (the
+pre-clip level; which notes still sound after their keys are up). 2 were
+slice 5's already (the clipboard keys; selecting several nodes). The check
+also found six lines the list called done that were not, all of them
+looks: the node's title coloured by family, the panel header's colour, the
+wire's width, grey input-only pins, and the recent files' count, names and
+tooltip. Slice 2 as well. Every changed line says "checked".
 
 ## B. The list
 
@@ -123,8 +137,8 @@ stands. "slice N" is the table of A1.
 - [U] See a fixed docked layout on every launch: Transport top, Node Editor centre, Properties right 22%, Waveforms/Spectrum/Keyboard tabs bottom 28% (12633-12669); rebuilt each launch, so docking is not persisted (12406, 12638-12641) — done in slice 1 (layout; section 10 "decided in the slice that needs them")
 - [U] Collapse the bottom pane to a sliver and restore its height with a chevron at its top-right corner (11739-11773) — slice 4
 - [U] See a red banner when the exe is older than an engine source, with Dismiss (11775-11798, 11803) — slice 5
-- [U] Window placed on the primary monitor's work area, 1400x900 (12297-12307) — done in slice 1 (unclear: placement not stated)
-- [U] Single-click a drag field to type a number (ConfigDragClickToInputText) (12327-12329) — done in slice 1 (unclear)
+- [U] Window placed on the primary monitor's work area, 1400x900 (12297-12307) — the size: done in slice 1; placed on the work area: slice 2 (checked)
+- [U] Single-click a drag field to type a number (ConfigDragClickToInputText) (12327-12329) — slice 2 (checked: one setting, not made in slice 1)
 - [H] Run with a console attached when the first argument starts with "-" (12805-12820) — deleted by section 10 ("the headless comparison modes")
 
 ### 2. Menus
@@ -133,7 +147,7 @@ File menu (12499-12577):
 - [U] File > New > Patch Graph (12500-12504) — slice 2
 - [U] File > New > Node Graph (12505-12508) — deleted by section 10 ("the node-graph mode flag"); a plain sound opens in slice 1, sounds in slice 3
 - [U] File > Open (Ctrl+O), Win32 open dialog, JSON filter, remembered folder (12511-12513, 2222-2233, 1269-1283) — done in slice 1
-- [U] File > Open Recent: up to 12, filename shown, full path in tooltip, missing file removed with "File not found" (12514-12559, 2165-2220) — done in slice 1
+- [U] File > Open Recent: up to 12, filename shown, full path in tooltip, missing file removed with "File not found" (12514-12559, 2165-2220) — the list: done in slice 1; twelve of them, the file's name with its path in a tooltip, a missing file leaving the list: slice 2 (checked)
 - [U] File > Open Recent > Clear (12531-12534) — slice 2
 - [U] File > Save (Ctrl+S), Save As when unnamed (12560-12562, 3172-3177) — done in slice 1
 - [U] File > Save As..., overwrite prompt, remembered folder (12563-12565, 3166-3170, 1252-1267) — done in slice 1
@@ -147,7 +161,7 @@ Edit menu (12584-12610):
 - [U] Edit > Restart audio (Ctrl+Shift+A) (12603-12608) — slice 4
 
 Menu-bar play items (12612-12628):
-- [U] Play (Space) / Stop (Space) in the menu bar (12618-12627) — slice 3 (Play/Stop of a render); live Stop of notes: done in slice 1 (unclear)
+- [U] Play (Space) / Stop (Space) in the menu bar (12618-12627) — slice 3, Play and Stop of a render and Stop of live notes (checked: nothing stops a note today)
 - [U] Stream (S): play the graph continuously (12622-12623) — deleted by section 10 ("its own streaming DSP graph")
 
 Canvas right-click create menu (9873-9976):
@@ -181,16 +195,16 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 
 ### 4. Canvas: display and mouse gestures
 
-- [U] Pan with the mouse wheel (vertical) and Shift+wheel or a horizontal wheel (horizontal) (13012-13025) — done in slice 1 (unclear which gestures; set_panning exists, 13.2)
-- [U] Pan with middle-drag (imnodes native) or Alt+left-drag (12350-12352) — done in slice 1 (unclear)
+- [U] Pan with the mouse wheel (vertical) and Shift+wheel or a horizontal wheel (horizontal) (13012-13025) — slice 2 (checked: nothing reads the wheel today)
+- [U] Pan with middle-drag (imnodes native) or Alt+left-drag (12350-12352) — done in slice 1 (checked)
 - [U] Pan with the status-bar buttons < > ^ v (100 px) (13362-13368) — slice 2
 - [U] Fit button in the status bar (13360) — slice 2
 - [U] See the status bar: mode, node count, link count (13355-13358) — slice 2 (the counts; the mode went with the mode flag)
-- [U] See the imnodes minimap bottom-right (15%) and drag in it to jump (12913-12915) — done in slice 1
-- [U] See grid lines, rounded nodes, 2.5 px wires (12343-12348) — done in slice 1
+- [U] See the imnodes minimap bottom-right (15%) and drag in it to jump (12913-12915) — done in slice 1 (at 20%; decided)
+- [U] See grid lines, rounded nodes, 2.5 px wires (12343-12348) — the grid and the rounding: done in slice 1; the wire's width: slice 2
 - [D] Canvas zoom: none exists (imnodes 0.x has no zoom; the wheel pans, 13012-13025)
 - [U] Click a node to select it; one selected node drives Properties (13089-13096) — done in slice 1
-- [U] Box-select and Ctrl+click multi-select (imnodes built-ins, not coded here; used by Group selection/Copy, 9981-9985, 10204-10208) — unclear in slice 1; slice 5 needs it
+- [U] Box-select and Ctrl+click multi-select (imnodes built-ins, not coded here; used by Group selection/Copy, 9981-9985, 10204-10208) — slice 5 (checked: imnodes selects several, the canvas keeps one)
 - [U] Ctrl+click an already selected node (or one of its pins) to DESELECT it, with "deselected" status (13027-13071) — slice 5 (with multiple selection)
 - [U] Drag nodes to move them; positions tracked app-side so group drill-in keeps them (280-287, 12819-12831) — done in slice 1
 - [U] Right-click empty canvas: create menu at the click point (13231-13270) — slice 2
@@ -200,10 +214,10 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Double-click a wormhole to jump to its twin (12993-13006) — slice 5
 - [U] Auto grid layout (220 px columns, wrap at 900) for New and for files with no positions (12454-12466, 1168-1171) — done in slice 1 (place_unplaced_nodes, 13.1)
 - [U] Unplaced nodes of a positioned file laid out as a dependency-column strip below the saved layout (2031-2131) — done in slice 1 (place_unplaced_nodes)
-- [U] Corrupt positions (|x| or |y| >= 1e7) ignored with a stderr line (2012-2021) — done in slice 1 (unclear)
+- [U] Corrupt positions (|x| or |y| >= 1e7) ignored with a stderr line (2012-2021) — slice 2 (checked: not done; such a node is placed afresh)
 - [U] Saved panning restored on load and written on save (2140-2146, 2934-2937, 3091-3094) — done in slice 1 (13.2)
-- [U] Node title colour by registry family, Output/Note/Curve their own (155-169); body a pale tint (171-181); hover lift (8111-8117); selection shows imnodes blue (8111-8113) — done in slice 1 (theme file: slice 5)
-- [U] Node body: input pins with name and, unconnected, the constant (%.3f) (8140-8163); input-only pins grey (8151-8153) — done in slice 1
+- [U] Node title colour by registry family, Output/Note/Curve their own (155-169); body a pale tint (171-181); hover lift (8111-8117); selection shows imnodes blue (8111-8113) — slice 2 (checked: not done in slice 1); the theme file: slice 5
+- [U] Node body: input pins with name and, unconnected, the constant (%.3f) (8140-8163); input-only pins grey (8151-8153) — the name and the constant: done in slice 1 (as %g; decided); input-only pins grey: slice 2
 - [U] Non-empty string settings printed on the node body (8135-8137) — slice 2
 - [U] Output pins right-aligned; the tap pin small, teal, quad (8204-8225) — done in slice 1 (tap drawn)
 - [U] Tap wires teal (12869-12879) — done in slice 1 (orange)
@@ -226,7 +240,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Duplicate (node menu): same type, pin constants and settings and strings copied by index, offset +30,+30; arrays, dynamic pins, seed not copied (10438-10473) — slice 5
 - [U] Replace with (node menu): any registered type; same-named pin constants, settings and dynamic pins carried; wires remapped by pin name, unmappable ones dropped and named in the status; label refs, Listen tap and selection follow (10079-10187, 10485-10505) — slice 5
 - [U] Edit a pin constant in Properties: InputFloat, step 1% of value, x10 fast step; erases a carried extra of that name (8483-8515) — done in slice 1
-- [U] Edit a constant on an input-only pin that the file gave one (8517-8549, 96-101) — done in slice 1 (unclear: "pins' constants")
+- [U] Edit a constant on an input-only pin that the file gave one (8517-8549, 96-101) — done in slice 1 (checked)
 - [U] Dynamic pins: click the circle beside a non-structural setting to promote it (gold quad pin appears, unwired, hollow) or demote it (pin and wire dropped, stowed scalar restored) (8565-8605) — slice 2
 - [U] Wire a Curve output onto a gold pin to drive the setting once per note; any other source refused "Only a Curve may feed a dynamic pin" (13124-13149) — slice 2 (the engine takes any signal there, so the editor will too: wider than before)
 - [U] Drag a gold wire off, or select it and Delete: the pin stays promoted and unwired (13212-13219, 13336-13342) — slice 2
@@ -274,8 +288,8 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 ### 10. Properties panel (generic)
 
 - [U] Empty selection: "Select a node to edit" (8435-8437) — done in slice 1
-- [U] Header with the type's display name in its colour (8440-8442) — done in slice 1
-- [U] Pins with their hint "(hz)" etc.; a connected pin shows "<-- source" (8491-8501, 8517-8529) — done in slice 1 (unclear: hints)
+- [U] Header with the type's display name in its colour (8440-8442) — slice 2 (checked: slice 1 shows the id and the type, uncoloured)
+- [U] Pins with their hint "(hz)" etc.; a connected pin shows "<-- source" (8491-8501, 8517-8529) — the source: done in slice 1; the hint: slice 2 (checked)
 - [U] Settings: bool checkbox, enum combo from labels, int with clamp, float with clamp to descriptor range; applied under the audio lock, arrays re-pulled (8551-8678) — done in slice 1
 - [U] String settings as text fields (8680-8706) — done in slice 1
 - [U] Generic arrays: standalone column with per-row x and "+ Add row" (8916-8946) — slice 6 (tables)
@@ -297,7 +311,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Shaper: transfer-curve preview (-1.5..1.5) through the engine; double-click opens the shape editor (8772-8806) — slice 6
 - [U] Output node: polyphony drag 1..32 (9281-9294) — slice 2
 - [U] Output node: sustaining checkbox, onsets text (comma list), glide ms 0..100 written only once set (9296-9332, 241-255, 2864-2885) — slice 2
-- [U] Instrument-block keys the panel does not show (release, volume...) carried through save (638-641, 1515-1518, 2851-2856) — done in slice 1 (unclear: the new editor saves the patch record)
+- [U] Instrument-block keys the panel does not show (release, volume...) carried through save (638-641, 1515-1518, 2851-2856) — not applicable (checked: the block is the five keys the engine reads, all of them saved; any other key is refused at load)
 - [D] Parameter node: editable name (9334-9343) — see the Parameter create item; deleted by section 10 ("the node-graph mode flag")
 
 ### 12. Shape editor window (5375-6654, about 1,280 lines)
@@ -323,22 +337,22 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 
 ### 14. Live play
 
-- [U] PC Keyboard toggle button (green when on, disabled outside a patch graph) gating the QWERTY keys (7979-7999, 7063-7064) — done in slice 1 (unclear: a toggle is not named)
+- [U] PC Keyboard toggle button (green when on, disabled outside a patch graph) gating the QWERTY keys (7979-7999, 7063-7064) — slice 2 (checked: not done; the keys are always on)
 - [U] Live checkbox: checked = keys and mouse hold the note until release; unchecked = fixed-Duration notes, key-up ignored (4632-4643, 7859-7864, 7079-7090, 7277-7287) — slice 3 (needs the live player to hold several keys on a patch not marked sustaining: A4)
-- [U] On-screen piano: octaves chosen from width (1..10, keys 25-45 px), from the transport octave, ending on a top C; sounding notes highlighted; QWERTY labels on keys when PC Keyboard is on (7109-7224) — done in slice 1 (highlight and labels unclear)
-- [U] Click an on-screen key: velocity from where on the key you click (0.125 at top to 1.0 at bottom); held until mouse-up anywhere (7226-7288) — done in slice 1 (velocity-by-height unclear)
+- [U] On-screen piano: octaves chosen from width (1..10, keys 25-45 px), from the transport octave, ending on a top C; sounding notes highlighted; QWERTY labels on keys when PC Keyboard is on (7109-7224) — from the octave: done in slice 1; the octaves from the width, the top C, the key labels and the note names: slice 2; a note still sounding after its key is up shown as sounding: slice 3 (the live player must report it)
+- [U] Click an on-screen key: velocity from where on the key you click (0.125 at top to 1.0 at bottom); held until mouse-up anywhere (7226-7288) — held until mouse-up: done in slice 1; velocity from the height: slice 2 (checked)
 - [U] Up to 16 mixed voices; steal same-source, then free, then nearest-done (3338-3453); per-instrument pool slots, held notes stolen last (3465-3483) — done in slice 1 (eight notes)
-- [U] Notes ring out adaptively past their length and fade the last chunk instead of clicking (3371-3380, 3543-3569) — done in slice 1 (unclear)
-- [U] Held notes: envelopes gated on key-down, released on key-up with the longest release plus the reflection allowance; MultiplexSource graphs fall back to scheduled notes (4319-4433, 4435-4471) — done in slice 1 (unclear)
+- [U] Notes ring out adaptively past their length and fade the last chunk instead of clicking (3371-3380, 3543-3569) — done in slice 1 (checked: the engine's ring-out)
+- [U] Held notes: envelopes gated on key-down, released on key-up with the longest release plus the reflection allowance; MultiplexSource graphs fall back to scheduled notes (4319-4433, 4435-4471) — on a patch marked sustaining: done in slice 1 (checked); on any patch, with Live: slice 3 (A4)
 - [U] Sustaining patches play as a mono legato line: overlap slurs the living voice, a gap cuts the previous release with a 3 ms fade, lifting the sounding key slurs back to a still-held key (4228-4237, 4359-4394, 4437-4462) — the line and the slur: done in slice 1; the 3 ms cut of the release before it and the slur back to a key still held: slice 3
 - [U] Live instrument cached and rebuilt only after an edit, "Instrument rebuilt: N voices, M ms" status (4212-4270) — done in slice 1 (rebuild/swap, 4.2)
 - [U] MIDI in: first port auto-opened at start; combo "MIDI: name|none" re-enumerating ports, "(none)" closes (4645-4694, 8002-8032) — slice 5
 - [U] MIDI note on/off (velocity per note), CC1 mod wheel and channel pressure into the instrument state (4696-4744) — slice 5
 - [D] MIDI sustain pedal, pitch bend, poly aftertouch: explicitly deferred, ignored (4739-4742)
-- [U] AUDIO line in the Keyboard tab: voices=N, pre-clip and post-clip peaks, green/yellow/red, decaying (3286-3292, 3636-3643, 7041-7058) — done in slice 1 (the output's peak; pre/post split and voice count unclear)
-- [U] Soft clip on the mix; no polyphony scaling (3509-3515, 3624-3627) — done in slice 1 (unclear)
+- [U] AUDIO line in the Keyboard tab: voices=N, pre-clip and post-clip peaks, green/yellow/red, decaying (3286-3292, 3636-3643, 7041-7058) — the peak, decaying: done in slice 1; voices=N and the three colours: slice 2; the pre-clip peak: slice 3 (the live player must report it)
+- [U] Soft clip on the mix; no polyphony scaling (3509-3515, 3624-3627) — done in slice 1 (checked: the clip follows the instrument's peak guard, which is on unless a test turns it off)
 - [U] "Last note: 60 C5 261.6Hz vel 0.80" right-aligned in the transport (7489-7497, 8046-8059) — slice 3
-- [U] Panic: no separate control; Stop (button, Space, menu) stops every voice and stream (4599-4607) — slice 3 / done in slice 1 (unclear)
+- [U] Panic: no separate control; Stop (button, Space, menu) stops every voice and stream (4599-4607) — slice 3, with Stop (checked: not done)
 - [D] A volume control: none exists (only per-patch instrument volume, carried, 638-641)
 
 ### 15. Transport and generating audio
@@ -387,12 +401,12 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 ### 17. Files and persistence
 
 - [U] Read patch JSON: graph.nodes/output, params (numbers, refs, taps, lists), dynamicPins, comments, instrument, score, seconds, layout positions/output/panning/groups/faces (1408-2162) — done in slice 1
-- [U] Load refusals with the engine's sentences, leaving the open graph untouched: instrument.paramMap, retired top/node/feed keys, non-string comments, a list pin holding a non-link, a PerformNode's bad field, an Envelope with both preset and stages, ragged tables, a non-string string setting, a bad enum label in a column (1408-1483, 1661-1669, 1712-1721, 1731-1749, 1329-1372) — done in slice 1 (unclear: the patch module's loader)
-- [U] A failure after the refusals leaves an empty, unnamed, clean editor (1484-1496) — done in slice 1 (unclear)
+- [U] Load refusals with the engine's sentences, leaving the open graph untouched: instrument.paramMap, retired top/node/feed keys, non-string comments, a list pin holding a non-link, a PerformNode's bad field, an Envelope with both preset and stages, ragged tables, a non-string string setting, a bad enum label in a column (1408-1483, 1661-1669, 1712-1721, 1731-1749, 1329-1372) — done in slice 1 (checked)
+- [U] A failure after the refusals leaves an empty, unnamed, clean editor (1484-1496) — not applicable (checked: a load is all or nothing, so a failure leaves the patch that was open, open)
 - [U] Write patch JSON: nodes topologically sorted (taps not counted), ids = sanitised labels, settings as bool/label/int/float, columns with labels, Envelope stage table even empty, sustainLevel not written, seed, unmodeled params verbatim and winning, comments, sampleRate, the file's score and seconds verbatim, no score added when the file had none, the default note (60, 0.8, 2 s, seconds 3) for a fresh patch, layout (2298-2961) — done in slice 1 (save); the default note for a fresh patch: slice 3, with the transport whose note it is
 - [U] Write a plain node graph: output = the Mixer, else the file's output; seconds as loaded or 5 (2963-3102) — deleted by section 10 ("the node-graph mode flag") for the mode; a plain sound saves in slice 1
-- [U] The file's top-level comment and node comments carried and written back, shown nowhere (273-275, 643-645) — done in slice 1 (unclear)
-- [U] Save adds the file to Open Recent (3104-3112) — done in slice 1 (unclear)
+- [U] The file's top-level comment and node comments carried and written back, shown nowhere (273-275, 643-645) — done in slice 1 (checked; a node's comment is now shown in the panel)
+- [U] Save adds the file to Open Recent (3104-3112) — slice 2 (checked: only an open added it)
 - [U] Playback reads a temp file %TEMP%/mforce_playback.json when the graph is dirty or a Listen tap is on (3136-3164) — internal; the live paths serialise in memory (4248-4255, 4052-4053)
 - [U] Recent files persisted in mforce_recents.json in the working directory, normalised and de-duplicated (2165-2220) — done in slice 1 (%APPDATA%, 13.8)
 - [U] Per-feature folder memory (open, save, wav, audition, passage, chords) and the curated folder in mforce_ui_settings.json in the working directory (2235-2296, 1228-1250) — with each feature's slice (open and save: slice 2), kept in %APPDATA%\MForce\
