@@ -66,9 +66,15 @@ is the slice's last proof, and anything wrong in it is worth one line back.
      the registry's menu, wire and unwire, undo and redo, a new patch,
      the note face as one node. It gets a page of interfaces for your
      signature first, as slice 1 did.
-  3. After which slice the freeze lifts for sound work. My read was the
-     third (once you can see waveforms). If tweaking existing patches by
-     ear is enough to start, it could be now.
+  3. Where the refactor ends and building capability starts again.
+     (Reworded 2026-11-23 after your correction: this asked when the
+     freeze lifts "for sound work", which misread what you are doing. You
+     are building MForce; a patch is how a new capability gets tried.)
+     My read: after slice 3. Slice 2 lets you make a patch from nothing
+     and slice 3 lets you see what it does; with those the editor is the
+     bench for whatever we build next. Slices 4 to 6 (render a score in
+     the editor; groups, copy and paste, MIDI; the shape editors) are
+     then built when a capability needs them, under the same limits.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design

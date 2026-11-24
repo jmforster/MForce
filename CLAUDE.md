@@ -79,8 +79,17 @@ Replicate legacy functionality of node-based UI to:
     (4) the editor in slices, the first being open, play, tweak, hear, save
     (slice 1 BUILT 11-23 and on Matt's desk, REVIEW R26; each later slice
     gets a page of interfaces for his signature before its code).
-  + The freeze lifts for sound work once the editor's first slices are
-    usable. Until then, still no feature work.
+  + When the freeze lifts is Matt's to say; until then, still no feature
+    work. The 11-21 wording here, "the freeze lifts for sound work", was a
+    misreading, corrected by Matt 2026-11-23: "I am not engaged in 'sound
+    work' other than to try out new capabilities of MForce - eg, you build
+    physical modeling capability, I create an oboe patch to test it out.
+    I'm engaged (with you) in building MForce." and "I'm just fervently
+    hoping we get back to moving *forward* again". So: the editor is part
+    of MForce and the bench a new capability is tried on; "forward" means
+    building capability again. Never frame a milestone as when Matt can
+    make sounds; report what is left as the distance to building
+    capability.
   + Proof from here: the build, engine_tests and the null gate. (Since
     Part 8, 2026-11-23, `engine_tests` is one test program per module and
     the proof is one command, `python tools/gates.py`: see "Build and
