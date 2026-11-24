@@ -1,4 +1,5 @@
 #include "mforce/ui_views/headless.h"
+#include <memory>
 #include <string>
 #include <imgui.h>
 #include <imnodes.h>
@@ -41,6 +42,48 @@ struct Contexts {
 };
 
 }  // namespace
+
+struct HeadlessEditor::Parts {
+  Contexts contexts;
+  CancelledDialogs dialogs;
+  EditorViews views{dialogs};
+};
+
+HeadlessEditor::HeadlessEditor(Session& session) : parts_(std::make_unique<Parts>()), session_(session) {}
+
+// Defined here, where Parts is complete, so unique_ptr can destroy it.
+HeadlessEditor::~HeadlessEditor() = default;
+
+void HeadlessEditor::frames(int n) {
+  for (int frame = 0; frame < n; ++frame) {
+    ImGui::NewFrame();
+    parts_->views.draw(session_);
+    ImGui::Render();
+  }
+}
+
+void HeadlessEditor::click_canvas_corner() {
+  const Vec2 at = parts_->views.canvas_origin();
+  ImGuiIO& io = ImGui::GetIO();
+  io.AddMousePosEvent(at.x + 10.0f, at.y + 10.0f);
+  frames(2);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  frames(1);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  frames(2);
+}
+
+void HeadlessEditor::press_delete() {
+  ImGuiIO& io = ImGui::GetIO();
+  io.AddKeyEvent(ImGuiKey_Delete, true);
+  frames(1);
+  io.AddKeyEvent(ImGuiKey_Delete, false);
+  frames(1);
+}
+
+void HeadlessEditor::select_link(int id) { ImNodes::SelectLink(id); }
+
+int HeadlessEditor::selected_links() const { return ImNodes::NumSelectedLinks(); }
 
 void draw_once_headless(Session& session) {
   const Contexts contexts;

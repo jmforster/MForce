@@ -1,8 +1,24 @@
 // The proofs over every measured patch (each .json under patches/library and
-// patches/baselines): each is made again from an empty patch through the
-// edits alone and equals the file as read; removing any one node leaves
-// check() empty and survives the codec; renaming a node and back, and
-// unwiring a pin's last feed and wiring it again, give the patch as read.
+// patches/baselines).
+//
+// The rebuild: each patch is made again, from a patch holding only what no
+// edit reaches (the sample rate, the seconds, the score and the patch's
+// comment, copied), through the edits: the instrument block first (a note
+// field and a dynamic pin are refused on a plain sound), the faces, every
+// node in the file's order (add_node, or face_field and rename_node for a
+// node a face names), its values, settings, strings and tables, every feed,
+// every dynamic pin, the output, the Output node's position and the panning.
+// Then, by hand, not by an edit: what a new node always has and a file's
+// node may lack is removed (a seed, a position, a starting table), and so is
+// a face's position the file lacks; each node's comment and the groups,
+// which no edit makes, are copied. The result must equal the file as read.
+// One shape in the measured set no edit can make at all: a CurveNode with no
+// knots (patches/baselines/feedback/loop_keytrack.json's keytrack), since no
+// edit removes a column of a table; the starting knots are removed by hand.
+//
+// Also: removing any one node leaves check() empty and survives the codec;
+// renaming a node and back, and unwiring a pin's last feed and wiring it
+// again, give the patch as read.
 #include "mforce/testing/check.h"
 #include "mforce/patch/edit.h"
 #include "mforce/patch/patch.h"

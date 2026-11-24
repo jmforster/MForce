@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include "mforce/patch/layout.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_views/canvas_table.h"
@@ -19,13 +20,19 @@ namespace mforce::ui {
 //   a drag of nodes or faces         edit_position for each, then end_gesture when the mouse lets go
 //   the wheel, Shift with an arrow   pan_canvas
 //   F                                fit_canvas
-// The record holds the positions, the panning and the selection: each frame
-// the canvas shows them. The canvas keeps only drawing state: the names of
-// imnodes' integers, the menu, where the create menu was opened.
+// The record holds the positions, the panning and the selected node or
+// face: each frame the canvas shows them. imnodes itself holds which wires
+// are selected, as slots of its own pool, not by wire; so whenever the links
+// the canvas draws differ from those it drew the frame before, that
+// selection is cleared before the frame's gestures are read, and the Delete
+// key never removes a wire nobody chose. The canvas keeps only drawing state:
+// the names of imnodes' integers, last frame's links, the menu, where the
+// create menu was opened.
 class NodeCanvas {
 public:
   void draw(Session& s);
   Vec2 size() const { return size_; }              // the canvas's size on screen, from the last frame
+  Vec2 origin() const { return origin_; }          // its top-left corner on screen, from the last frame
 
 private:
   // node_canvas.cpp: a frame.
@@ -44,6 +51,7 @@ private:
   void draw_menus(Session& s);
 
   CanvasNames names_;
+  std::vector<CanvasLink> drawnLinks_;             // the links drawn last frame
   CreateMenu menu_ = create_menu();
   int seenOpened_{-1};                             // session.opened when names_ was begun
   bool gesture_{false};                            // a drag or a pan is under way: the canvas keeps the user's

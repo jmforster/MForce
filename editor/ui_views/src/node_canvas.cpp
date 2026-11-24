@@ -1,6 +1,7 @@
 // The canvas's frame: the table made, the record shown, the nodes and links
 // drawn, then what the person did carried to ui_control.
 #include "mforce/ui_views/node_canvas.h"
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <imgui.h>
@@ -17,6 +18,14 @@ using namespace canvas_look;   // the canvas's colours and conversions by their 
 namespace {
 
 constexpr float kMiniMapShare = 0.2f;
+
+// The same link: its integer, its two pins, the end it feeds and the feed's number.
+bool same_links(const std::vector<CanvasLink>& a, const std::vector<CanvasLink>& b) {
+  return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](const CanvasLink& x, const CanvasLink& y) {
+    return x.id == y.id && x.from == y.from && x.to == y.to && x.feed == y.feed && x.reader.kind == y.reader.kind &&
+           x.reader.node == y.reader.node && x.reader.name == y.reader.name;
+  });
+}
 
 bool mouse_held() { return ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Middle); }
 
@@ -90,6 +99,8 @@ void NodeCanvas::draw(Session& s) {
     ImNodes::ClearLinkSelection();
   }
   const CanvasTable table = canvas_table(s.open.patch, s.offered, names_);
+  if (!same_links(table.links, drawnLinks_)) ImNodes::ClearLinkSelection();   // a selected slot may now be another wire
+  drawnLinks_ = table.links;
   origin_ = vec(ImGui::GetCursorScreenPos());
   size_ = vec(ImGui::GetContentRegionAvail());
   ImNodes::BeginNodeEditor();

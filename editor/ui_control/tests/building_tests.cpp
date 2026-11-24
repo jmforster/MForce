@@ -221,6 +221,17 @@ void run_new_patch_tests() {
   CHECK(s.recent.paths.empty());
 }
 
+// A node driving a setting's pin deleted: the pin stays on offer, unfed.
+void run_delete_driver_offer_tests() {
+  Session s;
+  start(s, control_patch());
+  wire(s, PinEnd{Kind::Output, "lfo", {}}, PinEnd{Kind::SettingPin, "env", "timeScale"});
+  REQUIRE(node_of(s, "env")->dynamicPins.count("timeScale") && s.offered.empty());
+  delete_these(s, {}, {"lfo"});
+  CHECK(!node_of(s, "lfo") && node_of(s, "env")->dynamicPins.empty());
+  CHECK(s.offered.count({"env", "timeScale"}) == 1);
+}
+
 // The onsets typed as the old editor read them: comma-separated, each name's
 // spaces at its ends dropped, an empty one dropped.
 void run_onsets_text_tests() {

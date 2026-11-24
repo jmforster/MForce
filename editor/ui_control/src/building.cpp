@@ -33,6 +33,14 @@ std::string name_refused(const Patch& p, std::string_view from, const std::strin
   return {};
 }
 
+// Every (node, setting) a dynamic pin drives.
+std::set<std::pair<std::string, std::string>> driven(const Patch& p) {
+  std::set<std::pair<std::string, std::string>> pins;
+  for (const auto& n : p.graph.nodes)
+    for (const auto& [setting, source] : n.dynamicPins) pins.insert({n.id, setting});
+  return pins;
+}
+
 // The wires of `wires` in the order they go: by reader, the highest feed first.
 std::vector<std::pair<PinEnd, std::size_t>> highest_first(std::vector<std::pair<PinEnd, std::size_t>> wires) {
   std::stable_sort(wires.begin(), wires.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
@@ -61,6 +69,7 @@ void create_note(Session& s, Vec2 pos) {
 void delete_these(Session& s, const std::vector<std::pair<PinEnd, std::size_t>>& wires,
                   const std::vector<std::string>& nodes) {
   const auto ordered = highest_first(wires);
+  const auto drivenBefore = driven(s.open.patch);
   const auto done = step(s, "", [&](Patch& p) {
     for (const auto& [reader, feed] : ordered) (void)unwire_in(p, reader, feed);
     for (const auto& name : nodes) {
@@ -70,8 +79,11 @@ void delete_these(Session& s, const std::vector<std::pair<PinEnd, std::size_t>>&
     return Change::Structure;
   });
   if (!done) return;
-  for (const auto& [reader, feed] : ordered)
-    if (reader.kind == PinEnd::Kind::SettingPin) s.offered.insert({reader.node, reader.name});
+  // A setting whose drive went, on a node still there, keeps its pin shown,
+  // unwired: whether its wire was chosen or the node driving it was deleted.
+  const auto drivenAfter = driven(s.open.patch);
+  for (const auto& pin : drivenBefore)
+    if (!drivenAfter.count(pin) && has_node(s.open.patch, pin.first)) s.offered.insert(pin);
   forget_what_went(s);
   sound_follows(s);
 }

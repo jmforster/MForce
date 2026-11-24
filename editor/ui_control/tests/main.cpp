@@ -28,6 +28,8 @@ void run_offer_tests();
 void run_new_patch_tests();
 void run_history_census_tests();
 void run_onsets_text_tests();
+void run_delete_driver_offer_tests();
+void run_undo_keeps_player_tests();
 void run_computer_keys_tests();
 void run_piano_octaves_tests();
 void run_key_label_tests();
@@ -62,6 +64,8 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_new_patch_tests", run_new_patch_tests},
   {"run_history_census_tests", run_history_census_tests},
   {"run_onsets_text_tests", run_onsets_text_tests},
+  {"run_delete_driver_offer_tests", run_delete_driver_offer_tests},
+  {"run_undo_keeps_player_tests", run_undo_keeps_player_tests},
   {"run_computer_keys_tests", run_computer_keys_tests},
   {"run_piano_octaves_tests", run_piano_octaves_tests},
   {"run_key_label_tests", run_key_label_tests},

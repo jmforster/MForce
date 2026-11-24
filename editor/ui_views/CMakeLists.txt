@@ -20,4 +20,5 @@ mforce_module(ui_views
 mforce_tests(ui_views
   SOURCES tests/main.cpp
           tests/headless_draw_tests.cpp
-          tests/canvas_table_tests.cpp)
+          tests/canvas_table_tests.cpp
+          tests/canvas_selection_tests.cpp)

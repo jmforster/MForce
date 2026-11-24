@@ -75,6 +75,26 @@ void run_sound_follows_tests() {
   CHECK(s.audio.player() == nullptr && s.status.rfind("a plain sound", 0) == 0);
 }
 
+// An undo that changes nothing the build reads keeps the player and the
+// notes it sounds; one that does gives another player.
+void run_undo_keeps_player_tests() {
+  Session s;
+  start(s, control_patch());
+  edit_position(s, "lfo", Vec2{9, 9});
+  end_gesture(s);
+  LivePlayer* player = s.audio.player();
+  REQUIRE(player != nullptr);
+  undo(s);
+  CHECK(s.audio.player() == player);
+  redo(s);
+  CHECK(s.audio.player() == player);
+  wire(s, out_of("lfo"), in_of("l", "source"));
+  LivePlayer* wired = s.audio.player();
+  CHECK(wired != player);
+  undo(s);
+  CHECK(s.audio.player() != wired && s.audio.player() != nullptr);
+}
+
 void run_undo_redo_tests() {
   const std::filesystem::path file = std::filesystem::temp_directory_path() / "mforce_ui_control_undo.json";
   Session s;

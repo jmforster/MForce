@@ -20,6 +20,7 @@ public:
   EditorViews(const EditorViews&) = delete;
   EditorViews& operator=(const EditorViews&) = delete;
   void draw(Session& session);       // between the caller's ImGui::NewFrame() and ImGui::Render()
+  Vec2 canvas_origin() const { return canvas_.origin(); }   // the canvas's top-left corner on screen
 
 private:
   MenuBar menu_;
