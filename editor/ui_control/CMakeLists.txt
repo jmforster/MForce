@@ -4,15 +4,21 @@ mforce_module(ui_control
           src/files.cpp
           src/generating.cpp
           src/keyboard.cpp
+          src/listening.cpp
           src/live_play.cpp
           src/playing.cpp
           src/sounds.cpp
+          src/spectrum.cpp
           src/stepping.cpp
           src/transport_files.cpp
           src/undo_redo.cpp
           src/unsaved.cpp
+          src/watchdog.cpp
+          src/wave_extents.cpp
+          src/wave_view.cpp
+          src/waveforms.cpp
           src/wiring.cpp
-  USES    ui_model ui_audio patch render contract core music perform play)
+  USES    ui_model ui_audio patch render contract core music perform play util)
 
 mforce_tests(ui_control
   SOURCES tests/main.cpp
@@ -24,4 +30,8 @@ mforce_tests(ui_control
           tests/keyboard_tests.cpp
           tests/live_and_sounds_tests.cpp
           tests/generating_tests.cpp
-          tests/parity_tests.cpp)
+          tests/parity_tests.cpp
+          tests/waveforms_tests.cpp
+          tests/spectrum_tests.cpp
+          tests/listening_tests.cpp
+          tests/watchdog_tests.cpp)

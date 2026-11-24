@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include "mforce/ui_control/take.h"
 #include "mforce/ui_control/transport.h"
 
 namespace mforce::ui {
@@ -17,6 +18,11 @@ int note_tab_number(const Session& s);
 // 8): the note's text composed ("C#4"), and the keyboard's octave moved to
 // it, as the old transport's were.
 void set_note_tab(Session& s, int pitchClass, int octave);
+
+// The one way the take is replaced or cleared: its line (the mean of its two
+// channels) made, and session.takes counted, so whatever was made from the
+// take before (a strip's table, a spectrum) is known to be stale.
+void replace_take(Session& s, Take take);
 
 // Renders the patch in the window, saved or not, at its own rate, as the tab
 // says, into session.take, a playing take stopped first:
@@ -51,11 +57,11 @@ void play(Session& s);
 // The playback line silenced, and every sounding voice faded out.
 void stop(Session& s);
 // While a plain sound runs on the playback line: one built from the patch as
-// it now is replaces it (the line's own 5 ms fade). sound_follows calls this
+// it now is (heard_patch: listening is heard) replaces it (the line's own 5 ms fade). sound_follows calls this
 // after a change the build reads, and end_gesture at the end of a drag of a
 // number; nothing is built when no plain sound runs. A build the engine
-// refuses leaves the one running and says why in status.
-void plain_follows(Session& s);
+// refuses leaves the one running, says why in status and answers false.
+bool plain_follows(Session& s);
 // The playback line has a sound that is not over, or a voice is sounding.
 bool playing(Session& s);
 

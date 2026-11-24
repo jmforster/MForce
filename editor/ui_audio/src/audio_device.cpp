@@ -53,12 +53,17 @@ const char* fault_words(int type) {
 // the reading side and no text is shared.
 struct AudioAdapter::Device {
   RtAudio rt;
+  unsigned int id{0};                              // the device the stream was opened on
+  std::string name;
   explicit Device(std::atomic<int>& fault)
       : rt(RtAudio::UNSPECIFIED, [&fault](RtAudioErrorType type, const std::string&) {
           if (type != RTAUDIO_WARNING) fault.store(int(type), std::memory_order_relaxed);
         }) {
     rt.showWarnings(false);
   }
+  // stopStream returns once the device's thread has ended (it waits for the
+  // thread), so no callback runs after this; a thread that ended by itself
+  // leaves the stream stopped, and closing it then waits for nothing.
   ~Device() {
     if (rt.isStreamRunning()) rt.stopStream();
     if (rt.isStreamOpen()) rt.closeStream();
@@ -73,6 +78,14 @@ AudioAdapter::AudioAdapter() = default;
 AudioAdapter::~AudioAdapter() { device_.reset(); }
 
 void AudioAdapter::open() {
+  asked_ = true;
+  start_device();
+}
+
+// No device is open when this begins: open() runs once, and restart() has
+// closed the one before. So the fades are written while no callback runs.
+void AudioAdapter::start_device() {
+  openError_.clear();
   try {
     device_ = std::make_unique<Device>(deviceFault_);
     RtAudio& rt = device_->rt;
@@ -85,7 +98,10 @@ void AudioAdapter::open() {
     out.deviceId = rt.getDefaultOutputDevice();
     out.nChannels = 2;
     unsigned int frames = kFrames;
-    const unsigned int rate = nearest_rate(rt.getDeviceInfo(out.deviceId));
+    const RtAudio::DeviceInfo info = rt.getDeviceInfo(out.deviceId);
+    const unsigned int rate = nearest_rate(info);
+    device_->id = out.deviceId;
+    device_->name = info.name;
     if (rt.openStream(&out, nullptr, RTAUDIO_FLOAT32, rate, &frames, &on_buffer, this) != RTAUDIO_NO_ERROR) {
       openError_ = "the sound device did not open: " + rt.getErrorText();
       device_.reset();
@@ -106,6 +122,23 @@ void AudioAdapter::open() {
 }
 
 int AudioAdapter::sample_rate() const { return rate_; }
+
+bool AudioAdapter::asked_to_open() const { return asked_; }
+
+std::string AudioAdapter::restart() {
+  if (!asked_) return "no sound device was ever opened";
+  device_.reset();                                 // the stream closed: no callback runs from here
+  start_device();
+  return openError_;
+}
+
+bool AudioAdapter::running() const { return device_ && device_->rt.isStreamRunning(); }
+
+bool AudioAdapter::default_device_changed() {
+  return device_ && device_->rt.getDefaultOutputDevice() != device_->id;
+}
+
+std::string AudioAdapter::device_name() const { return device_ ? device_->name : std::string(); }
 
 std::string AudioAdapter::error() const {
   if (!openError_.empty()) return openError_;

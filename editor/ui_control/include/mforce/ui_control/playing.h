@@ -10,7 +10,8 @@ struct Session;
 // an undo or a redo): a new player for the patch on the keys' line, or, when
 // it is a plain sound, has nothing wired to its Output, or the engine will
 // not build it, silence on that line (the keys let go) with the reason in
-// status. What the keys play is the patch on screen, or nothing.
+// status. What the keys play is the patch on screen (heard_patch: the node
+// listened to, while listening), or nothing.
 void sound_follows(Session& s);
 
 // The keyboard's side: notes from keys as session.keyboard and

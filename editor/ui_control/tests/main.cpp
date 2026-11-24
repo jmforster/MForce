@@ -50,6 +50,19 @@ void run_computer_keys_tests();
 void run_piano_octaves_tests();
 void run_key_label_tests();
 void run_velocity_and_level_tests();
+void run_extents_tests();
+void run_wave_view_tests();
+void run_strips_of_tests();
+void run_take_count_tests();
+void run_spectrum_tests();
+void run_listen_tests();
+void run_listen_ends_tests();
+void run_listen_refusal_tests();
+void run_listen_plain_tests();
+void run_watch_tests();
+void run_away_tests();
+void run_watch_unopened_tests();
+void run_follow_restart_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -102,6 +115,19 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_piano_octaves_tests", run_piano_octaves_tests},
   {"run_key_label_tests", run_key_label_tests},
   {"run_velocity_and_level_tests", run_velocity_and_level_tests},
+  {"run_extents_tests", run_extents_tests},
+  {"run_wave_view_tests", run_wave_view_tests},
+  {"run_strips_of_tests", run_strips_of_tests},
+  {"run_take_count_tests", run_take_count_tests},
+  {"run_spectrum_tests", run_spectrum_tests},
+  {"run_listen_tests", run_listen_tests},
+  {"run_listen_ends_tests", run_listen_ends_tests},
+  {"run_listen_refusal_tests", run_listen_refusal_tests},
+  {"run_listen_plain_tests", run_listen_plain_tests},
+  {"run_watch_tests", run_watch_tests},
+  {"run_away_tests", run_away_tests},
+  {"run_watch_unopened_tests", run_watch_unopened_tests},
+  {"run_follow_restart_tests", run_follow_restart_tests},
 };
 }  // namespace
 

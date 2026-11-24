@@ -16,6 +16,7 @@ void forget_what_went(Session& s) {
   const Patch& p = s.open.patch;
   if (!s.selected.empty() && !has_node(p, s.selected) && !has_face(p, s.selected)) s.selected.clear();
   std::erase_if(s.offered, [&](const auto& offer) { return !has_node(p, offer.first); });
+  if (!s.listening.empty() && !has_node(p, s.listening)) s.listening.clear();
 }
 
 }  // namespace mforce::ui::stepping

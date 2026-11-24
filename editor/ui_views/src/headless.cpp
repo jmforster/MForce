@@ -5,6 +5,7 @@
 #include <imnodes.h>
 #include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/playing.h"
+#include "mforce/ui_control/watchdog.h"
 #include "mforce/ui_views/editor_views.h"
 
 namespace mforce::ui {
@@ -14,6 +15,7 @@ namespace {
 // Three frames: the first creates every node, the second draws them where
 // the first measured them, the third draws them again unchanged.
 constexpr int kFrames = 3;
+constexpr double kFrameSeconds = 1.0 / 60.0;
 
 class CancelledDialogs final : public FileDialogs {
 public:
@@ -30,7 +32,7 @@ struct Contexts {
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     io.DisplaySize = ImVec2(1400.0f, 900.0f);
-    io.DeltaTime = 1.0f / 60.0f;
+    io.DeltaTime = float(kFrameSeconds);
     // Says a renderer takes the font atlas's textures as they change, so
     // ImGui builds the atlas itself; with no renderer they are never drawn.
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
@@ -60,6 +62,8 @@ HeadlessEditor::~HeadlessEditor() = default;
 void HeadlessEditor::frames(int n) {
   for (int frame = 0; frame < n; ++frame) {
     keep_up(session_);
+    watch_audio(session_, clock_, true);
+    clock_ += kFrameSeconds;
     ImGui::NewFrame();
     parts_->views.draw(session_);
     ImGui::Render();

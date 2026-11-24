@@ -26,8 +26,8 @@ std::string rate_note(const Session& s) {
 }
 
 // `next` becomes the open patch, as one that was never edited: nothing
-// selected, offered, waiting or in a drag; the take dropped and its playback
-// stopped; the views told; the sound follows.
+// selected, offered, waiting, listened to or in a drag; no strip popped out;
+// the take dropped and its playback stopped; the views told; the sound follows.
 void take(Session& s, OpenPatch next) {
   (void)gather_note_faces(next.patch);
   (void)drop_unread_face_nodes(next.patch);
@@ -37,7 +37,9 @@ void take(Session& s, OpenPatch next) {
   s.offered.clear();
   s.gesture.clear();
   s.unsaved = Unsaved{};
-  s.take = Take{};
+  s.listening.clear();
+  s.popOuts.clear();
+  replace_take(s, Take{});
   s.runningPlain = nullptr;
   s.audio.play(AudioAdapter::Line::Playback, nullptr);
   ++s.opened;

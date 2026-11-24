@@ -14,6 +14,7 @@
 #include "mforce/patch/patch_json.h"
 #include "mforce/patch/type_declarations.h"
 #include "mforce/play/play.h"
+#include "mforce/ui_control/listening.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_control/sounds.h"
 #include "fault_line.h"
@@ -35,12 +36,14 @@ std::vector<std::string> signal_ids(const Patch& p) {
 
 // The render as the take, with the ids its strips are of.
 void keep(Session& s, PlayResult r, std::vector<std::string> ids) {
-  s.take.stereo = std::move(r.stereo);
-  s.take.sampleRate = r.sampleRate;
-  s.take.frames = r.frames;
-  s.take.stripIds = std::move(ids);
-  s.take.strips = std::move(r.strips);
-  s.take.mode = s.transport.mode;
+  Take t;
+  t.stereo = std::move(r.stereo);
+  t.sampleRate = r.sampleRate;
+  t.frames = r.frames;
+  t.stripIds = std::move(ids);
+  t.strips = std::move(r.strips);
+  t.mode = s.transport.mode;
+  replace_take(s, std::move(t));
   if (std::string f = fault_line(r.faults); !f.empty()) s.status = std::move(f);
 }
 
@@ -128,7 +131,7 @@ bool note_take_stale(const Session& s) {
 
 void play_plain(Session& s) {
   try {
-    auto sound = std::make_unique<PlainSound>(s.open.patch, s.audio.sample_rate());
+    auto sound = std::make_unique<PlainSound>(heard_patch(s), s.audio.sample_rate());
     s.runningPlain = sound.get();
     s.audio.play(Line::Playback, std::move(sound));
     s.status = "Streaming the plain sound (Space or Stop to end)";
@@ -140,6 +143,13 @@ void play_plain(Session& s) {
 }  // namespace
 
 void set_transport(Session& s, const Transport& t) { s.transport = t; }
+
+void replace_take(Session& s, Take take) {
+  take.mono.resize(take.stereo.size() / 2);
+  for (size_t i = 0; i < take.mono.size(); ++i) take.mono[i] = 0.5f * (take.stereo[2 * i] + take.stereo[2 * i + 1]);
+  s.take = std::move(take);
+  ++s.takes;
+}
 
 int note_tab_number(const Session& s) {
   try {
@@ -167,7 +177,7 @@ void run_requested(Session& s) {
 void generate(Session& s) {
   s.runningPlain = nullptr;
   s.audio.play(Line::Playback, nullptr);
-  s.take = Take{};
+  replace_take(s, Take{});
   const bool drums = s.transport.mode == Mode::Drums && s.open.patch.instrument;
   if (const std::string why = cannot_render(s); !why.empty() && !drums) {
     s.status = why;
@@ -180,7 +190,7 @@ void generate(Session& s) {
     else if (s.transport.mode == Mode::Chords) generate_chords(s);
     else generate_drums(s);
   } catch (const std::exception& e) {
-    s.take = Take{};
+    replace_take(s, Take{});
     s.status = e.what();
   }
 }
@@ -210,18 +220,20 @@ void stop(Session& s) {
   s.live.stop();
 }
 
-void plain_follows(Session& s) {
-  if (!s.runningPlain) return;
+bool plain_follows(Session& s) {
+  if (!s.runningPlain) return true;
   if (s.audio.playing(Line::Playback) != s.runningPlain) {   // replaced since: nothing of ours runs
     s.runningPlain = nullptr;
-    return;
+    return true;
   }
   try {
-    auto sound = std::make_unique<PlainSound>(s.open.patch, s.audio.sample_rate());
+    auto sound = std::make_unique<PlainSound>(heard_patch(s), s.audio.sample_rate());
     s.runningPlain = sound.get();
     s.audio.play(Line::Playback, std::move(sound));
+    return true;
   } catch (const std::exception& e) {
     s.status = e.what();                          // the sound before keeps running
+    return false;
   }
 }
 

@@ -8,6 +8,7 @@ namespace mforce::ui {
 // The last render, kept until the next one or another patch.
 struct Take {
   std::vector<float> stereo;       // interleaved
+  std::vector<float> mono;         // the take as one line: the mean of its two channels, frame by frame
   int sampleRate{0};
   int frames{0};
   std::vector<std::string> stripIds;

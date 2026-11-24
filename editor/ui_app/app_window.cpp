@@ -139,6 +139,10 @@ void AppWindow::keep_open() { glfwSetWindowShouldClose(parts_->window.handle, GL
 
 void AppWindow::set_title(const std::string& title) { glfwSetWindowTitle(parts_->window.handle, title.c_str()); }
 
+double AppWindow::now() const { return glfwGetTime(); }
+
+bool AppWindow::focused() const { return glfwGetWindowAttrib(parts_->window.handle, GLFW_FOCUSED) != 0; }
+
 void AppWindow::begin_frame() {
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();

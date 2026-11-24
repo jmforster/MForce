@@ -101,6 +101,7 @@ void rename(Session& s, std::string_view nodeOrFace, std::string to) {
   });
   if (!done) return;
   if (s.selected == nodeOrFace) s.selected = to;
+  if (s.listening == nodeOrFace) s.listening = to;
   std::set<std::pair<std::string, std::string>> offered;
   for (const auto& [node, setting] : s.offered) offered.insert({node == nodeOrFace ? to : node, setting});
   s.offered = std::move(offered);

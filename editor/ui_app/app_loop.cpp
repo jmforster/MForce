@@ -4,6 +4,7 @@
 #include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/unsaved.h"
+#include "mforce/ui_control/watchdog.h"
 
 namespace mforce::ui {
 
@@ -17,6 +18,7 @@ void run(AppWindow& window, Session& session, EditorViews& views, const Options&
     }
     if (session.unsaved.closing) return;
     keep_up(session);
+    watch_audio(session, window.now(), window.focused());
     window.begin_frame();
     views.draw(session);
     window.end_frame(frame + 1 == o.frames ? o.shot : std::string());

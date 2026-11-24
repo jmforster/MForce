@@ -3,12 +3,15 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 #include "mforce/ui_audio/audio_adapter.h"
 #include "mforce/ui_control/keyboard.h"
 #include "mforce/ui_control/live_play.h"
 #include "mforce/ui_control/take.h"
 #include "mforce/ui_control/transport.h"
 #include "mforce/ui_control/unsaved.h"
+#include "mforce/ui_control/watchdog.h"
+#include "mforce/ui_control/waveforms.h"
 #include "mforce/ui_model/open_patch.h"
 #include "mforce/ui_model/recent_files.h"
 
@@ -22,8 +25,8 @@ struct LastNote {
 
 // The editor's whole state. main owns one; the views are handed it and
 // change it only through the functions of edits.h, building.h, wiring.h,
-// files.h, unsaved.h, playing.h and generating.h. Made with no device: main
-// calls audio.open().
+// files.h, unsaved.h, playing.h, generating.h, waveforms.h, listening.h and
+// watchdog.h. Made with no device: main calls audio.open().
 struct Session {
   OpenPatch    open;
   AudioAdapter audio;
@@ -31,6 +34,13 @@ struct Session {
   Keyboard     keyboard;
   Transport    transport;
   Take         take;         // the last render; empty before one
+  int          takes{0};     // how many times the take has been replaced or cleared (replace_take)
+  WaveView     waves;        // how the pane's strips are looked at
+  std::vector<PopOut> popOuts;   // the strips popped out, oldest first
+  int          nextPopOut{1};    // the number the next pop-out takes
+  std::string  listening;    // the node the keys hear in place of the output; empty for the output
+  Watchdog     watchdog;     // the sound card's heartbeat as last seen
+  Away         away;         // the window's focus as last seen
   LastNote     lastNote;
   int          generating{0};  // frames still to show before a requested Generate runs; 0 for none
   // The plain sound running on the output's playback line, by address (only

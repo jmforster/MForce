@@ -167,3 +167,19 @@ void run_adapter_allocation_tests() {
   if (alloc_probe::count()) std::printf("  %zu allocation(s) in fill\n", alloc_probe::count());
   CHECK(alloc_probe::count() == 0);
 }
+
+// An adapter never asked to open: the heartbeat counts each fill; it is not
+// running, names no device, sees no change of device, and a restart does
+// nothing but say so.
+void run_adapter_unopened_tests() {
+  std::printf("adapter: never asked to open: the heartbeat counts fills, a restart does nothing\n");
+  AudioAdapter a;
+  std::vector<float> out(2 * kFrames);
+  CHECK(a.heartbeat() == 0);
+  a.fill(out.data(), kFrames);
+  a.fill(out.data(), kFrames);
+  CHECK(a.heartbeat() == 2);
+  CHECK(!a.asked_to_open() && !a.running() && a.device_name().empty() && !a.default_device_changed());
+  CHECK(a.restart() == "no sound device was ever opened" && !a.asked_to_open() && a.sample_rate() == 48000);
+  CHECK(a.error() == "no sound device is open");
+}

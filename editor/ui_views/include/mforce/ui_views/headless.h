@@ -12,8 +12,8 @@ namespace mforce::ui {
 void draw_once_headless(Session& session);
 
 // The views drawn with no window for as long as it lives, with the few acts
-// a test needs: frames (each followed by the requested render, as the
-// program's loop runs it), a click, a key, a click on a transport tab or
+// a test needs: frames (each with the sound card watched on a clock of its
+// own and followed by the requested render, as the program's loop runs it), a click, a key, a click on a transport tab or
 // button by its label, and imnodes' selected wires read and set. One at a
 // time: it holds the contexts while it lives.
 class HeadlessEditor {
@@ -54,6 +54,7 @@ private:
   struct Parts;                     // the contexts and the views, in the .cpp
   std::unique_ptr<Parts> parts_;
   Session& session_;
+  double clock_{0.0};               // the frames' own clock, a sixtieth of a second a frame
 };
 
 }  // namespace mforce::ui

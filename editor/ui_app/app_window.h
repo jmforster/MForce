@@ -22,6 +22,8 @@ public:
   bool close_requested() const;      // the window's close button was pressed
   void keep_open();                  // forgets the request: the program decides when to close
   void set_title(const std::string& title);
+  double now() const;                // seconds since the window's library started
+  bool focused() const;              // the window has the keyboard's focus
   void begin_frame();                // starts an ImGui frame
   // Draws the frame ImGui built and shows it; with a `shot` path, first
   // writes what was drawn there as a 24-bit BMP.

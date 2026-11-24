@@ -90,7 +90,7 @@
     {"name": "ui_audio", "purpose": "The editor's sound output: the device, the callback, the two lines of sound summed and clipped.",
      "paths": ["editor/ui_audio/"], "may_include": ["render", "rtaudio"]},
     {"name": "ui_control", "purpose": "The editor's state (Session), the edit functions the views call, live play.",
-     "paths": ["editor/ui_control/"], "may_include": ["ui_model", "ui_audio", "patch", "render", "contract", "core", "music", "perform", "play"]},
+     "paths": ["editor/ui_control/"], "may_include": ["ui_model", "ui_audio", "patch", "render", "contract", "core", "music", "perform", "play", "util"]},
     {"name": "ui_views", "purpose": "The editor's windows, one class each.",
      "paths": ["editor/ui_views/"], "may_include": ["ui_model", "ui_control", "patch", "core", "imgui"]},
     {"name": "ui_app", "purpose": "mforce_editor: the window, the frame loop.",

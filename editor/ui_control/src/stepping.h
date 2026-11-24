@@ -64,7 +64,8 @@ bool has_face(const Patch& p, std::string_view label);
 Change unwire_in(Patch& p, const PinEnd& reader, std::size_t feed);
 
 // After a step that may have taken things away: the selection goes when it
-// names nothing any more, and the offers of nodes that went go.
+// names nothing any more, the offers of nodes that went go, and listening
+// ends when its node went.
 void forget_what_went(Session& s);
 
 }  // namespace mforce::ui::stepping

@@ -3,6 +3,7 @@
 #include <array>
 #include <string>
 #include "mforce/ui_control/generating.h"
+#include "mforce/ui_control/listening.h"
 #include "mforce/ui_control/session.h"
 
 namespace mforce::ui {
@@ -15,12 +16,12 @@ constexpr float kShortestNote = 0.05f, kLongestNote = 30.0f;
 }  // namespace
 
 void sound_follows(Session& s) {
-  const Patch& p = s.open.patch;
+  const Patch heard = heard_patch(s);
   std::string why;
-  if (!p.instrument) why = "a plain sound: Play runs it until Stop; the keys play nothing on it";
-  else if (p.graph.output.empty()) why = "nothing is wired to the Output yet: wire a node's output to it to hear the patch";
-  else why = s.live.rebuild(p);
-  plain_follows(s);
+  if (!heard.instrument) why = "a plain sound: Play runs it until Stop; the keys play nothing on it";
+  else if (heard.graph.output.empty()) why = "nothing is wired to the Output yet: wire a node's output to it to hear the patch";
+  else why = s.live.rebuild(heard);
+  (void)plain_follows(s);
   if (why.empty()) return;
   s.live.silence();
   s.status = why;
