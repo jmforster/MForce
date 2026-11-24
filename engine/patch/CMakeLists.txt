@@ -1,6 +1,10 @@
 mforce_module(patch JSON
   SOURCES src/build_graph.cpp
           src/edit.cpp
+          src/edit_faces.cpp
+          src/edit_nodes.cpp
+          src/edit_support.cpp
+          src/edit_wires.cpp
           src/node_json.cpp
           src/patch.cpp
           src/patch_json.cpp
@@ -16,6 +20,9 @@ mforce_tests(patch
           tests/codec_tests.cpp
           tests/edit_census_tests.cpp
           tests/edit_tests.cpp
+          tests/structural_edit_tests.cpp
+          tests/face_edit_tests.cpp
+          tests/edit_proof_tests.cpp
           tests/envelope_form_tests.cpp
           tests/graph_build_tests.cpp
           tests/patch_check_tests.cpp

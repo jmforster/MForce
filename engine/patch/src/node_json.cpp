@@ -5,6 +5,7 @@
 #include "mforce/patch/type_declarations.h"
 #include "codec_path.h"
 #include "float_text.h"
+#include "node_complete.h"
 #include "sentence.h"
 #include <algorithm>
 #include <cmath>
@@ -216,21 +217,6 @@ void read_envelope(Reading& r, const json& params) {
   }
   for (const auto& c : columns) r.node.arrays[c] = preset->get_array(c);
   read_keys(r, params, &envelope_preset_keys());
-}
-
-// The model is complete in pins and settings: a Param with neither a number
-// nor a feed takes its declared default, a setting the file left out its
-// default, a string setting its default text. Inputs and arrays take nothing.
-void complete(Node& n, const Decl& d) {
-  for (const auto& p : d.params)
-    if (!n.values.count(p.name) && !n.wires.count(p.name)) n.values[p.name] = p.defaultValue;
-  for (const auto& s : d.settings) {
-    if (s.type == SettingType::String) {
-      if (!n.strings.count(s.name)) n.strings[s.name] = s.defaultText;
-    } else if (!n.settings.count(s.name)) {
-      n.settings[s.name] = s.defaultValue;
-    }
-  }
 }
 
 std::string text_key(const json& j, const char* key) {

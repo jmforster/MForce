@@ -35,6 +35,20 @@ void run_edit_string_and_layout_refusal_tests();
 void run_edit_list_pin_tests();
 void run_edit_codec_tests();
 void run_edit_census_tests();
+void run_add_node_tests();
+void run_remove_node_tests();
+void run_connect_tests();
+void run_disconnect_tests();
+void run_dynamic_pin_and_output_tests();
+void run_rename_node_tests();
+void run_arrays_and_instrument_tests();
+void run_face_edit_tests();
+void run_face_field_tests();
+void run_unread_face_node_tests();
+void run_fresh_name_tests();
+void run_edit_rebuild_proof_tests();
+void run_edit_removal_proof_tests();
+void run_edit_round_trip_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -72,6 +86,20 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_edit_list_pin_tests", run_edit_list_pin_tests},
   {"run_edit_codec_tests", run_edit_codec_tests},
   {"run_edit_census_tests", run_edit_census_tests},
+  {"run_add_node_tests", run_add_node_tests},
+  {"run_remove_node_tests", run_remove_node_tests},
+  {"run_connect_tests", run_connect_tests},
+  {"run_disconnect_tests", run_disconnect_tests},
+  {"run_dynamic_pin_and_output_tests", run_dynamic_pin_and_output_tests},
+  {"run_rename_node_tests", run_rename_node_tests},
+  {"run_arrays_and_instrument_tests", run_arrays_and_instrument_tests},
+  {"run_face_edit_tests", run_face_edit_tests},
+  {"run_face_field_tests", run_face_field_tests},
+  {"run_unread_face_node_tests", run_unread_face_node_tests},
+  {"run_fresh_name_tests", run_fresh_name_tests},
+  {"run_edit_rebuild_proof_tests", run_edit_rebuild_proof_tests},
+  {"run_edit_removal_proof_tests", run_edit_removal_proof_tests},
+  {"run_edit_round_trip_tests", run_edit_round_trip_tests},
 };
 }  // namespace
 

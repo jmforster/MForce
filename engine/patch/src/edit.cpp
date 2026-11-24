@@ -6,48 +6,18 @@
 #include <utility>
 #include <vector>
 #include "mforce/patch/type_declarations.h"
+#include "edit_support.h"
 #include "float_text.h"
 #include "node_rules.h"
 #include "sentence.h"
 
 namespace mforce {
 
-namespace {
-
-// The first node with id `id`, as a feed of that id reads it. `after` ends
-// the refusal: what the edit would have changed.
-Node& node_named(Patch& p, std::string_view id, const std::string& after) {
-  for (auto& n : p.graph.nodes)
-    if (n.id == id) return n;
-  throw std::runtime_error(in_quotes(id) + " names no node: " + after);
-}
-
-// A node, its declarations, and the words a sentence about one of its names
-// opens with: "node 'env' (Envelope): 'timeScale'".
-struct NamedOnNode {
-  Node& node;
-  const TypeDeclarations& d;
-  std::string head;
-};
-
-// Refused when there is no such node or its type is not registered.
-NamedOnNode named_on_node(Patch& p, std::string_view id, std::string_view name) {
-  Node& n = node_named(p, id, "it has no " + in_quotes(name));
-  const TypeDeclarations* d = type_declarations(n.type);
-  if (!d)
-    throw std::runtime_error(node_opening(n) + unknown_type_sentence(n.type) + "; so " + in_quotes(name) +
-                             " has no declaration to check it against");
-  return {n, *d, node_opening(n) + in_quotes(name)};
-}
-
-// Refused when a coordinate of `pos` is not finite; `what` names the point.
-void require_finite(Vec2 pos, const std::string& what) {
-  if (std::isfinite(pos.x) && std::isfinite(pos.y)) return;
-  throw std::runtime_error(what + " (" + float_text(pos.x) + ", " + float_text(pos.y) +
-                           ") is not two finite numbers");
-}
-
-}  // namespace
+// The edits of a value, a setting, a string and a position: each tests the one
+// thing it changes and writes it in place, because a drag calls them sixty
+// times a second. edit_support.h holds the helpers they share with the
+// structural edits.
+using namespace edit_detail;   // the shared helpers by their short names (C#: a `using` directive)
 
 Change set_value(Patch& p, std::string_view node, std::string_view pin, float v) {
   const NamedOnNode at = named_on_node(p, node, pin);
