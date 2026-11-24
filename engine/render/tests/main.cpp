@@ -48,6 +48,19 @@ void run_live_volume_tests();
 void run_live_steal_policy_tests();
 void run_live_key_up_tests();
 void run_live_threads_tests();
+void run_live_hold_eight_tests();
+void run_live_hold_ninth_tests();
+void run_live_hold_struck_tests();
+void run_live_hold_note_off_nothing_tests();
+void run_live_hold_queue_full_tests();
+void run_live_hold_cannot_tests();
+void run_live_stop_tests();
+void run_live_sounding_notes_tests();
+void run_live_faults_tests();
+void run_live_guard_tests();
+void run_live_line_refinement_tests();
+void run_live_scramble_tests();
+void run_allocation_tests_live_holds();
 void run_live_set_value_first_note_tests();
 void run_live_set_value_sounding_tests();
 void run_live_set_value_false_tests();
@@ -131,6 +144,19 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_live_steal_policy_tests", run_live_steal_policy_tests},
   {"run_live_key_up_tests", run_live_key_up_tests},
   {"run_live_threads_tests", run_live_threads_tests},
+  {"run_live_hold_eight_tests", run_live_hold_eight_tests},
+  {"run_live_hold_ninth_tests", run_live_hold_ninth_tests},
+  {"run_live_hold_struck_tests", run_live_hold_struck_tests},
+  {"run_live_hold_note_off_nothing_tests", run_live_hold_note_off_nothing_tests},
+  {"run_live_hold_queue_full_tests", run_live_hold_queue_full_tests},
+  {"run_live_hold_cannot_tests", run_live_hold_cannot_tests},
+  {"run_live_stop_tests", run_live_stop_tests},
+  {"run_live_sounding_notes_tests", run_live_sounding_notes_tests},
+  {"run_live_faults_tests", run_live_faults_tests},
+  {"run_live_guard_tests", run_live_guard_tests},
+  {"run_live_line_refinement_tests", run_live_line_refinement_tests},
+  {"run_live_scramble_tests", run_live_scramble_tests},
+  {"run_allocation_tests_live_holds", run_allocation_tests_live_holds},
   {"run_note_wire_tests", run_note_wire_tests},
   {"run_multiplex_bend_tests", run_multiplex_bend_tests},
   {"run_note_reseed_tests", run_note_reseed_tests},

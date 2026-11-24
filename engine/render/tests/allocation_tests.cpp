@@ -236,3 +236,35 @@ void run_allocation_tests_pins() {
         CHECK(alloc_probe::count() == 0);
     }
 }
+
+// The live player's held notes allocate nothing: on an instrument that does
+// not sustain, held notes on voices of their own, their key-ups, the notes
+// sounding and a stop; on one that does, a line released and ringing, then a
+// new line that cuts it.
+void run_allocation_tests_live_holds() {
+    for (const bool sustaining : {false, true}) {
+        const std::string held = std::string(R"({"sampleRate":48000,"instrument":{"polyphony":4,"sustaining":)") +
+            (sustaining ? "true" : "false") + R"(},"graph":{"output":"osc","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+          {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.05,"decay":0.1,"sustainLevel":0.8,"release":0.2}},
+          {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":{"ref":"env"}}}]}})";
+        LivePlayer player(patch_door::read_text(held), 4);
+        std::vector<float> buf(256);
+        int notes[8] = {};
+        alloc_probe::reset();
+        alloc_probe::arm();
+        LivePlayer::NoteId ids[3] = {};
+        for (int k = 0; k < 3; ++k)
+            ids[k] = player.note_on({.start = 0.0f, .duration = 0.5f, .noteNumber = 60.0f + float(k), .velocity = 0.5f, .hold = true});
+        for (int k = 0; k < 20; ++k) player.fill(buf.data(), 256);
+        for (const LivePlayer::NoteId id : ids) player.note_off(id);
+        (void)player.sounding_notes(notes);
+        for (int k = 0; k < 4; ++k) player.fill(buf.data(), 256);
+        (void)player.note_on({.start = 0.0f, .duration = 0.5f, .noteNumber = 67.0f, .velocity = 0.5f, .hold = true});
+        for (int k = 0; k < 20; ++k) player.fill(buf.data(), 256);
+        player.stop();
+        for (int k = 0; k < 2000 && player.sounding() > 0; ++k) player.fill(buf.data(), 256);
+        alloc_probe::disarm();
+        if (alloc_probe::count()) std::printf("  [alloc] sustaining %d: %zu allocation(s)\n", int(sustaining), alloc_probe::count());
+        CHECK(alloc_probe::count() == 0 && player.sounding() == 0);
+    }
+}

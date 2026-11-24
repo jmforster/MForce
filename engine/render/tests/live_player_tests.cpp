@@ -49,10 +49,14 @@ static std::vector<float> offline_render(const Patch& patch, std::vector<Perform
 }
 // A note of exactly `samples` samples at 48 kHz.
 static float seconds_of(int samples) { return (float(samples) + 0.5f) / 48000.0f; }
-// A quiet sustaining patch whose pitch reaches the oscillator: the envelope
-// holds, so a line can form, and two notes sum under the peak guard's knee.
+// A quiet patch marked sustaining whose pitch reaches the oscillator: the
+// envelope holds, so a line can form, and two notes sum under the peak
+// guard's knee.
 static std::string live_patch_json() {
-    return hold_patch_json(15.0f);
+    std::string text = hold_patch_json(15.0f);
+    const std::string block = "\"polyphony\": 2,";
+    text.replace(text.find(block), block.size(), block + " \"sustaining\": true,");
+    return text;
 }
 
 // A one-voice enveloped sine whose pitch reaches the oscillator.

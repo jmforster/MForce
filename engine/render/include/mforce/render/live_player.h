@@ -2,11 +2,13 @@
 #include "mforce/contract/performance.h"
 #include "mforce/core/spsc_queue.h"
 #include "mforce/patch/patch.h"
+#include "mforce/render/fault_report.h"
 #include "mforce/render/pitched_instrument.h"
 #include "mforce/render/ring_out.h"
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -14,16 +16,22 @@ namespace mforce {
 
 // One instrument played live behind one function, fill().
 //
-// A voice is touched by one thread at a time, and ownership passes with a
-// message. The control thread (one thread: note_on, note_off, the setters and
-// sounding) owns the idle voices and its records of the voices it has handed
-// over; it starts a voice before sending it. The audio thread (fill) owns the
-// voices it was sent and its sounding set, and gives each voice back when it
-// is over, so both threads touch the voices, never the same one at once.
-// Both also touch the two queues, the volume, and the instrument's played
-// state (wheel and pressure: atomics the control thread writes and the audio
-// thread reads). The audio thread reads the instrument's peakGuard, which
-// must not change while the player runs.
+// Two threads use it. The control thread (one thread: note_on, note_off,
+// stop, the setters, sounding, sounding_notes, collect_faults) owns the idle
+// voices and its records of the voices it has handed over; it starts a voice
+// before sending it. The audio thread (fill) owns the voices it was sent and
+// its record of what each is doing, and gives each voice back when it is
+// over. So a voice is touched by one thread at a time, and ownership passes
+// with a message. Both threads touch the two queues, the volume, the
+// instrument's played state (wheel and pressure: atomics the control thread
+// writes and the audio thread reads), and each node's fault byte: an atomic
+// the audio thread sets and collect_faults exchanges, the one thing of a
+// sounding voice the control thread touches.
+//
+// A note marked `hold` on an instrument that sustains joins the one legato
+// line, or opens it; on one that does not, it holds a voice of its own until
+// its note_off. A voice that cannot hold (no envelope to gate) plays the
+// note's length either way.
 //
 // A pin's constant (set_value) is written into a voice by whichever thread
 // holds it: the audio thread writes a Set message into each voice it holds,
@@ -37,19 +45,30 @@ public:
 
   // Sounds at most `voices` notes at once, or the patch's polyphony when that
   // is larger, and builds twice that many voices: the spares let a new note
-  // start while a stolen one fades.
-  LivePlayer(const Patch& patch, int voices);
+  // start while a stolen one fades. With `peakGuard` false the output is
+  // scaled by the volume and not clipped: a host that sums several sounds
+  // clips the sum itself.
+  LivePlayer(const Patch& patch, int voices, bool peakGuard = true);
 
   // --- control thread ---
-  // The note at the top of the next buffer, or carried onto the open held
-  // line. 0 when it is not sent: no idle voice, the queue has no room for
-  // everything the note needs, or a key-up is still waiting to be sent.
-  // An id is never 0.
+  // The note at the top of the next buffer, or carried onto the open line (a
+  // carried note that names no onset takes the instrument's "slur" when it
+  // has one). A held note that opens the line first fades every other voice
+  // handed over to nothing in 3 ms. 0 when it is not sent: no idle voice, the
+  // queue has no room for everything the note needs, or a key-up or a stop
+  // is still waiting to be sent. An id is never 0.
   NoteId note_on(const PerformedNote& note);
-  // Releases the open line when `id` is its current note; otherwise nothing.
-  // A key-up the queue cannot take now is kept and sent first by the next
-  // control call: it is never lost.
+  // Releases the note `id` began: the line's current note, or a voice held
+  // on its own. An id that names nothing sounding and held (a struck note, a
+  // voice stolen or given back, an earlier note of the line, 0) does nothing.
+  // A key-up the queue cannot take now is kept and sent by a later control
+  // call: it is never lost.
   void note_off(NoteId id);
+  // Every voice handed over fades out over the fade a stolen voice gets and
+  // comes back; the line closes and the key-ups waiting are dropped. The
+  // messages before it are played first. A stop the queue cannot take now is
+  // kept and sent by a later control call.
+  void stop();
   void set_wheel(float v);
   void set_pressure(float v);
   void set_volume(float v);
@@ -68,6 +87,13 @@ public:
   int  sample_rate() const;
   // The voices handed to the audio thread and not yet given back.
   int  sounding();
+  // The notes (rounded) of the voices handed over and not yet given back,
+  // lowest first: as many as fit in `into`, the lowest of them. Returns how
+  // many it wrote. Allocates nothing.
+  int  sounding_notes(std::span<int> into);
+  // What the nodes of every voice reported since the last call, a node's
+  // clones as one entry, worded and ordered as PitchedInstrument's.
+  void collect_faults(std::vector<FaultReport>& out);
 
   // --- audio thread ---
   // `frames` samples of the instrument's mono output. Never blocks,
@@ -77,15 +103,16 @@ public:
 private:
   // A message from the control thread to the audio thread.
   struct Message {
-    enum class Kind : std::uint8_t { Start, Carry, Release, Fade, Set };
+    enum class Kind : std::uint8_t { Start, Carry, Release, Fade, Set, Stop };
     Kind  kind{Kind::Start};
     int   voice{-1};
     float gain{1.0f};          // Start: the note's velocity
     int   bodySamples{0};      // Start: the note's length in samples
-    bool  held{false};         // Start: the voice opens a held line
+    bool  held{false};         // Start: the voice holds until released
     Voice::Note note{};        // Carry: the next note (no curve)
     bool  hold{false};         // Carry: the next note holds
     float fromFreq{0.0f};      // Carry: the frequency glided from
+    int   fadeSamples{0};      // Fade: the fade's length
     int   constant{-1};        // Set: the index into every voice's constants()
     float value{0.0f};         // Set: the constant's new number
   };
@@ -101,12 +128,14 @@ private:
     int   noteSamples{0};      // samples since the current note began
     int   releaseAt{-1};       // release when the current note has played this many
     int   fadeLeft{-1};        // samples of the fade still to play; -1 when not fading
+    int   fadeLength{1};       // the fade's whole length
     bool  over{false};
   };
   // The control thread's record of a voice.
   struct Handed {
     bool     out{false};       // handed to the audio thread
-    NoteId   id{0};
+    NoteId   id{0};            // the note it plays now
+    int      note{0};          // that note's number, rounded
     std::uint64_t startedAt{0};
     std::uint64_t releasedAt{0};   // when no key held it any more
     bool     released{false};      // no key holds it
@@ -130,16 +159,21 @@ private:
   void check_constants_agree();
   // Control thread.
   void catch_up();
+  bool waiting() const;
   int  constant_index(std::string_view node, std::string_view pin);
   Message set_message(int k) const;
   void send_unsent();
+  void send_releases();
   void write_kept(Voice& v);
   Message release_message(int v) const;
+  Message fade_message(int v, int samples) const;
   NoteId take_id();
   int  idle_voice() const;
   int  steal_victim() const;
+  int  to_cut() const;
   NoteId carry(const PerformedNote& note, const Voice::Note& n);
   NoteId start_fresh(const PerformedNote& note, const Voice::Note& n);
+  void fade_out(int v, int samples);
   // Audio thread.
   void apply(const Message& m) noexcept;
   Sounding* find(int v) noexcept;
@@ -153,8 +187,12 @@ private:
   std::unique_ptr<PitchedInstrument> instrument_;
   int sampleRate_{0};
   int voices_{0};
-  int fadeSamples_{0};
+  int fadeSamples_{0};       // a stolen voice's fade, and stop's
+  int cutSamples_{0};        // the fade of what rings when a line opens
   float glideSec_{0.0f};
+  bool sustains_{false};
+  int slurOnset_{0};
+  bool peakGuard_{true};
 
   // Both threads.
   SpscQueue<Message, kQueueSize> toAudio_;
@@ -164,7 +202,10 @@ private:
   // Control thread only.
   std::vector<Handed> handed_;   // one per voice of the pool
   Line line_;
-  int pendingRelease_{-1};   // the voice whose Release waits for room; -1 for none
+  // By voice: its Release waits for room in the queue.
+  std::vector<std::uint8_t> releaseWaits_;
+  int waitingReleases_{0};
+  bool stopWaits_{false};
   int lastStarted_{-1};
   NoteId nextId_{1};
   std::uint64_t nextOrder_{0};

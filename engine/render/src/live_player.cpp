@@ -3,20 +3,25 @@
 #include "mforce/render/build_instrument.h"
 #include "mforce/render/delivery.h"
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 
 namespace mforce {
 
-LivePlayer::LivePlayer(const Patch& patch, int voices) {
+LivePlayer::LivePlayer(const Patch& patch, int voices, bool peakGuard) : peakGuard_(peakGuard) {
   const int polyphony = patch.instrument ? patch.instrument->polyphony : 0;
   voices_ = std::max({voices, polyphony, 1});
   instrument_ = build_instrument(patch, 2 * voices_);
   sampleRate_ = instrument_->render_context().sampleRate;
   fadeSamples_ = int(0.005f * float(sampleRate_));
+  cutSamples_ = std::max(1, int(0.003f * float(sampleRate_)));
   glideSec_ = instrument_->glide_seconds();
+  sustains_ = instrument_->instrument_class().sustaining;
+  slurOnset_ = instrument_->instrument_class().onset_id("slur");
   volume_.store(instrument_->volume, std::memory_order_relaxed);
   handed_.assign(size_t(instrument_->pool().size()), Handed{});
+  releaseWaits_.assign(size_t(instrument_->pool().size()), 0);
   sounding_.reserve(size_t(instrument_->pool().size()));
   check_constants_agree();
   const size_t constants = instrument_->pool().size() > 0 ? voice(0).constants().size() : 0;
@@ -68,17 +73,60 @@ int LivePlayer::sounding() {
   return int(std::count_if(handed_.begin(), handed_.end(), [](const Handed& h) { return h.out; }));
 }
 
+// Each note is placed among the lowest kept so far: `into` stays sorted and
+// holds the lowest of the notes seen.
+int LivePlayer::sounding_notes(std::span<int> into) {
+  catch_up();
+  const size_t room = into.size();
+  size_t count = 0;
+  for (const Handed& h : handed_) {
+    if (!h.out) continue;
+    if (count == room && (room == 0 || h.note >= into[room - 1])) continue;
+    size_t at = count < room ? count++ : room - 1;
+    for (; at > 0 && into[at - 1] > h.note; --at) into[at] = into[at - 1];
+    into[at] = h.note;
+  }
+  return int(count);
+}
+
+void LivePlayer::collect_faults(std::vector<FaultReport>& out) {
+  catch_up();
+  instrument_->collect_faults(out);
+}
+
 // Every control call begins here: the voices given back are idle again,
-// their envelopes ungated as a voice that played no held line leaves them;
-// then a Release that could not be queued is sent.
+// their envelopes ungated as a voice that played no held line leaves them,
+// and a key-up still waiting for one of them is moot; then a stop that could
+// not be queued is sent, then the key-ups, then the Sets.
 void LivePlayer::catch_up() {
   Done d;
   while (toControl_.pop(d)) {
     voice(d.voice).ungate();
     handed_[size_t(d.voice)] = Handed{};
+    if (releaseWaits_[size_t(d.voice)]) {
+      releaseWaits_[size_t(d.voice)] = 0;
+      --waitingReleases_;
+    }
   }
-  if (pendingRelease_ >= 0 && toAudio_.push(release_message(pendingRelease_))) pendingRelease_ = -1;
+  if (stopWaits_) {
+    Message m;
+    m.kind = Message::Kind::Stop;
+    if (toAudio_.push(m)) stopWaits_ = false;
+  }
+  if (!stopWaits_ && waitingReleases_ > 0) send_releases();
   if (unsentCount_ > 0) send_unsent();
+}
+
+bool LivePlayer::waiting() const { return stopWaits_ || waitingReleases_ > 0; }
+
+// The key-ups that found no room, in voice order, until the queue is full.
+void LivePlayer::send_releases() {
+  for (size_t v = 0; v < releaseWaits_.size() && waitingReleases_ > 0; ++v) {
+    if (!releaseWaits_[v]) continue;
+    if (!toAudio_.push(release_message(int(v)))) return;
+    releaseWaits_[v] = 0;
+    --waitingReleases_;
+  }
 }
 
 // The index of the constant of `pin` on `node` in every voice's constants();
@@ -142,6 +190,14 @@ LivePlayer::Message LivePlayer::release_message(int v) const {
   return m;
 }
 
+LivePlayer::Message LivePlayer::fade_message(int v, int samples) const {
+  Message m;
+  m.kind = Message::Kind::Fade;
+  m.voice = v;
+  m.fadeSamples = samples;
+  return m;
+}
+
 LivePlayer::NoteId LivePlayer::take_id() {
   const NoteId id = nextId_++;
   if (nextId_ == 0) nextId_ = 1;   // 0 means "not sent"
@@ -177,9 +233,20 @@ int LivePlayer::steal_victim() const {
   return sounding < voices_ ? -1 : victim;
 }
 
+// The voices a line opening now cuts: every voice handed over, not fading.
+int LivePlayer::to_cut() const {
+  return int(std::count_if(handed_.begin(), handed_.end(), [](const Handed& h) { return h.out && !h.fading; }));
+}
+
+// A fade the queue has room for: the caller checked.
+void LivePlayer::fade_out(int v, int samples) {
+  (void)toAudio_.push(fade_message(v, samples));
+  handed_[size_t(v)].fading = true;
+}
+
 LivePlayer::NoteId LivePlayer::note_on(const PerformedNote& note) {
   catch_up();
-  if (pendingRelease_ >= 0) return 0;
+  if (waiting()) return 0;
   const Voice::Note n{note_to_freq(note.noteNumber), note.velocity,
                       int(note.duration * float(sampleRate_)), note.duration, note.onset,
                       note.curve ? &*note.curve : nullptr};
@@ -187,20 +254,23 @@ LivePlayer::NoteId LivePlayer::note_on(const PerformedNote& note) {
   return start_fresh(note, n);
 }
 
-// The next note of the open line: a fresh id, carried onto the line's voice.
-// A note that does not hold closes the line.
+// The next note of the open line: a fresh id, carried onto the line's voice,
+// with "slur" as its onset when it names none. A note that does not hold
+// closes the line.
 LivePlayer::NoteId LivePlayer::carry(const PerformedNote& note, const Voice::Note& n) {
   Message m;
   m.kind = Message::Kind::Carry;
   m.voice = line_.voice;
   m.note = n;
   m.note.curve = nullptr;
+  if (m.note.onset == 0) m.note.onset = slurOnset_;
   m.hold = note.hold;
   m.fromFreq = line_.lastFreq;
   if (!toAudio_.push(m)) return 0;
   const NoteId id = take_id();
   Handed& h = handed_[size_t(line_.voice)];
   h.id = id;
+  h.note = int(std::lround(note.noteNumber));
   line_.id = id;
   line_.lastFreq = n.freq;
   if (!note.hold) {
@@ -211,24 +281,26 @@ LivePlayer::NoteId LivePlayer::carry(const PerformedNote& note, const Voice::Not
   return id;
 }
 
-// A fresh note on an idle voice, a voice stolen first when the player is
-// full. Nothing is sent unless the queue has room for all of it. The voice is
-// started here, on the control side, then handed over.
+// A fresh note on an idle voice. A held note opening the line first cuts
+// every other voice handed over; otherwise a voice is stolen first when the
+// player is full. Nothing is sent unless the queue has room for all of it.
+// The voice is started here, on the control side, then handed over.
 LivePlayer::NoteId LivePlayer::start_fresh(const PerformedNote& note, const Voice::Note& n) {
   const int v = idle_voice();
   if (v < 0) return 0;
-  const int victim = steal_victim();
-  if (toAudio_.space() < (victim >= 0 ? 2u : 1u)) return 0;
-  if (victim >= 0) {
-    Message fade;
-    fade.kind = Message::Kind::Fade;
-    fade.voice = victim;
-    (void)toAudio_.push(fade);
-    handed_[size_t(victim)].fading = true;
-  }
   Voice& started = voice(v);
-  write_kept(started);
   const bool held = choose_delivery(false, note.hold, started.can_hold()) == Delivery::OpenLine;
+  const bool opensLine = held && sustains_;
+  const int victim = opensLine ? -1 : steal_victim();
+  const size_t fades = opensLine ? size_t(to_cut()) : (victim >= 0 ? 1u : 0u);
+  if (toAudio_.space() < fades + 1) return 0;
+  if (opensLine) {
+    for (size_t k = 0; k < handed_.size(); ++k)
+      if (handed_[k].out && !handed_[k].fading) fade_out(int(k), cutSamples_);
+  } else if (victim >= 0) {
+    fade_out(victim, fadeSamples_);
+  }
+  write_kept(started);
   started.start(n, held);
   Message m;
   m.kind = Message::Kind::Start;
@@ -239,22 +311,49 @@ LivePlayer::NoteId LivePlayer::start_fresh(const PerformedNote& note, const Voic
   (void)toAudio_.push(m);
   const NoteId id = take_id();
   const std::uint64_t order = nextOrder_++;
-  handed_[size_t(v)] = Handed{true, id, order, order, !held, false};
+  handed_[size_t(v)] = Handed{true, id, int(std::lround(note.noteNumber)), order, order, !held, false};
   lastStarted_ = v;
-  if (held) line_ = Line{true, v, id, n.freq};
+  if (opensLine) line_ = Line{true, v, id, n.freq};
   return id;
 }
 
-// The line is closed here whatever happens; a Release the queue cannot take
-// now waits and goes first at the next control call.
+// The voice holding `id`, released: the line closes when it is the line's.
+// A Release the queue cannot take now waits and goes at a later control call.
 void LivePlayer::note_off(NoteId id) {
   catch_up();
-  if (!line_.open || line_.id != id) return;
-  Handed& h = handed_[size_t(line_.voice)];
-  h.released = true;
-  h.releasedAt = nextOrder_++;
-  if (!toAudio_.push(release_message(line_.voice))) pendingRelease_ = line_.voice;
+  if (id == 0) return;
+  for (size_t v = 0; v < handed_.size(); ++v) {
+    Handed& h = handed_[v];
+    if (!h.out || h.released || h.fading || h.id != id) continue;
+    h.released = true;
+    h.releasedAt = nextOrder_++;
+    if (line_.open && line_.voice == int(v)) line_ = Line{};
+    if (stopWaits_ || !toAudio_.push(release_message(int(v)))) {
+      releaseWaits_[v] = 1;
+      ++waitingReleases_;
+    }
+    return;
+  }
+}
+
+// Every voice handed over is marked fading; the audio thread fades each it
+// holds, in queue order, so a note started before this fades too.
+void LivePlayer::stop() {
+  catch_up();
   line_ = Line{};
+  std::fill(releaseWaits_.begin(), releaseWaits_.end(), std::uint8_t{0});
+  waitingReleases_ = 0;
+  for (Handed& h : handed_)
+    if (h.out) {
+      h.fading = true;
+      if (!h.released) {
+        h.released = true;
+        h.releasedAt = nextOrder_++;
+      }
+    }
+  Message m;
+  m.kind = Message::Kind::Stop;
+  stopWaits_ = !toAudio_.push(m);
 }
 
 // --- audio thread ---------------------------------------------------------
@@ -283,6 +382,11 @@ void LivePlayer::apply(const Message& m) noexcept {
     sounding_.push_back(s);
     return;
   }
+  if (m.kind == Message::Kind::Stop) {
+    for (auto& s : sounding_)
+      if (!s.over && s.fadeLeft < 0) { s.fadeLeft = fadeSamples_; s.fadeLength = fadeSamples_; }
+    return;
+  }
   Sounding* s = find(m.voice);
   if (!s || s->over) return;
   switch (m.kind) {
@@ -292,9 +396,12 @@ void LivePlayer::apply(const Message& m) noexcept {
       if (!m.hold) s->releaseAt = m.note.samples;
       break;
     case Message::Kind::Release: release(*s, s->noteSamples); break;
-    case Message::Kind::Fade:    s->fadeLeft = fadeSamples_; break;
+    case Message::Kind::Fade:
+      if (s->fadeLeft < 0) { s->fadeLeft = m.fadeSamples; s->fadeLength = m.fadeSamples; }
+      break;
     case Message::Kind::Start:
-    case Message::Kind::Set:     break;
+    case Message::Kind::Set:
+    case Message::Kind::Stop:    break;
   }
 }
 
@@ -307,7 +414,7 @@ void LivePlayer::render(Sounding& s, float* mono, int frames) noexcept {
     if (s.fadeLeft == 0 || !s.ring.more()) { s.over = true; return; }
     float x = s.ring.shape(v.next() * s.gain);
     if (s.fadeLeft > 0) {
-      x *= float(s.fadeLeft) / float(fadeSamples_);
+      x *= float(s.fadeLeft) / float(s.fadeLength);
       --s.fadeLeft;
     }
     mono[i] += x;
@@ -335,7 +442,7 @@ void LivePlayer::fill(float* mono, int frames) noexcept {
   for (auto& s : sounding_)
     if (!s.over) render(s, mono, frames);
   give_back();
-  apply_output_stage(mono, frames, volume_.load(std::memory_order_relaxed), instrument_->peakGuard);
+  apply_output_stage(mono, frames, volume_.load(std::memory_order_relaxed), peakGuard_);
 }
 
 } // namespace mforce
