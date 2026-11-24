@@ -303,12 +303,13 @@ slice; (c) the reviewer's parity check ran beside the fix wave, read only;
 (d) a new proof's cost in gate time is asked at once (a 50 s proof over
 all instruments became 5 s over a spread, after one full run). NOBODY HAS
 PUT A HAND ON THE MOUSE OR AN EAR TO SLICES 1 TO 3: R30's list is the last
-proof. NEXT: SLICE 4'S PAGE (See: the waveform strips for the output and
-every node, with zoom, scroll, columns and pop-outs; the spectrum; the
-Listen tap; the audio device's watchdog and restart; 15 lines of the
-parity list, about 790 old lines; the strips are already captured at
-Generate), for his signature before code; and his verdict on R30 at the
-window. R24 (where BACKLOG row
+proof. SLICE 4'S PAGE IS WRITTEN AND UNSIGNED
+(`docs/architecture/editor-slice4.md`, REVIEW R31, thirteen rulings), from
+a line-by-line read of the old code kept at `renders/scratch/ed4/old_read.md`
+(the bottom pane as three tabs; strips, extents, the spectrum, Listen and
+the watchdog as plain tested data in `ui_control`; no engine change).
+NEXT: MATT'S SIGNATURE ON IT, then slice 4 as slice 3 ran (rules and gate
+script from `renders/scratch/ed3/`); and his verdict on R30 at the window. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main is ahead of origin by this session's commits
 (nothing pushed). Usage: weekly Fable 35 percent at the session's start.
 Everything below this

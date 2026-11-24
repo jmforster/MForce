@@ -19,6 +19,40 @@ given.
 
 ## Awaiting
 
+**R31 — slice 4's page: see** (2026-11-24,
+`docs/architecture/editor-slice4.md`; no code). For your signature.
+- **What it restores**: the bottom pane and its tabs; the waveform strips
+  (the output and every node) with zoom, scroll, columns and pop-outs;
+  the spectrum; Listen; the sound card's watchdog and the restart by
+  hand. 15 lines of the parity list. Nothing in the engine changes: the
+  strips have been captured at Generate since slice 3.
+- **Written after the old code was read**, line by line, for every one of
+  those 15 (slice 3's page was written from the list's summaries and
+  needed twenty-six rulings while building). The read found the old
+  editor doing several things you may not have meant, and the page rules
+  on each.
+- **The three rulings to read first** (its section 4):
+  1. The bottom pane is three tabs as before, Waveforms, Spectrum,
+     Keyboard, so the piano goes behind a tab while you look at strips
+     (the computer's keys still play). Slices 1 to 3 showed the keyboard
+     all the time; with a strips pane as well, the canvas would be left
+     about 350 pixels of a 900-pixel window. Say the word and the
+     keyboard stays in sight.
+  2. Listen is for the keys. A render is always of the patch's own
+     output, so the strips, Play and Save WAV never depend on a tap. The
+     old editor was the same for Note and Passage; its Chords listened to
+     the tap, which is not restored.
+  3. Coming back to the window does not cut the sound. The old editor
+     restarted the audio stream every time the window regained focus
+     after two seconds away. Here it restarts then only when the default
+     device changed or the stream is not running; the watchdog and the
+     restart by hand cover the rest. Say if you want the old restart.
+- **Also ruled, each a fault of the old one mended**: the spectrum drawn
+  at the render's rate and remade after Chords and Drums; Fit and the
+  scroll limit using the width a strip really has; the watchdog trying
+  again after a failed reopen; one job per key over the strips.
+- **Size**: the smallest slice left; my estimate is well under a session.
+
 **R30 — the editor, slice 3: generate** (2026-11-24, commits `b341e96`,
 `99e5100`, `15c115f`, `5faeedd`, fix wave `e0a108f`, parity wave `9875f8a`;
 page `docs/architecture/editor-slice3.md`, signed 2026-11-23 (R29); report
@@ -70,8 +104,7 @@ do not. So this list is the slice's last proof.
   2. Lines to strike from or add to the parity list
      (`docs/architecture/editor-parity.md`), at any time. Slice 3's 32
      lines were each checked against the code after it was built (A7).
-  3. Slice 4, See (the waveform strips, the spectrum, Listen), gets its
-     page of interfaces for your signature next.
+  3. Slice 4's page is R31, above.
 - **From slices 1 and 2, still untried by hand:**
   - **Start it** from the repo root, with no file:
     `build\editor\ui_app\Release\mforce_editor.exe`
