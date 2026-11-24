@@ -6,6 +6,7 @@
 // draws N frames and exits with 0, writing nothing but the --shot picture of
 // the last frame. A failure is shown in a message box ("could not start"
 // before the window is up, "stopped" after) and the exit code is 1.
+#include <random>
 #include <stdexcept>
 #include <string>
 #include "app_loop.h"
@@ -28,6 +29,7 @@ int main(int argc, char** argv) {
     AppWindow window(1400, 900, "MForce", files.imguiIni);
     windowUp = true;
     Session session;
+    session.seeds.seed(std::random_device{}());   // a new node's seed is random, kept in its file
     session.audio.open();                           // before any player is built: its rate is final here
     if (!files.recentFiles.empty()) session.recent = read_recent_files(files.recentFiles);
     if (!options.patch.empty()) open_file(session, options.patch);

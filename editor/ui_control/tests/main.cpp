@@ -16,6 +16,17 @@ void run_control_arrange_tests();
 void run_control_opened_tests();
 void run_control_keep_up_tests();
 void run_control_key_act_tests();
+void run_step_tests();
+void run_sound_follows_tests();
+void run_undo_redo_tests();
+void run_wire_tests();
+void run_unwire_tests();
+void run_delete_tests();
+void run_rename_tests();
+void run_create_tests();
+void run_offer_tests();
+void run_new_patch_tests();
+void run_history_census_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -34,6 +45,17 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_control_opened_tests", run_control_opened_tests},
   {"run_control_keep_up_tests", run_control_keep_up_tests},
   {"run_control_key_act_tests", run_control_key_act_tests},
+  {"run_step_tests", run_step_tests},
+  {"run_sound_follows_tests", run_sound_follows_tests},
+  {"run_undo_redo_tests", run_undo_redo_tests},
+  {"run_wire_tests", run_wire_tests},
+  {"run_unwire_tests", run_unwire_tests},
+  {"run_delete_tests", run_delete_tests},
+  {"run_rename_tests", run_rename_tests},
+  {"run_create_tests", run_create_tests},
+  {"run_offer_tests", run_offer_tests},
+  {"run_new_patch_tests", run_new_patch_tests},
+  {"run_history_census_tests", run_history_census_tests},
 };
 }  // namespace
 

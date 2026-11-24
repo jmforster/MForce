@@ -6,6 +6,13 @@ namespace mforce::ui {
 
 struct Session;
 
+// After a change the build reads (a structural edit, an open, a new patch,
+// an undo or a redo): a new player for the patch, or, when it is a plain
+// sound, has nothing wired to its Output, or the engine will not build it,
+// silence (the keys let go, the adapter handed nothing) with the reason in
+// status. What sounds is the patch on screen, or nothing.
+void sound_follows(Session& s);
+
 // The keyboard's side: notes from keys as session.keyboard says, its octave
 // and a struck note's length, and what the output is doing.
 void key_down(Session& s, int key, int noteNumber);  // plays as session.keyboard says

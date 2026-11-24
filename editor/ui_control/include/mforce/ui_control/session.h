@@ -1,5 +1,8 @@
 #pragma once
+#include <random>
+#include <set>
 #include <string>
+#include <utility>
 #include "mforce/ui_audio/audio_adapter.h"
 #include "mforce/ui_control/keyboard.h"
 #include "mforce/ui_control/live_play.h"
@@ -10,20 +13,24 @@
 namespace mforce::ui {
 
 // The editor's whole state. main owns one; the views are handed it and
-// change it only through the functions of edits.h, files.h, unsaved.h and
-// playing.h. Made with no device: main calls audio.open().
+// change it only through the functions of edits.h, building.h, wiring.h,
+// files.h, unsaved.h and playing.h. Made with no device: main calls
+// audio.open().
 struct Session {
   OpenPatch    open;
   AudioAdapter audio;
   LivePlay     live{audio};
   Keyboard     keyboard;
   RecentFiles  recent;
-  std::string  selected;     // a node id, or empty
+  std::string  selected;     // a node's id or a face's label (one namespace), or empty
   std::string  status;       // the last thing worth telling: a refusal, why there is no sound
-  Unsaved      unsaved;      // a close or an open waiting for the answer about unsaved changes
-  // How many files this session has opened; a view that keeps drawing state
-  // for the open patch drops it when this changes.
+  Unsaved      unsaved;      // a close, an open or a new patch waiting for the answer about unsaved changes
+  // How many patches this session has opened or started; a view that keeps
+  // drawing state for the open patch drops it when this changes.
   int          opened{0};
+  std::string  gesture;      // the edit a drag is in the middle of; empty when none
+  std::set<std::pair<std::string, std::string>> offered;   // (node, setting): a pin shown on a node with nothing feeding it; not saved
+  std::mt19937 seeds;        // where a new node's seed comes from: main seeds it from std::random_device, a test with a constant
 };
 
 }  // namespace mforce::ui

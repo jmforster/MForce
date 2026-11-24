@@ -2,7 +2,6 @@
 #include <map>
 #include <string>
 #include <vector>
-#include <string_view>
 #include "mforce/patch/patch.h"
 #include "mforce/render/live_player.h"
 #include "mforce/ui_audio/audio_adapter.h"
@@ -21,9 +20,6 @@ public:
   // play; the engine's refusal of the build): the player before it then
   // keeps sounding.
   std::string rebuild(const Patch& patch);
-  // A constant changed in `patch`: the player follows it, or is rebuilt
-  // when it cannot. Returns as rebuild does.
-  std::string value_changed(const Patch& patch, std::string_view node, std::string_view pin, float v);
   bool playing() const;                            // the adapter has a player
 
   // `key` names the key for key_up: a held key is released by the same key

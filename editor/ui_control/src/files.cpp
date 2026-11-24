@@ -3,37 +3,40 @@
 #include <filesystem>
 #include <string>
 #include <utility>
+#include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_model/new_patch.h"
+#include "mforce/ui_model/note_faces.h"
 #include "mforce/ui_model/placement.h"
 
 namespace mforce::ui {
 
 namespace {
 
-// No player: the keys let go and the adapter handed silence, so the sound of
-// the patch before this one stops.
-void silence(Session& s) {
-  s.live.all_keys_up();
-  s.audio.play(nullptr);
+// The note that the file's rate is not the output's; empty when they agree
+// or nothing plays.
+std::string rate_note(const Session& s) {
+  const Patch& p = s.open.patch;
+  if (!s.live.playing() || p.sampleRate == s.audio.sample_rate()) return {};
+  return "the file is at " + std::to_string(p.sampleRate) + " Hz and plays here at " +
+         std::to_string(s.audio.sample_rate()) + " Hz, the output's rate; a render uses the file's " +
+         std::to_string(p.sampleRate) + " Hz";
 }
 
-// A player for the open patch, or silence; what is worth telling about it.
-std::string start_sound(Session& s) {
-  const Patch& p = s.open.patch;
-  if (!p.instrument) {
-    silence(s);
-    return "a plain sound: it opens, edits and saves, and has no instrument to play yet";
-  }
-  const std::string refused = s.live.rebuild(p);
-  if (!refused.empty()) {
-    silence(s);
-    return refused;
-  }
-  if (p.sampleRate != s.audio.sample_rate())
-    return "the file is at " + std::to_string(p.sampleRate) + " Hz and plays here at " +
-           std::to_string(s.audio.sample_rate()) + " Hz, the output's rate; a render uses the file's " +
-           std::to_string(p.sampleRate) + " Hz";
-  return {};
+// `next` becomes the open patch, as one that was never edited: nothing
+// selected, offered, waiting or in a drag; the views told; the sound follows.
+void take(Session& s, OpenPatch next) {
+  (void)gather_note_faces(next.patch);
+  (void)place_unplaced_nodes(next.patch);
+  s.open = std::move(next);
+  s.selected.clear();
+  s.offered.clear();
+  s.gesture.clear();
+  s.unsaved = Unsaved{};
+  ++s.opened;
+  s.status.clear();
+  sound_follows(s);
+  if (s.status.empty()) s.status = rate_note(s);
 }
 
 }  // namespace
@@ -44,15 +47,16 @@ void open_file(Session& s, const std::string& path) {
     next = open_patch(path);
   } catch (const std::exception& e) {
     s.status = e.what();
+    if (!std::filesystem::exists(path)) forget(s.recent, path);
     return;
   }
-  (void)place_unplaced_nodes(next.patch);
-  s.open = std::move(next);
-  s.selected.clear();
-  s.unsaved = Unsaved{};
-  ++s.opened;
+  take(s, std::move(next));
   note_opened(s.recent, path);
-  s.status = start_sound(s);
+}
+
+void new_file(Session& s) {
+  const std::uint32_t sineSeed = s.seeds(), envelopeSeed = s.seeds();
+  take(s, OpenPatch{new_patch(sineSeed, envelopeSeed), {}, History{}});
 }
 
 void save_file(Session& s) {
@@ -62,6 +66,8 @@ void save_file(Session& s) {
   }
   try {
     save(s.open);
+    s.gesture.clear();                             // the next edit is a step of its own, so it shows as unsaved
+    note_opened(s.recent, s.open.path);
   } catch (const std::exception& e) {
     s.status = e.what();
   }
@@ -70,16 +76,18 @@ void save_file(Session& s) {
 void save_file_as(Session& s, const std::string& path) {
   try {
     save_as(s.open, path);
+    s.gesture.clear();
+    note_opened(s.recent, path);
   } catch (const std::exception& e) {
     s.status = e.what();
   }
 }
 
 std::string title(const Session& s) {
-  if (s.open.path.empty() && s.open.patch.graph.nodes.empty() && !s.open.dirty) return "MForce";
+  if (s.open.path.empty() && s.open.patch.graph.nodes.empty() && !unsaved(s.open)) return "MForce";
   const std::string name =
       s.open.path.empty() ? std::string("untitled") : std::filesystem::path(s.open.path).filename().string();
-  return "MForce - " + name + (s.open.dirty ? " *" : "");
+  return "MForce - " + name + (unsaved(s.open) ? " *" : "");
 }
 
 }  // namespace mforce::ui

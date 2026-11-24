@@ -1,5 +1,6 @@
 #include "mforce/ui_control/playing.h"
 #include <algorithm>
+#include <string>
 #include "mforce/ui_control/session.h"
 
 namespace mforce::ui {
@@ -9,7 +10,25 @@ namespace {
 constexpr int kLowestOctave = 0, kHighestOctave = 8;
 constexpr float kShortestNote = 0.05f, kLongestNote = 30.0f;
 
+// No player: the keys let go and the adapter handed silence, so no sound but
+// the patch's plays.
+void silence(Session& s) {
+  s.live.all_keys_up();
+  s.audio.play(nullptr);
+}
+
 }  // namespace
+
+void sound_follows(Session& s) {
+  const Patch& p = s.open.patch;
+  std::string why;
+  if (!p.instrument) why = "a plain sound: it opens, edits and saves, and has no instrument to play yet";
+  else if (p.graph.output.empty()) why = "nothing is wired to the Output yet: wire a node's output to it to hear the patch";
+  else why = s.live.rebuild(p);
+  if (why.empty()) return;
+  silence(s);
+  s.status = why;
+}
 
 void key_down(Session& s, int key, int noteNumber) { s.live.key_down(key, noteNumber, s.keyboard); }
 

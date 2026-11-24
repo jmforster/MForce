@@ -11,6 +11,14 @@ void run_recent_files_tests();
 void run_canvas_view_tests();
 void run_placement_slot_tests();
 void run_arrange_tests();
+void run_canvas_count_tests();
+void run_history_tests();
+void run_history_cap_tests();
+void run_note_faces_tests();
+void run_note_faces_census_tests();
+void run_new_patch_tests();
+void run_placement_face_tests();
+void run_placement_fault_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -24,6 +32,14 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_canvas_view_tests", run_canvas_view_tests},
   {"run_placement_slot_tests", run_placement_slot_tests},
   {"run_arrange_tests", run_arrange_tests},
+  {"run_canvas_count_tests", run_canvas_count_tests},
+  {"run_history_tests", run_history_tests},
+  {"run_history_cap_tests", run_history_cap_tests},
+  {"run_note_faces_tests", run_note_faces_tests},
+  {"run_note_faces_census_tests", run_note_faces_census_tests},
+  {"run_new_patch_tests", run_new_patch_tests},
+  {"run_placement_face_tests", run_placement_face_tests},
+  {"run_placement_fault_tests", run_placement_fault_tests},
 };
 }  // namespace
 

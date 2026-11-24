@@ -21,10 +21,10 @@ namespace {
 // Draws `s` and checks the patch, its unsaved flag and the status are as they were.
 bool draws_unchanged(Session& s) {
   const Patch before = s.open.patch;
-  const bool dirty = s.open.dirty;
+  const bool dirty = unsaved(s.open);
   const std::string status = s.status;
   draw_once_headless(s);
-  return s.open.patch == before && s.open.dirty == dirty && s.status == status;
+  return s.open.patch == before && unsaved(s.open) == dirty && s.status == status;
 }
 
 }  // namespace

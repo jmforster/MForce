@@ -5,9 +5,9 @@ namespace mforce::ui {
 
 struct Session;
 
-// An act that would lose unsaved changes asks first.
+// An act that would lose unsaved changes asks first: a close, an open, a new patch.
 struct Unsaved {
-  enum class Waiting { Nothing, Close, Open };
+  enum class Waiting { Nothing, Close, Open, New };
   Waiting     waiting{Waiting::Nothing};
   std::string path;              // the file an Open waits to open
   bool        closing{false};    // the answer was given: the program may close

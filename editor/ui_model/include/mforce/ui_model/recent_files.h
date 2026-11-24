@@ -4,17 +4,20 @@
 
 namespace mforce::ui {
 
-// The files opened most recently: newest first, no path twice, at most ten.
+// The files opened most recently: newest first, no path twice, at most twelve.
 struct RecentFiles { std::vector<std::string> paths; };
 
-// `path` becomes the newest; an older mention of it goes, and the eleventh goes.
+// `path` becomes the newest; an older mention of it goes, and the thirteenth goes.
 void note_opened(RecentFiles& recent, const std::string& path);
+// `path` leaves the list.
+void forget(RecentFiles& recent, const std::string& path);
 
 // The list kept in `file`, one path per line. A file that is missing or
 // cannot be read reads as none; blank lines and repeats are skipped.
 RecentFiles read_recent_files(const std::string& file);
 
-// Writes the list to `file`, one path per line, newest first. Throws
+// Writes the list to `file`, one path per line, newest first; an empty list
+// writes an empty file, which reads as none. Throws
 // std::runtime_error naming the file when it cannot be written.
 void write_recent_files(const RecentFiles& recent, const std::string& file);
 

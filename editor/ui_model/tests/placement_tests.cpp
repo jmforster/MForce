@@ -4,7 +4,9 @@
 #include "mforce/patch/patch_json.h"
 #include "mforce/patch/type_declarations.h"
 #include "mforce/source/register_all_sources.h"
+#include "mforce/ui_model/note_faces.h"
 #include "mforce/ui_model/placement.h"
+#include "placement_fixture.h"
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -14,44 +16,7 @@
 
 using namespace mforce;
 using namespace mforce::ui;
-
-namespace {
-
-Node node(const char* id, const char* type) {
-  Node n;
-  n.id = id;
-  n.type = type;
-  return n;
-}
-
-// osc is the output and reads pf and env; env reads osc through a tap (a
-// loop) and has a dynamic pin from slow; lone is read by nothing.
-Patch small() {
-  Patch p;
-  Node osc = node("osc", "SineSource");
-  osc.wires["frequency"] = {Wire{"pf"}};
-  osc.wires["amplitude"] = {Wire{"env"}};
-  Node env = node("env", "Envelope");
-  env.wires["minValue"] = {Wire{"osc", true}};
-  env.dynamicPins["timeScale"] = "slow";
-  Node pf = node("pf", "PerformNode");
-  pf.settings["field"] = 0.0f;
-  p.graph.nodes = {node("lone", "SineSource"), pf, env, node("slow", "SineSource"), osc};
-  p.graph.output = "osc";
-  p.instrument = InstrumentBlock{};
-  return p;
-}
-
-Vec2 at(const Patch& p, const char* id) { return p.layout.positions.at(id); }
-
-bool all_distinct(const Patch& p) {
-  std::set<std::pair<float, float>> seen;
-  for (const auto& [id, pos] : p.layout.positions)
-    if (!seen.insert({pos.x, pos.y}).second) return false;
-  return true;
-}
-
-}  // namespace
+using namespace placement_fixture;
 
 void run_placement_rule_tests() {
   register_all_sources();
@@ -102,35 +67,57 @@ void run_placement_block_tests() {
   CHECK(all_distinct(loop));
 }
 
+namespace {
+
+struct Census {
+  int patches{0}, placed{0}, hadNone{0}, lacked{0}, shared{0}, overlapping{0};
+};
+
+// One measured patch, its note faces gathered first as opening does: every
+// node no face names has a position, every face one, no face's node one;
+// the positions it had are kept; no two newly placed slots overlap.
+void census_of(Census& c, const std::string& file) {
+  Patch before = load_patch(file);
+  (void)gather_note_faces(before);
+  Patch p = before;
+  ++c.patches;
+  if (before.layout.positions.empty()) ++c.hadNone;
+  else if (before.layout.positions.size() < before.graph.nodes.size()) ++c.lacked;
+  c.placed += place_unplaced_nodes(p);
+  const std::set<std::string> named = face_nodes(p);
+  bool every = true, kept = true, faceNodesUnplaced = true, facesPlaced = true;
+  for (const auto& n : p.graph.nodes) {
+    if (named.count(n.id)) faceNodesUnplaced = faceNodesUnplaced && !p.layout.positions.count(n.id);
+    else every = every && p.layout.positions.count(n.id) != 0;
+  }
+  for (const auto& f : p.layout.faces) facesPlaced = facesPlaced && f.pos.has_value();
+  for (const auto& [id, pos] : before.layout.positions) kept = kept && p.layout.positions.at(id) == pos;
+  if (!all_distinct(p)) {
+    ++c.shared;
+    std::printf("  %s: two things share a position\n", file.c_str());
+  }
+  if (new_slots_overlap(before, p)) {
+    ++c.overlapping;
+    std::printf("  %s: two newly placed slots overlap in a column\n", file.c_str());
+  }
+  CHECK(every && kept && faceNodesUnplaced && facesPlaced);
+  CHECK(p.layout.outputPos.has_value());
+  CHECK(place_unplaced_nodes(p) == 0);
+  CHECK(p.check().empty());
+}
+
+}  // namespace
+
 void run_placement_census_tests() {
-  int patches = 0, placed = 0, hadNone = 0, lacked = 0, shared = 0;
+  Census c;
   for (const char* folder : {"patches/library", "patches/baselines"})
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(folder)) {
-      if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
-      const std::string file = entry.path().generic_string();
-      const Patch before = load_patch(file);
-      Patch p = before;
-      ++patches;
-      if (before.layout.positions.empty()) ++hadNone;
-      else if (before.layout.positions.size() < before.graph.nodes.size()) ++lacked;
-      placed += place_unplaced_nodes(p);
-      bool every = true, kept = true;
-      for (const auto& n : p.graph.nodes) every = every && p.layout.positions.count(n.id) != 0;
-      for (const auto& [id, pos] : before.layout.positions) kept = kept && p.layout.positions.at(id) == pos;
-      if (!all_distinct(p)) {
-        ++shared;
-        std::printf("  %s: two nodes share a position\n", file.c_str());
-      }
-      CHECK(every);
-      CHECK(kept);
-      CHECK(p.layout.outputPos.has_value());
-      CHECK(place_unplaced_nodes(p) == 0);
-      CHECK(p.check().empty());
-    }
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(folder))
+      if (entry.is_regular_file() && entry.path().extension() == ".json") census_of(c, entry.path().generic_string());
   std::printf("  placement: %d patches (%d with no position, %d lacking some), %d positions placed, "
-              "%d with a shared position\n", patches, hadNone, lacked, placed, shared);
-  CHECK(patches > 0);
-  CHECK(shared == 0);
+              "%d with a shared position, %d with overlapping slots\n",
+              c.patches, c.hadNone, c.lacked, c.placed, c.shared, c.overlapping);
+  CHECK(c.patches > 0);
+  CHECK(c.shared == 0 && c.overlapping == 0);
 }
 
 // A node's slot is its header, a row per declared Param and Input and per
@@ -145,27 +132,34 @@ void run_placement_slot_tests() {
   CHECK(at(p, "env").y - at(p, "pf").y == 40.0f + 22.0f * rows + 20.0f);
 }
 
-// Arrange over every measured patch saved with groups or note faces: every node placed
-// afresh, none sharing a place, the same layout again on a second call,
-// check() empty, groups and faces kept, the panning dropped.
+// Arrange over every measured patch saved with groups or note faces, its
+// faces gathered first: every node and face placed afresh, none sharing a
+// place, the same layout again on a second call, check() empty, the groups
+// and the faces' labels and fields kept, the panning dropped.
 void run_arrange_tests() {
   int grouped = 0;
   for (const char* folder : {"patches/library", "patches/baselines"})
     for (const auto& entry : std::filesystem::recursive_directory_iterator(folder)) {
       if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
-      const Patch before = load_patch(entry.path().generic_string());
+      Patch before = load_patch(entry.path().generic_string());
       if (before.layout.groups.empty() && before.layout.faces.empty()) continue;
+      (void)gather_note_faces(before);
       ++grouped;
       Patch p = before;
-      CHECK(arrange_nodes(p) == int(p.graph.nodes.size()));
+      const int drawn = int(p.graph.nodes.size() - face_nodes(p).size() + p.layout.faces.size());
+      CHECK(arrange_nodes(p) == drawn);
       Patch fresh = before;
       fresh.layout.positions.clear();
       fresh.layout.outputPos.reset();
+      for (auto& f : fresh.layout.faces) f.pos.reset();
       (void)place_unplaced_nodes(fresh);
-      CHECK(p.layout.positions == fresh.layout.positions);
+      CHECK(p.layout.positions == fresh.layout.positions && p.layout.faces == fresh.layout.faces);
       CHECK(all_distinct(p));
       CHECK(!p.layout.panning.has_value());
-      CHECK(p.layout.groups == before.layout.groups && p.layout.faces == before.layout.faces);
+      CHECK(p.layout.groups == before.layout.groups && p.layout.faces.size() == before.layout.faces.size());
+      for (size_t f = 0; f < p.layout.faces.size(); ++f)
+        CHECK(p.layout.faces[f].label == before.layout.faces[f].label &&
+              p.layout.faces[f].fields == before.layout.faces[f].fields && p.layout.faces[f].pos.has_value());
       CHECK(p.check().empty());
       Patch again = p;
       (void)arrange_nodes(again);

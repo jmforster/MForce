@@ -8,7 +8,7 @@ namespace mforce::ui {
 
 namespace {
 
-constexpr std::size_t kMostFiles = 10;
+constexpr std::size_t kMostFiles = 12;
 
 }  // namespace
 
@@ -17,6 +17,11 @@ void note_opened(RecentFiles& recent, const std::string& path) {
   paths.erase(std::remove(paths.begin(), paths.end(), path), paths.end());
   paths.insert(paths.begin(), path);
   if (paths.size() > kMostFiles) paths.resize(kMostFiles);
+}
+
+void forget(RecentFiles& recent, const std::string& path) {
+  auto& paths = recent.paths;
+  paths.erase(std::remove(paths.begin(), paths.end(), path), paths.end());
 }
 
 RecentFiles read_recent_files(const std::string& file) {

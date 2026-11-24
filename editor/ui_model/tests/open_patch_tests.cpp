@@ -1,4 +1,4 @@
-// OpenPatch: open, save, save as, and the dirty flag, on a library patch and
+// OpenPatch: open, save, save as, and whether it is unsaved, on a library patch and
 // on copies written to a folder under the system's temporary folder.
 #include "mforce/testing/check.h"
 #include "mforce/patch/patch_json.h"
@@ -48,7 +48,7 @@ void run_open_patch_tests() {
   register_all_sources();
   const OpenPatch open = open_patch(kPatch);
   CHECK(open.path == kPatch);
-  CHECK(!open.dirty);
+  CHECK(!unsaved(open));
   CHECK(open.patch == load_patch(kPatch));
   CHECK(open.patch.check().empty());
 
@@ -61,34 +61,35 @@ void run_save_tests() {
   const TempFolder folder("save");
   OpenPatch open = open_patch(kPatch);
   open.path = folder.file("copy.json");
+  remember(open.history, open.patch);
   open.patch.comment = "saved by the ui_model tests";
-  open.dirty = true;
+  REQUIRE(unsaved(open));
   save(open);
-  CHECK(!open.dirty);
+  CHECK(!unsaved(open));
   CHECK(open.path == folder.file("copy.json"));
   CHECK(load_patch(open.path) == open.patch);
 
   OpenPatch unsaved;
   unsaved.patch = open.patch;
-  unsaved.dirty = true;
+  remember(unsaved.history, Patch{});
   CHECK(!thrown_message([&] { save(unsaved); }).empty());
-  CHECK(unsaved.dirty);
+  CHECK(ui::unsaved(unsaved));
   CHECK(unsaved.path.empty());
 }
 
 void run_save_as_tests() {
   const TempFolder folder("save_as");
   OpenPatch open = open_patch(kPatch);
-  open.dirty = true;
+  remember(open.history, open.patch);
   save_as(open, folder.file("renamed.json"));
   CHECK(open.path == folder.file("renamed.json"));
-  CHECK(!open.dirty);
+  CHECK(!unsaved(open));
   CHECK(open_patch(open.path).patch == open.patch);
 
   // A folder that does not exist cannot be written to: the patch keeps its path and its flag.
-  open.dirty = true;
+  remember(open.history, open.patch);
   const std::string nowhere = folder.file("no_such_folder/x.json");
   CHECK(!thrown_message([&] { save_as(open, nowhere); }).empty());
   CHECK(open.path == folder.file("renamed.json"));
-  CHECK(open.dirty);
+  CHECK(unsaved(open));
 }

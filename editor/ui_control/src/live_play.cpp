@@ -30,12 +30,6 @@ std::string LivePlay::rebuild(const Patch& patch) {
   return {};
 }
 
-std::string LivePlay::value_changed(const Patch& patch, std::string_view node, std::string_view pin, float v) {
-  LivePlayer* player = audio_.player();
-  if (player && player->set_value(node, pin, v)) return {};
-  return rebuild(patch);
-}
-
 bool LivePlay::playing() const { return audio_.player() != nullptr; }
 
 void LivePlay::key_down(int key, int noteNumber, const Keyboard& how) {

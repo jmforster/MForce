@@ -86,7 +86,7 @@ void register_check_probe() {
 
 }  // namespace
 
-// Test 1: each edit reaches the patch, dirty and the player.
+// Test 1: each edit reaches the patch, the unsaved state and the player.
 void run_control_edit_tests() {
   register_all_sources();
   Session s, twin;
@@ -98,7 +98,7 @@ void run_control_edit_tests() {
   CHECK(buffer(s, 1024) == buffer(twin, 1024));
   LivePlayer* first = s.audio.player();
   edit_value(s, "Formant1", "cutoffFreq", 1800.0f);
-  CHECK(s.open.dirty && s.status.empty());
+  CHECK(unsaved(s.open) && s.status.empty());
   CHECK(s.audio.player() == first);                     // followed, not rebuilt
   CHECK(buffer(s, 1024) != buffer(twin, 1024));          // the sounding note heard it
 
@@ -119,20 +119,21 @@ void run_control_edit_tests() {
   edit_value(same, "Formant1", "cutoffFreq", 1500.0f);
   edit_setting(same, "Formant1", "normalize", 0.0f);
   edit_position(same, "Formant1", same.open.patch.layout.positions.at("Formant1"));
-  CHECK(!same.open.dirty);                               // the same values again
+  CHECK(!unsaved(same.open));                               // the same values again
   CHECK(same.audio.player() == p);
   pan_canvas(same, Vec2{12, 34});
-  CHECK(!same.open.dirty && same.open.patch.layout.panning == (Vec2{12, 34}));
+  CHECK(!unsaved(same.open) && same.open.patch.layout.panning == (Vec2{12, 34}));
   edit_position(same, "Formant1", Vec2{1, 2});
-  CHECK(same.open.dirty && same.open.patch.layout.positions.at("Formant1") == (Vec2{1, 2}));
+  CHECK(unsaved(same.open) && same.open.patch.layout.positions.at("Formant1") == (Vec2{1, 2}));
   edit_output_position(same, Vec2{3, 4});
   CHECK(same.open.patch.layout.outputPos == (Vec2{3, 4}));
   select_node(same, "Formant1");
   CHECK(same.selected == "Formant1");
 }
 
-// Test 3: a rebuild that fails keeps the last good player sounding and the
-// edit in the patch.
+// Test 3: a setting edit the build refuses keeps the edit in the patch and
+// gives silence with the engine's reason: what sounds is the patch on screen,
+// or nothing.
 void run_control_failed_rebuild_tests() {
   register_check_probe();
   const TempFolder folder("failed_rebuild");
@@ -140,13 +141,14 @@ void run_control_failed_rebuild_tests() {
   Session s;
   open_file(s, folder.file("probe.json"));
   REQUIRE(s.status.empty());
-  LivePlayer* good = s.audio.player();
+  REQUIRE(s.audio.player() != nullptr);
   key_down(s, 1, 60);
   edit_setting(s, "probe", "refuse", 1.0f);
   CHECK(s.status == "node 'probe' (CheckProbe): probe says no");
-  CHECK(s.audio.player() == good);
-  CHECK(s.open.dirty && s.open.patch.graph.nodes[2].settings.at("refuse") == 1.0f);
-  CHECK(sounds(s, 4));
+  CHECK(s.audio.player() == nullptr);
+  CHECK(unsaved(s.open) && s.open.patch.graph.nodes[2].settings.at("refuse") == 1.0f);
+  (void)buffer(s);                                       // the fade of the one before
+  CHECK(!sounds(s, 4));
 }
 
 // Test 4: save, save as, title, and every path of the unsaved guard.
@@ -158,17 +160,17 @@ void run_control_file_tests() {
   CHECK(title(s) == "MForce - oboe1.json");
   CHECK(s.recent.paths.front() == kOboe);
   save_file_as(s, folder.file("a.json"));
-  CHECK(s.open.path == folder.file("a.json") && !s.open.dirty);
+  CHECK(s.open.path == folder.file("a.json") && !unsaved(s.open));
   edit_position(s, "Formant1", Vec2{5, 5});
   CHECK(title(s) == "MForce - a.json *");
   save_file(s);
-  CHECK(!s.open.dirty && load_patch(folder.file("a.json")) == s.open.patch);
+  CHECK(!unsaved(s.open) && load_patch(folder.file("a.json")) == s.open.patch);
   edit_position(s, "Formant1", Vec2{6, 6});
   save_file_as(s, folder.file("no_such_folder/b.json"));
-  CHECK(!s.status.empty() && s.open.dirty && s.open.path == folder.file("a.json"));
+  CHECK(!s.status.empty() && unsaved(s.open) && s.open.path == folder.file("a.json"));
 
   Session fresh;
-  fresh.open.dirty = true;
+  remember(fresh.open.history, fresh.open.patch);
   save_file(fresh);
   CHECK(fresh.status == "the patch has no file yet: save it as one");
 
@@ -176,9 +178,10 @@ void run_control_file_tests() {
   open_file(missing, kOboe);
   LivePlayer* before = missing.audio.player();
   const Patch shown = missing.open.patch;
+  missing.recent.paths.insert(missing.recent.paths.begin(), "patches/library/no_such_patch.json");
   open_file(missing, "patches/library/no_such_patch.json");
   CHECK(missing.open.path == kOboe && missing.audio.player() == before && missing.recent.paths.size() == 1);
-  CHECK(missing.open.patch == shown && !missing.open.dirty);
+  CHECK(missing.open.patch == shown && !unsaved(missing.open));
   CHECK(missing.status.rfind("patches/library/no_such_patch.json", 0) == 0);
 }
 
@@ -197,17 +200,17 @@ void run_control_unsaved_tests() {
   request_open(s, kSlowRate);
   CHECK(s.unsaved.waiting == Unsaved::Waiting::Open && s.open.path == folder.file("o.json"));
   answer_unsaved(s, Answer::Cancel);
-  CHECK(s.unsaved.waiting == Unsaved::Waiting::Nothing && s.open.dirty);
+  CHECK(s.unsaved.waiting == Unsaved::Waiting::Nothing && unsaved(s.open));
   request_open(s, kSlowRate);
   answer_unsaved(s, Answer::Discard);
-  CHECK(s.open.path == kSlowRate && !s.open.dirty);
+  CHECK(s.open.path == kSlowRate && !unsaved(s.open));
 
   open_file(s, folder.file("o.json"));
   edit_position(s, "Formant1", Vec2{8, 8});
   request_close(s);
   CHECK(s.unsaved.waiting == Unsaved::Waiting::Close && !s.unsaved.closing);
   answer_unsaved(s, Answer::Save);
-  CHECK(s.unsaved.closing && !s.open.dirty && load_patch(folder.file("o.json")) == s.open.patch);
+  CHECK(s.unsaved.closing && !unsaved(s.open) && load_patch(folder.file("o.json")) == s.open.patch);
 
   s.unsaved = Unsaved{};
   edit_position(s, "Formant1", Vec2{9, 9});
@@ -275,12 +278,12 @@ void run_control_string_tests() {
   REQUIRE(s.audio.player() != nullptr);
   LivePlayer* before = s.audio.player();
   edit_string(s, "g", "name", "attack");
-  CHECK(s.open.dirty && s.open.patch.graph.nodes[3].strings.at("name") == "attack");
+  CHECK(unsaved(s.open) && s.open.patch.graph.nodes[3].strings.at("name") == "attack");
   CHECK(s.audio.player() != before);
   save_file(s);
   LivePlayer* saved = s.audio.player();
   edit_string(s, "g", "name", "attack");
-  CHECK(!s.open.dirty && s.audio.player() == saved);
+  CHECK(!unsaved(s.open) && s.audio.player() == saved);
   edit_string(s, "g", "nope", "x");
   CHECK(s.status == "node 'g' (NameGate): 'nope' is not a string setting of NameGate");
 }
@@ -294,7 +297,7 @@ void run_control_arrange_tests() {
   edit_value(s, "nope", "x", 1.0f);
   REQUIRE(!s.status.empty());
   arrange(s);
-  CHECK(s.open.dirty && s.status.empty());
+  CHECK(unsaved(s.open) && s.status.empty());
   CHECK(s.audio.player() == player);
   CHECK(!s.open.patch.layout.panning.has_value());
 }

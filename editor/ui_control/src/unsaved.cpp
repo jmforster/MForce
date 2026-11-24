@@ -1,4 +1,5 @@
 #include "mforce/ui_control/unsaved.h"
+#include "mforce/ui_control/building.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/session.h"
 
@@ -11,21 +12,30 @@ void do_what_waited(Session& s) {
   const Unsaved waited = s.unsaved;
   s.unsaved = Unsaved{};
   if (waited.waiting == Unsaved::Waiting::Open) open_file(s, waited.path);
+  if (waited.waiting == Unsaved::Waiting::New) new_file(s);
   if (waited.waiting == Unsaved::Waiting::Close) s.unsaved.closing = true;
 }
 
 }  // namespace
 
 void request_open(Session& s, const std::string& path) {
-  if (!s.open.dirty) {
+  if (!unsaved(s.open)) {
     open_file(s, path);
     return;
   }
   s.unsaved = Unsaved{Unsaved::Waiting::Open, path, false};
 }
 
+void request_new(Session& s) {
+  if (!unsaved(s.open)) {
+    new_file(s);
+    return;
+  }
+  s.unsaved = Unsaved{Unsaved::Waiting::New, {}, false};
+}
+
 void request_close(Session& s) {
-  if (!s.open.dirty) {
+  if (!unsaved(s.open)) {
     s.unsaved.closing = true;
     return;
   }
@@ -42,8 +52,8 @@ void answer_unsaved(Session& s, Answer answer) {
       do_what_waited(s);
       return;
     case Answer::Save:
-      if (s.open.dirty) save_file(s);
-      if (!s.open.dirty) do_what_waited(s);   // the patch has no file, or the save failed: the wait goes on
+      if (unsaved(s.open)) save_file(s);
+      if (!unsaved(s.open)) do_what_waited(s);   // the patch has no file, or the save failed: the wait goes on
       return;
   }
 }
