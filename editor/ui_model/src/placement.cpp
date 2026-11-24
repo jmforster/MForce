@@ -24,6 +24,7 @@ constexpr float kHeader = 40.0f;
 constexpr float kPinHeight = 22.0f;
 constexpr float kSlotGap = 20.0f;
 constexpr float kFaceRows = 6.0f;
+constexpr float kSlotWidth = kColumnWidth - 3.0f * kSlotGap;
 // How far below the placed things a block of newly placed ones starts.
 constexpr float kBlockGap = 200.0f;
 // A coordinate this far out is a fault in the file, not a place on the canvas.
@@ -206,6 +207,12 @@ int place_unplaced_nodes(Patch& patch) {
   }
   return placed;
 }
+
+Vec2 node_slot(const Node& n) { return Vec2{kSlotWidth, slot_height(n)}; }
+
+Vec2 face_slot() { return Vec2{kSlotWidth, kHeader + kPinHeight * kFaceRows + kSlotGap}; }
+
+Vec2 output_slot() { return Vec2{kSlotWidth, kHeader + kPinHeight + kSlotGap}; }
 
 int arrange_nodes(Patch& patch) {
   patch.layout.positions.clear();

@@ -1,44 +1,55 @@
 #pragma once
-#include <map>
 #include <string>
 #include "mforce/patch/layout.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_views/canvas_table.h"
+#include "mforce/ui_views/create_menu.h"
 
 namespace mforce::ui {
 
-// The graph, drawn with imnodes: one generic node per graph node from its
-// type's declarations, the wires as links (a tap and a dynamic pin each in a
-// colour of its own), and the canvas's Output node fed from graph.output.
+// The graph, drawn with imnodes from a CanvasTable made each frame: one
+// generic node per graph node no face names, from its type's declarations;
+// one node per note face; the canvas's Output node; the wires as links.
+// Everything a person does here is one call of ui_control:
+//   a drag between two pins          wire
+//   a wire dragged off its pin       unwire
+//   Delete or Backspace              delete_these (the selected wires, then the selected node or face)
+//   a right click on empty canvas    the create menu: create_node or create_note at the click
+//   a drag of nodes or faces         edit_position for each, then end_gesture when the mouse lets go
+//   the wheel, Shift with an arrow   pan_canvas
+//   F                                fit_canvas
 // The record holds the positions, the panning and the selection: each frame
-// the canvas shows them, and a drag that ends is carried to the record by
-// one edit. Nothing is wired or unwired here.
-//
-// imnodes names nodes, pins and links by integers. A graph node's integer is
-// given the first time its id is drawn and kept for the life of the canvas,
-// not reused while the file stays open, and the integers start again when
-// another file is opened (0 is the Output node's); a pin is its node's
-// integer times 1024 plus its row (0 the output, 1 on the input rows in
-// order). Links are counted afresh each frame: none is interactive here.
+// the canvas shows them. The canvas keeps only drawing state: the names of
+// imnodes' integers, the menu, where the create menu was opened.
 class NodeCanvas {
 public:
   void draw(Session& s);
+  Vec2 size() const { return size_; }              // the canvas's size on screen, from the last frame
 
 private:
-  int node_int(const std::string& id);             // the node's imnodes integer, given on first use
-  std::string id_of(int nodeInt) const;            // empty for the Output node or an unknown integer
-  void show_record(const Session& s);
-  void draw_nodes(const Session& s);
-  void draw_output(const Session& s);
-  void draw_links(const Session& s);
-  void carry_moves(Session& s);
-  void carry_selection(Session& s);
+  // node_canvas.cpp: a frame.
+  void show_record(const Session& s, const CanvasTable& t);
+  void carry_moves(Session& s, const CanvasTable& t);
+  void carry_selection(Session& s, const CanvasTable& t);
+  // canvas_nodes.cpp: drawing.
+  void draw_nodes(const Session& s, const CanvasTable& t);
+  void draw_links(const CanvasTable& t);
+  // canvas_gestures.cpp: what a person does.
+  void carry_wiring(Session& s, const CanvasTable& t);
+  void carry_keys(Session& s, const CanvasTable& t);
+  void carry_wheel(Session& s);
+  // canvas_menu.cpp: the create menu.
+  void open_create_menu();
+  void draw_create_menu(Session& s);
 
-  std::map<std::string, int> ints_;                // node id -> imnodes integer
-  int nextInt_{1};
-  int nextLink_{0};
-  int seenOpened_{-1};                             // session.opened when the integers above were given
+  CanvasNames names_;
+  CreateMenu menu_ = create_menu();
+  int seenOpened_{-1};                             // session.opened when names_ was begun
   bool gesture_{false};                            // a drag or a pan is under way: the canvas keeps the user's
   Vec2 shownPanning_{};                            // the panning given to imnodes this frame
+  Vec2 origin_{};                                  // the canvas's top-left corner on screen
+  Vec2 size_{};                                    // the canvas's size on screen
+  Vec2 menuAt_{};                                  // where in the record the create menu was opened
 };
 
 }  // namespace mforce::ui

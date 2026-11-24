@@ -1,18 +1,35 @@
+// The properties panel's frame: the chooser, and what is selected (a node,
+// a face, or nothing); and the two fields every part of it types into.
 #include "mforce/ui_views/properties_panel.h"
 #include <algorithm>
 #include <cmath>
+#include <set>
 #include <imgui.h>
 #include <imgui_stdlib.h>
+#include "mforce/ui_control/building.h"
 #include "mforce/ui_control/edits.h"
 
 namespace mforce::ui {
 
 namespace {
 
-const Node* selected_node(const Session& s) {
-  for (const auto& n : s.open.patch.graph.nodes)
-    if (n.id == s.selected) return &n;
+const Node* node_named(const Patch& p, const std::string& id) {
+  for (const auto& n : p.graph.nodes)
+    if (n.id == id) return &n;
   return nullptr;
+}
+
+const NoteFace* face_named(const Patch& p, const std::string& label) {
+  for (const auto& f : p.layout.faces)
+    if (f.label == label) return &f;
+  return nullptr;
+}
+
+std::set<std::string> face_nodes(const Patch& p) {
+  std::set<std::string> ids;
+  for (const auto& f : p.layout.faces)
+    for (const auto& [field, id] : f.fields) ids.insert(id);
+  return ids;
 }
 
 // A drag's speed: a two-hundredth of the range, or of the number's size.
@@ -21,81 +38,33 @@ float speed_for(float lo, float hi, float v) {
   return std::max(0.001f, std::fabs(v) / 100.0f);
 }
 
-std::string feeds_text(const std::vector<Wire>& feeds) {
-  std::string text;
-  for (const auto& w : feeds) text += (text.empty() ? "" : ", ") + w.source + (w.tap ? " (tap)" : "");
-  return text;
-}
-
-void heading(const Node& n) {
-  ImGui::TextUnformatted(n.id.c_str());
-  ImGui::TextDisabled("%s", n.type.c_str());
-  if (!n.comment.empty()) ImGui::TextWrapped("%s", n.comment.c_str());
-  ImGui::Separator();
-}
-
 }  // namespace
 
-void PropertiesPanel::patch_facts(const Session& s) {
-  const Patch& p = s.open.patch;
-  if (s.open.path.empty() && p.graph.nodes.empty()) {
-    ImGui::TextUnformatted("No patch is open: File > Open (Ctrl+O).");
-    return;
+bool PropertiesPanel::text_field(const char* label, const std::string& key, const std::string& now, std::string& out) {
+  std::string text = typedKey_ == key ? typed_ : now;
+  ImGui::InputText(label, &text);                  // ImGui's std::string field: any length
+  if (ImGui::IsItemActive()) {
+    typedKey_ = key;
+    typed_ = text;
   }
-  ImGui::TextUnformatted(s.open.path.empty() ? "(no file)" : s.open.path.c_str());
-  ImGui::Text("rate %d Hz, %zu nodes", p.sampleRate, p.graph.nodes.size());
-  if (!p.instrument) {
-    ImGui::TextUnformatted("a plain sound");
-    return;
+  if (ImGui::IsItemDeactivatedAfterEdit()) {
+    typedKey_.clear();
+    out = text;
+    return true;
   }
-  const InstrumentBlock& b = *p.instrument;
-  ImGui::TextUnformatted("an instrument");
-  ImGui::Text("polyphony %d, volume %g", b.polyphony, double(b.volume));
-  ImGui::Text("%s, glide %g ms", b.sustaining ? "sustaining" : "struck", double(b.glideMs));
-  ImGui::Text("%zu onsets", b.onsets.size());
+  if (!ImGui::IsItemActive() && typedKey_ == key) typedKey_.clear();
+  return false;
 }
 
-void PropertiesPanel::pin_row(Session& s, const Node& n, const std::string& name, float lo, float hi, bool isParam) {
-  if (auto fed = n.wires.find(name); fed != n.wires.end() && !fed->second.empty()) {
-    ImGui::Text("%s  <- %s", name.c_str(), feeds_text(fed->second).c_str());
-    return;
-  }
-  const auto held = n.values.find(name);
-  if (held == n.values.end() && !isParam) {
-    ImGui::TextDisabled("%s  (nothing)", name.c_str());
-    return;
-  }
-  const TypeDeclarations* d = type_declarations(n.type);
-  const auto* p = d ? d->param(name) : nullptr;
-  float v = held != n.values.end() ? held->second : (p ? p->defaultValue : 0.0f);
-  if (ImGui::DragFloat(name.c_str(), &v, speed_for(lo, hi, v), lo < hi ? lo : 0.0f, lo < hi ? hi : 0.0f, "%.4g"))
-    edit_value(s, n.id, name, v);
-}
-
-void PropertiesPanel::pins(Session& s, const Node& n, const TypeDeclarations& d) {
-  for (const auto& p : d.params) pin_row(s, n, p.name, p.min, p.max, true);
-  for (const auto& in : d.inputs) {
-    if (!in.slot) {
-      pin_row(s, n, in.name, 0.0f, 0.0f, false);
-      continue;
-    }
-    const auto fed = n.wires.find(in.name);
-    ImGui::Text("%s  <- %s", in.name.c_str(), fed == n.wires.end() ? "(no part)" : feeds_text(fed->second).c_str());
-  }
-}
-
-// A float or an int: the dragged number is drawn until the drag ends or the
-// typed number is entered, then applied once.
-void PropertiesPanel::number_setting(Session& s, const Node& n, const TypeDeclarations::Setting& st, float v) {
-  const std::string key = n.id + "/" + st.name;
-  if (draggedKey_ == key) v = dragged_;
-  const float lo = st.min < st.max ? st.min : 0.0f, hi = st.min < st.max ? st.max : 0.0f;
-  if (st.type == SettingType::Int) {
+bool PropertiesPanel::number_field(const char* label, const std::string& key, float now, float lo, float hi,
+                                   bool isInt, float& out) {
+  float v = draggedKey_ == key ? dragged_ : now;
+  if (isInt) {
     int i = int(std::lround(v));
-    ImGui::DragInt(st.name.c_str(), &i, std::max(0.05f, (hi - lo) / 200.0f), int(lo), int(hi));
+    ImGui::DragInt(label, &i, std::max(0.05f, (hi - lo) / 200.0f), int(lo), int(hi));
     v = float(i);
   } else {
-    ImGui::DragFloat(st.name.c_str(), &v, speed_for(lo, hi, v), lo, hi, "%.4g");
+    ImGui::DragFloat(label, &v, speed_for(lo, hi, v), lo, hi, "%.4g");
   }
   if (ImGui::IsItemActive()) {
     draggedKey_ = key;
@@ -103,104 +72,73 @@ void PropertiesPanel::number_setting(Session& s, const Node& n, const TypeDeclar
   }
   if (ImGui::IsItemDeactivatedAfterEdit()) {
     draggedKey_.clear();
-    edit_setting(s, n.id, st.name, v);
-  } else if (!ImGui::IsItemActive() && draggedKey_ == key) {
-    draggedKey_.clear();
+    out = v;
+    return true;
   }
+  if (!ImGui::IsItemActive() && draggedKey_ == key) draggedKey_.clear();
+  return false;
 }
 
-void PropertiesPanel::settings(Session& s, const Node& n, const TypeDeclarations& d) {
-  for (const auto& st : d.settings) {
-    if (st.type == SettingType::String) {
-      string_setting(s, n, st);
-      continue;
-    }
-    const auto held = n.settings.find(st.name);
-    const float v = held == n.settings.end() ? st.defaultValue : held->second;
-    if (st.type == SettingType::Bool) {
-      bool on = v != 0.0f;
-      if (ImGui::Checkbox(st.name.c_str(), &on)) edit_setting(s, n.id, st.name, on ? 1.0f : 0.0f);
-    } else if (!st.labels.empty()) {
-      const int index = int(v);
-      const char* shown = index >= 0 && index < int(st.labels.size()) ? st.labels[size_t(index)].c_str() : "?";
-      if (ImGui::BeginCombo(st.name.c_str(), shown)) {
-        for (size_t k = 0; k < st.labels.size(); ++k)
-          if (ImGui::Selectable(st.labels[k].c_str(), int(k) == index)) edit_setting(s, n.id, st.name, float(k));
-        ImGui::EndCombo();
-      }
-    } else {
-      number_setting(s, n, st, v);
-    }
-    if (auto pin = n.dynamicPins.find(st.name); pin != n.dynamicPins.end())
-      ImGui::TextDisabled("    set per note by %s", pin->second.c_str());
-  }
-}
-
-void PropertiesPanel::string_setting(Session& s, const Node& n, const TypeDeclarations::Setting& st) {
-  const std::string key = n.id + "/" + st.name;
-  std::string text = typed_;
-  if (typedKey_ != key) {
-    const auto held = n.strings.find(st.name);
-    text = held == n.strings.end() ? st.defaultText : held->second;
-  }
-  ImGui::InputText(st.name.c_str(), &text);        // ImGui's std::string field: any length
-  if (ImGui::IsItemActive()) {
-    typedKey_ = key;
-    typed_ = text;
-  }
-  if (ImGui::IsItemDeactivatedAfterEdit()) {
-    typedKey_.clear();
-    edit_string(s, n.id, st.name, text);
-  } else if (!ImGui::IsItemActive() && typedKey_ == key) {
-    typedKey_.clear();
-  }
-}
-
-void PropertiesPanel::arrays(const Node& n, const TypeDeclarations& d) {
-  for (const auto& a : d.arrays) {
-    const auto held = n.arrays.find(a.name);
-    ImGui::TextDisabled("%s: %zu rows", a.name.c_str(), held == n.arrays.end() ? size_t(0) : held->second.size());
-  }
-}
-
-// Every node of the patch by id and type, in the graph's order: a node
-// another hides on the canvas can be chosen here.
+// What the canvas draws, by name, in its order: the nodes no face names,
+// then the faces. A thing another hides on the canvas can be chosen here.
 void PropertiesPanel::choose_node(Session& s) {
-  const Node* current = selected_node(s);
-  const std::string shown = current ? current->id + "  (" + current->type + ")" : std::string("(no node)");
+  const Patch& p = s.open.patch;
+  const Node* n = node_named(p, s.selected);
+  const NoteFace* f = face_named(p, s.selected);
+  const std::string shown = n ? n->id + "  (" + n->type + ")" : f ? f->label + "  (Note)" : std::string("(nothing)");
   if (!ImGui::BeginCombo("node", shown.c_str())) return;
-  if (ImGui::Selectable("(no node)", !current)) select_node(s, "");
-  for (const auto& n : s.open.patch.graph.nodes)
-    if (ImGui::Selectable((n.id + "  (" + n.type + ")").c_str(), current == &n)) select_node(s, n.id);
+  if (ImGui::Selectable("(nothing)", s.selected.empty())) select_node(s, "");
+  const std::set<std::string> named = face_nodes(p);
+  for (const auto& node : p.graph.nodes)
+    if (!named.count(node.id) && ImGui::Selectable((node.id + "  (" + node.type + ")").c_str(), node.id == s.selected))
+      select_node(s, node.id);
+  for (const auto& face : p.layout.faces)
+    if (ImGui::Selectable((face.label + "  (Note)").c_str(), face.label == s.selected)) select_node(s, face.label);
   ImGui::EndCombo();
 }
 
+// The name of the node or face selected: typed, then renamed by the editor's rules.
+void PropertiesPanel::name_field(Session& s, const std::string& name) {
+  std::string to;
+  if (text_field("name", "name/" + name, name, to) && to != name) rename(s, name, to);
+}
+
+// A face: its name, and each of the note's fields with the node that reads it.
+void PropertiesPanel::face_panel(Session& s, const NoteFace& face) {
+  const std::string label = face.label;            // the face may be renamed below
+  name_field(s, label);
+  ImGui::TextDisabled("a note: each field an output to wire");
+  ImGui::Separator();
+  const TypeDeclarations* d = type_declarations("PerformNode");
+  const auto* field = d ? d->setting("field") : nullptr;
+  if (!field) return;
+  for (const auto& name : field->labels) {
+    const auto read = face.fields.find(name);
+    if (read == face.fields.end()) ImGui::TextDisabled("%s", name.c_str());
+    else ImGui::Text("%s  -> read (%s)", name.c_str(), read->second.c_str());
+  }
+}
+
 void PropertiesPanel::draw(Session& s) {
-  if (seenOpened_ != s.opened) {                    // another file: nothing in flight belongs to it
+  if (seenOpened_ != s.opened) {                    // another patch: nothing in flight belongs to it
     draggedKey_.clear();
     typedKey_.clear();
     seenOpened_ = s.opened;
   }
-  if (!s.open.patch.graph.nodes.empty()) choose_node(s);
-  const Node* n = selected_node(s);
-  if (!n) {
+  if (!s.open.patch.graph.nodes.empty() || !s.open.patch.layout.faces.empty()) choose_node(s);
+  // An edit below may change the patch; each part copies what it names first.
+  if (const Node* n = node_named(s.open.patch, s.selected)) {
+    const Node node = *n;
+    node_panel(s, node);
+  } else if (const NoteFace* f = face_named(s.open.patch, s.selected)) {
+    const NoteFace face = *f;
+    face_panel(s, face);
+  } else if (s.open.patch.instrument) {
+    const InstrumentBlock block = *s.open.patch.instrument;
+    instrument_fields(s, block);
+  } else {
     patch_facts(s);
-    return;
   }
-  // An edit below adds to the node's maps and leaves the node where it is,
-  // so the reference stays good for the rest of the frame.
-  const Node& node = *n;
-  heading(node);
-  const TypeDeclarations* d = type_declarations(node.type);
-  if (!d) {
-    ImGui::TextDisabled("its type is not registered");
-    return;
-  }
-  ImGui::PushID(node.id.c_str());
-  pins(s, node, *d);
-  settings(s, node, *d);
-  arrays(node, *d);
-  ImGui::PopID();
 }
 
 }  // namespace mforce::ui

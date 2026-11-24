@@ -5,7 +5,7 @@ namespace mforce::ui {
 
 namespace {
 
-const char* const kUsage = "usage: mforce_editor [patch.json] [--frames N] [--shot FILE]";
+const char* const kUsage = "usage: mforce_editor [patch.json] [--frames N] [--shot FILE] [--select NAME]";
 
 int frame_count(const std::string& text) {
   try {
@@ -25,6 +25,7 @@ Options read_options(int argc, char** argv) {
     const bool hasValue = i + 1 < argc;
     if (arg == "--frames" && hasValue) o.frames = frame_count(argv[++i]);
     else if (arg == "--shot" && hasValue) o.shot = argv[++i];
+    else if (arg == "--select" && hasValue) o.select = argv[++i];
     else if (!arg.empty() && arg[0] != '-' && o.patch.empty()) o.patch = arg;
     else throw std::runtime_error(kUsage);
   }

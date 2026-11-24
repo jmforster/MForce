@@ -40,6 +40,11 @@ GLFWwindow* create_window(int width, int height, const std::string& title) {
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   GLFWwindow* window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
   if (!window) throw std::runtime_error(with_glfw_error("the window did not open"));
+  // On the primary monitor's work area, 100 across and 60 down from its corner,
+  // so the window cannot land on a monitor that is not there.
+  int left = 0, top = 0, width0 = 0, height0 = 0;
+  if (GLFWmonitor* monitor = glfwGetPrimaryMonitor()) glfwGetMonitorWorkarea(monitor, &left, &top, &width0, &height0);
+  glfwSetWindowPos(window, left + 100, top + 60);
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);   // one frame per screen refresh
   return window;
@@ -70,9 +75,16 @@ struct GuiContexts {
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = ini.empty() ? nullptr : ini.c_str();
     if (std::filesystem::exists(kFont)) io.Fonts->AddFontFromFileTTF(kFont, kFontSize);
+    io.ConfigDragClickToInputText = true;            // one click on a drag field types a number
     ImGui::StyleColorsDark();
     // The canvas pans with Alt and a left drag, as well as with the middle button.
     ImNodes::GetIO().EmulateThreeButtonMouse.Modifier = &io.KeyAlt;
+    ImNodesStyle& canvas = ImNodes::GetStyle();      // rounded nodes, a grid, wires 2.5 wide
+    canvas.NodeCornerRounding = 4.0f;
+    canvas.NodePadding = ImVec2(8.0f, 8.0f);
+    canvas.PinCircleRadius = 4.0f;
+    canvas.LinkThickness = 2.5f;
+    canvas.Flags |= ImNodesStyleFlags_GridLines;
   }
   ~GuiContexts() {
     ImNodes::DestroyContext();

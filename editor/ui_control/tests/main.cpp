@@ -27,6 +27,7 @@ void run_create_tests();
 void run_offer_tests();
 void run_new_patch_tests();
 void run_history_census_tests();
+void run_onsets_text_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -56,6 +57,7 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_offer_tests", run_offer_tests},
   {"run_new_patch_tests", run_new_patch_tests},
   {"run_history_census_tests", run_history_census_tests},
+  {"run_onsets_text_tests", run_onsets_text_tests},
 };
 }  // namespace
 

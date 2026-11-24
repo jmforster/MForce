@@ -213,9 +213,19 @@ void run_new_patch_tests() {
   request_new(s);                                         // nothing unsaved: at once
   CHECK(s.unsaved.waiting == Unsaved::Waiting::Nothing && s.opened == opened + 2);
 
-  fit_canvas(s);
-  CHECK(s.open.patch.layout.panning == fit_panning(s.open.patch) && steps(s) == 0 && !unsaved(s.open));
+  fit_canvas(s, Vec2{800, 600});
+  CHECK(s.open.patch.layout.panning == centred_panning(s.open.patch, Vec2{800, 600}));
+  CHECK(steps(s) == 0 && !unsaved(s.open));
   s.recent.paths = {"a.json", "b.json"};
   clear_recent(s);
   CHECK(s.recent.paths.empty());
+}
+
+// The onsets typed as the old editor read them: comma-separated, each name's
+// spaces at its ends dropped, an empty one dropped.
+void run_onsets_text_tests() {
+  CHECK((onsets_from_text(" tongue, slur ,,breath\t,  ") == std::vector<std::string>{"tongue", "slur", "breath"}));
+  CHECK(onsets_from_text("").empty() && onsets_from_text(" , ").empty());
+  CHECK(onsets_text({"tongue", "slur"}) == "tongue, slur");
+  CHECK(onsets_from_text(onsets_text({"a b", "c"})) == (std::vector<std::string>{"a b", "c"}));
 }

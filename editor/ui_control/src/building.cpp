@@ -94,6 +94,28 @@ void rename(Session& s, std::string_view nodeOrFace, std::string to) {
   if (*done == Change::Structure) sound_follows(s);
 }
 
+std::vector<std::string> onsets_from_text(std::string_view text) {
+  std::vector<std::string> names;
+  std::size_t start = 0;
+  while (start <= text.size()) {
+    const std::size_t comma = std::min(text.find(',', start), text.size());
+    std::string_view name = text.substr(start, comma - start);
+    const std::size_t first = name.find_first_not_of(" \t");
+    if (first != std::string_view::npos) {
+      name = name.substr(first, name.find_last_not_of(" \t") - first + 1);
+      names.emplace_back(name);
+    }
+    start = comma + 1;
+  }
+  return names;
+}
+
+std::string onsets_text(const std::vector<std::string>& onsets) {
+  std::string text;
+  for (const auto& name : onsets) text += (text.empty() ? "" : ", ") + name;
+  return text;
+}
+
 void edit_instrument(Session& s, const InstrumentBlock& block) {
   if (!s.open.patch.instrument) {
     s.status = "a plain sound has no instrument block: its settings cannot be edited";
@@ -102,8 +124,13 @@ void edit_instrument(Session& s, const InstrumentBlock& block) {
   if (step(s, "", [&](Patch& p) { return set_instrument(p, block); })) sound_follows(s);
 }
 
-// The offer is tried on a copy of the patch with a signal that reads nothing
-// driving the setting, so it is refused exactly as feeding it would be.
+// A pin is offered only where a feed could later be wired, and whether one
+// could is check()'s to say (a structural setting, a plain sound). So the
+// offer feeds the setting on a COPY of the patch from a probe: a VarSource
+// added to the copy alone, a signal that reads nothing, so it can close no
+// loop and is refused for nothing of its own. The feed's refusal, if any, is
+// the engine's own sentence; the copy and its probe are then thrown away and
+// the open patch is never touched.
 void offer_setting_pin(Session& s, std::string_view node, std::string_view setting) {
   Patch trial = s.open.patch;
   Node probe;
@@ -132,7 +159,9 @@ void withdraw_setting_pin(Session& s, std::string_view node, std::string_view se
 
 void end_gesture(Session& s) { s.gesture.clear(); }
 
-void fit_canvas(Session& s) { (void)set_panning(s.open.patch, fit_panning(s.open.patch)); }
+void fit_canvas(Session& s, Vec2 canvasSize) {
+  (void)set_panning(s.open.patch, centred_panning(s.open.patch, canvasSize));
+}
 
 void clear_recent(Session& s) { s.recent.paths.clear(); }
 

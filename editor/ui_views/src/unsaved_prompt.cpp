@@ -23,13 +23,26 @@ void UnsavedPrompt::save(Session& s) {
   answer_unsaved(s, Answer::Save);
 }
 
+namespace {
+
+// The question, worded for what waits.
+const char* question(Unsaved::Waiting waiting) {
+  switch (waiting) {
+    case Unsaved::Waiting::Close: return "The patch has unsaved changes. Save them before closing?";
+    case Unsaved::Waiting::New:   return "The patch has unsaved changes. Save them before starting a new one?";
+    case Unsaved::Waiting::Open:
+    case Unsaved::Waiting::Nothing: break;
+  }
+  return "The patch has unsaved changes. Save them before opening another?";
+}
+
+}  // namespace
+
 void UnsavedPrompt::draw(Session& s) {
   if (s.unsaved.waiting == Unsaved::Waiting::Nothing) return;
   ImGui::OpenPopup(kTitle);                         // each frame while it waits; once open, it stays open
   if (!ImGui::BeginPopupModal(kTitle, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
-  ImGui::TextUnformatted(s.unsaved.waiting == Unsaved::Waiting::Close
-                             ? "The patch has unsaved changes. Save them before closing?"
-                             : "The patch has unsaved changes. Save them before opening another?");
+  ImGui::TextUnformatted(question(s.unsaved.waiting));
   if (!s.status.empty()) ImGui::TextDisabled("%s", s.status.c_str());
   if (ImGui::Button("Save")) save(s);
   ImGui::SameLine();

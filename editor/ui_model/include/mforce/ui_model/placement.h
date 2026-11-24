@@ -29,4 +29,10 @@ int place_unplaced_nodes(Patch& patch);
 // things it placed, less the Output node.
 int arrange_nodes(Patch& patch);
 
+// The size of the slot placement gives a node, a face and the Output node:
+// a column's width less a gap, and the height its rows need.
+Vec2 node_slot(const Node& n);
+Vec2 face_slot();
+Vec2 output_slot();
+
 }  // namespace mforce::ui

@@ -40,7 +40,7 @@ void EditorViews::draw(Session& session) {
   keyboard_.draw(session);
   ImGui::EndChild();
   ImGui::BeginChild("status", ImVec2(0.0f, kStatusHeight));
-  status_.draw(session);
+  status_.draw(session, canvas_.size());
   ImGui::EndChild();
   ImGui::End();
   prompt_.draw(session);

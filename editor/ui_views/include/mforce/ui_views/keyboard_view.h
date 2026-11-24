@@ -5,7 +5,8 @@ namespace mforce::ui {
 
 // The keyboard: the computer's note keys, an on-screen piano of three
 // octaves from the keyboard octave played with the mouse, the octave and a
-// struck note's length (Up and Down, Left and Right), and the output's peak.
+// struck note's length (Up and Down, Left and Right, without Shift: with it
+// an arrow pans the canvas), and the output's peak.
 // No note key acts while a text field has the keyboard; when the window
 // loses the keyboard every held key goes up.
 class KeyboardView {

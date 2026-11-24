@@ -1,0 +1,91 @@
+#pragma once
+#include <cstddef>
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+#include "mforce/patch/patch.h"
+#include "mforce/ui_control/wiring.h"
+
+namespace mforce::ui {
+
+// What the canvas draws, as plain data made from the patch and the offered
+// setting pins, with no ImGui in it: the canvas makes one each frame and
+// draws from it, and decodes what imnodes reports through it.
+//
+// imnodes names nodes, pins and links by integers. CanvasNames gives them:
+// a node's integer is given the first time its name is seen and kept while
+// the canvas lives (0 is the Output node's); a pin's is its node's times
+// 1024 plus its row; a link's is given the first time its taking end and
+// feed number are seen, and kept, so it is the same from frame to frame
+// while the patch does not change.
+class CanvasNames {
+public:
+  int node(const std::string& key);                // "n:" + a node id, "f:" + a face label
+  int link(const std::string& key);                // the taking end and the feed's number
+  static constexpr int kOutputNode = 0;
+  static constexpr int kPinsPerNode = 1024;
+
+private:
+  std::map<std::string, int> nodes_;
+  std::map<std::string, int> links_;
+  int nextNode_{1};
+  int nextLink_{1};
+};
+
+// One pin of a drawn node.
+struct CanvasPin {
+  enum class Look { Param, InputOnly, Setting, Output, Tap, Field, PatchOutput };
+  int id{0};
+  PinEnd end;
+  Look look{Look::Param};
+  std::string label;            // the pin's, setting's or field's name; "out", "tap", or the output's source
+  bool fed{false};              // a feed, a drive or the output reaches it
+};
+
+// One thing drawn as a node: a graph node no face names, a face, or the
+// canvas's Output node.
+struct CanvasNode {
+  enum class Kind { Graph, Face, Output };
+  int id{0};
+  Kind kind{Kind::Graph};
+  std::string name;             // the node's id or the face's label; empty for the Output node
+  std::string type;             // the node's type; empty for a face and the Output node
+  std::vector<std::string> texts;   // each non-empty string setting's text, for the body
+  std::vector<CanvasPin> inputs;
+  std::vector<CanvasPin> outputs;
+};
+
+// One wire: from a giving pin to a taking pin, and what unwire needs.
+struct CanvasLink {
+  enum class Look { Plain, Tap, Dynamic };
+  int id{0};
+  int from{0};
+  int to{0};
+  PinEnd reader;                // the taking end
+  std::size_t feed{0};          // the feed's number on its pin
+  Look look{Look::Plain};
+};
+
+struct CanvasTable {
+  std::vector<CanvasNode> nodes;   // the graph's nodes no face names, then the faces, then the Output node
+  std::vector<CanvasLink> links;   // each feed, each dynamic pin, the output
+  // The pin a pin's integer names; null for one the table does not have.
+  const PinEnd* pin(int id) const;
+  // The link a link's integer names; null for one the table does not have.
+  const CanvasLink* link(int id) const;
+  // The drawn node a node's integer names; null for one the table does not have.
+  const CanvasNode* node(int id) const;
+};
+
+// The table for `patch` with the setting pins `offered` shown. A graph
+// node's inputs are each declared Param, each declared Input, then each
+// setting on offer or fed, in the declarations' order; its outputs its
+// Output pin and, on a signal, its Tap pin. A face's outputs are the note's
+// six fields; the Output node's one input is the PatchOutput. A feed whose
+// source is a face's node starts at that face's field.
+CanvasTable canvas_table(const Patch& patch, const std::set<std::pair<std::string, std::string>>& offered,
+                         CanvasNames& names);
+
+}  // namespace mforce::ui

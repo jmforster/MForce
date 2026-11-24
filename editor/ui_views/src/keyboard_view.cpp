@@ -60,7 +60,7 @@ void KeyboardView::computer_keys(Session& s) {
     if (act.down) key_down(s, int(key_for(act.key)), act.noteNumber);
     else key_up(s, int(key_for(act.key)));
   }
-  if (io.WantTextInput || io.KeyCtrl) return;
+  if (io.WantTextInput || io.KeyCtrl || io.KeyShift) return;   // Shift with an arrow is the canvas's pan
   if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false)) change_octave(s, 1);
   if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false)) change_octave(s, -1);
   if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false)) change_note_length(s, 0.5f);

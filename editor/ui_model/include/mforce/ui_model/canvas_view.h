@@ -9,6 +9,12 @@ namespace mforce::ui {
 // a point p of the record at p plus the panning.)
 Vec2 fit_panning(const Patch& patch);
 
+// The panning that puts the middle of the box around what the canvas draws
+// (each thing's position and its slot's size, as placement gives them) at
+// the middle of a canvas of `canvasSize`; fit_panning when nothing has a
+// position.
+Vec2 centred_panning(const Patch& patch, Vec2 canvasSize);
+
 // The panning the canvas shows the patch at: the saved one; with none saved,
 // fit_panning, so a patch opens in view.
 Vec2 canvas_panning(const Patch& patch);

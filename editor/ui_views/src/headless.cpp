@@ -8,9 +8,9 @@ namespace mforce::ui {
 
 namespace {
 
-// Two frames: the first creates every node, the second draws them where
-// the first measured them.
-constexpr int kFrames = 2;
+// Three frames: the first creates every node, the second draws them where
+// the first measured them, the third draws them again unchanged.
+constexpr int kFrames = 3;
 
 class CancelledDialogs final : public FileDialogs {
 public:

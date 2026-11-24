@@ -36,6 +36,10 @@ void delete_these(Session& s, const std::vector<std::pair<PinEnd, std::size_t>>&
 // nodes), not in use by a node, a face or a group. The selection and the
 // offers follow.
 void rename      (Session& s, std::string_view nodeOrFace, std::string to);
+// The instrument's onset names as a person types them, comma-separated,
+// and back: a name's spaces at its ends go, an empty name goes.
+std::vector<std::string> onsets_from_text(std::string_view text);
+std::string onsets_text(const std::vector<std::string>& onsets);
 // The instrument's own settings. Refused on a plain sound.
 void edit_instrument(Session& s, const InstrumentBlock& block);
 // Shows the pin of `setting` on `node`, to be wired. Refused, in check()'s
@@ -52,8 +56,9 @@ void undo(Session& s);
 void redo(Session& s);
 // The drag under way is over: the next edit is a step of its own.
 void end_gesture(Session& s);
-// The panning that brings the whole patch into view (fit_panning). Not a step.
-void fit_canvas(Session& s);
+// The panning that centres the whole patch in a canvas of `canvasSize`
+// (centred_panning). Not a step.
+void fit_canvas(Session& s, Vec2 canvasSize);
 // The recent files emptied; the list written at exit is then empty.
 void clear_recent(Session& s);
 
