@@ -63,6 +63,8 @@ void run_watch_tests();
 void run_away_tests();
 void run_watch_unopened_tests();
 void run_follow_restart_tests();
+void run_restarted_tests();
+void run_pane_and_taken_keys_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -128,6 +130,8 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_away_tests", run_away_tests},
   {"run_watch_unopened_tests", run_watch_unopened_tests},
   {"run_follow_restart_tests", run_follow_restart_tests},
+  {"run_restarted_tests", run_restarted_tests},
+  {"run_pane_and_taken_keys_tests", run_pane_and_taken_keys_tests},
 };
 }  // namespace
 

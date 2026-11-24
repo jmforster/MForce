@@ -7,6 +7,7 @@
 #include "mforce/ui_audio/audio_adapter.h"
 #include "mforce/ui_control/keyboard.h"
 #include "mforce/ui_control/live_play.h"
+#include "mforce/ui_control/pane.h"
 #include "mforce/ui_control/take.h"
 #include "mforce/ui_control/transport.h"
 #include "mforce/ui_control/unsaved.h"
@@ -25,8 +26,8 @@ struct LastNote {
 
 // The editor's whole state. main owns one; the views are handed it and
 // change it only through the functions of edits.h, building.h, wiring.h,
-// files.h, unsaved.h, playing.h, generating.h, waveforms.h, listening.h and
-// watchdog.h. Made with no device: main calls audio.open().
+// files.h, unsaved.h, playing.h, generating.h, waveforms.h, listening.h,
+// watchdog.h and pane.h. Made with no device: main calls audio.open().
 struct Session {
   OpenPatch    open;
   AudioAdapter audio;
@@ -37,6 +38,8 @@ struct Session {
   int          takes{0};     // how many times the take has been replaced or cleared (replace_take)
   WaveView     waves;        // how the pane's strips are looked at
   std::vector<PopOut> popOuts;   // the strips popped out, oldest first
+  bool         overStrips{false};  // the mouse was over the strips last frame: the strips have their keys
+  Pane         pane;         // the bottom pane: the tab shown, collapsed or not
   int          nextPopOut{1};    // the number the next pop-out takes
   std::string  listening;    // the node the keys hear in place of the output; empty for the output
   Watchdog     watchdog;     // the sound card's heartbeat as last seen

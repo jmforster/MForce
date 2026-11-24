@@ -1,12 +1,17 @@
 #include "options.h"
 #include <stdexcept>
+#include "mforce/ui_control/generating.h"
+#include "mforce/ui_control/listening.h"
+#include "mforce/ui_control/pane.h"
+#include "mforce/ui_control/waveforms.h"
 
 namespace mforce::ui {
 
 namespace {
 
 const char* const kUsage =
-    "usage: mforce_editor [patch.json] [--frames N] [--shot FILE] [--select NAME] [--tab note|passage|chords|drums]";
+    "usage: mforce_editor [patch.json] [--frames N] [--shot FILE] [--select NAME] [--tab note|passage|chords|drums]"
+    " [--generate] [--pane waveforms|spectrum|keyboard] [--columns N] [--popout NAME] [--collapse] [--listen NAME]";
 
 int frame_count(const std::string& text) {
   try {
@@ -28,6 +33,12 @@ Options read_options(int argc, char** argv) {
     else if (arg == "--shot" && hasValue) o.shot = argv[++i];
     else if (arg == "--select" && hasValue) o.select = argv[++i];
     else if (arg == "--tab" && hasValue) o.tab = argv[++i];
+    else if (arg == "--generate") o.generate = true;
+    else if (arg == "--pane" && hasValue) o.pane = argv[++i];
+    else if (arg == "--columns" && hasValue) o.columns = frame_count(argv[++i]);
+    else if (arg == "--popout" && hasValue) o.popout = argv[++i];
+    else if (arg == "--collapse") o.collapse = true;
+    else if (arg == "--listen" && hasValue) o.listen = argv[++i];
     else if (!arg.empty() && arg[0] != '-' && o.patch.empty()) o.patch = arg;
     else throw std::runtime_error(kUsage);
   }
@@ -35,6 +46,16 @@ Options read_options(int argc, char** argv) {
   if (!o.tab.empty() && o.tab != "note" && o.tab != "passage" && o.tab != "chords" && o.tab != "drums")
     throw std::runtime_error(std::string(kUsage) + ": --tab names note, passage, chords or drums");
   return o;
+}
+
+void apply_picture_options(Session& s, const Options& o) {
+  if (!o.listen.empty()) listen_at(s, o.listen);
+  if (o.generate) generate(s);
+  if (o.pane == "spectrum") show_pane_tab(s, Pane::Tab::Spectrum);
+  else if (o.pane == "keyboard") show_pane_tab(s, Pane::Tab::Keyboard);
+  if (o.columns > 0) set_columns(s.waves, o.columns);
+  if (!o.popout.empty()) open_pop_out(s, o.popout == "Output" ? std::string() : o.popout);
+  if (o.collapse) collapse_pane(s, true);
 }
 
 Transport with_tab(Transport t, const std::string& tab) {

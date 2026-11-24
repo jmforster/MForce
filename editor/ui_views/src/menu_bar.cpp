@@ -6,6 +6,7 @@
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/unsaved.h"
+#include "mforce/ui_control/watchdog.h"
 
 namespace mforce::ui {
 
@@ -43,6 +44,7 @@ void MenuBar::shortcuts(Session& s) {
   if (ImGui::GetIO().WantTextInput) return;
   if (shortcut(ImGuiMod_Ctrl | ImGuiKey_Z)) undo(s);
   if (shortcut(ImGuiMod_Ctrl | ImGuiKey_Y)) redo(s);
+  if (shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_A)) restart_audio(s, "by hand");
   if (ImGui::IsKeyPressed(ImGuiKey_Space, false)) play_or_stop(s);
 }
 
@@ -67,6 +69,7 @@ void MenuBar::recent(Session& s) {
 }
 
 void MenuBar::draw(Session& s) {
+  places_.clear();
   shortcuts(s);
   if (!ImGui::BeginMenuBar()) return;
   if (ImGui::BeginMenu("File")) {
@@ -79,9 +82,14 @@ void MenuBar::draw(Session& s) {
     if (ImGui::MenuItem("Quit")) request_close(s);
     ImGui::EndMenu();
   }
-  if (ImGui::BeginMenu("Edit")) {
+  const bool edit = ImGui::BeginMenu("Edit");
+  places_.note_item("menu:Edit");
+  if (edit) {
     if (ImGui::MenuItem("Undo", "Ctrl+Z", false, !s.open.history.past.empty())) undo(s);
     if (ImGui::MenuItem("Redo", "Ctrl+Y", false, !s.open.history.future.empty())) redo(s);
+    ImGui::Separator();
+    if (ImGui::MenuItem("Restart audio", "Ctrl+Shift+A")) restart_audio(s, "by hand");
+    places_.note_item("menu:Restart audio");
     ImGui::EndMenu();
   }
   if (ImGui::BeginMenu("Transport")) {

@@ -7,6 +7,7 @@
 #include <imgui.h>
 #include "mforce/ui_control/keyboard.h"
 #include "mforce/ui_control/playing.h"
+#include "mforce/ui_control/waveforms.h"
 
 namespace mforce::ui {
 
@@ -107,7 +108,7 @@ void key_labels(ImDrawList* draw, const PianoKey& k, int first, bool computerKey
 
 }  // namespace
 
-void KeyboardView::computer_keys(Session& s) {
+void KeyboardView::read_keys(Session& s) {
   const ImGuiIO& io = ImGui::GetIO();
   if (io.AppFocusLost) {
     release_all_keys(s);
@@ -119,13 +120,15 @@ void KeyboardView::computer_keys(Session& s) {
     const bool pressed = ImGui::IsKeyPressed(key, false), released = ImGui::IsKeyReleased(key);
     if (pressed || released) changes.push_back({c, pressed, released});
   }
-  for (const KeyAct& act : key_acts(s.keyboard, changes, io.WantTextInput || io.KeyCtrl)) {
+  const std::string_view taken = s.overStrips ? kStripNoteKeys : std::string_view();
+  for (const KeyAct& act : key_acts(s.keyboard, changes, io.WantTextInput || io.KeyCtrl, taken)) {
     if (act.down) key_down(s, int(key_for(act.key)), act.noteNumber);
     else key_up(s, int(key_for(act.key)));
   }
   if (io.WantTextInput || io.KeyCtrl || io.KeyShift || !s.keyboard.computerKeys) return;   // Shift with an arrow is the canvas's pan
   if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false)) change_octave(s, 1);
   if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false)) change_octave(s, -1);
+  if (s.overStrips) return;                       // Left and Right are the strips' now
   if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false)) change_note_length(s, 0.5f);
   if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false)) change_note_length(s, 2.0f);
 }
@@ -210,7 +213,6 @@ void KeyboardView::piano(Session& s) {
 }
 
 void KeyboardView::draw(Session& s) {
-  computer_keys(s);
   controls(s);
   piano(s);
 }

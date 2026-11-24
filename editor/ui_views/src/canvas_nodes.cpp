@@ -22,6 +22,7 @@ constexpr ImVec4 kText(0.9f, 0.7f, 0.9f, 1.0f);
 constexpr ImVec4 kTapText(0.35f, 0.65f, 0.7f, 1.0f);
 constexpr ImVec4 kDynamicText(0.85f, 0.72f, 0.30f, 1.0f);
 constexpr float kOutputIndent = 110.0f;            // an output pin's text sits at the node's right side
+constexpr ImVec4 kListenMark(0.5f, 0.8f, 0.5f, 1.0f);   // "<)))" after the title of the node listened to
 
 const Node* node_named(const Patch& p, const std::string& id) {
   for (const auto& n : p.graph.nodes)
@@ -81,21 +82,26 @@ void pop_node_colours() {
   for (int k = 0; k < 4; ++k) ImNodes::PopColorStyle();
 }
 
-void title(const std::string& text) {
+void title(const std::string& text, bool listened) {
   ImNodes::BeginNodeTitleBar();
   ImGui::PushStyleColor(ImGuiCol_Text, kTitleText);
   ImGui::TextUnformatted(text.c_str());
   ImGui::PopStyleColor();
+  if (listened) {
+    ImGui::SameLine();
+    ImGui::TextColored(kListenMark, "<)))");
+  }
   ImNodes::EndNodeTitleBar();
 }
 
-void draw_one(const Patch& p, const CanvasNode& c) {
+void draw_one(const Session& s, const CanvasNode& c) {
+  const Patch& p = s.open.patch;
   const bool graph = c.kind == CanvasNode::Kind::Graph;
   const ImU32 colour = graph ? title_colour(c.type) : c.kind == CanvasNode::Kind::Face ? kNoteColour : kOutputColour;
   push_node_colours(colour);
   ImNodes::BeginNode(c.id);
-  if (graph) title(c.name + "  (" + c.type + ")");
-  else title(c.kind == CanvasNode::Kind::Face ? c.name + "  (Note)" : std::string("Output"));
+  if (graph) title(c.name + "  (" + c.type + ")", s.listening == c.name);
+  else title(c.kind == CanvasNode::Kind::Face ? c.name + "  (Note)" : std::string("Output"), false);
   if (graph && !type_declarations(c.type)) ImGui::TextDisabled("type not registered");
   for (const auto& text : c.texts) ImGui::TextColored(kText, "%s", text.c_str());
   const Node* n = graph ? node_named(p, c.name) : nullptr;
@@ -108,7 +114,7 @@ void draw_one(const Patch& p, const CanvasNode& c) {
 }  // namespace
 
 void NodeCanvas::draw_nodes(const Session& s, const CanvasTable& t) {
-  for (const auto& c : t.nodes) draw_one(s.open.patch, c);
+  for (const auto& c : t.nodes) draw_one(s, c);
 }
 
 void NodeCanvas::draw_links(const CanvasTable& t) {

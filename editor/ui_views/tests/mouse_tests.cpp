@@ -23,8 +23,6 @@ namespace {
 // no other; kEmpty is on none, and clear of the mini-map.
 constexpr Vec2 kNote{40, 40}, kOsc{300, 40}, kLfo{300, 260}, kOutput{680, 40}, kEmpty{620, 330};
 constexpr Vec2 kGrip{20, 10};          // a point of a node's title bar, from the node's corner
-// A menu opens with its corner at the mouse; its first item is this far in.
-constexpr Vec2 kFirstItem{24, 14};
 
 Vec2 operator+(Vec2 a, Vec2 b) { return Vec2{a.x + b.x, a.y + b.y}; }
 
@@ -113,15 +111,15 @@ void run_canvas_drag_tests() {
   CHECK(near(b.s.open.patch.layout.positions.at("lfo"), kLfo));   // the canvas shows the record again and carries nothing back
 }
 
-// A right click on empty canvas opens the create menu, whose first item (the
-// Note) makes a face where the click was; on a node, its menu, whose Delete
-// removes it; on the Output node, no menu.
+// A right click on empty canvas opens the create menu, whose Note makes a
+// face where the click was; on a node, its menu, whose Delete removes it; on
+// the Output node, no menu. Each item is clicked where it was drawn.
 void run_canvas_menu_tests() {
   std::printf("the canvas: a right click's menu on empty canvas, on a node and on the Output node\n");
   Bench b;
   b.editor.right_click_at(b.screen(kEmpty));
   REQUIRE(b.editor.popup_open());
-  b.editor.click_at(b.screen(kEmpty) + kFirstItem);
+  REQUIRE(b.editor.click_on("menu:Note"));
   CHECK(!b.editor.popup_open());
   REQUIRE(b.s.open.patch.layout.faces.size() == 2);
   CHECK(near(b.s.open.patch.layout.faces.back().pos, kEmpty));
@@ -129,7 +127,7 @@ void run_canvas_menu_tests() {
 
   b.editor.right_click_at(b.grip(kLfo));
   REQUIRE(b.editor.popup_open());
-  b.editor.click_at(b.grip(kLfo) + kFirstItem);
+  REQUIRE(b.editor.click_on("menu:Delete"));
   CHECK(!b.editor.popup_open() && !b.has_node("lfo") && b.has_node("osc"));
 
   b.editor.right_click_at(b.grip(kOutput));
@@ -162,6 +160,7 @@ void run_canvas_wheel_tests() {
   const Vec2 kNotch{0, 40};
   b.editor.wheel_at(b.screen(kEmpty), 1.0f);
   CHECK(canvas_panning(b.s.open.patch) == was + kNotch);
+  REQUIRE(b.editor.click_on("tab:Keyboard"));
   b.editor.wheel_at(b.editor.piano_origin() + Vec2{5, 60}, 1.0f);
   CHECK(canvas_panning(b.s.open.patch) == was + kNotch);
 }
@@ -173,6 +172,7 @@ void run_piano_mouse_tests() {
   std::printf("the piano: a press plays the key under the mouse until the button goes up\n");
   Bench b;
   const int c = b.s.keyboard.octave * 12;
+  REQUIRE(b.editor.click_on("tab:Keyboard"));                // the piano is the pane's Keyboard tab
   b.editor.mouse_down_at(b.editor.piano_origin() + Vec2{5, 60});
   CHECK(held_notes(b.s) == std::vector<int>{c});
   CHECK(b.s.lastNote.note == c && b.s.lastNote.velocity > 0.8f);

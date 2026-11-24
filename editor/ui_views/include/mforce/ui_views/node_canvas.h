@@ -5,6 +5,7 @@
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_views/canvas_table.h"
 #include "mforce/ui_views/create_menu.h"
+#include "mforce/ui_views/places.h"
 
 namespace mforce::ui {
 
@@ -16,7 +17,9 @@ namespace mforce::ui {
 //   a wire dragged off its pin       unwire
 //   Delete or Backspace              delete_these (the selected wires, then the selected node or face)
 //   a right click on empty canvas    the create menu: create_node or create_note at the click
-//   a right click on a node or Note  its menu: Delete, delete_these with its name
+//   a right click on a node or Note  its menu: Delete, delete_these with its name;
+//                                    on a node, then "Listen here" (listen_at), or
+//                                    "Stop listening here" on the node listened to
 //   a drag of nodes or faces         edit_position for each, then end_gesture when the mouse lets go
 //   the wheel, Shift with an arrow   pan_canvas
 //   F, wherever the mouse is         fit_canvas
@@ -33,6 +36,8 @@ public:
   void draw(Session& s);
   Vec2 size() const { return size_; }              // the canvas's size on screen, from the last frame
   Vec2 origin() const { return origin_; }          // its top-left corner on screen, from the last frame
+  // Where each item of its open menu was drawn last frame, as "menu:<words>".
+  const Places& places() const { return places_; }
 
 private:
   // node_canvas.cpp: a frame.
@@ -61,6 +66,8 @@ private:
   Vec2 size_{};                                    // the canvas's size on screen
   Vec2 menuAt_{};                                  // where in the record the create menu was opened
   std::string menuNode_;                           // the node or Note whose menu is open
+  bool menuFace_{false};                           // that menu is a Note's
+  Places places_;
 };
 
 }  // namespace mforce::ui

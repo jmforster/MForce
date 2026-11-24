@@ -1,6 +1,7 @@
 #pragma once
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mforce::ui {
@@ -31,10 +32,14 @@ int note_number(const Keyboard& how, int offset);
 struct KeyChange { char key; bool pressed; bool released; };
 // What a frame's key changes play: a key down for each note key pressed,
 // unless notes are held back (Ctrl is down, a text field has the keyboard)
-// or the PC Keyboard is off; a key up for each note key released, held back
-// or not, so no note is left sounding. A key outside the note table does
+// or the PC Keyboard is off, or the key is one of `taken` (another view has
+// it this frame); a key up for each note key released, held back, taken or
+// not, so no note is left sounding. A key outside the note table does
 // nothing.
 struct KeyAct { char key; bool down; int noteNumber; };
+std::vector<KeyAct> key_acts(const Keyboard& how, const std::vector<KeyChange>& changes, bool notesHeldBack,
+                             std::string_view taken);
+// The same with no key taken.
 std::vector<KeyAct> key_acts(const Keyboard& how, const std::vector<KeyChange>& changes, bool notesHeldBack);
 
 // The on-screen piano: as many octaves, from 1 to 10, as keep a white key

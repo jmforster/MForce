@@ -95,6 +95,7 @@ void NodeCanvas::carry_selection(Session& s, const CanvasTable& t) {
 }
 
 void NodeCanvas::draw(Session& s) {
+  places_.clear();
   if (seenOpened_ != s.opened) {                    // another patch: its things get integers afresh
     names_ = CanvasNames{};
     gesture_ = false;

@@ -13,14 +13,16 @@ namespace mforce::ui {
 // note still sounding drawn pressed, each white key named, each key the
 // upper zone reaches labelled with its computer key, played with the mouse louder the further
 // down a key it is pressed. No note key acts while a text field has the
-// keyboard; when the window loses the keyboard every held key goes up.
+// keyboard; when the window loses the keyboard every held key goes up. While
+// the strips have their keys (session.overStrips), `=` and `0` play no note
+// and Left and Right leave the note's length.
 class KeyboardView {
 public:
-  void draw(Session& s);
+  void read_keys(Session& s);        // the computer's keys: every frame, whatever the pane shows
+  void draw(Session& s);             // the controls and the piano: while the Keyboard tab is shown
   Vec2 piano_origin() const { return pianoOrigin_; }   // the piano's top-left corner on screen, from the last frame
 
 private:
-  void computer_keys(Session& s);
   void controls(Session& s);
   void piano(Session& s);
   void meter(Session& s);

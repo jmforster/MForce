@@ -6,6 +6,7 @@ mforce_module(ui_control
           src/keyboard.cpp
           src/listening.cpp
           src/live_play.cpp
+          src/pane.cpp
           src/playing.cpp
           src/sounds.cpp
           src/spectrum.cpp

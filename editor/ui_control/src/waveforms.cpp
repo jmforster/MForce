@@ -78,4 +78,6 @@ void close_pop_out(Session& s, int number) {
   std::erase_if(s.popOuts, [number](const PopOut& p) { return p.number == number; });
 }
 
+void set_over_strips(Session& s, bool over) { s.overStrips = over; }
+
 }  // namespace mforce::ui

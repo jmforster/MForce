@@ -1,12 +1,13 @@
 // The canvas's menus: the create menu, opened by a right click on empty
 // canvas at the mouse, holding create_menu()'s; and a node's or a Note's own
-// menu, opened by a right click on it, holding Delete.
+// menu, opened by a right click on it, holding Delete and, on a node, Listen.
 #include <cstddef>
 #include <string>
 #include <vector>
 #include <imgui.h>
 #include <imnodes.h>
 #include "mforce/ui_control/building.h"
+#include "mforce/ui_control/listening.h"
 #include "mforce/ui_views/node_canvas.h"
 #include "canvas_look.h"
 
@@ -50,6 +51,7 @@ void NodeCanvas::open_menus(const CanvasTable& t) {
     const CanvasNode* n = t.node(hovered);
     if (!n || n->kind == CanvasNode::Kind::Output) return;
     menuNode_ = n->name;
+    menuFace_ = n->kind == CanvasNode::Kind::Face;
     ImGui::OpenPopup(kNodePopup);
     return;
   }
@@ -63,8 +65,19 @@ void NodeCanvas::open_menus(const CanvasTable& t) {
 void NodeCanvas::draw_menus(Session& s) {
   if (ImGui::BeginPopup(kNodePopup)) {
     const bool remove = ImGui::MenuItem("Delete");
+    places_.note_item("menu:Delete");
+    bool listen = false;
+    const bool tapped = s.listening == menuNode_;
+    if (!menuFace_) {
+      ImGui::Separator();
+      const char* words = tapped ? "Stop listening here" : "Listen here";
+      listen = ImGui::MenuItem(words);
+      places_.note_item(std::string("menu:") + words);
+    }
     ImGui::EndPopup();
     if (remove) delete_these(s, {}, {menuNode_});
+    else if (listen && tapped) stop_listening(s);
+    else if (listen) listen_at(s, menuNode_);
   }
   if (!ImGui::BeginPopup(kPopup)) return;
   const CreateItem* chosen = nullptr;
@@ -72,6 +85,7 @@ void NodeCanvas::draw_menus(Session& s) {
     if (k == 1) ImGui::Separator();
     const CreateItem& item = menu_.favourites[k];
     if (ImGui::MenuItem(item.label.c_str(), nullptr, false, can_create(item, s.open.patch))) chosen = &item;
+    places_.note_item("menu:" + item.label);
   }
   ImGui::Separator();
   if (const CreateItem* c = families_menu(menu_.main)) chosen = c;

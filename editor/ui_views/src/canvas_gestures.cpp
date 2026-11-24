@@ -52,7 +52,8 @@ void NodeCanvas::carry_wiring(Session& s, const CanvasTable& t) {
 // active: the selected wires, then the selected node or face (never the
 // Output node). The links then differ, and the next frame clears imnodes'
 // link selection. F, wherever the mouse is and with no Ctrl: fit.
-// Shift with an arrow, held: the canvas pans.
+// Shift with an arrow, held: the canvas pans (not across while the strips
+// have the keys).
 void NodeCanvas::carry_keys(Session& s, const CanvasTable& t) {
   const ImGuiIO& io = ImGui::GetIO();
   if (io.WantTextInput) return;
@@ -65,8 +66,9 @@ void NodeCanvas::carry_keys(Session& s, const CanvasTable& t) {
   if (!io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) fit_canvas(s, size_);
   if (!io.KeyShift) return;
   Vec2 by{};
-  if (ImGui::IsKeyDown(ImGuiKey_LeftArrow)) by.x += kArrowStep;
-  if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) by.x -= kArrowStep;
+  const bool across = !s.overStrips;               // Shift with Left or Right is the strips' page while they have the keys
+  if (across && ImGui::IsKeyDown(ImGuiKey_LeftArrow)) by.x += kArrowStep;
+  if (across && ImGui::IsKeyDown(ImGuiKey_RightArrow)) by.x -= kArrowStep;
   if (ImGui::IsKeyDown(ImGuiKey_UpArrow)) by.y += kArrowStep;
   if (ImGui::IsKeyDown(ImGuiKey_DownArrow)) by.y -= kArrowStep;
   if (by.x != 0.0f || by.y != 0.0f) {

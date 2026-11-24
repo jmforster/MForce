@@ -18,6 +18,15 @@ void run_canvas_menu_tests();
 void run_canvas_minimap_tests();
 void run_canvas_wheel_tests();
 void run_piano_mouse_tests();
+void run_pane_tab_tests();
+void run_pane_collapse_tests();
+void run_spectrum_readout_tests();
+void run_strip_toolbar_tests();
+void run_strip_wheel_and_drag_tests();
+void run_strip_key_tests();
+void run_pop_out_tests();
+void run_listen_menu_tests();
+void run_restart_menu_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -38,6 +47,15 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_canvas_minimap_tests", run_canvas_minimap_tests},
   {"run_canvas_wheel_tests", run_canvas_wheel_tests},
   {"run_piano_mouse_tests", run_piano_mouse_tests},
+  {"run_pane_tab_tests", run_pane_tab_tests},
+  {"run_pane_collapse_tests", run_pane_collapse_tests},
+  {"run_spectrum_readout_tests", run_spectrum_readout_tests},
+  {"run_strip_toolbar_tests", run_strip_toolbar_tests},
+  {"run_strip_wheel_and_drag_tests", run_strip_wheel_and_drag_tests},
+  {"run_strip_key_tests", run_strip_key_tests},
+  {"run_pop_out_tests", run_pop_out_tests},
+  {"run_listen_menu_tests", run_listen_menu_tests},
+  {"run_restart_menu_tests", run_restart_menu_tests},
 };
 }  // namespace
 

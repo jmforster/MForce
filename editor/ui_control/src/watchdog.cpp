@@ -64,7 +64,12 @@ void restart_audio(Session& s, std::string_view why) {
     s.status = "Audio not restarted (" + reason + "): no sound device was ever opened";
     return;
   }
-  const std::string failure = s.audio.restart();
+  restarted(s, why, s.audio.restart());
+}
+
+void restarted(Session& s, std::string_view why, const std::string& failure) {
+  const std::string reason(why);
+  if (failure.empty()) s.watchdog.attempts = 0;
   follow_restart(s, failure.empty() ? "Audio stream restarted (" + reason + ")"
                                     : "Audio restart FAILED (" + reason + ") — " + failure + " — watchdog will retry");
 }

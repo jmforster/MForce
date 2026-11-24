@@ -77,3 +77,19 @@ void run_follow_restart_tests() {
   CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr && s.runningPlain == nullptr);
   CHECK(s.status == "Audio stream restarted (back at the window)");
 }
+
+// A restart by hand that opened the device starts the watchdog's count again,
+// so its next beat says nothing; one that failed leaves the count to the watchdog.
+void run_restarted_tests() {
+  std::printf("watchdog: a restart by hand that worked starts the count again: no ALIVE line after it\n");
+  Session s;
+  open_file(s, kOboe);
+  s.watchdog.attempts = 3;
+  restarted(s, "by hand", "");
+  CHECK(s.status == "Audio stream restarted (by hand)" && s.watchdog.attempts == 0);
+  CHECK(watch(s.watchdog, s.watchdog.lastBeat + 1, 100.0) == Watch::Nothing);
+  s.watchdog.attempts = 2;
+  restarted(s, "back at the window", "the sound device did not open: no");
+  CHECK(s.status == "Audio restart FAILED (back at the window) — the sound device did not open: no — watchdog will retry");
+  CHECK(s.watchdog.attempts == 2);
+}

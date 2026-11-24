@@ -42,6 +42,10 @@ void watch_audio(Session& s, double now, bool focused);
 // window") in the status; an adapter never asked to open is left alone, and
 // the status says so.
 void restart_audio(Session& s, std::string_view why);
+// What restart_audio does once the adapter has answered (`failure` empty:
+// it opened): the words, follow_restart, and on success the watchdog's
+// count of attempts started again, so its "ALIVE again" does not follow.
+void restarted(Session& s, std::string_view why, const std::string& failure);
 // What follows any restart, with or without a device: what was playing
 // stops, the keys' player is built again at the device's rate, and status
 // reads `words`.

@@ -142,6 +142,7 @@ void TransportView::drums_fields(Session& s) {
   lead("Pattern");
   ImGui::SetNextItemWidth(-1.0f);
   if (ImGui::InputText("##pat", &t.drumPattern)) set_transport(s, t);
+  remember("drum pattern");
   lead("Drums");
   t = s.transport;
   ImGui::SetNextItemWidth(-1.0f);

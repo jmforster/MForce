@@ -1,8 +1,10 @@
 #pragma once
 #include <memory>
+#include <optional>
 #include <string>
 #include "mforce/patch/layout.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_views/places.h"
 
 namespace mforce::ui {
 
@@ -42,14 +44,26 @@ public:
   void mouse_down_at(Vec2 at);      // the left button down, and kept down
   void mouse_up();                  // the left button let go where the mouse is
   void drag(Vec2 from, Vec2 to);    // the left button down at `from`, the mouse moved in steps to `to`, let go
-  void wheel_at(Vec2 at, float notches);   // the wheel turned, a positive number away from the hand
+  void wheel_at(Vec2 at, float notches, bool ctrl = false);   // the wheel turned, a positive number away from the hand
+  void hover(Vec2 at);              // the mouse moved there, then two frames
+  // Where the thing of this name was drawn last frame (EditorViews::area);
+  // a click or a hover at its centre, false when it was not drawn.
+  std::optional<Area> area(const std::string& name) const;
+  bool click_on(const std::string& name);
+  bool right_click_on(const std::string& name);
+  bool hover_on(const std::string& name);
+  // A key down for a frame and up, with Shift or Ctrl held through it: "Left",
+  // "Right", "Up", "Down", "Home", "End", "=", "-", "0", "Keypad+", "Keypad-",
+  // "Delete", "Space", or a letter "A" to "Z".
+  void press_key(const std::string& key, bool shift = false, bool ctrl = false);
+  void advance_clock(double seconds) { clock_ += seconds; }   // the clock the frames watch the sound card by
+  const std::string& spectrum_readout() const;   // the spectrum's words under the mouse, from the last frame
   bool popup_open() const;          // whether a menu is open
   void select_link(int id);         // imnodes' own SelectLink
   int  selected_links() const;      // imnodes' own NumSelectedLinks
 
 private:
   void press(int key);              // an ImGuiKey, as its number: no ImGui type in this header
-  void rest_at(Vec2 at);            // the mouse moved there, then two frames
   void click_button(int button);    // an ImGuiMouseButton, as its number, down and up
   struct Parts;                     // the contexts and the views, in the .cpp
   std::unique_ptr<Parts> parts_;

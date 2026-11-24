@@ -1,11 +1,13 @@
 // mforce_editor, the patch editor.
 //
 //   mforce_editor [patch.json] [--frames N] [--shot FILE] [--select NAME] [--tab NAME]
+//                 [--generate] [--pane NAME] [--columns N] [--popout NAME] [--collapse] [--listen NAME]
 //
 // Run from the repository root. A patch named is opened at start; with none,
 // a new patch is shown, as File > New gives. --select NAME selects that node
 // or face before the first frame, and --tab NAME (note, passage, chords,
-// drums) the transport tab shown (both for pictures). --frames N
+// drums) the transport tab shown (both for pictures); the rest set up the
+// pane for a picture (options.h). --frames N
 // draws N frames and exits with 0, writing nothing but the --shot picture of
 // the last frame. A failure is shown in a message box ("could not start"
 // before the window is up, "stopped" after) and the exit code is 1.
@@ -42,6 +44,7 @@ int main(int argc, char** argv) {
     else open_file(session, options.patch);
     if (!options.select.empty()) select_node(session, options.select);
     if (!options.tab.empty()) set_transport(session, with_tab(session.transport, options.tab));
+  apply_picture_options(session, options);
     FolderMemory folders = files.folders.empty() ? FolderMemory{} : read_folder_memory(files.folders);
     Win32FileDialogs dialogs(folders);
     EditorViews views(dialogs);

@@ -235,3 +235,23 @@ void run_take_count_tests() {
   generate(s);                                                              // refused: nothing is wired to the Output
   CHECK(s.takes > before && s.take.stereo.empty() && s.take.mono.empty());
 }
+
+// The pane's tab and collapse are the session's; the keys the strips take
+// play no note while a key that went down as a note still lets it go.
+void run_pane_and_taken_keys_tests() {
+  std::printf("strips: the pane's state; the keys the strips take play no note, and a release still goes\n");
+  Session s;
+  CHECK(s.pane.tab == Pane::Tab::Waveforms && !s.pane.collapsed);
+  show_pane_tab(s, Pane::Tab::Keyboard);
+  collapse_pane(s, true);
+  CHECK(s.pane.tab == Pane::Tab::Keyboard && s.pane.collapsed);
+  set_over_strips(s, true);
+  CHECK(s.overStrips);
+  const std::vector<KeyChange> presses{{'=', true, false}, {'0', true, false}, {'Q', true, false}};
+  const auto taken = key_acts(s.keyboard, presses, false, kStripNoteKeys);
+  CHECK(taken.size() == 1 && taken[0].key == 'Q' && taken[0].down);
+  const std::vector<KeyChange> lifts{{'=', false, true}};
+  const auto up = key_acts(s.keyboard, lifts, false, kStripNoteKeys);
+  CHECK(up.size() == 1 && !up[0].down);
+  CHECK(key_acts(s.keyboard, presses, false).size() == 3);
+}

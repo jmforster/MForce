@@ -3,6 +3,7 @@
 #include <map>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mforce::ui {
@@ -20,6 +21,8 @@ struct Session;
 constexpr int kStripMargin = 45;
 // The zoom the arrows reach, in samples per pixel column.
 constexpr int kMostZoom = 4096;
+// The note keys the strips take while the mouse is over them: `=` zooms in, `0` fits.
+constexpr std::string_view kStripNoteKeys = "=0";
 
 // How the strips are looked at. Not part of the patch; kept between renders.
 struct WaveView {
@@ -124,5 +127,10 @@ void show_envelopes(WaveView& v, bool shown);
 // pane's; the same strip may be popped out more than once.
 void open_pop_out(Session& s, const std::string& node);
 void close_pop_out(Session& s, int number);
+
+// Whether the mouse was over the strips (the pane's or a pop-out's) this
+// frame: the next frame, the strips have their keys, and the keyboard and the
+// canvas leave those keys alone.
+void set_over_strips(Session& s, bool over);
 
 }  // namespace mforce::ui
