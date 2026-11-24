@@ -314,7 +314,25 @@ rules and gate script made from `renders/scratch/ed3/` into
 `renders/scratch/ed4/`, the base being the commit that records the
 signature, briefs that cite the read, a fresh Opus executor through the
 page's steps, one review, one fix wave, the parity check, the report. And
-his verdict on R30 at the window. R24 (where BACKLOG row
+his verdict on R30 at the window. MATT'S FIRST HAND ON IT (2026-11-24):
+open, wiring, undo, redo and a key's sound worked; a right click gave no
+menu, no node could be selected, a click on the piano did nothing, and
+that blocked most of R30's list. FIXED IN `7c6d278`: the canvas asked
+`ImNodes::IsEditorHovered()` after `EndNodeEditor()`, where the current
+window is the one around the editor and the answer is always false (the
+wheel and every node drag died with it); it now asks inside the editor's
+scope (`overCanvas_`). Behind it, the Output node could never be dragged
+(the canvas cleared imnodes' selection every frame; it now leaves it while
+the left button is down). `keep_up` cleared `runningPlain` every frame (a
+missing brace), so a running plain sound never followed an edit in the
+real loop. `HeadlessEditor` now moves a mouse (`click_at`, `right_click_at`,
+`drag`, `wheel_at`, `mouse_down_at`, `popup_open`) and its frame calls
+`keep_up` as `app_loop.cpp` does; `editor/ui_views/tests/mouse_tests.cpp`
+holds a test per canvas gesture and the piano's press. THE PIANO IS OPEN:
+its press passes with no window and no cause was found by reading; Matt
+said to leave it for his next try (if it recurs: which patch, does the key
+light). FOR SLICE 4: every gesture a view offers gets such a test before
+it reaches him. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
 Everything below this

@@ -28,6 +28,31 @@ gate passes; no render moved. Still nobody has put a hand on the mouse or
 an ear to it: Generate, Play, Stop and Space run under a test in an editor
 with no window, and what they sound like, the dialogs and the sound card
 do not. So this list is the slice's last proof.
+- **Your first pass (2026-11-24) and what it changed** (commit `7c6d278`).
+  You found open, wiring, undo and redo working and a key sounding, and
+  three things that blocked the rest: no menu on a right click, no
+  selecting a node, nothing from a click on the piano.
+  - The first two had one cause. After drawing the graph the canvas asked
+    "is the mouse over me" of the window around it, not its own, so the
+    answer was always no. The same question gated the wheel, so the wheel
+    did not pan either, and with no selection no node could be dragged.
+    Fixed. A second fault hid behind it and is fixed too: the Output node
+    could never have been dragged.
+  - The piano: left alone at your word, for your next try. Under a test
+    with no window a press on a key plays it and holds it until the button
+    goes up, and reading found no cause. If it still does nothing, two
+    things would place it: which patch, and whether the key lights up.
+  - Found in passing and fixed: a plain sound that is running forgot it
+    was running after one frame, so "change a setting while it runs" below
+    would not have restarted it.
+  - Why three slices of checks missed it: no test moved a mouse over the
+    canvas. Now each does, with no window: a click on a node, a Note, the
+    Output node and empty canvas; a drag of each; both right-click menus
+    and their first item; the mini-map; the wheel; a press on the piano.
+  - Decided without you, reversible: dragging a box on empty canvas shows
+    several nodes selected while the button is down and none once it is
+    up (several at once is slice 5); a click on the mini-map moves the
+    view and leaves the selection alone.
 - **Start it** from the repo root:
   `build\editor\ui_app\Release\mforce_editor.exe patches\library\keys\acoustic_piano\piano_default.json`
   The transport is the strip across the top. The Note tab shows the note
