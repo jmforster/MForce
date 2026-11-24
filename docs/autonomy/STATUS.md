@@ -328,10 +328,10 @@ missing brace), so a running plain sound never followed an edit in the
 real loop. `HeadlessEditor` now moves a mouse (`click_at`, `right_click_at`,
 `drag`, `wheel_at`, `mouse_down_at`, `popup_open`) and its frame calls
 `keep_up` as `app_loop.cpp` does; `editor/ui_views/tests/mouse_tests.cpp`
-holds a test per canvas gesture and the piano's press. THE PIANO IS OPEN:
-its press passes with no window and no cause was found by reading; Matt
-said to leave it for his next try (if it recurs: which patch, does the key
-light). FOR SLICE 4: every gesture a view offers gets such a test before
+holds a test per canvas gesture and the piano's press. MATT'S SECOND PASS (same day, after the fix): almost
+all of R30's list worked, the piano's press included (no cause was found
+for its first failure; nothing in the fix is on its path). Open with him:
+whether "post=" ever read above 0.99. FOR SLICE 4: every gesture a view offers gets such a test before
 it reaches him. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.

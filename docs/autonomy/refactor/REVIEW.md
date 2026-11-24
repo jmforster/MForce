@@ -53,6 +53,12 @@ do not. So this list is the slice's last proof.
     several nodes selected while the button is down and none once it is
     up (several at once is slice 5); a click on the mini-map moves the
     view and leaves the selection alone.
+- **Your second pass (2026-11-24, after the fix).** Almost all of the
+  list worked, the piano's loud and soft keys included. Nothing in the fix
+  is on the piano's press, so why it did nothing the first time is not
+  known. Two lines of this list were unclear and are reworded below: the
+  phrase marks on the piano, and "pre=" against "post=". Open: whether
+  "post=" ever read above 0.99 (it should not be able to).
 - **Start it** from the repo root:
   `build\editor\ui_app\Release\mforce_editor.exe patches\library\keys\acoustic_piano\piano_default.json`
   The transport is the strip across the top. The Note tab shows the note
@@ -69,7 +75,10 @@ do not. So this list is the slice's last proof.
   Save Passage, change the text, Load Passage.
 - **Phrase marks.** Open `patches\baselines\phrase_smoke_phrased.json`
   (the one measured patch marked sustaining) and try `Cq Dq Dq | Eq Fq`.
-  On the piano the same text says the marks are ignored.
+  Then open the piano patch and Generate the same text: the piano does
+  not sustain, so the `|` changes nothing, and the status line says
+  "patch is not marked sustaining — phrase marks ignored" where it would
+  have said "Generated 5 notes".
 - **The slur back**, on that patch with Live on: hold Q, then W, then let
   W go: the line should slide back to Q without a new attack.
 - **Chords and drums.** The Chords tab with a chord text of yours. The
@@ -82,7 +91,9 @@ do not. So this list is the slice's last proof.
 - **Stop is the panic.** While a key's note rings, the button reads Stop
   and Space stops it.
 - **What is sounding.** A key on the piano stays lit while its release
-  rings. Hold a loud chord: "pre=" passes 1 while "post=" stays under.
+  rings. Hold a loud chord: "pre=" (the level before the output's clip)
+  goes above 1, while "post=" (what reaches the sound card) stops at
+  0.99. Both turn red above 0.95, so both are red.
 - **Decided without you, each reversible** (the report's section 6; all
   twenty-six are the page's section 7): Play stops everything first, keys
   too, and then keys sound over the render; one clip, at the output;
