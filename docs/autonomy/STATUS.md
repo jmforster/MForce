@@ -455,14 +455,36 @@ keeps its old rule (it lists far more than curves drive). IT CHANGES THE
 ENGINE (`set_points`, a new node's starting rows, five preview functions)
 and nothing that renders. THIS SESSION'S CONTEXT WAS ABOUT 80 PERCENT FULL
 WHEN THE PAGE WAS WRITTEN: SLICE 6'S BUILD NEEDS A NEW SESSION, which
-starts from his signature on R35 and his verdicts on R32 and R34: rules
-and gate script from `renders/scratch/ed5/` into `renders/scratch/ed6/`
-(as `renders/scratch/ed5/make_rules.py` did from ed4), base = the commit
-that records the signature, base gate numbers from
-`renders/scratch/ed5/s6/gates.txt` (17,276 checks), two executors with the
-hand-over planned after the panel, step 1's whole report saved to a file,
-the reader of the old code reused as reviewer and for the parity check.
-Usage at the page: weekly Fable 74 percent. R24 (where BACKLOG row
+starts from his signature on R35 and his verdicts on R32 and R34.
+STAGED FOR IT ON 2026-11-25 (scratch, not tracked, all under
+`renders/scratch/ed6/`): (1) `make_rules.py <base>`: writes
+`briefs/rules.md` and `gates.py` from slice 5's; it was dry-run with a
+placeholder, so RUN IT AGAIN WITH THE HASH OF THE COMMIT THAT RECORDS THE
+SIGNATURE (the rules on disk name no real base until then); each of its
+paragraphs names the ruling it rests on, to mend first if the signature
+changes one. (2) `rulings.md`, part 1: each of the read's 27 questions
+against the page: ruled by which ruling, left to step 1's two probes
+(questions 8 and 11), or OPEN with the lean it stood at (thirteen
+reversible calls of numbers, words and placement that are the
+coordinator's after step 1; none goes to Matt); part 2 is written after
+step 1. (3) `briefs/step1.md`: a draft of the read-only first step (the
+page against the code, the two probes, the counts), to check against the
+page as signed before it is sent; its report is saved whole to
+`s1/report.md`. THE ORDER FOR THE NEW SESSION: record the signature
+(page's status line, REVIEW R35 to Resolved, CLAUDE.md's scope line) and
+his answer on the mapping table (ruling 11) in one commit; run
+`make_rules.py` with that commit; send step 1 to a fresh Opus executor;
+rule on its report in `rulings.md`, part 2; then the briefs for steps 2 to
+7 (the record and previews; the control; the panel; the shape window; the
+strips, mapping and audition windows; the crash log), the first executor
+through step 4 and a second from step 5 with the saved reports; one review
+by the agent that did the read (brief `renders/scratch/ed5/briefs/review.md`
+is the form), one fix wave with the parity check beside it, the report,
+REVIEW, the parity list, the page's closing section, CLEANUP. Base gate
+numbers: `renders/scratch/ed5/s6/gates.txt` (17,276 checks). IF HE GIVES
+VERDICTS ON R32 OR R34 FIRST, a fault at the window is fixed before slice
+6's build starts (as R30's was), with a mouse or key test that fails
+without the fix. Usage at the page: weekly Fable 74 percent. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
 Everything below this
