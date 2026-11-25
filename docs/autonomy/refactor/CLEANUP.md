@@ -197,6 +197,15 @@ full record of debt; this file is the short list of what is worth a look.
 | 184 | A view's fields (the transport's tabs, the level's two numbers, the piano's highlight) are tested only as "drawing changes nothing". | slice 3's parity check | — |
 | 185 | The gates cost more: `render_tests` about 45 s (41 before slice 3) and the fast set about 95 s (about 70). `CLAUDE.md` says under a minute for the fast set. | slice 3's coordinator | — |
 | 186 | Looks and words decided in slice 3 and not chased: the Delay field starts at 15 (old: 0, meaning 15); PC Keyboard on at start (old: off); the drum map starts with two library patches; the drum status counts hits performed; Play and Stop in a Transport menu (old: the Edit menu); the transport strip keeps one height on every tab; the level reads "pre=" and "post=" with no "AUDIO:" before them; Space does not repeat when held. | slice 3's coordinator | — |
+| 187 | A restart of the sound card waits for the device's thread to end; a thread blocked for ever inside RtAudio (its render-event wait has no time limit) would block the window with it, as it would have in the old editor. A close on a helper thread, or a timed wait in the library, would remove it. | slice 4's coordinator | — |
+| 188 | The bottom pane is a fixed 0.28 of the window; the old one could be dragged taller. A draggable edge (its height kept in the settings folder) if Matt asks (REVIEW R32, question 3). | slice 4's coordinator | — |
+| 189 | A node name longer than a strip's 45 pixel margin runs into the plot, as in the old editor. Clip it, or widen the margin to the longest name shown. | slice 4's coordinator | — |
+| 190 | An undo or a redo of a rename drops the node's strip until the next Generate, as it drops the selection and Listen: a step back knows only what is gone. A step that carried its renames would let all three follow. | slice 4's coordinator | — |
+| 191 | Drawn and not checked by a test: the tooltips, a strip's two peak figures, the spectrum readout's dB figure. | slice 4's coordinator | — |
+| 192 | No test opens the sound card, so a real restart, a device change and a dead callback rest on Matt's hand (REVIEW R32). A stand-in device behind the adapter's `Device` would put them under a test. | slice 4's coordinator | — |
+| 193 | `mforce_editor` has six options that exist only to set up a picture (`--generate`, `--pane`, `--columns`, `--popout`, `--collapse`, `--listen`), beside `--select` and `--tab`. One `--setup <file>` of session calls would replace the eight. | slice 4's coordinator | — |
+| 194 | The meter's duplicate-block count rose from 154 to 174 in slice 4 (reported, not gated); the test programs' lists of tests are among the new ones. | slice 4's coordinator | — |
+| 195 | Looks and words decided in slice 4 and not chased: the pane across the window's width; a strip at least three lines of text high; the strips' scrollbar always shown; pop-outs cascaded; the old strips kept during "Generating..."; no status words when listening starts; the watchdog's sentences. | slice 4's coordinator | — |
 
 ## Byte-identity preservations to retire after Part 8
 

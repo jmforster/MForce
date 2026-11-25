@@ -308,7 +308,7 @@ proof. SLICE 4'S PAGE IS SIGNED (Matt 2026-11-24,
 Resolved, thirteen rulings), written from a line-by-line read of the old
 code kept at `renders/scratch/ed4/old_read.md` (the bottom pane as three
 tabs; strips, extents, the spectrum, Listen and the watchdog as plain
-tested data in `ui_control`; no engine change). NO SLICE 4 CODE EXISTS.
+tested data in `ui_control`; no engine change). SLICE 4 WAS BUILT LATER THE SAME DAY (below).
 NEXT, IN A NEW SESSION (Matt's choice): BUILD SLICE 4 as slice 3 ran:
 rules and gate script made from `renders/scratch/ed3/` into
 `renders/scratch/ed4/`, the base being the commit that records the
@@ -332,7 +332,49 @@ holds a test per canvas gesture and the piano's press. MATT'S SECOND PASS (same 
 all of R30's list worked, the piano's press included (no cause was found
 for its first failure; nothing in the fix is on its path). Open with him:
 whether "post=" ever read above 0.99 (ANSWERED: 0.99, "My mistake ... Working as designed. Ok to proceed."). R30 IS RESOLVED on those words (REVIEW, under Resolved) and SLICE 4'S BUILD BEGAN in the same session (XXVII), scratch `renders/scratch/ed4/`. FOR SLICE 4: every gesture a view offers gets such a test before
-it reaches him. R24 (where BACKLOG row
+it reaches him. SLICE 4 (SEE) IS BUILT AND ON MATT'S DESK (2026-11-24,
+session XXVII, on his "Ok to proceed"; REVIEW R32; report
+`docs/autonomy/refactor/reports/2026-11-24-editor-slice4.md`; the page's
+section 7 holds the forty rulings, 1 to 30 from step 1's read, 31 to 40
+from the build, the review and the parity check). COMMITS: `593f559` (the
+control: `ui_control/waveforms.h` with exact `extents` over a table keyed
+by the session's count of takes, `spectrum.h`, `listening.h`,
+`watchdog.h`; the adapter's heartbeat, `restart()`, `asked_to_open()`),
+`0439168` (the views: `BottomPane`, `WaveformsView`, the pop-outs,
+`SpectrumView`, the canvas's Listen, Restart audio; `places.h`, by which a
+test clicks a thing by name; the picture options `--generate`, `--pane`,
+`--columns`, `--popout`, `--collapse`, `--listen`), `50b5aa9` (the fix
+wave). AT THE CLOSE: `python tools/gates.py` ALL GATES PASS, 16,547
+checks; NO ENGINE FILE CHANGED (`mforce_cli.exe` one hash throughout); the
+editor is 8,193 lines of code and 4,838 of tests, largest file 253 lines,
+nothing in the baseline. THE REVIEW: one Major (the scroll left its
+limits after zoom-out, a change of columns or a shorter take: blank
+strips; shown from the mouse), two Minor, five Notes; the parity check
+then found that the page's signed ruling 3 (no restart on returning to
+the window) had left out the old code's reason (a stream that ticks into
+silence after another program reconfigures the device, old:3298-3303):
+RULING 34 AMENDS IT (restart on the return when the device changed, the
+stream stopped, or nothing is sounding) AND R32 ASKS MATT about the one
+case left. HOW IT RAN, FOR SLICE 5: (a) rules and gate script made from
+`renders/scratch/ed3/` by `renders/scratch/ed4/make_rules.py`; briefs,
+rulings, review and parity briefs under `renders/scratch/ed4/`; (b) step
+1 (read only) took the old numbers from the old lines and checked the
+page against the code: 13 contradictions, 16 questions, ruled in
+`renders/scratch/ed4/rulings.md` before step 2's brief was sent; (c) the
+rules required a test per gesture that moves the mouse or presses the
+key, found by name, and SEVEN GESTURES WERE SWITCHED OFF TO SEE THEIR
+TESTS FAIL; (d) the executor has one hand-back a session: its later
+reports arrive by SendMessage, and its "waiting on its own background
+work" notices need no action; (e) the parity check ran beside the fix
+wave, read only, and its additions went into the same wave by a second
+message; (f) A RULING THAT DROPS SOMETHING THE OLD CODE DID QUOTES THE OLD
+CODE'S OWN REASON FIRST (the comment above the code, not a summary of
+it). NEXT: Matt's verdict on R32 at the window, the sound card above all
+(no test reaches it); SLICE 5'S PAGE (Arrange: groups, wormholes, the
+clipboard, several nodes selected, MIDI in, the build stamp; 31
+capabilities, about 1,720 old lines, `Fragment` edits in `patch/edit.h`),
+written from a line-by-line read of the old code as slice 4's was, for
+his signature; no slice 5 code before it. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
 Everything below this

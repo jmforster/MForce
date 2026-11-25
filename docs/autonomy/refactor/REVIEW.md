@@ -19,6 +19,81 @@ given.
 
 ## Awaiting
 
+**R32 — the editor, slice 4: see** (2026-11-24, commits `593f559`,
+`0439168`, fix wave `50b5aa9`; page `docs/architecture/editor-slice4.md`,
+signed 2026-11-24 (R31), its section 7 the forty rulings made while
+building; report
+`docs/autonomy/refactor/reports/2026-11-24-editor-slice4.md`). Every gate
+passes; no engine file changed. Unlike slices 1 to 3 when they reached
+you, every gesture below runs under a test that moves the mouse or
+presses the key, and seven were switched off to see their tests fail.
+What no test reaches is the sound card: that part of this list is the
+slice's only proof.
+- **Start it** from the repo root:
+  `build\editor\ui_app\Release\mforce_editor.exe patches\library\winds\oboe1.json`
+- **The pane.** Under the canvas: Waveforms, Spectrum, Keyboard. The
+  arrow at its top-right corner collapses it and restores it. Q still
+  plays with any tab shown.
+- **Strips.** Generate: an Output strip, then a strip a node, envelopes
+  in yellow. Uncheck Envelopes. Set Columns to 2, 3, 4. About three rows
+  show at once at one column; the pane scrolls.
+- **Moving about.** The two zoom arrows, Fit, the slider. Over the
+  strips: the wheel scrolls, Ctrl and the wheel zooms, a left drag
+  scrolls; Left and Right, Shift with them for a page, Home, End, `=`,
+  `-`, `0`.
+- **One job per key.** With the mouse over the strips `=` and `0` zoom
+  and fit and play no note; with it over the canvas they are notes
+  again.
+- **Pop a strip out** with the arrow at its right end: a window of its
+  own with its own zoom. Generate again: it follows. Pop out a second
+  and close the first: the second stays where it is.
+- **A shorter render.** Zoom in, press End, set Duration to 0.1 and
+  Generate: the strips show the short note (the review found them blank
+  here; mended).
+- **Spectrum.** The tab after a Generate: move the mouse over the plot
+  for the frequency and level under it.
+- **Listen.** Right-click a node mid-chain, "Listen here": the keys play
+  that node, which wears a green mark; Generate and Play still give the
+  whole patch. "Stop listening here" ends it. On a node that gives no
+  signal the status line says why not.
+- **Restart audio.** Edit > Restart audio, or Ctrl+Shift+A: the status
+  line says "Audio stream restarted (by hand)".
+- **At the sound card, which no test can try:**
+  - Play a video in the browser, come back to the editor after a few
+    seconds with nothing sounding, and press a key: it should sound (the
+    stream is restarted quietly on the return).
+  - Change the default output device while the editor is open, come
+    back: the keys should follow to the new one.
+  - If the sound ever dies while you are in the window, the status line
+    should say the stream was reopened, within a few seconds.
+- **Decided without you, each reversible** (the report's section 6): the
+  pane spans the window's width at the old 28 percent; a strip is at
+  least three lines of text high, so fewer show at once than before; the
+  old strips stay on screen until the new render replaces them; a
+  touchpad's partial wheel notch scrolls; Shift with Left or Right does
+  not pan the canvas while the mouse is over the strips; a strip drag
+  must begin on the strips; pop-outs open cascaded; a failed restart
+  changes nothing and is said once.
+- **Yours to say:**
+  1. What is wrong or missing at the window, in any words.
+  2. **Coming back to the window while something is sounding.** The page
+     you signed said the return would never restart a healthy stream. Its
+     premise left out why the old editor always did: after another
+     program reconfigures the device, a stream can go on running while
+     nothing is heard, and nothing inside the program can tell. So now
+     the return restarts the stream whenever nothing is sounding, and
+     leaves it alone when something is (a restart would cut it). In that
+     one case a silent stream stays silent until Ctrl+Shift+A. Leave it
+     so, or restart on every return as the old editor did?
+  3. The pane's height is fixed. The old one could be dragged taller.
+     Say if you want an edge to drag.
+  4. Lines to strike from or add to the parity list
+     (`docs/architecture/editor-parity.md`). Slice 4's 19 lines were each
+     checked against the code (A8).
+  5. Slice 5 (Arrange: groups, wormholes, the clipboard, several nodes
+     selected, MIDI in) needs its page of interfaces signed before any
+     code. It is not written yet.
+
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design
 `docs/architecture/part8-build.md`, signed 11-22; report
@@ -491,7 +566,7 @@ answer any time), and the consequences of the two deletions are named.
 
 **R30 — the editor, slices 1 to 3 at the window** — TRIED BY HAND 2026-11-24 (Matt), in two passes. First pass: open, wiring, undo, redo and a key's sound worked; a right click gave no menu, no node could be selected, a click on the piano did nothing. The first two were one fault (after drawing the graph the canvas asked whether the mouse was over it of the wrong window; the wheel and every node drag died with it), fixed in `7c6d278` with two more found on the way (the Output node could never be dragged; a running plain sound did not follow an edit). Second pass: "Almost all tests worked, including loud/soft piano keys"; he named nothing else that failed, and of the two lines he asked about (the phrase marks on the piano; "pre=" against "post=") said "Working as designed. Ok to proceed." Why the piano did nothing on the first pass is not known; nothing in the fix is on its path. The canvas's gestures and the piano's press now run under tests that move a mouse (`editor/ui_views/tests/mouse_tests.cpp`). Report `docs/autonomy/refactor/reports/2026-11-24-editor-slice3.md`; commits `b341e96`..`9875f8a`, `7c6d278`. Slice 4's build began the same day.
 
-**R31 — slice 4's page: see** — SIGNED 2026-11-24 (Matt): "Signed, proceed", the page's thirteen rulings as written (`docs/architecture/editor-slice4.md`). Not built yet: the build runs in a new session, from the read of the old code kept at `renders/scratch/ed4/old_read.md`.
+**R31 — slice 4's page: see** — SIGNED 2026-11-24 (Matt): "Signed, proceed", the page's thirteen rulings as written (`docs/architecture/editor-slice4.md`). Built the same day: R32. The page's section 7 holds the forty rulings made while building; its ruling 34 amends ruling 3.
 
 **R29 — slice 3's page: generate** — SIGNED 2026-11-23 (Matt): "Signed, proceed", the page's eleven rulings as written. Built the next day: R30. The page's section 7 holds the twenty-six rulings made while building.
 

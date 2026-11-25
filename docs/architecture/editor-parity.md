@@ -16,9 +16,10 @@ never-working things. Of the 229, slice 1 covers 65, the five slices to
 come 153, and 11 are not coming back (A2). The line counts in A1 are the
 old file's lines behind each slice's capabilities, as a measure of size.
 
-Where it stands (2026-11-24): slices 1, 2 and 3 are built, and each was
+Where it stands (2026-11-24): slices 1 to 4 are built, and each was
 then checked against the code line by line by an agent that had not
-written it (A5, A6, A7). Slices 4, 5 and 6 remain: 15, 31 and 40
+written it (A5, A6, A7, A8). Slices 1 to 3 have been tried by hand (REVIEW
+R30); slice 4 awaits that (R32). Slices 5 and 6 remain: 31 and 40
 capabilities by the first count, plus the parts the checks moved to them.
 
 ## A1. The slices from here
@@ -33,7 +34,7 @@ Generate exists.
 | 1. Open, play, tweak, hear, save | DONE 2026-11-23 | 65 by the first count; checked since (A5): 48 done whole, 8 in part, 2 no longer apply, 7 were not done | `patch/edit.h`, `LivePlayer::set_value` |
 | 2. Build | DONE 2026-11-23 (checked line by line: A6). a new patch; the create menu (families, the Experimental shelf, Note, Output); delete; wire, unwire, taps, the wiring refusals; the note face as one node; dynamic pins (promote, demote, feed, unfeed); rename; the instrument's polyphony, sustaining, onsets and glide; canvas fit and pan keys; the status bar's counts | 41, and from slice 1's area the 7 not done and the open parts of the 8 (A5); about 1,450 lines | the rest of the edits in `patch/edit.h` |
 | 3. Generate | DONE 2026-11-24 (checked line by line: A7). the transport's four tabs (Note, Passage, Chords, Drums); Generate, Play, Stop; Save WAV; passage and chord files; the Live checkbox and holding several keys; a plain sound's sound; continuous play | 26; about 1,240 lines | the live player holds more than one line; a plain sound played live |
-| 4. See | the waveform strips (output and every node) with zoom, scroll, columns and pop-outs; the spectrum; the Listen tap; the audio device's watchdog and restart | 15; about 790 lines | a node's signal read out of a render (exists) and out of a live voice (Listen) |
+| 4. See | DONE 2026-11-24 (checked line by line: A8). the waveform strips (output and every node) with zoom, scroll, columns and pop-outs; the spectrum; the Listen tap; the audio device's watchdog and restart | 15; about 790 lines | a node's signal read out of a render (exists) and out of a live voice (Listen) |
 | 5. Arrange | groups (make, open, add to, remove from, rename, ungroup, the breadcrumb); wormholes; copy, cut, paste, duplicate, replace-with; multiple selection; MIDI in; the build-stamp banner | 31; about 1,720 lines | `Fragment` edits in `patch/edit.h` |
 | 6. Shape | tables and arrays in the panel; the Envelope, Curve, Segment and Shaper editors; the shape editor window; the partials and formant strips with the scrubber; the mapping table; audition; the crash log | 40; about 2,810 lines | none known |
 
@@ -155,6 +156,20 @@ editor and are reworded where they stand (the Delay field's 0 that meant
 15; a drum normalise that never ran; errors the old success line
 overwrote). Its last wave added the tests the check found missing.
 
+## A8. Slice 4, checked
+
+Built 2026-11-24 (report R32). The reviewer then checked each of the 19
+lines this list gave to slice 4 against the code: 13 done, 4 done in
+part, 2 that belong elsewhere (one never possible from the window, one
+shared with slice 5). The four parts were closed in the same wave: the
+scroll not kept inside a shorter take, a pop-out's gestures with no test,
+a renamed node losing its strip, and the restart on returning to the
+window, where the check found that the signed page had left out the old
+code's reason for it (a stream that goes on running while nothing is
+heard; the page's ruling 34 and REVIEW R32). Eight details of the old
+strips and spectrum that the first read had wrong are listed in the
+page's section 7.
+
 ## B. The list
 
 Line ranges are the old file's. [U] a user used it; [H] a headless or test
@@ -167,7 +182,7 @@ stands. "slice N" is the table of A1.
 - [U] Launch with no argument and get a fresh Patch graph (Sine, Envelope, Output) (12378, 1200-1222) — done in slice 2
 - [U] See the window title "MForce - <file> - Patch Graph|Node Graph" or "(unsaved)", plus a build-stamp suffix (12468-12484) — done in slice 1 (the file and the star); the build stamp: slice 5; the mode label went with the mode flag (A2.1)
 - [U] See a fixed docked layout on every launch: Transport top, Node Editor centre, Properties right 22%, Waveforms/Spectrum/Keyboard tabs bottom 28% (12633-12669); rebuilt each launch, so docking is not persisted (12406, 12638-12641) — done in slice 1 (layout; section 10 "decided in the slice that needs them")
-- [U] Collapse the bottom pane to a sliver and restore its height with a chevron at its top-right corner (11739-11773) — slice 4
+- [U] Collapse the bottom pane to a sliver and restore its height with a chevron at its top-right corner (11739-11773) — done in slice 4 (the pane is a fixed share of the window, so restoring gives the share back; the arrow sits at the tab bar's right end)
 - [U] See a red banner when the exe is older than an engine source, with Dismiss (11775-11798, 11803) — slice 5
 - [U] Window placed on the primary monitor's work area, 1400x900 (12297-12307) — done (the size in slice 1, its place on the work area in slice 2)
 - [U] Single-click a drag field to type a number (ConfigDragClickToInputText) (12327-12329) — done in slice 2
@@ -190,7 +205,7 @@ Edit menu (12584-12610):
 - [U] Edit > Cut / Copy / Paste on the in-process clipboard, enabled by selection / content (12586-12591) — slice 5 (this is one of the two clipboards; see section 10 "the second clipboard")
 - [U] Edit > Parameter mapping... (patch graph only) (12593-12595) — slice 6
 - [U] Edit > Convert to Patch graph / Convert to Node graph (12597-12601, 9608-9786) — deleted by section 10 ("the node-graph mode flag")
-- [U] Edit > Restart audio (Ctrl+Shift+A) (12603-12608) — slice 4
+- [U] Edit > Restart audio (Ctrl+Shift+A) (12603-12608) — done in slice 4
 
 Menu-bar play items (12612-12628):
 - [U] Play (Space) / Stop (Space) in the menu bar (12618-12627) — done in slice 3 (a Transport menu; Stop stops live notes too)
@@ -218,12 +233,12 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Arrow keys (held): pan the canvas, Shift faster; active whenever no text field has focus (13297-13306) — done in slice 2: Shift with an arrow pans, at the old Shift speed; a plain arrow is the octave or the note length (ruling 10)
 - [U] Ctrl+C / Ctrl+V with the editor HOVERED: OS-clipboard copy/paste (13098-13105) — slice 5
 - [U] Ctrl+X / Ctrl+C / Ctrl+V with the editor FOCUSED: in-process clipboard cut/copy/paste (13308-13313); both pairs fire on one press when the editor is focused and hovered (unclear: double paste) — slice 5 / section 10 ("the second clipboard")
-- [U] Ctrl+Shift+A: restart the audio stream, anywhere (13315-13320) — slice 4
+- [U] Ctrl+Shift+A: restart the audio stream, anywhere (13315-13320) — done in slice 4 (not while a text field has the keyboard, which is what the old code did)
 - [U] Delete or Backspace with the editor focused: delete selected wires, then selected nodes (13322-13353) — done in slice 2 (the selected wires, then the selected node; several nodes at once: slice 5)
 - [U] Delete in the Audition patch list, then Enter to confirm / Esc to cancel (5265-5270, 5297-5302) — slice 6
 - [U] QWERTY note keys, two zones (Z row + home row one octave down; Q row + number row at the octave) when PC Keyboard is on, not with Ctrl, not typing (4775-4840, 7060-7096) — done in slice 1
 - [U] Up/Down: octave -1/+1 (0..20); Left/Right: halve/double the note duration (0.05..30 s), while PC Keyboard is on (7097-7106) — done in slice 1
-- [U] Waveforms window focused or hovered: Left/Right scroll 10%, Shift = page, Home/End, +/= and keypad + zoom in, - and keypad - zoom out, 0 fit (11494-11527); these overlap the QWERTY keys =, 0 and the arrows — slice 4
+- [U] Waveforms window focused or hovered: Left/Right scroll 10%, Shift = page, Home/End, +/= and keypad + zoom in, - and keypad - zoom out, 0 fit (11494-11527); these overlap the QWERTY keys =, 0 and the arrows — done in slice 4 (while the mouse is over the strips, in the pane or a pop-out; one job per key: there `=` and `0` play no note, Left and Right change no note length, and Shift with them does not pan the canvas)
 
 ### 4. Canvas: display and mouse gestures
 
@@ -261,7 +276,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] A new node's id: a global counter (75-76, 342); its label (= saved id): display name ("Source" stripped; Channel/Mixer/Output/Parameter/Note/Curve) then Name2, Name3... (141-153, 610-621) — done in slice 2 (the record's id is the node's identity; the counter went)
 - [U] A new node's defaults: pin constants from param descriptors, input-only pins at 0, settings at descriptor defaults, arrays from the live object (463-536, 417-438); an Envelope is ADSR 0.05/0.1/0.7/0.2 (383-388); a Curve gets knots (0,0),(1,1) (9806-9813) — declared defaults, the Envelope's ADSR and the Curve's two knots: done in slice 2; the other table types' starting rows from the type's own: slice 6, with tables
 - [U] Seeds: a new node gets none (jsonSeed -1, 257-263); a loaded "seed" is carried verbatim and re-emitted on save (1645-1648, 2810-2815, 3053-3057) — done in slice 2: a new node is given a random seed (ruling 4); a file's seed carried since slice 1
-- [U] Delete a node (context menu, Delete/Backspace): stops streams, removes its wires, drops it from groups, unwires (not demotes) dynamic pins it drove, releases a Listen tap on it, clears selection (1100-1157, 10507-10510, 13346-13350) — done in slice 2 (a Listen tap on it: slice 4, with Listen)
+- [U] Delete a node (context menu, Delete/Backspace): stops streams, removes its wires, drops it from groups, unwires (not demotes) dynamic pins it drove, releases a Listen tap on it, clears selection (1100-1157, 10507-10510, 13346-13350) — done in slice 2 (a Listen tap on it: done in slice 4)
 - [U] Delete a selected wire with Delete/Backspace (13327-13345, 1159-1166) — done in slice 2
 - [U] Wire: drag from output pin to input pin (or back); a single-input pin's old wire is replaced, a multi pin takes more (13107-13206) — done in slice 2
 - [U] Wiring refuses with a status sentence: Formant-only pins, PartialSet-only pins, Mixer.channels needs a Channel (759-797, 13154-13170) — done in slice 2 (the engine's check() refuses and words it)
@@ -303,8 +318,8 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 
 ### 8. Listen tap and wormholes
 
-- [U] Listen here / Stop listening here on any node with an output (node menu), "<)))" marker on the node; the patch keeps running and only the monitored signal moves; monitored at volume 1; never saved (575-578, 10514-10522, 8124-8127, 2832-2836, 2857-2863, 3140-3147, 3823-3830) — slice 4
-- [U] Breadcrumb "Listen: Patch | Group" toggle inside a group (12720-12748); drill-out returns the ears to the patch (12801-12811) — slice 5 (the toggle); the tap itself: slice 4
+- [U] Listen here / Stop listening here on any node with an output (node menu), "<)))" marker on the node; the patch keeps running and only the monitored signal moves; monitored at volume 1; never saved (575-578, 10514-10522, 8124-8127, 2832-2836, 2857-2863, 3140-3147, 3823-3830) — done in slice 4 (for the keys and a running plain sound, never a render; on every node's menu but a Note's; a node that gives no signal is refused in the status line; the keys sound it even with nothing wired to the Output)
+- [U] Breadcrumb "Listen: Patch | Group" toggle inside a group (12720-12748); drill-out returns the ears to the patch (12801-12811) — slice 5 (the toggle); the tap itself: done in slice 4
 - [U] Wormhole node pair: a wire that teleports; mini one-row violet face; the span between two Wormholes is hidden (8068-8105, 12859-12866) — slice 5
 - [U] Hover or select a wormhole half to ghost the span to its twin; tooltip names the twin and its group; "unpaired" tooltip (12919-13010) — slice 5
 - [U] Wiring two wormholes pairs them, with a status sentence (13191-13201) — slice 5
@@ -401,7 +416,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Drums tab: pattern text, drum map "KK=path;SN=path", BPM; one patch per drum loaded from disk, repeats from the pattern, peak-normalised (7935-7944, 7384-7487, 7636-7652) — done in slice 3 (guarded, not normalised: the old normalise never ran; rendered at the open patch's rate)
 - [D] TransportState::repeats (3262): no widget, never read (the pattern's own repeats are used, 7451)
 - [D] render_chords_waveforms' figurePrefix argument (7303-7304): unused inside the function
-- [U] Generate: one engine render of the in-memory patch fills the output buffer and every node's strip, with the voice tail added; "Generating..." button state drawn before the blocking render (3971-4171, 3271-3277, 7949-7964, 12439-12448, 13478-13484) — done in slice 3 (every signal node captured; the strips are drawn in slice 4)
+- [U] Generate: one engine render of the in-memory patch fills the output buffer and every node's strip, with the voice tail added; "Generating..." button state drawn before the blocking render (3971-4171, 3271-3277, 7949-7964, 12439-12448, 13478-13484) — done in slice 3 (every signal node captured; the strips are drawn since slice 4, and the ones before stay until the new render replaces them)
 - [U] Generate in Note mode renders one note; Passage schedules notes back to back with rests as gaps (7532-7614) — done in slice 3
 - [U] The patch's score seeds the transport note, velocity, duration and keyboard octave at load (4746-4773, 1507-1522) — done in slice 3
 - [D] Render the patch's embedded score from the window: not possible, no control does it (only --gencheck, 11855-11916); slice 4 names it, so it would be new — was never possible from the window; not added (A3)
@@ -417,13 +432,13 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 
 ### 16. Displays of sound
 
-- [U] Waveforms tab: an "Output" strip (mono) and one strip per node with a capture, Envelope-family strips in their own colour (11314-11406) — slice 4 (old strips come only from Generate, not live: 4276-4278)
-- [U] Each strip peak-normalised with +peak/-peak in the margin, min/max columns from a 64-sample mipmap (10639-10767) — slice 4
-- [U] Zoom arrows (1x..4096x), Fit, Columns 1..4, Envelopes on/off, horizontal scroll slider (11325-11366) — slice 4
-- [U] Wheel scrolls, Ctrl+wheel zooms, left-drag scrolls (11467-11492) — slice 4
-- [U] Keep the zoom and scroll across Generates; first render auto-fits (3201-3210) — slice 4
-- [U] Pop out any time-domain strip (arrow button) into its own window with its own zoom, Fit, scroll, wheel/Ctrl+wheel (3213-3222, 11453-11460, 11533-11626) — slice 4
-- [U] Spectrum tab: Hann-windowed 8192-point FFT of the middle of the last render, log-frequency 20 Hz..Nyquist, -100..+6 dB grid, hover crosshair "Hz dB" readout, "No render yet" (10769-10964) — slice 4
+- [U] Waveforms tab: an "Output" strip (mono) and one strip per node with a capture, Envelope-family strips in their own colour (11314-11406) — done in slice 4 (the Output strip is the render as one line; a Note's nodes get none, as before; a node renamed after a Generate keeps its strip)
+- [U] Each strip peak-normalised with +peak/-peak in the margin, min/max columns from a 64-sample mipmap (10639-10767) — done in slice 4 (each column is exactly its own samples; a strip is at least three lines of text high)
+- [U] Zoom arrows (1x..4096x), Fit, Columns 1..4, Envelopes on/off, horizontal scroll slider (11325-11366) — done in slice 4 (Fit has no upper limit, as before; the Scrub slider: slice 6)
+- [U] Wheel scrolls, Ctrl+wheel zooms, left-drag scrolls (11467-11492) — done in slice 4 (a part of a wheel notch scrolls its part; a drag begins on the strips)
+- [U] Keep the zoom and scroll across Generates; first render auto-fits (3201-3210) — done in slice 4 (the first fit uses the real width; the scroll is kept inside a shorter take)
+- [U] Pop out any time-domain strip (arrow button) into its own window with its own zoom, Fit, scroll, wheel/Ctrl+wheel (3213-3222, 11453-11460, 11533-11626) — done in slice 4 (and the pane's drag and keys; closing one moves no other)
+- [U] Spectrum tab: Hann-windowed 8192-point FFT of the middle of the last render, log-frequency 20 Hz..Nyquist, -100..+6 dB grid, hover crosshair "Hz dB" readout, "No render yet" (10769-10964) — done in slice 4 (at the render's own rate, made again after every Generate; the 0 dB line drawn)
 - [U] Partials strip (Full/Sequence/Explicit): bars per partial with rolloff applied, _1 and faded _2 side by side, x ticks, peak label, hover "p i m1 a1 m2 a2" (10979-11176) — slice 6
 - [U] Scrub slider (0..1): amber bars of the evolving partials at that point of the render from 100 envelope snapshots (3123-3134, 4129-4160, 11089-11133, 11351-11354) — slice 6
 - [U] Formant strip (Peaks/Bands/Sequence): gain vs log frequency 20 Hz-20 kHz filled, grid, peak label, hover "Hz gain" (11178-11312) — slice 6
@@ -454,9 +469,9 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Open the default output device only, stereo float, 48 kHz asked, 512 frames; the engine runs at the rate the device opened (3184-3188, 3660-3716) — done in slice 1
 - [D] Choose an audio device: no control exists
 - [U] Startup audio failure shown in a Windows message box; the UI runs without sound (3648-3654, 12357-12360) — done in slice 1 another way: the status line says why there is no sound; no box
-- [U] Watchdog: no callback for 1 s reopens the stream every 2 s, status "reopened (attempt n) on '<device>' — died: <error>" or "FAILED" (3293-3311, 3728-3793) — slice 4
-- [U] Restart the stream when the window regains focus after more than 2 s away (3298-3304, 12416-12427) — slice 4
-- [U] Restart audio by hand (Edit menu, Ctrl+Shift+A) (12603-12608, 13315-13320) — slice 4
+- [U] Watchdog: no callback for 1 s reopens the stream every 2 s, status "reopened (attempt n) on '<device>' — died: <error>" or "FAILED" (3293-3311, 3728-3793) — done in slice 4 (it keeps trying; a failed try changes nothing and is said once)
+- [U] Restart the stream when the window regains focus after more than 2 s away (3298-3304, 12416-12427) — done in slice 4, changed (ruling 34): on the return it restarts when the default device changed, the stream stopped, or nothing is sounding; when something is sounding it is left alone (REVIEW R32 asks)
+- [U] Restart audio by hand (Edit menu, Ctrl+Shift+A) (12603-12608, 13315-13320) — done in slice 4 (the status names what asked for it)
 - [U] Dead voices freed on the UI thread, not the audio thread (3795-3821) — done in slice 1 (keep_up, 13.13)
 
 ### 19. Audition window (4880-5373, about 495 lines)
