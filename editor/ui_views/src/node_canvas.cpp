@@ -8,6 +8,7 @@
 #include <imnodes.h>
 #include "mforce/ui_control/building.h"
 #include "mforce/ui_control/edits.h"
+#include "mforce/ui_control/selecting.h"
 #include "mforce/ui_model/canvas_view.h"
 #include "canvas_look.h"
 
@@ -91,7 +92,7 @@ void NodeCanvas::carry_selection(Session& s, const CanvasTable& t) {
   if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) return;
   ImNodes::ClearNodeSelection();
   for (const auto& n : t.nodes)
-    if (!s.selected.empty() && n.name == s.selected) ImNodes::SelectNode(n.id);
+    if (!selected_one(s).empty() && n.name == selected_one(s)) ImNodes::SelectNode(n.id);
 }
 
 void NodeCanvas::draw(Session& s) {

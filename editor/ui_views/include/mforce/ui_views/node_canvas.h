@@ -15,7 +15,7 @@ namespace mforce::ui {
 // Everything a person does here is one call of ui_control:
 //   a drag between two pins          wire
 //   a wire dragged off its pin       unwire
-//   Delete or Backspace              delete_these (the selected wires, then the selected node or face)
+//   Delete or Backspace              delete_these (the selected wires, then each selected thing)
 //   a right click on empty canvas    the create menu: create_node or create_note at the click
 //   a right click on a node or Note  its menu: Delete, delete_these with its name;
 //                                    on a node, then "Listen here" (listen_at), or

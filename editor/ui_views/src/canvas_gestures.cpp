@@ -49,7 +49,7 @@ void NodeCanvas::carry_wiring(Session& s, const CanvasTable& t) {
 }
 
 // Delete or Backspace, with the canvas holding the keyboard and no text field
-// active: the selected wires, then the selected node or face (never the
+// active: the selected wires, then each selected thing (never the
 // Output node). The links then differ, and the next frame clears imnodes'
 // link selection. F, wherever the mouse is and with no Ctrl: fit.
 // Shift with an arrow, held: the canvas pans (not across while the strips
@@ -59,8 +59,7 @@ void NodeCanvas::carry_keys(Session& s, const CanvasTable& t) {
   if (io.WantTextInput) return;
   const bool focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
   if (focused && (ImGui::IsKeyPressed(ImGuiKey_Delete, false) || ImGui::IsKeyPressed(ImGuiKey_Backspace, false))) {
-    std::vector<std::string> names;
-    if (!s.selected.empty()) names.push_back(s.selected);
+    const std::vector<std::string> names = s.selections;   // a copy: the delete changes the selection
     delete_these(s, selected_wires(t), names);
   }
   if (!io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) fit_canvas(s, size_);

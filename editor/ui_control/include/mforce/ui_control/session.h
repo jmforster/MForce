@@ -25,9 +25,10 @@ struct LastNote {
 };
 
 // The editor's whole state. main owns one; the views are handed it and
-// change it only through the functions of edits.h, building.h, wiring.h,
-// files.h, unsaved.h, playing.h, generating.h, waveforms.h, listening.h,
-// watchdog.h and pane.h. Made with no device: main calls audio.open().
+// change it only through the functions of edits.h, selecting.h, building.h,
+// grouping.h, clipboard.h, wiring.h, files.h, unsaved.h, playing.h,
+// generating.h, waveforms.h, listening.h, watchdog.h and pane.h. Made with
+// no device: main calls audio.open().
 struct Session {
   OpenPatch    open;
   AudioAdapter audio;
@@ -50,7 +51,10 @@ struct Session {
   // compared, never followed); null when none runs.
   const Sound* runningPlain{nullptr};
   RecentFiles  recent;
-  std::string  selected;     // a node's id or a face's label (one namespace), or empty
+  std::vector<std::string> selections;  // node ids, face labels, group names, in the order chosen (selecting.h)
+  std::vector<std::string> groupPath;   // the groups gone into, outermost first; not saved (grouping.h)
+  Vec2         levelPanning{};            // the canvas's panning inside a group; at the top the patch holds it
+  std::vector<Vec2> pans;                 // pans[d]: the panning left at depth d on going deeper
   std::string  status;       // the last thing worth telling: a refusal, why there is no sound
   Unsaved      unsaved;      // a close, an open or a new patch waiting for the answer about unsaved changes
   // How many patches this session has opened or started; a view that keeps

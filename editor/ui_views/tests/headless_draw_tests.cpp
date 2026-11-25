@@ -5,6 +5,7 @@
 // unregistered type drawn.
 #include "mforce/testing/check.h"
 #include "mforce/source/register_all_sources.h"
+#include "mforce/ui_control/selecting.h"
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/session.h"

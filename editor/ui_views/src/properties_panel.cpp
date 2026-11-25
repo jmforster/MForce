@@ -8,6 +8,7 @@
 #include <imgui_stdlib.h>
 #include "mforce/ui_control/building.h"
 #include "mforce/ui_control/edits.h"
+#include "mforce/ui_control/selecting.h"
 
 namespace mforce::ui {
 
@@ -83,17 +84,17 @@ bool PropertiesPanel::number_field(const char* label, const std::string& key, fl
 // then the faces. A thing another hides on the canvas can be chosen here.
 void PropertiesPanel::choose_node(Session& s) {
   const Patch& p = s.open.patch;
-  const Node* n = node_named(p, s.selected);
-  const NoteFace* f = face_named(p, s.selected);
+  const Node* n = node_named(p, selected_one(s));
+  const NoteFace* f = face_named(p, selected_one(s));
   const std::string shown = n ? n->id + "  (" + n->type + ")" : f ? f->label + "  (Note)" : std::string("(nothing)");
   if (!ImGui::BeginCombo("node", shown.c_str())) return;
-  if (ImGui::Selectable("(nothing)", s.selected.empty())) select_node(s, "");
+  if (ImGui::Selectable("(nothing)", selected_one(s).empty())) select_node(s, "");
   const std::set<std::string> named = face_nodes(p);
   for (const auto& node : p.graph.nodes)
-    if (!named.count(node.id) && ImGui::Selectable((node.id + "  (" + node.type + ")").c_str(), node.id == s.selected))
+    if (!named.count(node.id) && ImGui::Selectable((node.id + "  (" + node.type + ")").c_str(), node.id == selected_one(s)))
       select_node(s, node.id);
   for (const auto& face : p.layout.faces)
-    if (ImGui::Selectable((face.label + "  (Note)").c_str(), face.label == s.selected)) select_node(s, face.label);
+    if (ImGui::Selectable((face.label + "  (Note)").c_str(), face.label == selected_one(s))) select_node(s, face.label);
   ImGui::EndCombo();
 }
 
@@ -127,10 +128,10 @@ void PropertiesPanel::draw(Session& s) {
   }
   if (!s.open.patch.graph.nodes.empty() || !s.open.patch.layout.faces.empty()) choose_node(s);
   // An edit below may change the patch; each part copies what it names first.
-  if (const Node* n = node_named(s.open.patch, s.selected)) {
+  if (const Node* n = node_named(s.open.patch, selected_one(s))) {
     const Node node = *n;
     node_panel(s, node);
-  } else if (const NoteFace* f = face_named(s.open.patch, s.selected)) {
+  } else if (const NoteFace* f = face_named(s.open.patch, selected_one(s))) {
     const NoteFace face = *f;
     face_panel(s, face);
   } else if (s.open.patch.instrument) {

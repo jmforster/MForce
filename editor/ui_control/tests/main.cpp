@@ -72,6 +72,9 @@ void run_reopen_failed_quiet_tests();
 void run_listen_plain_build_tests();
 void run_back_reason_tests();
 
+void run_selection_tests();
+void run_grouping_tests();
+void run_clipboard_tests();
 namespace {
 constexpr mforce::testing::Test kTests[] = {
   {"run_control_edit_tests", run_control_edit_tests},
@@ -144,6 +147,9 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_reopen_failed_quiet_tests", run_reopen_failed_quiet_tests},
   {"run_listen_plain_build_tests", run_listen_plain_build_tests},
   {"run_back_reason_tests", run_back_reason_tests},
+  {"run_selection_tests", run_selection_tests},
+  {"run_grouping_tests", run_grouping_tests},
+  {"run_clipboard_tests", run_clipboard_tests},
 };
 }  // namespace
 

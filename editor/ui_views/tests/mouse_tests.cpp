@@ -6,6 +6,7 @@
 #include "mforce/patch/edit.h"
 #include "mforce/ui_control/building.h"
 #include "mforce/ui_control/playing.h"
+#include "mforce/ui_control/selecting.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_model/canvas_view.h"
 #include "mforce/ui_views/headless.h"
@@ -73,15 +74,15 @@ void run_canvas_click_tests() {
   Bench b;
   const Patch before = b.s.open.patch;
   b.editor.click_at(b.grip(kOsc));
-  CHECK(b.s.selected == "osc");
+  CHECK(selected_one(b.s) == "osc");
   b.editor.click_at(b.grip(kNote));
-  CHECK(b.s.selected == "Note1");
+  CHECK(selected_one(b.s) == "Note1");
   b.editor.click_at(b.grip(kOutput));
-  CHECK(b.s.selected.empty());
+  CHECK(selected_one(b.s).empty());
   b.editor.click_at(b.grip(kLfo));
-  CHECK(b.s.selected == "lfo");
+  CHECK(selected_one(b.s) == "lfo");
   b.editor.click_at(b.screen(kEmpty));
-  CHECK(b.s.selected.empty());
+  CHECK(selected_one(b.s).empty());
   CHECK(b.s.open.patch == before && !b.editor.popup_open());
 }
 
@@ -93,10 +94,10 @@ void run_canvas_drag_tests() {
   const Vec2 by{120, 90};
   b.editor.drag(b.grip(kLfo), b.grip(kLfo + by));
   CHECK(near(b.s.open.patch.layout.positions.at("lfo"), kLfo + by));
-  CHECK(b.s.selected == "lfo");
+  CHECK(selected_one(b.s) == "lfo");
   b.editor.drag(b.grip(kOutput), b.grip(kOutput + by));
   CHECK(near(b.s.open.patch.layout.outputPos, kOutput + by));
-  CHECK(b.s.selected.empty());
+  CHECK(selected_one(b.s).empty());
   const Vec2 down{0, 200};
   b.editor.drag(b.grip(kNote), b.grip(kNote + down));
   REQUIRE(!b.s.open.patch.layout.faces.empty());
@@ -123,7 +124,7 @@ void run_canvas_menu_tests() {
   CHECK(!b.editor.popup_open());
   REQUIRE(b.s.open.patch.layout.faces.size() == 2);
   CHECK(near(b.s.open.patch.layout.faces.back().pos, kEmpty));
-  CHECK(b.s.selected == b.s.open.patch.layout.faces.back().label);
+  CHECK(selected_one(b.s) == b.s.open.patch.layout.faces.back().label);
 
   b.editor.right_click_at(b.grip(kLfo));
   REQUIRE(b.editor.popup_open());
@@ -143,10 +144,10 @@ void run_canvas_minimap_tests() {
   const Vec2 size = b.editor.canvas_size();
   const Vec2 map{b.editor.canvas_origin().x + size.x - corner.x, b.editor.canvas_origin().y + size.y - corner.y};
   b.editor.click_at(b.grip(kOsc));
-  REQUIRE(b.s.selected == "osc");
+  REQUIRE(selected_one(b.s) == "osc");
   const Vec2 was = canvas_panning(b.s.open.patch);
   b.editor.click_at(map);
-  CHECK(b.s.selected == "osc");
+  CHECK(selected_one(b.s) == "osc");
   CHECK(!(canvas_panning(b.s.open.patch) == was));
   b.editor.right_click_at(map);
   CHECK(!b.editor.popup_open());

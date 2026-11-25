@@ -1,4 +1,5 @@
 #include "stepping.h"
+#include "level.h"
 #include <algorithm>
 #include <iterator>
 
@@ -12,11 +13,22 @@ bool has_face(const Patch& p, std::string_view label) {
   return std::any_of(p.layout.faces.begin(), p.layout.faces.end(), [&](const NoteFace& f) { return f.label == label; });
 }
 
-void forget_what_went(Session& s) {
+bool has_group(const Patch& p, std::string_view name) {
+  return std::any_of(p.layout.groups.begin(), p.layout.groups.end(), [&](const Group& g) { return g.name == name; });
+}
+
+bool forget_what_went(Session& s) {
   const Patch& p = s.open.patch;
-  if (!s.selected.empty() && !has_node(p, s.selected) && !has_face(p, s.selected)) s.selected.clear();
+  std::erase_if(s.selections, [&](const std::string& name) {
+    return !has_node(p, name) && !has_face(p, name) && !has_group(p, name);
+  });
   std::erase_if(s.offered, [&](const auto& offer) { return !has_node(p, offer.first); });
-  if (!s.listening.empty() && !has_node(p, s.listening)) s.listening.clear();
+  bool ended = false;
+  if (!s.listening.empty() && !has_node(p, s.listening)) {
+    s.listening.clear();
+    ended = true;
+  }
+  return level::follow_path(s) || ended;
 }
 
 }  // namespace mforce::ui::stepping

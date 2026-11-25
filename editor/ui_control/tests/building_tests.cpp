@@ -1,6 +1,7 @@
 // What a view asks for to build a patch: wiring, unwiring, deleting,
 // renaming, making nodes and notes, the instrument, the offered setting pins,
 // a new patch, fitting the canvas and clearing the recent files.
+#include "mforce/ui_control/selecting.h"
 #include "mforce/testing/check.h"
 #include "mforce/patch/type_declarations.h"
 #include "mforce/ui_control/building.h"
@@ -110,7 +111,7 @@ void run_delete_tests() {
   s.offered.insert({"lfo", "phase"});
   delete_these(s, {}, {"Note1", "lfo", "lfo"});           // a face, a node, and a name already gone
   CHECK(s.open.patch.layout.faces.empty() && !node_of(s, "__perf_frequency") && !node_of(s, "lfo"));
-  CHECK(s.selected.empty() && s.offered.empty() && steps(s) == before + 1);
+  CHECK(selected_one(s).empty() && s.offered.empty() && steps(s) == before + 1);
   undo(s);
   CHECK(s.open.patch == two);
 }
@@ -134,12 +135,12 @@ void run_rename_tests() {
   select_node(s, "lfo");
   s.offered.insert({"lfo", "phase"});
   rename(s, "lfo", "wobble");
-  CHECK(node_of(s, "wobble") && s.selected == "wobble" && s.offered.count({"wobble", "phase"}) && steps(s) == 1);
+  CHECK(node_of(s, "wobble") && selected_one(s) == "wobble" && s.offered.count({"wobble", "phase"}) && steps(s) == 1);
   rename(s, "wobble", "wobble");                          // its own name: nothing changes
   CHECK(steps(s) == 1);
   select_node(s, "Note1");
   rename(s, "Note1", "Pitch");
-  CHECK(s.open.patch.layout.faces[0].label == "Pitch" && s.selected == "Pitch");
+  CHECK(s.open.patch.layout.faces[0].label == "Pitch" && selected_one(s) == "Pitch");
 }
 
 void run_create_tests() {
@@ -148,10 +149,10 @@ void run_create_tests() {
   s.seeds.seed(42);
   create_node(s, "SineSource", Vec2{5, 6});
   REQUIRE(node_of(s, "Sine") != nullptr);
-  CHECK(s.selected == "Sine" && node_of(s, "Sine")->seed == std::mt19937(42)());
+  CHECK(selected_one(s) == "Sine" && node_of(s, "Sine")->seed == std::mt19937(42)());
   CHECK(s.open.patch.layout.positions.at("Sine") == (Vec2{5, 6}));
   create_note(s, Vec2{7, 8});
-  CHECK(s.selected == "Note2" && s.open.patch.layout.faces.back().pos == (Vec2{7, 8}));
+  CHECK(selected_one(s) == "Note2" && s.open.patch.layout.faces.back().pos == (Vec2{7, 8}));
 
   InstrumentBlock block;
   block.polyphony = 6;
@@ -188,7 +189,7 @@ void run_offer_tests() {
       if (st.structural && type.empty()) { type = t; setting = st.name; }
   REQUIRE(!type.empty());
   create_node(s, type, Vec2{});
-  const std::string id = s.selected;
+  const std::string id = selected_one(s);
   offer_setting_pin(s, id, setting);
   CHECK(s.offered.empty() && s.status.find("is a structural setting on " + type) != std::string::npos);
 

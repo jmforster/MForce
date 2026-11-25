@@ -25,6 +25,12 @@ Change feed(Patch& p, const PinEnd& from, const PinEnd& to) {
   return set_output(p, source);
 }
 
+bool is_wormhole(const Patch& p, const std::string& id) {
+  for (const auto& n : p.graph.nodes)
+    if (n.id == id) return n.type == "Wormhole";
+  return false;
+}
+
 }  // namespace
 
 namespace stepping {
@@ -53,6 +59,9 @@ void wire(Session& s, const PinEnd& a, const PinEnd& b) {
   if (!step(s, "", [&](Patch& p) { return feed(p, from, to); })) return;
   if (to.kind == Kind::SettingPin) s.offered.erase({to.node, to.name});
   sound_follows(s);
+  if (from.kind != Kind::NoteField && to.kind == Kind::Input && is_wormhole(s.open.patch, from.node) &&
+      is_wormhole(s.open.patch, to.node))
+    s.status = kWormholePaired;
 }
 
 void unwire(Session& s, const PinEnd& reader, std::size_t feed) {

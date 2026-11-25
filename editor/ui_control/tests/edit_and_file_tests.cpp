@@ -8,6 +8,7 @@
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/playing.h"
+#include "mforce/ui_control/selecting.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_control/unsaved.h"
 #include <algorithm>
@@ -128,7 +129,7 @@ void run_control_edit_tests() {
   edit_output_position(same, Vec2{3, 4});
   CHECK(same.open.patch.layout.outputPos == (Vec2{3, 4}));
   select_node(same, "Formant1");
-  CHECK(same.selected == "Formant1");
+  CHECK(selected_one(same) == "Formant1");
 }
 
 // Test 3: a setting edit the build refuses keeps the edit in the patch and

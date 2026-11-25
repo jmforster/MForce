@@ -1,6 +1,7 @@
 // Listening: the keys hear a node mid-chain at volume 1; Generate never
 // does; what ends it and what it follows; the refusals in their readers'
 // words with the keys' player untouched; a running plain sound follows it.
+#include "mforce/ui_control/selecting.h"
 #include "mforce/testing/check.h"
 #include "transport_fixture.h"
 #include "control_fixture.h"
@@ -53,7 +54,7 @@ void run_listen_ends_tests() {
   delete_these(s, {}, {"Damp2"});
   CHECK(s.listening.empty() && s.live.player() != nullptr);
   create_node(s, "SineSource", Vec2{0, 0});
-  const std::string made = s.selected;
+  const std::string made = selected_one(s);
   listen_at(s, made);
   CHECK(s.listening == made);
   undo(s);

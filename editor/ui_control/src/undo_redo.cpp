@@ -30,8 +30,8 @@ void travel(Session& s, bool (*move)(History&, Patch&), const char* nothing) {
   }
   s.open.patch.layout.panning = panning;
   s.status.clear();
-  stepping::forget_what_went(s);
-  if (sound_differs(before, s.open.patch) || !s.live.player()) sound_follows(s);
+  const bool listeningEnded = stepping::forget_what_went(s);
+  if (sound_differs(before, s.open.patch) || !s.live.player() || listeningEnded) sound_follows(s);
 }
 
 }  // namespace

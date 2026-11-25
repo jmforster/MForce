@@ -63,9 +63,18 @@ bool has_face(const Patch& p, std::string_view label);
 // a reader that takes nothing is refused.
 Change unwire_in(Patch& p, const PinEnd& reader, std::size_t feed);
 
-// After a step that may have taken things away: the selection goes when it
-// names nothing any more, the offers of nodes that went go, and listening
-// ends when its node went.
-void forget_what_went(Session& s);
+bool has_group(const Patch& p, std::string_view name);
+
+// What the status says when a wire joins two Wormholes, by route_wire or by
+// hand (wire): the wire between them is hidden at once, which without these
+// words reads as the wire being eaten rather than the pair forming.
+constexpr const char* kWormholePaired = "wormhole pair linked — span hidden; hover or select either half to see it";
+
+// After a step that may have taken things away: each selected name that
+// names nothing any more goes, the offers of nodes that went go, listening
+// ends when its node went, and the path is cut where it stops naming a
+// level (level::follow_path). True when listening ended: the caller has the
+// sound follow.
+bool forget_what_went(Session& s);
 
 }  // namespace mforce::ui::stepping

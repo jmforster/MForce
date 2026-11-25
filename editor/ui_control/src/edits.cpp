@@ -46,14 +46,16 @@ void edit_output_position(Session& s, Vec2 pos) {
 }
 
 void pan_canvas(Session& s, Vec2 pos) {
+  if (!s.groupPath.empty()) {
+    s.levelPanning = pos;
+    return;
+  }
   try {
     (void)set_panning(s.open.patch, pos);
   } catch (const std::exception& e) {
     s.status = e.what();
   }
 }
-
-void select_node(Session& s, std::string_view nodeOrFace) { s.selected = std::string(nodeOrFace); }
 
 void arrange(Session& s) {
   (void)step(s, "", [](Patch& p) {

@@ -1,6 +1,7 @@
 // The strips as plain data: each pixel column's least and greatest against
 // the plain loop, the cache, Fit and the first fit, the scroll's limits, each
 // gesture, which strips a take shows, and the pop-outs.
+#include "mforce/ui_control/selecting.h"
 #include "mforce/testing/check.h"
 #include "transport_fixture.h"
 #include "mforce/ui_control/building.h"
@@ -198,7 +199,7 @@ void run_strips_of_tests() {
   close_pop_out(s, 2);
   open_pop_out(s, "Reverb");
   CHECK(s.popOuts.size() == 3 && s.popOuts[1].number == 3 && s.popOuts.back().number == 4);
-  s.selected = "Damp_lpf";
+  select_node(s, "Damp_lpf");
   delete_these(s, {}, {"Damp_lpf"});
   const Strip gone = strip_of(s, "Damp_lpf");
   CHECK(gone.samples.empty() && gone.label == "Damp_lpf");

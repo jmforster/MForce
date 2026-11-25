@@ -23,6 +23,7 @@
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/generating.h"
+#include "mforce/ui_control/selecting.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_model/folder_memory.h"
 #include "mforce/ui_model/recent_files.h"

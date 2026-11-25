@@ -10,6 +10,10 @@
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_model/canvas_view.h"
+#include "mforce/ui_control/selecting.h"
+#include "mforce/ui_model/groups.h"
+#include "copying.h"
+#include "level.h"
 #include "stepping.h"
 
 namespace mforce::ui {
@@ -18,20 +22,55 @@ using namespace stepping;   // the shared helpers by their short names (C#: a `u
 
 namespace {
 
-bool has_group(const Patch& p, std::string_view name) {
-  return std::any_of(p.layout.groups.begin(), p.layout.groups.end(), [&](const Group& g) { return g.name == name; });
-}
-
 // The editor's rules for a name a person types, in its words; empty when
-// `to` passes them. Its own name again passes.
+// `to` passes them. Its own name again passes. A group's words differ: a
+// node or a face holding the name is "in use by a node".
 std::string name_refused(const Patch& p, std::string_view from, const std::string& to) {
+  const bool group = has_group(p, from);
   if (to.empty()) return "name is empty";
-  if (to.find('.') != std::string::npos) return "'.' not allowed (a pin is named node.pin)";
+  if (to.find('.') != std::string::npos) return group ? "'.' not allowed" : "'.' not allowed (a pin is named node.pin)";
   if (to.rfind("__", 0) == 0) return "'__' prefix is reserved";
   if (to == from) return {};
+  if (group && (has_node(p, to) || has_face(p, to))) return "name already in use by a node: " + to;
+  if (group) return has_group(p, to) ? "name already in use: " + to : std::string();
   if (has_node(p, to) || has_face(p, to)) return "name already in use: " + to;
   if (has_group(p, to)) return "name already in use by a group: " + to;
   return {};
+}
+
+// What a group holds, through the groups it holds: its nodes (no face's
+// node), its faces and its groups, itself included.
+void things_under(const Patch& p, const std::string& group, std::vector<std::string>& nodes,
+                  std::vector<std::string>& faces, std::vector<std::string>& groups) {
+  for (const auto& g : p.layout.groups) {
+    if (g.name != group || std::find(groups.begin(), groups.end(), group) != groups.end()) continue;
+    groups.push_back(group);
+    for (const auto& m : g.members) {
+      if (has_group(p, m)) things_under(p, m, nodes, faces, groups);
+      else if (has_face(p, m)) faces.push_back(m);
+      else nodes.push_back(m);
+    }
+  }
+}
+
+// The names to delete with every group among them opened into what it
+// holds: faces first, then nodes, then the groups, innermost last.
+std::vector<std::string> opened_names(const Patch& p, const std::vector<std::string>& names, bool& anyGroup) {
+  std::vector<std::string> nodes, faces, groups;
+  for (const auto& n : names) {
+    if (has_group(p, n)) {
+      anyGroup = true;
+      things_under(p, n, nodes, faces, groups);
+    } else if (has_face(p, n)) {
+      faces.push_back(n);
+    } else {
+      nodes.push_back(n);
+    }
+  }
+  std::vector<std::string> all = faces;
+  all.insert(all.end(), nodes.begin(), nodes.end());
+  all.insert(all.end(), groups.rbegin(), groups.rend());
+  return all;
 }
 
 // Every (node, setting) a dynamic pin drives.
@@ -53,8 +92,12 @@ std::vector<std::pair<PinEnd, std::size_t>> highest_first(std::vector<std::pair<
 void create_node(Session& s, std::string_view type, Vec2 pos) {
   const std::string id = fresh_id(s.open.patch, type);
   const std::uint32_t seed = s.seeds();
-  if (!step(s, "", [&](Patch& p) { return add_node(p, type, id, seed, pos); })) return;
-  s.selected = id;
+  if (!step(s, "", [&](Patch& p) {
+        const Change made = add_node(p, type, id, seed, pos);
+        copying::join_open(p, s, id);
+        return made;
+      })) return;
+  select_node(s, id);
   sound_follows(s);
 }
 
@@ -64,18 +107,26 @@ void create_note(Session& s, Vec2 pos) {
     return;
   }
   const std::string label = fresh_face_label(s.open.patch);
-  if (step(s, "", [&](Patch& p) { return add_face(p, label, pos); })) s.selected = label;
+  if (step(s, "", [&](Patch& p) {
+        const Change made = add_face(p, label, pos);
+        copying::join_open(p, s, label);
+        return made;
+      })) select_node(s, label);
 }
 
 void delete_these(Session& s, const std::vector<std::pair<PinEnd, std::size_t>>& wires,
                   const std::vector<std::string>& nodes) {
   const auto ordered = highest_first(wires);
   const auto drivenBefore = driven(s.open.patch);
+  bool anyGroup = false;
+  const std::vector<std::string> names = opened_names(s.open.patch, nodes, anyGroup);
+  const int drawnBefore = canvas_counts(s.open.patch).nodes;
   const auto done = step(s, "", [&](Patch& p) {
     for (const auto& [reader, feed] : ordered) (void)unwire_in(p, reader, feed);
-    for (const auto& name : nodes) {
+    for (const auto& name : names) {
       if (has_node(p, name)) (void)remove_node(p, name);
       else if (has_face(p, name)) (void)remove_face(p, name);
+      else if (has_group(p, name)) (void)remove_group(p, name);
     }
     return Change::Structure;
   });
@@ -85,8 +136,11 @@ void delete_these(Session& s, const std::vector<std::pair<PinEnd, std::size_t>>&
   const auto drivenAfter = driven(s.open.patch);
   for (const auto& pin : drivenBefore)
     if (!drivenAfter.count(pin) && has_node(s.open.patch, pin.first)) s.offered.insert(pin);
-  forget_what_went(s);
+  (void)forget_what_went(s);
   sound_follows(s);
+  if (!anyGroup) return;
+  const std::string went = "Deleted " + std::to_string(drawnBefore - canvas_counts(s.open.patch).nodes) + " node(s)";
+  s.status = s.status.empty() ? went : went + "; " + s.status;   // and why there is no sound, when there is none
 }
 
 void rename(Session& s, std::string_view nodeOrFace, std::string to) {
@@ -96,11 +150,16 @@ void rename(Session& s, std::string_view nodeOrFace, std::string to) {
     return;
   }
   const bool face = has_face(s.open.patch, nodeOrFace);
+  const bool group = has_group(s.open.patch, nodeOrFace);
   const auto done = step(s, "", [&](Patch& p) {
+    if (group) return rename_group(p, nodeOrFace, to);
     return face ? rename_face(p, nodeOrFace, to) : rename_node(p, nodeOrFace, to);
   });
   if (!done) return;
-  if (s.selected == nodeOrFace) s.selected = to;
+  for (auto& name : s.selections)
+    if (name == nodeOrFace) name = to;
+  for (auto& name : s.groupPath)
+    if (name == nodeOrFace) name = to;
   if (s.listening == nodeOrFace) s.listening = to;
   for (auto& id : s.take.stripIds)                // the strip, and its pop-outs, under the new name
     if (id == nodeOrFace) id = to;
@@ -184,7 +243,8 @@ void end_gesture(Session& s) {
 }
 
 void fit_canvas(Session& s, Vec2 canvasSize) {
-  (void)set_panning(s.open.patch, centred_panning(s.open.patch, canvasSize));
+  if (!s.groupPath.empty()) s.levelPanning = level::framed(s.open.patch, s.groupPath);
+  else (void)set_panning(s.open.patch, centred_panning(s.open.patch, canvasSize));
 }
 
 void clear_recent(Session& s) { s.recent.paths.clear(); }

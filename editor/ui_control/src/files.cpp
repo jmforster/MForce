@@ -33,7 +33,10 @@ void take(Session& s, OpenPatch next) {
   (void)drop_unread_face_nodes(next.patch);
   (void)place_unplaced_nodes(next.patch);
   s.open = std::move(next);
-  s.selected.clear();
+  s.selections.clear();
+  s.groupPath.clear();
+  s.pans.clear();
+  s.levelPanning = Vec2{};
   s.offered.clear();
   s.gesture.clear();
   s.unsaved = Unsaved{};

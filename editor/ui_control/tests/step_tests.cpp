@@ -1,5 +1,6 @@
 // The one way the control changes the patch (a step), the sound following
 // the patch, and undo and redo.
+#include "mforce/ui_control/selecting.h"
 #include "mforce/testing/check.h"
 #include "mforce/source/register_all_sources.h"
 #include "mforce/ui_control/building.h"
@@ -121,15 +122,15 @@ void run_undo_redo_tests() {
 
   select_node(s, "lfo");
   create_node(s, "SineSource", Vec2{});                   // selects "Sine"
-  REQUIRE(s.selected == "Sine");
+  REQUIRE(selected_one(s) == "Sine");
   offer_setting_pin(s, "Sine", "noSuchSetting");
   CHECK(s.offered.empty());
   s.offered.insert({"Sine", "phase"});
   undo(s);                                                // the node it named went: so do the selection and the offer
-  CHECK(s.selected.empty() && s.offered.empty() && !node_of(s, "Sine"));
+  CHECK(selected_one(s).empty() && s.offered.empty() && !node_of(s, "Sine"));
   select_node(s, "lfo");
   undo(s);                                                // lfo is still there: the selection stays
-  CHECK(s.selected == "lfo");
+  CHECK(selected_one(s) == "lfo");
   while (!s.open.history.past.empty()) undo(s);
   undo(s);
   CHECK(s.status == "nothing to undo");

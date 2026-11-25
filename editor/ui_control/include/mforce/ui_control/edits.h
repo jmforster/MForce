@@ -23,8 +23,9 @@ void edit_string  (Session& s, std::string_view node, std::string_view name, std
 // Where a node or a face (by its label), or the Output node, sits: no sound changes.
 void edit_position(Session& s, std::string_view nodeOrFace, Vec2 pos);
 void edit_output_position(Session& s, Vec2 pos);
-void pan_canvas   (Session& s, Vec2 pos);            // kept in the patch; not a step and not an unsaved change
-void select_node  (Session& s, std::string_view nodeOrFace);   // a node's id or a face's label; empty selects nothing
+// The canvas's panning: at the top kept in the patch, inside a group the
+// session's (Session::levelPanning); not a step and not an unsaved change.
+void pan_canvas   (Session& s, Vec2 pos);
 void arrange      (Session& s);                         // every node and face laid out afresh: one step; the sound is untouched
 
 }  // namespace mforce::ui
