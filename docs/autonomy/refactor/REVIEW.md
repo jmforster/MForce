@@ -116,8 +116,9 @@ and its own stated reasons (`renders/scratch/ed5/old_read.md`).
   4. **A file with a dead group member is refused**, where the old editor
      dropped the member and opened it. Same footing as an unknown node
      type; yours to overrule.
-- **Also yours to say:** the name of the session's list of selected
-  things (`selection` is mine; the page's 2.4 shows it before and after).
+- **Named by you (2026-11-24):** the session's list of selected things is
+  `selections` ("I would put an S on it"); the page's 2.4 shows the field
+  before and after.
 - **Struck from the slice:** the theme file. There never was one: the old
   `theme()` returned built-in colours and its own comment put loading one
   off to the rebuild. Adding one would be a feature.

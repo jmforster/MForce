@@ -142,7 +142,7 @@ pin", Matt 2026-09-07).
 // before (ui_control/session.h)
 std::string  selected;     // a node's id or a face's label (one namespace), or empty
 // after
-std::vector<std::string> selection;   // node ids, face labels, group names, in the order chosen
+std::vector<std::string> selections;  // node ids, face labels, group names, in the order chosen
 std::vector<std::string> groupPath;   // the groups gone into, outermost first; not saved
 
 // before (ui_views/src/properties_panel.cpp, which thing the panel shows)
@@ -152,8 +152,9 @@ if (const Node* n = node_named(s.open.patch, selected_one(s))) {
 ```
 
 `selected_one(session)` is the name when exactly one thing is selected and
-empty otherwise. (Names: `selection` is mine; `selected` kept as a list,
-or `selectedNames`, would do as well. Say which.)
+empty otherwise. The list is `selections` (Matt 2026-11-24: "I would put
+an S on it"), which is also how the record names its other lists
+(`groups`, `faces`, `members`, `strips`, `popOuts`).
 
 ```cpp
 // ui_control/selecting.h
