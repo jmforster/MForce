@@ -92,7 +92,43 @@ slice's only proof.
      checked against the code (A8).
   5. Slice 5 (Arrange: groups, wormholes, the clipboard, several nodes
      selected, MIDI in) needs its page of interfaces signed before any
-     code. It is not written yet.
+     code: R33, below.
+
+**R33 — slice 5's page: arrange** (2026-11-24;
+`docs/architecture/editor-slice5.md`, PROPOSED, for your signature). No
+slice 5 code exists and none is written before you sign. It restores row 5
+of the parity list: several nodes selected, groups, wormholes, the
+clipboard, Duplicate and Replace with, MIDI in, the stale-build banner (38
+lines of the list, about 1,720 lines of the old editor). It was written
+from a line-by-line read of the old code that took its numbers, its words
+and its own stated reasons (`renders/scratch/ed5/old_read.md`).
+- **What a signature accepts** is the page's section 4: seventeen rulings.
+  The four that change what you see or do most:
+  1. **One clipboard, the system's, on every road**, so **Cut is new on
+     it**: in the old editor Cut only existed on the second clipboard, the
+     one you did not keep.
+  2. **A copy carries its seed** (the old paste did; the parity list calls
+     Duplicate leaving it out a fault), so a copied noise node plays the
+     same noise as its original. Say the word and copies get fresh seeds.
+  3. **Delete and Cut on a group take everything in it**, in one step
+     Undo brings back. In the old editor both silently did nothing to a
+     selected group.
+  4. **A file with a dead group member is refused**, where the old editor
+     dropped the member and opened it. Same footing as an unknown node
+     type; yours to overrule.
+- **Also yours to say:** the name of the session's list of selected
+  things (`selection` is mine; the page's 2.4 shows it before and after).
+- **Struck from the slice:** the theme file. There never was one: the old
+  `theme()` returned built-in colours and its own comment put loading one
+  off to the rebuild. Adding one would be a feature.
+- **Unlike slice 4, this one changes the engine's `patch` module** (the
+  record's two new rules for groups, and the edits that make groups and
+  paste a fragment). Nothing that renders changes.
+- **A verdict decides:** signed, the slice is built as slice 4 was (a
+  read-only first step that checks the page against the code, then the
+  record, the control, the views, MIDI, the stamp; one review; one fix
+  wave; the parity check; a report). Any ruling you strike or change is
+  amended in the page first.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design

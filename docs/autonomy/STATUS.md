@@ -374,7 +374,22 @@ it). NEXT: Matt's verdict on R32 at the window, the sound card above all
 clipboard, several nodes selected, MIDI in, the build stamp; 31
 capabilities, about 1,720 old lines, `Fragment` edits in `patch/edit.h`),
 written from a line-by-line read of the old code as slice 4's was, for
-his signature; no slice 5 code before it. R24 (where BACKLOG row
+his signature; no slice 5 code before it. SLICE 5'S PAGE IS WRITTEN AND
+PROPOSED (same session, 2026-11-24): `docs/architecture/editor-slice5.md`,
+REVIEW R33, seventeen rulings, from the read kept at
+`renders/scratch/ed5/old_read.md` (674 lines: each of the 38 list lines
+with its numbers, words and the old code's own reasons; counts over the
+measured set; 21 questions, each ruled in the page). IT CHANGES THE
+ENGINE'S `patch` MODULE (`check()` refuses a member in two groups and a
+group inside itself; group edits, `fragment_of`, `paste`, `replace_node`,
+a fragment's text) and nothing that renders. The four rulings put first to
+Matt: one clipboard (the system's) on every road, so Cut is new on it; a
+copy carries its seed; Delete and Cut on a group take what is in it; a
+dead group member refuses the file. The theme file is struck (there never
+was one). A NEW SESSION STARTS FROM HIS SIGNATURE ON R33 AND HIS VERDICT ON
+R32: signed, slice 5 is built as slice 4 ran (rules and gate script from
+`renders/scratch/ed4/` into `renders/scratch/ed5/`, base = the commit that
+records the signature, base gate numbers from `renders/scratch/ed4/s4`). R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
 Everything below this

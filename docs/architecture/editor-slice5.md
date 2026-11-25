@@ -1,0 +1,375 @@
+# The editor, slice 5: arrange
+
+Status: **PROPOSED 2026-11-24, for Matt's signature (REVIEW R33). No code
+exists and none is written before the signature.**
+Parent: `editor.md` (signed 2026-11-23; its three rules, five modules and
+limits hold here unchanged). What it must restore is row 5 of
+`editor-parity.md`, A1: 38 lines of the list, about 1,720 lines of the old
+editor. This page was written after the old code was read line by line for
+each of them, with its numbers, its words and its own stated reasons
+(`renders/scratch/ed5/old_read.md`, by the reviewer, read only). Where the
+old editor did something odd or silently did nothing, section 4 says so
+and rules on it.
+
+## 1. What you can do when it is done
+
+1. **Select several**: a box dragged on empty canvas, Ctrl and a click to
+   add, Ctrl and a click on a selected node (or one of its pins) to take
+   it out. Delete removes them all in one step.
+2. **Groups.** "Group selection" on a node's menu makes a group of what is
+   selected; it shows as one purple node with a pin for each wire that
+   crosses its edge. Double-click it to go in; the breadcrumb above the
+   canvas ("Patch > Group > ...") goes back up. "Add to group", "Remove
+   from", "Ungroup", and a name you change in the panel.
+3. **Wormholes.** Right-click a wire: it now runs through a pair of small
+   violet nodes with nothing drawn between them. Hover or select one to
+   see the span to its twin; double-click to jump to the twin.
+4. **Copy, cut, paste** through the system's clipboard (so it carries
+   between two editor windows): Edit menu, Ctrl+C, Ctrl+X, Ctrl+V, "Copy
+   (n)" on a node's menu, "Paste" at the top of the create menu.
+   **Duplicate** and **Replace with** on a node's menu.
+5. **Listen to a group**: "Listen here" on a group's menu, and the
+   "Listen: Patch | Group" switch on the breadcrumb while inside one.
+6. **MIDI in**: a port chosen in the transport; keys hold notes, the
+   wheel and channel pressure reach the instrument.
+7. **The stale-build banner** and the build's time in the window's title.
+
+## 2. The interfaces
+
+Unlike slice 4, this slice changes the engine's `patch` module: the record
+learns two rules about groups, and gains the edits that make, change and
+paste them. Nothing that renders changes; the null, allocation and comp
+gates stay as they are.
+
+### 2.1 The record's rules for groups (`patch`: `check()`)
+
+Today `check()` refuses a group member that names nothing and a name used
+twice. It gains two refusals, each a shape the old editor's own code
+could not survive (its walk up through groups would never end):
+
+- a name listed in two groups, or twice in one;
+- a group that holds itself, directly or through others.
+
+No measured patch has either (7 of the 131 have groups: 27 groups, at most
+two deep).
+
+### 2.2 Group and fragment edits (`patch/edit.h`)
+
+```cpp
+std::string fresh_group_name(const Patch&);        // "Group", "Group2", ...: free among nodes, faces and groups
+// A group of `members` (node ids, face labels, group names) at `pos`. Each
+// member leaves the group it was in; the new group joins `parent` when
+// that is not empty.
+Change add_group   (Patch&, std::string_view name, const std::vector<std::string>& members,
+                    Vec2 pos, std::string_view parent);
+Change move_group  (Patch&, std::string_view name, Vec2 pos);
+Change rename_group(Patch&, std::string_view name, std::string_view to);
+Change remove_group(Patch&, std::string_view name);     // its members join the group that held it, or none
+// `member` leaves its group and joins `group`; an empty name: no group.
+Change regroup     (Patch&, std::string_view member, std::string_view group);
+
+// The piece of the patch these nodes are: each as it stands, with its
+// position. A feed that names a node outside the piece is kept as written.
+Fragment fragment_of(const Patch&, const std::vector<std::string>& nodes);
+// What a paste did: the ids the nodes were given, in the fragment's order,
+// and how many feeds were dropped because they named nothing here.
+struct Pasted { std::vector<std::string> ids; int dropped{0}; };
+// The fragment's nodes join the patch at their positions plus `offset`.
+// A node keeps its id when it is free, else takes its stem with the next
+// free number. A feed that names a fragment node follows its new id; one
+// that names a node of this patch is kept; any other is dropped and
+// counted. Seeds are kept.
+Pasted paste(Patch&, const Fragment&, Vec2 offset);
+
+// What a replacement kept and lost.
+struct Replaced { std::string id; int wiresKept{0}; std::vector<std::string> dropped; };
+// `node` becomes a node of `type` under a fresh id: constants, settings,
+// strings, arrays and dynamic pins carried by name, the seed kept, every
+// wire that touched it moved to the pin of the same name; what the new
+// type has no place for is named in `dropped`. Everything that named the
+// old id (group members, the output) follows.
+Replaced replace_node(Patch&, std::string_view node, std::string_view type);
+```
+
+The group edits are `Change::Layout`: the sound is untouched. Each edit
+refuses a name that is not there in its own words and otherwise exactly
+what `check()` refuses, as every structural edit does.
+
+```cpp
+// patch/fragment_text.h: a fragment as text, for the clipboard. No JSON
+// type appears in it, so no editor module reads JSON (the design's 13.8).
+std::string fragment_text(const Fragment&);              // one line
+Fragment    fragment_from_text(std::string_view text);   // throws: "clipboard is not an MForce fragment"
+```
+
+### 2.3 What a group shows, worked out from the wiring (`ui_model/groups.h`)
+
+A group's pins are never stored. As the old code put it: "boundary edges
+ARE the interface, never authored".
+
+```cpp
+// A wire that crosses a group's edge.
+struct Crossing { std::string node, pin; std::size_t feed{0}; std::string source; bool tap{false}; };
+struct Boundary {
+  std::vector<Crossing> in;    // a member reads something outside
+  std::vector<Crossing> out;   // something outside (or the patch's output) reads a member
+};
+Boundary boundary(const Patch&, std::string_view group);
+std::vector<std::string> nodes_under(const Patch&, std::string_view group);   // through nested groups and faces
+std::string group_holding(const Patch&, std::string_view member);            // empty: none
+// The one member whose signal leaves the group; with no wire leaving, the
+// last member in signal order that has an output. Empty when there is
+// none, or when more than one leaves: such a group has no "Listen here".
+std::string output_node(const Patch&, std::string_view group);
+// Why these cannot be one group, in the old words ("selection has 2
+// outputs: a b"); empty when they can.
+std::string group_refusal(const Patch&, const std::vector<std::string>& members);
+// What the canvas draws at one level: the nodes, faces and groups whose
+// holder is the last name of `path` (none: the top).
+std::vector<std::string> shown_at(const Patch&, const std::vector<std::string>& path);
+```
+
+Two of the old rules are kept with their reasons: a span between two
+Wormholes counts as no crossing ("the two-output rule was refusing exactly
+the configuration wormholes exist for", Matt 09-06), and a note face's
+field is never a group's output ("wiring any outside node to a member
+face's field made a second boundary output and nulled the group's out
+pin", Matt 2026-09-07).
+
+### 2.4 The session: a selection of several, and where you are
+
+```cpp
+// before (ui_control/session.h)
+std::string  selected;     // a node's id or a face's label (one namespace), or empty
+// after
+std::vector<std::string> selection;   // node ids, face labels, group names, in the order chosen
+std::vector<std::string> groupPath;   // the groups gone into, outermost first; not saved
+
+// before (ui_views/src/properties_panel.cpp, which thing the panel shows)
+if (const Node* n = node_named(s.open.patch, s.selected)) {
+// after
+if (const Node* n = node_named(s.open.patch, selected_one(s))) {
+```
+
+`selected_one(session)` is the name when exactly one thing is selected and
+empty otherwise. (Names: `selection` is mine; `selected` kept as a list,
+or `selectedNames`, would do as well. Say which.)
+
+```cpp
+// ui_control/selecting.h
+void select_node (Session&, std::string_view name);              // one; empty: nothing (as today)
+void select_nodes(Session&, std::vector<std::string> names);
+void toggle_selected(Session&, std::string_view name);           // Ctrl and a click
+const std::string& selected_one(const Session&);
+
+// ui_control/grouping.h
+void group_selection  (Session&);                                // "Group refused: ..." or "Grouped as '<name>' ..."
+void add_to_group     (Session&, std::string_view group);        // the selection
+void remove_from_group(Session&);                                // the selection, to the group above
+void ungroup          (Session&, std::string_view group);
+void open_group       (Session&, std::string_view group);        // go in
+void go_up            (Session&, std::size_t depth);             // the breadcrumb: 0 is the patch; ends Listen
+void listen_at_group  (Session&, std::string_view group);        // listen_at its output_node
+
+// ui_control/clipboard.h: the text is the view's to put on the clipboard
+std::string copy_text (Session&);                                // the selection as a fragment's text; empty, with words in status, when nothing can be copied
+void paste_text       (Session&, std::string_view text, std::optional<Vec2> at);   // `at`: where the create menu was opened
+std::string cut_text  (Session&);                                // copy_text, then the selection deleted: one step
+void duplicate        (Session&, std::string_view node);
+void replace_with     (Session&, std::string_view node, std::string_view type);
+void route_wire       (Session&, const PinEnd& reader, std::size_t feed);          // through a new pair of Wormholes: one step
+```
+
+`rename` (it exists) learns a group's name, with the old refusals.
+`delete_these` (it exists) learns a group: see ruling 3. Each call above is
+one undo step.
+
+### 2.5 MIDI in (`ui_audio/midi_in.h`, `ui_control/midi.h`)
+
+```cpp
+// ui_audio: RtMidi lives behind this, as RtAudio does behind the adapter.
+struct MidiMessage { unsigned char status{0}, data1{0}, data2{0}; };
+class MidiIn {
+public:
+  std::vector<std::string> ports();        // asked afresh each call: a keyboard plugged in later appears
+  std::string open(int port);              // empty, or why not
+  void close();
+  std::string open_port() const;           // its name; empty: none
+  int poll(std::span<MidiMessage> into);   // the messages since the last call; never blocks
+};
+
+// ui_control: what a message does, as plain data a test feeds by hand
+void midi_message(Session&, MidiMessage);  // a note on holds its note; a note off lets it go;
+                                           // controller 1 is the wheel; channel pressure is pressure
+void pump_midi(Session&);                  // once a frame: poll, then midi_message for each
+```
+
+No test opens a port. The program's loop and the headless frame both call
+`pump_midi`, as they both call `watch_audio`.
+
+### 2.6 The build stamp (`ui_model/build_stamp.h`, `ui_app`)
+
+```cpp
+struct BuildStamp { std::string built; std::string commit; std::string newer; };   // "11-24 14:41"; "b441c05"; the file that is newer, or empty
+bool        stale(const BuildStamp&);
+std::string title_suffix(const BuildStamp&);    // "  [build 11-24 14:41 @b441c05]", then the STALE words when stale
+```
+
+`ui_app` fills one at start: the program's own time, the commit of the
+checkout, and the newest source file among the modules the editor is
+built from (the list is written into the program by its CMake file).
+
+### 2.7 The views
+
+- `NodeCanvas` draws one level (`shown_at`): nodes, faces, a group as one
+  node with its boundary's pins, wires led to the pin that stands for
+  each end. Box select, Ctrl and a click, double-click (a group: go in; a
+  Wormhole: jump), a right click on a wire. The Wormhole's own face, the
+  ghost span and the tooltip.
+- `Breadcrumb` (new): the path and the Listen switch.
+- The node's menu and the group's menu; `MenuBar`'s Cut, Copy, Paste;
+  the create menu's Paste.
+- `PropertiesPanel`: a group (its name, its members); "N selected" when
+  several are.
+- The transport's MIDI port box. The banner.
+- A `Clipboard` the views are handed, as they are handed `FileDialogs`:
+  the program gives the system's; a test gives a string, so no test ever
+  writes your clipboard.
+- `HeadlessEditor` learns a click with Ctrl held and a double-click. Every
+  gesture above gets a test that moves the mouse or presses the key, found
+  by name, and the handler is switched off once to see the test fail.
+
+## 3. Steps
+
+1. **Read and count** (read only): this page against today's code, block
+   by block, and every point the read marked "inferred" tried where a
+   scratch run can try it. What the page cannot do as written is ruled on
+   before any brief.
+2. **The record**: `check()`'s two rules, the group edits, `fragment_of`,
+   `paste`, `replace_node`, the fragment's text, with tests.
+3. **The control**: the selection of several, a level and its boundary,
+   grouping, the clipboard, duplicate, replace, the wire route.
+4. **The views**: the canvas at a level, groups and wormholes drawn, the
+   breadcrumb, the menus, the panel. Pictures of oboe1 and the piano at
+   the top level and inside a group.
+5. **MIDI in.**
+6. **The build stamp.**
+7. **Review, fix wave, the parity check and its wave, report, on your
+   desk.**
+
+## 4. The rulings the signature accepts
+
+The first four change what you see or do most.
+
+1. **One clipboard, on every road.** The old editor had two: the Edit
+   menu and Ctrl+X/C/V (with the canvas focused) used one inside the
+   program; the node menu's Copy, the create menu's Paste and Ctrl+C/V
+   (with the mouse over the canvas) used the system's. You kept the
+   system's (the parity list, A2.1). So every road now leads to it, and
+   **Cut is new on it**: Cut only ever existed on the one that is gone.
+   It is a copy, then a delete, one step. Ctrl+X/C/V are the canvas's
+   wherever the mouse is, unless a text field has the keyboard.
+2. **A copy carries its seed.** Paste did before (as a side effect: it
+   reloaded the whole patch), and the list's A2.2 calls Duplicate leaving
+   the seed out a fault. So a copied noise node plays the same noise as
+   its original. Say the word and copies get fresh seeds instead.
+3. **Delete, and Cut, on a group take everything in it.** In the old
+   editor both silently did nothing to a selected group. Here the group
+   and all under it go in one step that Undo brings back, and the status
+   line says how many nodes went. A group left with no members goes with
+   its last one (the old kept it, drawn as "0 nodes").
+4. **A dead group member refuses the file.** The old editor dropped a
+   member that named nothing, with a line on stderr, and opened the file.
+   Today's reader refuses the file and says which member. That is the
+   same footing as an unknown node type (the list's A2.3): yours to
+   overrule.
+5. **The record holds the selection as a list.** The panel shows a node
+   only when exactly one thing is selected, and "N selected" otherwise
+   (the old panel went on editing the node selected before, without
+   saying). A right click on a node outside the selection selects it
+   alone first, so a menu's "(n)" is what you see selected.
+6. **"One output" stays the editor's rule**, checked when a group is made
+   or added to, in the old words ("Group refused: selection has 2
+   outputs: a b"). It is not a rule of the record: a file is never
+   refused for it. A wire made later that gives a group a second output
+   is accepted, as before; the collapsed group then shows a pin for each
+   (the old one showed none, and the wires vanished from that level).
+   The Output node cannot be in a group at all: it is not a node of the
+   record (the old "Add to group" could put it in one).
+7. **Paste** lands at the copied places plus (60, 60), and each further
+   paste of the same text another (60, 60); from the create menu it lands
+   where you clicked (the old one ignored the click). A pasted node keeps
+   its name when it is free, else takes the next free number ("Sine2"
+   onto "Sine2" gives "Sine3", where the old gave "Sine22"). A wire to a
+   node that was not copied is kept when this patch has a node of that
+   name, else dropped and counted in the status, as before. Pasted nodes
+   join the group you are in. Paste no longer ends Listen (the old reload
+   did).
+8. **Duplicate is a copy and a paste of that one node** without touching
+   the clipboard: its constants, settings, strings, arrays, dynamic pins
+   and seed (A2.2), the wires into it as a paste keeps them, at (30, 30)
+   from the original, in the group you are in. The old one carried no
+   wires and landed outside the group you were in, where you could not
+   see it.
+9. **Replace with** carries strings, arrays and the seed too (the old one
+   dropped them without a word) and names in the status whatever the new
+   type has no place for, as it named dropped wires. The new node takes a
+   fresh name by its type, as before.
+10. **Copy skips what the old one skipped**: a Note, a group, a Channel, a
+    Mixer, with the old words when anything was skipped. Copying a group
+    or a Note would be new, and is not added.
+11. **Wormholes as before**: the small face with no title, no tap pin
+    ("tapping pure glass == tapping its source"), the span never drawn,
+    the ghost while hovered or selected, the tooltip, the words when two
+    are wired into a pair. A right click on a wire still routes it at
+    once; it now says so in the status and Undo takes it back. On a wire
+    that already touches a Wormhole the old one did nothing, not even open
+    a menu: here the status says why. The jump centres the twin (the old
+    one was overwritten a frame later by the reframing of the level).
+12. **Where you are is the session's**, not the file's. Going up a level
+    ends Listen, as before ("Backing out returns the ears to the PATCH at
+    any level", Matt 2026-09-07). The breadcrumb, its Listen switch and
+    the camera on going in and out are as before. A group's "n nodes"
+    counts the nodes under it (the old counted a nested group as one).
+    Choosing a node in the panel's list that is inside a group goes to
+    its level.
+13. **MIDI as before**: every channel; a key always holds its note, Live
+    checked or not ("a key struck on a MIDI keyboard is always intent to
+    play"); controller 1 is the wheel; channel pressure is pressure.
+    Pitch bend, the sustain pedal and poly aftertouch do nothing, as
+    before; the list's line is corrected to say so. RtMidi goes to
+    `ui_audio` (the design), and is polled once a frame.
+14. **The build stamp is measured against today's tree.** The old one
+    read build logs and folders that are gone. Stale now means: a source
+    file of a module the editor is built from is newer than the program.
+    The banner's words name `mforce_editor`; the title's suffix is as
+    before. The commit is the checkout's, read at start, as before.
+15. **The theme file is struck from the slice.** There never was one: the
+    old `theme()` returned built-in colours, and its own comment put
+    loading one off to "when the editor is rebuilt". Adding one would be
+    a feature.
+16. **The engine's `patch` module changes** (2.1, 2.2). Nothing that
+    renders does.
+17. **Not here**: copying groups and Notes; the reuse library the old
+    comments promise for group names; pitch bend; tables, the shape
+    editors, partials and formants, audition (slice 6).
+
+## 5. For the C# reader
+
+`Pasted paste(Patch&, const Fragment&, Vec2 offset)` returns a small
+struct where C# would reach for `out` parameters or a tuple:
+
+```cpp
+struct Pasted { std::vector<std::string> ids; int dropped{0}; };
+const Pasted done = paste(patch, fragment, offset);
+if (done.dropped > 0) ...
+```
+
+A function in C++ returns one value, and a struct made on the spot is the
+plain way to return two: named fields, no heap, and the compiler builds it
+straight into the caller's variable (no copy). The alternatives are a
+`std::pair` (fields named `first` and `second`, which say nothing), a
+`std::tuple` (worse), or reference parameters the function fills in (the
+`out` of C#, which hides at the call site which arguments are results).
+The name was chosen as a past participle, like `Change` is a noun for
+what an edit did: the type says what the call left behind.
