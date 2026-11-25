@@ -438,7 +438,31 @@ and formant strips with the scrubber; the mapping table; audition; the
 crash log; 40 capabilities, about 2,810 old lines, no engine work known),
 THE LAST SLICE, written from a read of the old code as slice 5's was, for
 his signature; no slice 6 code before it. Usage: weekly Fable 61 percent
-when slice 4's build began, 67 when slice 5's did. R24 (where BACKLOG row
+when slice 4's build began, 67 when slice 5's did. MATT ANSWERED R34's
+QUESTION THE SAME DAY: Cut on a group, "Leave it" (ruling 30 confirmed).
+SLICE 6'S PAGE IS WRITTEN AND PROPOSED (same session):
+`docs/architecture/editor-slice6.md`, REVIEW R35, fifteen rulings, from
+the read kept at `renders/scratch/ed6/old_read.md` (1,104 lines; brief
+`renders/scratch/ed6/briefs/read.md`; 27 questions in its section M, each
+ruled in the page or left to step 1's probes). The five rulings put first
+to Matt: a table or shape dragged is heard at the release (one rebuild);
+a preview shows what renders (engine functions that ask the object built
+from the node); the Shaper's curve as point rows; AUDITION NEVER DELETES A
+FILE (Delete moves a saved patch to `patches/old/`, by CLAUDE.md's rule
+for that tree; no default target folder); the crash log in
+`%APPDATA%\MForce\`. One question put to him: whether the mapping table
+keeps its old rule (it lists far more than curves drive). IT CHANGES THE
+ENGINE (`set_points`, a new node's starting rows, five preview functions)
+and nothing that renders. THIS SESSION'S CONTEXT WAS ABOUT 80 PERCENT FULL
+WHEN THE PAGE WAS WRITTEN: SLICE 6'S BUILD NEEDS A NEW SESSION, which
+starts from his signature on R35 and his verdicts on R32 and R34: rules
+and gate script from `renders/scratch/ed5/` into `renders/scratch/ed6/`
+(as `renders/scratch/ed5/make_rules.py` did from ed4), base = the commit
+that records the signature, base gate numbers from
+`renders/scratch/ed5/s6/gates.txt` (17,276 checks), two executors with the
+hand-over planned after the panel, step 1's whole report saved to a file,
+the reader of the old code reused as reviewer and for the parity check.
+Usage at the page: weekly Fable 74 percent. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
 Everything below this

@@ -165,7 +165,53 @@ not tried yet either: one run of the editor shows both.
   5. Slice 6 (Shape: tables, the Envelope, Curve, Segment and Shaper
      editors, the shape editor window, partials and formants with the
      scrubber, the mapping table, audition, the crash log) is the last.
-     Its page is not written yet.
+     Its page awaits your signature: R35, below.
+
+**R35 — slice 6's page: shape** (2026-11-24;
+`docs/architecture/editor-slice6.md`, PROPOSED, for your signature). No
+slice 6 code exists and none is written before you sign. It is the last
+slice: tables in the panel, the Envelope, Curve, Segment and Shaper
+editors, the shape editor window, the partials and formant strips with
+the scrubber, the mapping table, audition, the crash log (about 40 lines
+of the parity list, about 2,810 lines of the old editor). It was written
+from a line-by-line read of the old code
+(`renders/scratch/ed6/old_read.md`).
+- **What a signature accepts** is the page's section 4: fifteen rulings.
+  The five that change what you see, hear or keep most:
+  1. **A table or a shape you drag is heard when you let go**: the plot
+     follows your hand, and at the release the keys' player is rebuilt
+     once (a sounding note is cut, as after any structural edit today).
+     In the old editor you heard it at the next note. Hearing it while
+     dragging would be engine work this slice does not do.
+  2. **A preview shows what renders**: every plot asks the engine object
+     built from the node. Four old previews did not (the Shaper's ignored
+     its curved segments and morph; six piano curves that start at x = 0
+     were never drawn and so could not open the shape editor).
+  3. **The Shaper's curve is point rows in the panel.** The old panel
+     showed one flat list of numbers, and removing one turned every later
+     x into a y.
+  4. **Audition never deletes a file.** The old Delete removed a saved
+     patch from disk for good. Your rule for the patches tree is that a
+     rejected patch is moved to `patches/old/`, so Delete then Enter
+     moves it there. The old default target folder is gone; Save waits
+     until you choose one.
+  5. **The crash log goes to `%APPDATA%\MForce\`**, not the
+     repository's root.
+- **One question the page puts to you** (its ruling 11): the mapping
+  table's old rule lists every pin whose signal comes from the note
+  through anything, up to six nodes back: 19 rows on the oboe, about half
+  through nodes that are not curves. It is restored as it was. Say if it
+  should list only what a note's field drives through curves.
+- **It changes the engine**: one edit for a shape as pairs of numbers, a
+  new node's starting rows (a new ExplicitPartials shows "0 rows" today
+  while its build plays sixteen), and five functions that ask the engine
+  what a node's shape is. Nothing that renders changes.
+- **A verdict decides:** signed, the slice is built as slice 5 was (a
+  read-only first step, then the record, the control, the panel, the
+  shape editor, the strips and windows, the crash log; one review; one
+  fix wave; the parity check; a report). When it is on your desk nothing
+  of the old editor is left to restore, and by your words of 2026-11-23
+  the pause for outside eyes on the code follows.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design

@@ -82,9 +82,10 @@ Replicate legacy functionality of node-based UI to:
     `docs/architecture/editor-slice4.md`, SIGNED and BUILT 11-24 and on
     his desk, REVIEW R32; slice 5,
     `docs/architecture/editor-slice5.md`, SIGNED ("Go ahead.") and BUILT
-    11-24 and on his desk, REVIEW R34; slice 6, the last, has no page
-    yet; each later slice gets a page of interfaces for his signature
-    before its code).
+    11-24 and on his desk, REVIEW R34; slice 6, the last:
+    `docs/architecture/editor-slice6.md`, PROPOSED 11-24, REVIEW R35, not
+    signed, no code; each slice gets a page of interfaces for his
+    signature before its code).
   + WHEN THE REFACTOR IS DONE (Matt 2026-11-23): "I want the refactor to
     be entirely done before we resume adding features." Done means "when
     all the capability that existed previously is restored": every slice
