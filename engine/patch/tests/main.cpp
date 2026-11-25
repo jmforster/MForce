@@ -46,6 +46,9 @@ void run_face_edit_tests();
 void run_face_field_tests();
 void run_unread_face_node_tests();
 void run_fresh_name_tests();
+void run_group_edit_tests();
+void run_fragment_edit_tests();
+void run_replace_edit_tests();
 void run_edit_rebuild_proof_tests();
 void run_edit_removal_proof_tests();
 void run_edit_round_trip_tests();
@@ -97,6 +100,9 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_face_field_tests", run_face_field_tests},
   {"run_unread_face_node_tests", run_unread_face_node_tests},
   {"run_fresh_name_tests", run_fresh_name_tests},
+  {"run_group_edit_tests", run_group_edit_tests},
+  {"run_fragment_edit_tests", run_fragment_edit_tests},
+  {"run_replace_edit_tests", run_replace_edit_tests},
   {"run_edit_rebuild_proof_tests", run_edit_rebuild_proof_tests},
   {"run_edit_removal_proof_tests", run_edit_removal_proof_tests},
   {"run_edit_round_trip_tests", run_edit_round_trip_tests},

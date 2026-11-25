@@ -81,6 +81,7 @@ std::string check_sentence(const std::string& line) {
 }
 
 Change adopt(Patch& p, Patch& copy, Change kind) {
+  drop_emptied_groups(copy, p);
   const std::vector<std::string> lines = copy.check();
   if (!lines.empty()) throw std::runtime_error(check_sentence(lines.front()));
   p = std::move(copy);
@@ -138,6 +139,35 @@ void drop_unread_face_nodes(Patch& p, std::vector<std::string> wereRead) {
     if (!index) continue;
     const std::vector<std::string> more = detach_node(p, *index);
     wereRead.insert(wereRead.end(), more.begin(), more.end());
+  }
+}
+
+Group* group_named(Patch& p, std::string_view name) {
+  for (auto& g : p.layout.groups)
+    if (g.name == name) return &g;
+  return nullptr;
+}
+
+Group* group_holding(Patch& p, std::string_view member) {
+  for (auto& g : p.layout.groups)
+    if (std::find(g.members.begin(), g.members.end(), member) != g.members.end()) return &g;
+  return nullptr;
+}
+
+void drop_emptied_groups(Patch& p, const Patch& before) {
+  const auto had_members = [&](const std::string& name) {
+    for (const auto& g : before.layout.groups)
+      if (g.name == name) return !g.members.empty();
+    return false;
+  };
+  for (;;) {
+    auto& groups = p.layout.groups;
+    const auto empty = std::find_if(groups.begin(), groups.end(),
+                                    [&](const Group& g) { return g.members.empty() && had_members(g.name); });
+    if (empty == groups.end()) return;
+    const std::string name = empty->name;
+    groups.erase(empty);
+    for (auto& g : groups) std::erase(g.members, name);
   }
 }
 

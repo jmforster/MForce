@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include "mforce/patch/fragment.h"
 #include "mforce/patch/instrument_block.h"
 #include "mforce/patch/patch.h"
 
@@ -99,5 +100,54 @@ Change remove_face(Patch&, std::string_view label);                        // it
 // with 2, 3... connect() takes the id as a source. `field` is one of the
 // note's fields (frequency, velocity, wheel, pressure, duration, onset).
 std::string face_field(Patch&, std::string_view label, std::string_view field);
+
+// Groups. Every edit of this header that leaves a group with no members
+// takes the group too, and its name leaves the group that held it, and so
+// on up. Each group edit is Change::Layout: the sound is untouched.
+std::string fresh_group_name(const Patch&);        // "Group", "Group2", ...: free among nodes, faces and groups
+// A group of `members` (node ids, face labels, group names) at `pos`. Each
+// member leaves the group it was in; the new group joins `parent` when
+// that is not empty. Refused with no members.
+Change add_group   (Patch&, std::string_view name, const std::vector<std::string>& members,
+                    Vec2 pos, std::string_view parent);
+Change move_group  (Patch&, std::string_view name, Vec2 pos);
+Change rename_group(Patch&, std::string_view name, std::string_view to);   // the group holding it follows
+Change remove_group(Patch&, std::string_view name);     // its members join the group that held it, or none
+// `member` leaves its group and joins `group`; an empty name: no group.
+Change regroup     (Patch&, std::string_view member, std::string_view group);
+
+// The piece of the patch these nodes are: each as it stands, with its
+// position. A feed that names a node outside the piece is kept as written.
+// Refused for a name that is no node and for a note face's node.
+Fragment fragment_of(const Patch&, const std::vector<std::string>& nodes);
+// What a paste did: the ids the nodes were given, in the fragment's order,
+// and how many feeds (a dynamic pin's drive among them) were dropped
+// because they named nothing here.
+struct Pasted { std::vector<std::string> ids; int dropped{0}; };
+// The fragment's nodes join the patch at their positions plus `offset`.
+// A node keeps its id when it is free, else takes its stem (the id less its
+// trailing digits) with the first free number from 2. A feed that names a
+// fragment node follows its new id; one that names a node of this patch is
+// kept; any other is dropped and counted, and a pin left with no feed takes
+// its declared default. Seeds are kept. Change::Structure, whole or not at
+// all. Refused for a fragment with no nodes, or with groups or note faces.
+Pasted paste(Patch&, const Fragment&, Vec2 offset);
+
+// What a replacement kept and lost.
+struct Replaced { std::string id; int wiresKept{0}; std::vector<std::string> dropped; };
+// `node` becomes a node of `type` under a fresh id (fresh_id), never refused
+// for what it carries. Carried by name, where the new type takes it: each
+// constant (on a pin that takes a number), each setting (inside its range;
+// an enum by its label), each string, the arrays (only when the new type
+// declares exactly the columns the node holds), each dynamic pin (on a
+// setting that may be driven), each wire into it (to the pin of the same
+// name, when that pin takes its source), each wire out of it and the
+// patch's output (when the reader takes the new type); the seed, the
+// position and the group it is in. `dropped` names what held something and
+// was not carried: a constant, setting or string that differed from the old
+// type's default, "arrays", a dynamic pin's setting, a wire by its pin's
+// name ("reader.pin" for a wire out, "output" for the patch's). `wiresKept`
+// counts the feeds and drives moved. Refused for a note face's node.
+Replaced replace_node(Patch&, std::string_view node, std::string_view type);
 
 } // namespace mforce

@@ -275,6 +275,67 @@ void check_layout(Checker& c) {
         c.add("layout.faces[" + std::to_string(f) + "].fields." + field, in_quotes(id) + " names no node");
 }
 
+std::string member_path(size_t g, size_t m) {
+  return "layout.groups[" + std::to_string(g) + "].members[" + std::to_string(m) + "]";
+}
+
+// Each name a member of one group at most, and once in it.
+void check_membership(Checker& c) {
+  const auto& groups = c.patch.layout.groups;
+  std::map<std::string, size_t, std::less<>> holder;
+  for (size_t g = 0; g < groups.size(); ++g) {
+    std::set<std::string, std::less<>> seen;
+    for (size_t m = 0; m < groups[g].members.size(); ++m) {
+      const std::string& member = groups[g].members[m];
+      if (!seen.insert(member).second) {
+        c.add(member_path(g, m), in_quotes(member) + " is listed twice in group " + in_quotes(groups[g].name));
+        continue;
+      }
+      const auto [it, fresh] = holder.try_emplace(member, g);
+      if (!fresh)
+        c.add(member_path(g, m), in_quotes(member) + " is a member of " + in_quotes(groups[it->second].name) +
+                                     " and of " + in_quotes(groups[g].name) + ": a name is in one group at most");
+    }
+  }
+}
+
+// True when group `target` is reached from the group at `from` through
+// members that are groups.
+bool reaches(const Layout& l, size_t from, const std::string& target, std::set<size_t>& seen) {
+  if (!seen.insert(from).second) return false;
+  for (const auto& m : l.groups[from].members) {
+    if (m == target) return true;
+    for (size_t g = 0; g < l.groups.size(); ++g)
+      if (l.groups[g].name == m && reaches(l, g, target, seen)) return true;
+  }
+  return false;
+}
+
+// No group holds itself, directly or through other groups: refused at the
+// member that leads back to it.
+void check_nesting(Checker& c) {
+  const Layout& l = c.patch.layout;
+  for (size_t g = 0; g < l.groups.size(); ++g) {
+    const std::string& name = l.groups[g].name;
+    for (size_t m = 0; m < l.groups[g].members.size(); ++m) {
+      const std::string& member = l.groups[g].members[m];
+      if (member == name) {
+        c.add(member_path(g, m), in_quotes(name) + " holds itself");
+        break;
+      }
+      bool back = false;
+      for (size_t h = 0; h < l.groups.size() && !back; ++h) {
+        std::set<size_t> seen;
+        back = l.groups[h].name == member && reaches(l, h, name, seen);
+      }
+      if (back) {
+        c.add(member_path(g, m), in_quotes(name) + " holds itself, through " + in_quotes(member));
+        break;
+      }
+    }
+  }
+}
+
 } // namespace
 
 std::vector<std::string> Patch::check() const {
@@ -285,6 +346,8 @@ std::vector<std::string> Patch::check() const {
   check_cycles(c);
   check_plain_sound(c);
   check_layout(c);
+  check_membership(c);
+  check_nesting(c);
   return c.lines;
 }
 

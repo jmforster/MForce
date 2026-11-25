@@ -34,7 +34,8 @@ std::string check_sentence(const std::string& line);
 
 // The edit made on `copy` is accepted when check() finds nothing in it:
 // `copy` becomes the patch and `kind` is returned. Otherwise the first line's
-// sentence is thrown and `p` is left as it was.
+// sentence is thrown and `p` is left as it was. A group the edit left with
+// no members goes first (drop_emptied_groups), whatever the edit was.
 Change adopt(Patch& p, Patch& copy, Change kind);
 
 // The index of the first node with id `id`; none when no node has it.
@@ -62,5 +63,16 @@ std::vector<std::string> detach_node(Patch& p, std::size_t index);
 // goes as detach_node takes it, with its field; what it read is looked at
 // the same way.
 void drop_unread_face_nodes(Patch& p, std::vector<std::string> wereRead);
+
+// The group named `name`; null when there is none.
+Group* group_named(Patch& p, std::string_view name);
+// The group whose members list `member`; null when none does.
+Group* group_holding(Patch& p, std::string_view member);
+
+// Every group of `p` left with no members by the edit that made `p` from
+// `before` (a group that had members there) goes, and its name leaves the
+// group that held it; a group that empties in turn goes the same way. A
+// group that was already empty in `before` stays.
+void drop_emptied_groups(Patch& p, const Patch& before);
 
 }  // namespace mforce::edit_detail

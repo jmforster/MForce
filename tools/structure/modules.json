@@ -19,6 +19,7 @@
       "engine/patch/include/mforce/patch/patch_json.h",
       "engine/patch/src/patch_json.cpp",
       "engine/patch/src/node_json.cpp",
+      "engine/patch/src/fragment_text.cpp",
       "engine/music/include/mforce/music/music_json.h",
       "engine/voicing/include/mforce/voicing/voicing_json.h",
       "engine/compose/include/mforce/compose/templates_json.h",

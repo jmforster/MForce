@@ -82,6 +82,37 @@ static void stages(Node& env, float type) {
         env.arrays[column] = {0.0f, 1.0f};
     env.arrays["type"] = {0.0f, type};
 }
+// The groups: a name in one group at most and once in it, no group inside
+// itself; an empty group, as a file may bring one, holds.
+static std::vector<Break> group_breaks() {
+    return {
+        {"an empty group", false, [](Patch& p) { p.layout.groups.push_back(Group{"Empty"}); }, ""},
+        {"a name in two groups", false, [](Patch& p) { p.layout.groups.push_back(Group{"Other", {"osc"}}); },
+         "layout.groups[1].members[0]: 'osc' is a member of 'Voice' and of 'Other': a name is in one group at most"},
+        {"a name twice in one group", false, [](Patch& p) { p.layout.groups[0].members.push_back("osc"); },
+         "layout.groups[0].members[3]: 'osc' is listed twice in group 'Voice'"},
+        {"a group listing itself", false, [](Patch& p) { p.layout.groups[0].members.push_back("Voice"); },
+         "layout.groups[0].members[3]: 'Voice' holds itself"},
+    };
+}
+// Two groups that hold each other: each is refused, through the other.
+static void check_mutual_nesting() {
+    Patch p = instrument();
+    p.layout.groups.push_back(Group{"Outer", {"Voice"}});
+    p.layout.groups[0].members.push_back("Outer");
+    const std::vector<std::string> want = {
+        "layout.groups[0].members[3]: 'Voice' holds itself, through 'Outer'",
+        "layout.groups[1].members[0]: 'Outer' holds itself, through 'Voice'"};
+    const auto got = p.check();
+    for (const auto& l : got)
+        if (got != want) std::printf("  two groups holding each other gave: %s\n", l.c_str());
+    CHECK(got == want);
+    Patch deep = instrument();
+    deep.layout.groups.push_back(Group{"A", {"Voice"}});
+    deep.layout.groups.push_back(Group{"B", {"A"}});
+    deep.layout.groups[0].members.push_back("B");
+    CHECK(deep.check().front() == "layout.groups[0].members[3]: 'Voice' holds itself, through 'B'");
+}
 // Patches that hold, and the ids, the namespace and the output.
 static std::vector<Break> name_breaks() {
     static const std::string twoNodes = shared("graph.nodes[3].id: 'osc' names two things: a node, a node");
@@ -282,6 +313,8 @@ void run_patch_check_tests() {
     run_breaks(declaration_breaks());
     run_breaks(value_breaks());
     run_breaks(graph_breaks());
+    run_breaks(group_breaks());
+    check_mutual_nesting();
     // Three unrelated breaks, made in the reverse of check()'s order, come
     // back in check()'s order: the output, the node, the layout.
     Patch p = instrument();
