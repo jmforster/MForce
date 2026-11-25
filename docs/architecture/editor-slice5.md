@@ -551,7 +551,7 @@ ruling 31 its ruling 14 (what the build stamp measures against). "C" and
 30. **Cut never deletes what it did not copy.** This amends the page's
     ruling 3 for Cut: a group is not copied (ruling 10 of the page), so
     Cut leaves it and says so; Delete takes a group and all under it, as
-    signed.
+    signed. Confirmed by Matt 2026-11-24: "Leave it".
 31. **The stamp compares against the last build, not the program's link
     time**: the build touches a file beside the program each time it
     builds it or finds it built. This amends ruling 26, under which a

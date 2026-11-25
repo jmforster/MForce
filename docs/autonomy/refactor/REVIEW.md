@@ -151,11 +151,11 @@ not tried yet either: one run of the editor shows both.
   otherwise have said STALE for ever).
 - **Yours to say:**
   1. What is wrong or missing at the window, in any words.
-  2. **Cut on a group.** The page you signed said Delete and Cut on a
-     group both take everything in it. I changed Cut: a group cannot be
-     copied, so cutting one would destroy what never reached the
-     clipboard. Cut now leaves the group and says so; Delete takes it.
-     Say if you want Cut to take it anyway.
+  2. **Cut on a group: answered (2026-11-24, "Leave it").** Cut leaves a
+     selected group in place and says so; Delete takes it with everything
+     in it. The page you signed had said both take it; ruling 30 amended
+     that for Cut (a group cannot be copied, so a cut would destroy what
+     never reached the clipboard), and you confirmed it.
   3. **A copy carries its seed** (the page's ruling 2, as you signed): a
      copied or duplicated noise node plays the same noise as its
      original. Still yours to turn round.
