@@ -1,7 +1,8 @@
 # The editor, slice 5: arrange
 
-Status: **PROPOSED 2026-11-24, for Matt's signature (REVIEW R33). No code
-exists and none is written before the signature.**
+Status: **SIGNED by Matt 2026-11-24 ("Go ahead."), the seventeen rulings
+of section 4 as written, the session's list named `selections` at his
+word. The build began the same day.**
 Parent: `editor.md` (signed 2026-11-23; its three rules, five modules and
 limits hold here unchanged). What it must restore is row 5 of
 `editor-parity.md`, A1: 38 lines of the list, about 1,720 lines of the old

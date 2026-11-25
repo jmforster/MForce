@@ -386,8 +386,10 @@ a fragment's text) and nothing that renders. The four rulings put first to
 Matt: one clipboard (the system's) on every road, so Cut is new on it; a
 copy carries its seed; Delete and Cut on a group take what is in it; a
 dead group member refuses the file. The theme file is struck (there never
-was one). A NEW SESSION STARTS FROM HIS SIGNATURE ON R33 AND HIS VERDICT ON
-R32: signed, slice 5 is built as slice 4 ran (rules and gate script from
+was one). SLICE 5'S PAGE IS SIGNED (Matt 2026-11-24, "Go ahead.", the same
+session; REVIEW R33 under Resolved; the list of selected things is
+`selections` at his word) AND ITS BUILD BEGAN AT ONCE, in session XXVII.
+His verdict on R32 is still open. Slice 5 is built as slice 4 ran (rules and gate script from
 `renders/scratch/ed4/` into `renders/scratch/ed5/`, base = the commit that
 records the signature, base gate numbers from `renders/scratch/ed4/s4`). R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word

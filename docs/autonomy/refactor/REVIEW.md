@@ -91,45 +91,8 @@ slice's only proof.
      (`docs/architecture/editor-parity.md`). Slice 4's 19 lines were each
      checked against the code (A8).
   5. Slice 5 (Arrange: groups, wormholes, the clipboard, several nodes
-     selected, MIDI in) needs its page of interfaces signed before any
-     code: R33, below.
-
-**R33 — slice 5's page: arrange** (2026-11-24;
-`docs/architecture/editor-slice5.md`, PROPOSED, for your signature). No
-slice 5 code exists and none is written before you sign. It restores row 5
-of the parity list: several nodes selected, groups, wormholes, the
-clipboard, Duplicate and Replace with, MIDI in, the stale-build banner (38
-lines of the list, about 1,720 lines of the old editor). It was written
-from a line-by-line read of the old code that took its numbers, its words
-and its own stated reasons (`renders/scratch/ed5/old_read.md`).
-- **What a signature accepts** is the page's section 4: seventeen rulings.
-  The four that change what you see or do most:
-  1. **One clipboard, the system's, on every road**, so **Cut is new on
-     it**: in the old editor Cut only existed on the second clipboard, the
-     one you did not keep.
-  2. **A copy carries its seed** (the old paste did; the parity list calls
-     Duplicate leaving it out a fault), so a copied noise node plays the
-     same noise as its original. Say the word and copies get fresh seeds.
-  3. **Delete and Cut on a group take everything in it**, in one step
-     Undo brings back. In the old editor both silently did nothing to a
-     selected group.
-  4. **A file with a dead group member is refused**, where the old editor
-     dropped the member and opened it. Same footing as an unknown node
-     type; yours to overrule.
-- **Named by you (2026-11-24):** the session's list of selected things is
-  `selections` ("I would put an S on it"); the page's 2.4 shows the field
-  before and after.
-- **Struck from the slice:** the theme file. There never was one: the old
-  `theme()` returned built-in colours and its own comment put loading one
-  off to the rebuild. Adding one would be a feature.
-- **Unlike slice 4, this one changes the engine's `patch` module** (the
-  record's two new rules for groups, and the edits that make groups and
-  paste a fragment). Nothing that renders changes.
-- **A verdict decides:** signed, the slice is built as slice 4 was (a
-  read-only first step that checks the page against the code, then the
-  record, the control, the views, MIDI, the stamp; one review; one fix
-  wave; the parity check; a report). Any ruling you strike or change is
-  amended in the page first.
+     selected, MIDI in): its page is signed (R33, under Resolved) and
+     its build is under way.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design
@@ -600,6 +563,8 @@ answer any time), and the consequences of the two deletions are named.
 - Refuter: byte-identity upheld with the refuter's own A/B (the eleven rewritten scope files and three controls 14/14, eight synthetics of its own 8/8, five archived copies through the tool); no Critical; two Majors, both in the editor's new Preset Apply (the cached `sustainLevel` — 0 on every two- or three-stage node — pushed over a fresh ADSR's four slots, and that push outside the audio lock); three Minors (the tool carried keys a class never read into a form that reads them, seven archived files would have moved; the refusal test pinned one knob of eleven; the whole-corpus roundtrip gate permanently red since 3.2); two Flags. The wave (`b1d0222`) fixed all but the standing Flag — Apply re-pulls under the lock through one function with a headless `--apply-preset` twin that proved it on `bassoon1` and `reed_test`; the tool drops the dead keys by name; the gate's known set is the backlog-79 six and the run is green. Re-review: closeable, nothing introduced, four Flags — two one-line fixes taken (an upper-case preset name; an ASCII note), one coverage correction accepted (the three in-scope `as` nodes are dead in the render, so `as` is render-pinned by the synthetic sets and the tests, not by the scope — CLEANUP 30), one stale scratch label.
 
 ## Resolved
+
+**R33 — slice 5's page: arrange** — SIGNED 2026-11-24 (Matt): "Go ahead.", after he named the session's list of selected things (`selections`: "I would put an S on it"). Read as accepting the page's seventeen rulings as written (`docs/architecture/editor-slice5.md`); he spoke to none of the four put first (one clipboard, so Cut is new on it; a copy carries its seed; Delete and Cut on a group take what is in it; a dead group member refuses the file), and that reading is the session's, not his words. The build began the same day, from the read of the old code kept at `renders/scratch/ed5/old_read.md`.
 
 **R30 — the editor, slices 1 to 3 at the window** — TRIED BY HAND 2026-11-24 (Matt), in two passes. First pass: open, wiring, undo, redo and a key's sound worked; a right click gave no menu, no node could be selected, a click on the piano did nothing. The first two were one fault (after drawing the graph the canvas asked whether the mouse was over it of the wrong window; the wheel and every node drag died with it), fixed in `7c6d278` with two more found on the way (the Output node could never be dragged; a running plain sound did not follow an edit). Second pass: "Almost all tests worked, including loud/soft piano keys"; he named nothing else that failed, and of the two lines he asked about (the phrase marks on the piano; "pre=" against "post=") said "Working as designed. Ok to proceed." Why the piano did nothing on the first pass is not known; nothing in the fix is on its path. The canvas's gestures and the piano's press now run under tests that move a mouse (`editor/ui_views/tests/mouse_tests.cpp`). Report `docs/autonomy/refactor/reports/2026-11-24-editor-slice3.md`; commits `b341e96`..`9875f8a`, `7c6d278`. Slice 4's build began the same day.
 
