@@ -112,3 +112,23 @@ void run_listen_plain_tests() {
   CHECK(s.audio.playing(AudioAdapter::Line::Playback) != second);
   stop(s);
 }
+
+// On a plain sound with nothing running, listen_at still asks the plain
+// build: a mixer whose channel has no source passes check() and the plain
+// build refuses it, in its words; nothing changes and nothing starts.
+void run_listen_plain_build_tests() {
+  std::printf("listen: on a plain sound with nothing running, the plain build is asked\n");
+  Session s;
+  open_file(s, kPlain);
+  Patch p = s.open.patch;
+  (void)add_node(p, "SoundChannel", "ch2", 12, Vec2{0, 500});
+  (void)add_node(p, "StereoMixer", "mix2", 11, Vec2{0, 600});
+  (void)connect(p, "mix2", "channels", "ch2", false);
+  s.open.patch = p;
+  s.status.clear();
+  listen_at(s, "mix2");
+  CHECK(s.listening.empty() && s.status.find("'source' is not wired") != std::string::npos);
+  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr);
+  listen_at(s, "fm");
+  CHECK(s.listening == "fm" && s.audio.playing(AudioAdapter::Line::Playback) == nullptr);   // nothing ran: nothing starts
+}

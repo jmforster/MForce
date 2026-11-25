@@ -5,7 +5,13 @@
 
 namespace mforce::ui {
 
-void SoundLine::set_fade(int samples) { fadeSamples_ = std::max(1, samples); }
+// Called only while no callback runs (before the device starts, or with it
+// closed), so the audio thread's count of what is left of a fade may be
+// written here: kept within the new length, so a fade's gain never passes 1.
+void SoundLine::set_fade(int samples) {
+  fadeSamples_ = std::max(1, samples);
+  fadeLeft_ = std::min(fadeLeft_, fadeSamples_);
+}
 
 // --- control thread -------------------------------------------------------
 

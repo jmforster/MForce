@@ -18,11 +18,13 @@ std::int64_t page(const WaveView& v, int plotWidth) {
   return std::max<std::int64_t>(1, std::int64_t(std::max(0, plotWidth)) * v.zoom);
 }
 
-void keep_in(WaveView& v, std::int64_t at, int total, int plotWidth) {
+void put_at(WaveView& v, std::int64_t at, int total, int plotWidth) {
   v.scroll = int(std::clamp<std::int64_t>(at, 0, max_scroll(v, total, plotWidth)));
 }
 
 }  // namespace
+
+void keep_inside(WaveView& v, int total, int plotWidth) { put_at(v, v.scroll, total, plotWidth); }
 
 void zoom_in(WaveView& v) { v.zoom = std::max(1, v.zoom / 2); }
 
@@ -46,10 +48,10 @@ int max_scroll(const WaveView& v, int total, int plotWidth) {
 }
 
 void scroll_by(WaveView& v, int samples, int total, int plotWidth) {
-  keep_in(v, std::int64_t(v.scroll) + samples, total, plotWidth);
+  put_at(v, std::int64_t(v.scroll) + samples, total, plotWidth);
 }
 
-void scroll_to(WaveView& v, int sample, int total, int plotWidth) { keep_in(v, sample, total, plotWidth); }
+void scroll_to(WaveView& v, int sample, int total, int plotWidth) { put_at(v, sample, total, plotWidth); }
 
 void wheel(WaveView& v, float notches, bool ctrl, int total, int plotWidth) {
   if (ctrl) {
@@ -57,28 +59,28 @@ void wheel(WaveView& v, float notches, bool ctrl, int total, int plotWidth) {
     else if (notches < 0.0f) zoom_out(v);
   } else {
     const double by = -double(notches) * double(page(v, plotWidth)) * kNotchShare;
-    keep_in(v, std::int64_t(v.scroll) + std::llround(by), total, plotWidth);
+    put_at(v, std::int64_t(v.scroll) + std::llround(by), total, plotWidth);
   }
-  keep_in(v, v.scroll, total, plotWidth);
+  put_at(v, v.scroll, total, plotWidth);
 }
 
 void drag(WaveView& v, float pixels, int total, int plotWidth) {
-  keep_in(v, std::int64_t(v.scroll) - std::llround(double(pixels) * v.zoom), total, plotWidth);
+  put_at(v, std::int64_t(v.scroll) - std::llround(double(pixels) * v.zoom), total, plotWidth);
 }
 
 void wave_key(WaveView& v, WaveKey key, bool shift, int total, int plotWidth) {
   const std::int64_t whole = page(v, plotWidth);
   const std::int64_t move = shift ? whole : std::max<std::int64_t>(1, whole / kStepsPerPage);
   switch (key) {
-    case WaveKey::Left:    keep_in(v, std::int64_t(v.scroll) - move, total, plotWidth); break;
-    case WaveKey::Right:   keep_in(v, std::int64_t(v.scroll) + move, total, plotWidth); break;
+    case WaveKey::Left:    put_at(v, std::int64_t(v.scroll) - move, total, plotWidth); break;
+    case WaveKey::Right:   put_at(v, std::int64_t(v.scroll) + move, total, plotWidth); break;
     case WaveKey::Home:    v.scroll = 0; break;
-    case WaveKey::End:     keep_in(v, max_scroll(v, total, plotWidth), total, plotWidth); break;
+    case WaveKey::End:     put_at(v, max_scroll(v, total, plotWidth), total, plotWidth); break;
     case WaveKey::ZoomIn:  zoom_in(v); break;
     case WaveKey::ZoomOut: zoom_out(v); break;
     case WaveKey::Fit:     fit(v, total, plotWidth); break;
   }
-  keep_in(v, v.scroll, total, plotWidth);
+  put_at(v, v.scroll, total, plotWidth);
 }
 
 void set_columns(WaveView& v, int columns) { v.columns = std::clamp(columns, 1, kMostColumns); }

@@ -97,6 +97,10 @@ int extents(const Strip& strip, int take, int zoom, int scroll, std::span<Extent
 Extent peaks(const Strip& strip, int take, ExtentCache& cache);
 
 // --- the view, over a take of `total` samples and a plot `plotWidth` wide ---
+// The scroll put back within 0 and max_scroll: a view that zoomed out,
+// changed its columns or outlived a longer take still shows samples. A view
+// calls it each frame once it knows its plot's width.
+void keep_inside(WaveView& v, int total, int plotWidth);
 void zoom_in(WaveView& v);                         // halve, down to 1
 void zoom_out(WaveView& v);                        // double, up to 4096; nothing from 4096 up
 // The whole take in one plot's width: total / plotWidth samples a column, at

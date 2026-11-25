@@ -54,8 +54,9 @@ public:
   bool hover_on(const std::string& name);
   // A key down for a frame and up, with Shift or Ctrl held through it: "Left",
   // "Right", "Up", "Down", "Home", "End", "=", "-", "0", "Keypad+", "Keypad-",
-  // "Delete", "Space", or a letter "A" to "Z".
+  // "Delete", "Space", "Enter", or a letter "A" to "Z".
   void press_key(const std::string& key, bool shift = false, bool ctrl = false);
+  void type_text(const std::string& text);   // the characters typed, as into a field that has the keys, then a frame
   void advance_clock(double seconds) { clock_ += seconds; }   // the clock the frames watch the sound card by
   const std::string& spectrum_readout() const;   // the spectrum's words under the mouse, from the last frame
   bool popup_open() const;          // whether a menu is open

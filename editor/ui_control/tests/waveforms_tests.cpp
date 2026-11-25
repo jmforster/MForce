@@ -255,3 +255,46 @@ void run_pane_and_taken_keys_tests() {
   CHECK(up.size() == 1 && !up[0].down);
   CHECK(key_acts(s.keyboard, presses, false).size() == 3);
 }
+
+// The scroll put back inside the take: after a zoom out, fewer columns, or a
+// shorter take; a scroll already inside is left as it was.
+void run_keep_inside_tests() {
+  std::printf("strips: the scroll kept inside the take after a zoom out, fewer columns, a shorter take\n");
+  WaveView v;
+  v.zoom = 8;
+  scroll_to(v, 1'000'000, 115'200, 1300);
+  CHECK(v.scroll == 115'200 - 1300 * 8);
+  zoom_out(v);
+  CHECK(v.scroll > max_scroll(v, 115'200, 1300));
+  keep_inside(v, 115'200, 1300);
+  CHECK(v.scroll == max_scroll(v, 115'200, 1300));
+  v.zoom = 8;
+  scroll_to(v, 1'000'000, 115'200, 300);                                    // four columns' plot
+  keep_inside(v, 115'200, 1300);                                            // one column's
+  CHECK(v.scroll == 115'200 - 1300 * 8);
+  keep_inside(v, 4800, 1300);                                               // a 0.1 s take
+  CHECK(v.scroll == 0);
+  scroll_to(v, 50, 100'000, 1300);
+  keep_inside(v, 100'000, 1300);
+  CHECK(v.scroll == 50);
+}
+
+// A node renamed by hand keeps its strip, with the same samples, under the
+// new name, and a pop-out of it still shows it.
+void run_rename_keeps_strip_tests() {
+  std::printf("strips: a rename by hand keeps the node's strip and its pop-out\n");
+  Session s;
+  open_file(s, kOboe);
+  generate(s);
+  const Strip before = strip_of(s, "Damp_lpf");
+  REQUIRE(!before.samples.empty());
+  open_pop_out(s, "Damp_lpf");
+  rename(s, "Damp_lpf", "Damper");
+  const Strip after = strip_of(s, "Damper");
+  CHECK(after.samples.data() == before.samples.data() && after.samples.size() == before.samples.size());
+  const auto strips = strips_of(s);
+  CHECK(std::any_of(strips.begin(), strips.end(), [](const Strip& x) { return x.label == "Damper" && !x.samples.empty(); }));
+  CHECK(s.popOuts[0].node == "Damper" && !strip_of(s, s.popOuts[0].node).samples.empty());
+  undo(s);                                                                  // a step back is not followed
+  CHECK(strip_of(s, "Damp_lpf").samples.empty() && s.popOuts[0].node == "Damper");
+}

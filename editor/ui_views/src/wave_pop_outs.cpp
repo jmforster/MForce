@@ -55,11 +55,13 @@ bool WaveformsView::pop_out(Session& s, PopOut& p, int order) {
     const float waveW = ImGui::GetContentRegionAvail().x;
     const int plot = wave_strip::plot_width(waveW);
     first_fit(p.view, total, plot);
+    keep_inside(p.view, total, plot);
     if (fitAsked) fit(p.view, total, plot);
     if (const int most = max_scroll(p.view, total, plot); most > 0) {
       ImGui::PushItemWidth(waveW);
       int at = p.view.scroll;
       if (ImGui::SliderInt("##pop_hscroll", &at, 0, most, "")) scroll_to(p.view, at, total, plot);
+      places_.note_item(name + ":scroll");
       ImGui::PopItemWidth();
     }
     const ImVec2 at = ImGui::GetCursorScreenPos();

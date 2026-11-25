@@ -65,6 +65,12 @@ void run_watch_unopened_tests();
 void run_follow_restart_tests();
 void run_restarted_tests();
 void run_pane_and_taken_keys_tests();
+void run_keep_inside_tests();
+void run_rename_keeps_strip_tests();
+void run_restart_resets_watch_tests();
+void run_reopen_failed_quiet_tests();
+void run_listen_plain_build_tests();
+void run_back_reason_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -132,6 +138,12 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_follow_restart_tests", run_follow_restart_tests},
   {"run_restarted_tests", run_restarted_tests},
   {"run_pane_and_taken_keys_tests", run_pane_and_taken_keys_tests},
+  {"run_keep_inside_tests", run_keep_inside_tests},
+  {"run_rename_keeps_strip_tests", run_rename_keeps_strip_tests},
+  {"run_restart_resets_watch_tests", run_restart_resets_watch_tests},
+  {"run_reopen_failed_quiet_tests", run_reopen_failed_quiet_tests},
+  {"run_listen_plain_build_tests", run_listen_plain_build_tests},
+  {"run_back_reason_tests", run_back_reason_tests},
 };
 }  // namespace
 

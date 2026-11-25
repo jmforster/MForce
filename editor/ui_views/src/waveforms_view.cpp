@@ -28,6 +28,7 @@ void columns_spinner(Session& s, Places& places) {
   ImGui::SetNextItemWidth(std::max(w, 20.0f));
   int shown = s.waves.columns;
   if (ImGui::InputInt("##v", &shown, 0, 0)) set_columns(s.waves, shown);
+  places.note_item("columns");
   ImGui::SameLine(0, 2);
   if (ImGui::ArrowButton("##inc", ImGuiDir_Right)) set_columns(s.waves, s.waves.columns + 1);
   places.note_item("columns +");
@@ -99,6 +100,7 @@ void WaveformsView::strips(Session& s) {
   plotWidth_ = wave_strip::plot_width(colW);
   const int total = int(s.take.mono.size());
   first_fit(s.waves, total, plotWidth_);
+  keep_inside(s.waves, total, plotWidth_);
   const ImVec2 at = ImGui::GetCursorScreenPos();
   ImGui::SetNextItemAllowOverlap();
   ImGui::InvisibleButton("##strips", ImVec2(std::max(1.0f, width), float(rows) * (h + kRowGap)));

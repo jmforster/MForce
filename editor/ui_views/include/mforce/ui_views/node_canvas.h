@@ -36,7 +36,8 @@ public:
   void draw(Session& s);
   Vec2 size() const { return size_; }              // the canvas's size on screen, from the last frame
   Vec2 origin() const { return origin_; }          // its top-left corner on screen, from the last frame
-  // Where each item of its open menu was drawn last frame, as "menu:<words>".
+  // Where each item of its open menu was drawn last frame, as "menu:<words>",
+  // and the listening mark, as "mark:<node>".
   const Places& places() const { return places_; }
 
 private:

@@ -34,7 +34,7 @@ void delete_these(Session& s, const std::vector<std::pair<PinEnd, std::size_t>>&
 // A new name for a node or a face, refused first by the editor's rules for a
 // name a person types: not empty, no ".", no leading "__" (it marks a face's
 // nodes), not in use by a node, a face or a group. The selection and the
-// offers follow.
+// offers, listening, the take's strip and its pop-outs follow.
 void rename      (Session& s, std::string_view nodeOrFace, std::string to);
 // The instrument's onset names as a person types them, comma-separated,
 // and back: a name's spaces at its ends go, an empty name goes.

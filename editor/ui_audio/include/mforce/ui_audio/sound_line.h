@@ -25,7 +25,8 @@ public:
   SoundLine(const SoundLine&) = delete;
   SoundLine& operator=(const SoundLine&) = delete;
 
-  // Before the audio thread first fills: the fade of the sound replaced.
+  // While no callback runs: the fade of the sound replaced; a fade under way
+  // is cut to the new length.
   void set_fade(int samples);
 
   // --- control thread ---

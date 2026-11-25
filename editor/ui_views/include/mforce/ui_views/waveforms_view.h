@@ -25,9 +25,10 @@ public:
   // The mouse was over the pane's strips or a pop-out's this frame.
   bool over() const;
   // Where each named thing was drawn last frame: "zoom in", "zoom out",
-  // "Fit", "columns -", "columns +", "Envelopes", "scroll", "strip:<label>",
-  // "arrow:<label>", and per pop-out "popout <n>:strip", "popout <n>:close",
-  // "popout <n>:zoom in", "popout <n>:zoom out", "popout <n>:Fit".
+  // "Fit", "columns -", "columns", "columns +", "Envelopes", "scroll",
+  // "strip:<label>", "arrow:<label>", and per pop-out "popout <n>:strip",
+  // "popout <n>:close", "popout <n>:zoom in", "popout <n>:zoom out",
+  // "popout <n>:Fit", "popout <n>:scroll".
   const Places& places() const { return places_; }
 
 private:

@@ -66,12 +66,15 @@ void run_listen_menu_tests() {
   b.e.right_click_at(b.grip(kLfo));
   REQUIRE(b.e.click_on("menu:Listen here"));
   CHECK(b.s.listening == "lfo" && heard_patch(b.s).graph.output == "lfo");
+  CHECK(b.e.area("mark:lfo").has_value() && !b.e.area("mark:osc") && !b.e.area("mark:ch"));   // the mark on it alone
   b.e.press_key("Q");
   CHECK(sounds(b.s));
   b.e.right_click_at(b.grip(kLfo));
   CHECK(!b.e.area("menu:Listen here"));
   REQUIRE(b.e.click_on("menu:Stop listening here"));
   CHECK(b.s.listening.empty() && heard_patch(b.s).graph.output == "osc");
+  b.e.frames(1);
+  CHECK(!b.e.area("mark:lfo"));
   b.e.right_click_at(b.grip(kNote));
   CHECK(b.e.popup_open() && b.e.area("menu:Delete").has_value());
   CHECK(!b.e.area("menu:Listen here") && !b.e.area("menu:Stop listening here"));

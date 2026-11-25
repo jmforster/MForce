@@ -27,6 +27,13 @@ void run_strip_key_tests();
 void run_pop_out_tests();
 void run_listen_menu_tests();
 void run_restart_menu_tests();
+void run_strip_limit_tests();
+void run_pop_out_limit_tests();
+void run_generate_again_tests();
+void run_pop_out_key_tests();
+void run_pop_out_mouse_tests();
+void run_columns_typed_tests();
+void run_pop_out_window_kept_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -56,6 +63,13 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_pop_out_tests", run_pop_out_tests},
   {"run_listen_menu_tests", run_listen_menu_tests},
   {"run_restart_menu_tests", run_restart_menu_tests},
+  {"run_strip_limit_tests", run_strip_limit_tests},
+  {"run_pop_out_limit_tests", run_pop_out_limit_tests},
+  {"run_generate_again_tests", run_generate_again_tests},
+  {"run_pop_out_key_tests", run_pop_out_key_tests},
+  {"run_pop_out_mouse_tests", run_pop_out_mouse_tests},
+  {"run_columns_typed_tests", run_columns_typed_tests},
+  {"run_pop_out_window_kept_tests", run_pop_out_window_kept_tests},
 };
 }  // namespace
 

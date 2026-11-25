@@ -52,7 +52,7 @@ ImGuiKey key_named(const std::string& key) {
       {"Left", ImGuiKey_LeftArrow}, {"Right", ImGuiKey_RightArrow}, {"Up", ImGuiKey_UpArrow},
       {"Down", ImGuiKey_DownArrow}, {"Home", ImGuiKey_Home}, {"End", ImGuiKey_End}, {"=", ImGuiKey_Equal},
       {"-", ImGuiKey_Minus}, {"0", ImGuiKey_0}, {"Keypad+", ImGuiKey_KeypadAdd}, {"Keypad-", ImGuiKey_KeypadSubtract},
-      {"Delete", ImGuiKey_Delete}, {"Space", ImGuiKey_Space}};
+      {"Delete", ImGuiKey_Delete}, {"Space", ImGuiKey_Space}, {"Enter", ImGuiKey_Enter}};
   for (const auto& k : kKeys)
     if (key == k.name) return k.key;
   if (key.size() == 1 && key[0] >= 'A' && key[0] <= 'Z') return static_cast<ImGuiKey>(ImGuiKey_A + (key[0] - 'A'));
@@ -221,6 +221,11 @@ void HeadlessEditor::press_key(const std::string& key, bool shift, bool ctrl) {
   io.AddKeyEvent(k, false);
   if (shift) io.AddKeyEvent(ImGuiMod_Shift, false);
   if (ctrl) io.AddKeyEvent(ImGuiMod_Ctrl, false);
+  frames(1);
+}
+
+void HeadlessEditor::type_text(const std::string& text) {
+  ImGui::GetIO().AddInputCharactersUTF8(text.c_str());
   frames(1);
 }
 

@@ -183,3 +183,24 @@ void run_adapter_unopened_tests() {
   CHECK(a.restart() == "no sound device was ever opened" && !a.asked_to_open() && a.sample_rate() == 48000);
   CHECK(a.error() == "no sound device is open");
 }
+
+// A fade under way when its length is made shorter (as a restart at a lower
+// rate does, with no callback running) goes on within the new length: the
+// sound fading out never comes back louder than it was.
+void run_line_fade_shortened_tests() {
+  std::printf("a line: a fade made shorter while under way never passes 1\n");
+  Ledger ledger;
+  SoundLine line;
+  line.set_fade(1000);
+  std::vector<float> out(2 * 16);
+  line.play(std::make_unique<Level>(ledger, 1.0f));
+  line.begin_buffer();
+  line.fill_chunk(out.data(), 16);
+  line.play(std::make_unique<Level>(ledger, 0.0f));
+  line.begin_buffer();
+  line.fill_chunk(out.data(), 16);
+  CHECK(out[0] <= 1.0f && out[0] > 0.9f);                // the old sound fading from full
+  line.set_fade(100);
+  line.fill_chunk(out.data(), 16);
+  CHECK(*std::max_element(out.begin(), out.end()) <= 1.0f);
+}

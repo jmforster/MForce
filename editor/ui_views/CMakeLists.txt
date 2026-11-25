@@ -34,4 +34,6 @@ mforce_tests(ui_views
           tests/transport_view_tests.cpp
           tests/pane_tests.cpp
           tests/strip_gesture_tests.cpp
-          tests/listen_menu_tests.cpp)
+          tests/listen_menu_tests.cpp
+          tests/strip_limit_tests.cpp
+          tests/pop_out_gesture_tests.cpp)

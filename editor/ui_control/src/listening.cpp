@@ -1,11 +1,13 @@
 #include "mforce/ui_control/listening.h"
 #include <exception>
+#include <memory>
 #include <string>
 #include <utility>
 #include "mforce/patch/edit.h"
 #include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_control/sounds.h"
 #include "stepping.h"
 
 namespace mforce::ui {
@@ -37,14 +39,17 @@ Patch heard_patch(const Session& s) {
   if (s.listening.empty()) return s.open.patch;
   try {
     return tapped(s.open.patch, s.listening);
-  } catch (const std::exception&) {               // listen_at accepted it; an edit since cannot make check() refuse it
+  } catch (const std::exception&) {
+    // Not reached: listen_at accepted this node's output, the node is still
+    // there (listening ends when it goes) and a node's type never changes.
     return s.open.patch;
   }
 }
 
-// The copy is asked of check() first; then the readers that build it: the
-// keys' player for an instrument, a running plain sound's build for a plain
-// one. Each keeps what played before when it refuses.
+// The copy is asked of check() first; then the reader that builds it: the
+// keys' player for an instrument, the plain sound's build for a plain one,
+// whether or not one runs (it is played only when one was running). Each
+// keeps what played before when it refuses.
 void listen_at(Session& s, std::string_view node) {
   if (const std::string why = refused_by_name(s, node); !why.empty()) {
     s.status = why;
@@ -63,9 +68,20 @@ void listen_at(Session& s, std::string_view node) {
       s.status = std::move(why);
       return;
     }
+    s.listening = std::string(node);
+    return;
   }
-  std::string before = std::exchange(s.listening, std::string(node));
-  if (!plain_follows(s)) s.listening = std::move(before);
+  std::unique_ptr<PlainSound> sound;
+  try {
+    sound = std::make_unique<PlainSound>(heard, s.audio.sample_rate());
+  } catch (const std::exception& e) {
+    s.status = e.what();
+    return;
+  }
+  s.listening = std::string(node);
+  if (!s.runningPlain || s.audio.playing(AudioAdapter::Line::Playback) != s.runningPlain) return;
+  s.runningPlain = sound.get();
+  s.audio.play(AudioAdapter::Line::Playback, std::move(sound));
 }
 
 void stop_listening(Session& s) {

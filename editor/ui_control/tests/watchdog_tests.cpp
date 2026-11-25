@@ -56,10 +56,11 @@ void run_watch_unopened_tests() {
   CHECK(s.status == "Audio not restarted (by hand): no sound device was ever opened" && s.live.player() == player);
 }
 
-// What follows a restart, driven with no device: what was playing stops, the
-// keys' player is a new one at the adapter's rate, and status reads the words.
+// What follows a restart, driven with no device: what was playing stops; at
+// the same rate the keys' player is kept and a key still sounds; at another
+// rate it is built again; status reads the words.
 void run_follow_restart_tests() {
-  std::printf("watchdog: after a restart everything stops, the keys' player is new, the words are shown\n");
+  std::printf("watchdog: after a restart what played stops; the keys' player is kept unless the rate changed\n");
   Session s;
   open_file(s, kOboe);
   play(s);
@@ -67,15 +68,41 @@ void run_follow_restart_tests() {
   (void)run(s, 2);                                                          // the output holds both: neither address is free again
   const LivePlayer* before = s.live.player();
   REQUIRE(s.audio.playing(AudioAdapter::Line::Playback) != nullptr && before != nullptr);
-  follow_restart(s, "Audio stream restarted (by hand)");
-  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr);
-  CHECK(s.live.player() != nullptr && s.live.player() != before && held_notes(s).empty());
+  follow_restart(s, "Audio stream restarted (by hand)", s.audio.sample_rate());
+  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr && s.live.player() == before);
   CHECK(s.status == "Audio stream restarted (by hand)");
+  key_up(s, 1);
+  (void)run(s, 200);
+  key_down(s, 2, 60);
+  CHECK(run(s, 20) > 0.0f);                                                 // the kept player still plays a key
+  key_up(s, 2);
+  follow_restart(s, "Audio stream restarted (by hand)", 44100);             // the rate before was another
+  CHECK(s.live.player() != nullptr && s.live.player() != before && held_notes(s).empty());
   open_file(s, kPlain);
   play(s);
-  follow_restart(s, "Audio stream restarted (back at the window)");
+  follow_restart(s, "Audio stream restarted (back at the window)", s.audio.sample_rate());
   CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr && s.runningPlain == nullptr);
   CHECK(s.status == "Audio stream restarted (back at the window)");
+}
+
+// Coming back to the window: a restart for a changed default output, a
+// stream not running, or nothing sounding; none while something sounds.
+void run_back_reason_tests() {
+  std::printf("watchdog: coming back restarts for a new device, a stopped stream or silence; never over a sound\n");
+  Away a;
+  CHECK(!came_back(a, false, 1.0) && came_back(a, true, 3.5));             // away 2.5 s: the reason is asked
+  CHECK(back_reason(true, true, true) == BackReason::DeviceChanged);
+  CHECK(back_reason(false, false, true) == BackReason::NotRunning);
+  CHECK(back_reason(false, true, false) == BackReason::Silent);
+  CHECK(back_reason(false, true, true) == BackReason::None);               // something sounds: left alone
+  Session s;
+  open_file(s, kOboe);
+  play(s);
+  CHECK(back_reason(false, true, playing(s)) == BackReason::None);
+  stop(s);
+  (void)run(s, 50);
+  keep_up(s);
+  CHECK(back_reason(false, true, playing(s)) == BackReason::Silent);
 }
 
 // A restart by hand that opened the device starts the watchdog's count again,
@@ -85,11 +112,57 @@ void run_restarted_tests() {
   Session s;
   open_file(s, kOboe);
   s.watchdog.attempts = 3;
-  restarted(s, "by hand", "");
+  restarted(s, "by hand", "", s.audio.sample_rate());
   CHECK(s.status == "Audio stream restarted (by hand)" && s.watchdog.attempts == 0);
   CHECK(watch(s.watchdog, s.watchdog.lastBeat + 1, 100.0) == Watch::Nothing);
   s.watchdog.attempts = 2;
-  restarted(s, "back at the window", "the sound device did not open: no");
+  restarted(s, "back at the window", "the sound device did not open: no", s.audio.sample_rate());
   CHECK(s.status == "Audio restart FAILED (back at the window) — the sound device did not open: no — watchdog will retry");
   CHECK(s.watchdog.attempts == 2);
+}
+
+// After a restart that opened a stream the watch counts from that moment: at
+// a moment the old times would have answered Restart it answers Nothing, for
+// a second before the stream is called dead and two before the next try.
+void run_restart_resets_watch_tests() {
+  std::printf("watchdog: a restart by hand starts the watch's times afresh\n");
+  Session s;
+  open_file(s, kOboe);
+  s.watchdog = Watchdog{5, 0.0, -1e9, 0};
+  Watchdog old = s.watchdog;
+  CHECK(watch(old, 5, 10.0) == Watch::Restart);                            // the old times: dead
+  restarted(s, "by hand", "", s.audio.sample_rate());
+  CHECK(watch(s.watchdog, 5, 10.0) == Watch::Nothing);
+  CHECK(watch(s.watchdog, 5, 10.99) == Watch::Nothing);
+  CHECK(watch(s.watchdog, 5, 11.5) == Watch::Nothing);                     // dead, but the try two seconds off
+  CHECK(watch(s.watchdog, 5, 12.0) == Watch::Restart);
+}
+
+// The watchdog's try that fails stops nothing, rebuilds nothing, and says
+// so once for each new reason; one that opens a stream is followed.
+void run_reopen_failed_quiet_tests() {
+  std::printf("watchdog: a failed try changes nothing and says each reason once\n");
+  Session s;
+  open_file(s, kOboe);
+  play(s);
+  const Sound* playing = s.audio.playing(AudioAdapter::Line::Playback);
+  const LivePlayer* player = s.live.player();
+  REQUIRE(playing != nullptr && player != nullptr);
+  double now = 10.0;
+  s.watchdog = Watchdog{1, 0.0, -1e9, 0};
+  REQUIRE(watch(s.watchdog, 1, now) == Watch::Restart);
+  reopened(s, "", "no device", 48000);
+  CHECK(s.status == "Audio reopen FAILED (attempt 1) — no device — retrying...");
+  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == playing && s.live.player() == player);
+  s.status = "Generated note";
+  for (int k = 0; k < 5; ++k, now += 2.0) {
+    REQUIRE(watch(s.watchdog, 1, now + 2.0) == Watch::Restart);
+    reopened(s, "", "no device", 48000);
+  }
+  CHECK(s.status == "Generated note");                                      // the same reason is not said again
+  reopened(s, "", "the driver failed", 48000);
+  CHECK(s.status == "Audio reopen FAILED (attempt 6) — the driver failed — retrying...");
+  reopened(s, "", "", 48000);
+  CHECK(s.status == "Audio stream reopened (attempt 6) on ''" && s.watchdog.lastFailure.empty());
+  CHECK(s.audio.playing(AudioAdapter::Line::Playback) == nullptr && s.live.player() != nullptr);
 }

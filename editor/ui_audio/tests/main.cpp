@@ -6,6 +6,7 @@ void run_adapter_swap_tests();
 void run_adapter_many_swaps_tests();
 void run_adapter_allocation_tests();
 void run_adapter_unopened_tests();
+void run_line_fade_shortened_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -14,6 +15,7 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_adapter_many_swaps_tests", run_adapter_many_swaps_tests},
   {"run_adapter_allocation_tests", run_adapter_allocation_tests},
   {"run_adapter_unopened_tests", run_adapter_unopened_tests},
+  {"run_line_fade_shortened_tests", run_line_fade_shortened_tests},
 };
 }  // namespace
 
