@@ -28,6 +28,8 @@ std::string LivePlay::rebuild(const Patch& patch) {
     return e.what();
   }
   LivePlayer* next = &sound->player();
+  next->set_wheel(wheel_);                        // before the swap: the first buffer has them
+  next->set_pressure(pressure_);
   player_ = nullptr;                              // dropped before the swap
   audio_.play(AudioAdapter::Line::Keys, std::move(sound));
   player_ = next;
@@ -104,13 +106,31 @@ void LivePlay::key_up(int key) {
   lineKey_ = -1;
 }
 
-// Every key up at once: each held note released, the line with no carry back.
-void LivePlay::all_keys_up() {
-  if (player_)
-    for (const Down& d : down_)
-      if (d.id != 0 && (!sustaining_ || d.key == lineKey_)) player_->note_off(d.id);
-  down_.clear();
-  lineKey_ = -1;
+// The keys below `limit` other than the line's go first, with no carry back
+// (on an instrument that sustains such a key holds no note of its own); the
+// line's key, when it is one of them, goes last, by key_up, which carries the
+// line back to a key still down or releases it.
+void LivePlay::all_keys_up_below(int limit) {
+  const int line = lineKey_;
+  for (auto it = down_.begin(); it != down_.end();) {
+    if (it->key >= limit || it->key == line) {
+      ++it;
+      continue;
+    }
+    if (player_ && it->id != 0 && !sustaining_) player_->note_off(it->id);
+    it = down_.erase(it);
+  }
+  if (line >= 0 && line < limit) key_up(line);
+}
+
+void LivePlay::set_wheel(float v) {
+  wheel_ = v;
+  if (player_) player_->set_wheel(v);
+}
+
+void LivePlay::set_pressure(float v) {
+  pressure_ = v;
+  if (player_) player_->set_pressure(v);
 }
 
 std::vector<int> LivePlay::held_notes() const {

@@ -25,6 +25,9 @@ void run_drop_unread_face_node_tests();
 void run_drop_unread_face_node_census_tests();
 void run_group_tests();
 void run_group_census_tests();
+void run_build_stamp_words_tests();
+void run_newest_source_tests();
+void run_read_commit_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -52,6 +55,9 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_drop_unread_face_node_census_tests", run_drop_unread_face_node_census_tests},
   {"run_group_tests", run_group_tests},
   {"run_group_census_tests", run_group_census_tests},
+  {"run_build_stamp_words_tests", run_build_stamp_words_tests},
+  {"run_newest_source_tests", run_newest_source_tests},
+  {"run_read_commit_tests", run_read_commit_tests},
 };
 }  // namespace
 

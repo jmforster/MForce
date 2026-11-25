@@ -28,6 +28,7 @@ std::optional<Area> EditorViews::area(const std::string& name) const {
   if (auto a = canvas_.places().area(name)) return a;
   if (auto a = breadcrumb_.places().area(name)) return a;
   if (auto a = properties_.places().area(name)) return a;
+  if (auto a = banner_.places().area(name)) return a;
   return pane_.area(name);
 }
 
@@ -65,6 +66,7 @@ void EditorViews::draw(Session& session) {
   ImGui::End();
   pane_.draw_pop_outs(session);
   set_over_strips(session, pane_.over_strips());
+  banner_.draw(session);
   prompt_.draw(session);
 }
 

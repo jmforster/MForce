@@ -13,9 +13,6 @@ namespace mforce::ui {
 
 namespace {
 
-// The key the mouse plays with: apart from every ImGuiKey, which the
-// computer's keys are named by.
-constexpr int kMouseKey = 1 << 20;
 constexpr float kPianoHeight = 70.0f;
 constexpr float kBlackShare = 0.65f;               // a black key's width, of a white key's
 constexpr float kBlackDepth = 0.6f;                // and its depth, of the piano's

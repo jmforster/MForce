@@ -7,6 +7,7 @@
 #include "mforce/ui_control/generating.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_model/build_stamp.h"
 #include "mforce/ui_model/new_patch.h"
 #include "mforce/ui_model/note_faces.h"
 #include "mforce/ui_model/placement.h"
@@ -100,10 +101,11 @@ void save_file_as(Session& s, const std::string& path) {
 }
 
 std::string title(const Session& s) {
-  if (s.open.path.empty() && s.open.patch.graph.nodes.empty() && !unsaved(s.open)) return "MForce";
+  const std::string suffix = title_suffix(s.stamp);
+  if (s.open.path.empty() && s.open.patch.graph.nodes.empty() && !unsaved(s.open)) return "MForce" + suffix;
   const std::string name =
       s.open.path.empty() ? std::string("untitled") : std::filesystem::path(s.open.path).filename().string();
-  return "MForce - " + name + (unsaved(s.open) ? " *" : "");
+  return "MForce - " + name + (unsaved(s.open) ? " *" : "") + suffix;
 }
 
 }  // namespace mforce::ui

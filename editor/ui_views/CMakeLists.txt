@@ -1,6 +1,7 @@
 mforce_module(ui_views
   SOURCES src/bottom_pane.cpp
           src/breadcrumb.cpp
+          src/build_banner.cpp
           src/canvas_gestures.cpp
           src/canvas_menu.cpp
           src/canvas_nodes.cpp
@@ -44,4 +45,5 @@ mforce_tests(ui_views
           tests/select_gesture_tests.cpp
           tests/group_gesture_tests.cpp
           tests/clipboard_gesture_tests.cpp
-          tests/wormhole_gesture_tests.cpp)
+          tests/wormhole_gesture_tests.cpp
+          tests/midi_banner_tests.cpp)

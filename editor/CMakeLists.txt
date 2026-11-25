@@ -8,7 +8,7 @@
 
 set(third_party ${PROJECT_SOURCE_DIR}/third_party)
 set(missing "")
-foreach(known imgui/imgui.cpp imnodes/imnodes.cpp glfw/CMakeLists.txt rtaudio/RtAudio.cpp)
+foreach(known imgui/imgui.cpp imnodes/imnodes.cpp glfw/CMakeLists.txt rtaudio/RtAudio.cpp rtmidi/RtMidi.cpp)
   if(NOT EXISTS ${third_party}/${known})
     list(APPEND missing third_party/${known})
   endif()
@@ -50,6 +50,12 @@ set(RTAUDIO_BUILD_TESTING OFF)
 set(RTAUDIO_BUILD_PYTHON OFF)
 # OFF: RtAudio uses the runtime library DLL (/MD), as every other target does.
 set(RTAUDIO_STATIC_MSVCRT OFF)
+set(RTMIDI_BUILD_STATIC_LIBS ON)
+set(RTMIDI_BUILD_SHARED_LIBS OFF)
+set(RTMIDI_BUILD_TESTING OFF)
+# RtAudio and RtMidi each name an "uninstall" target, and two targets of one
+# name fail the configure: RtMidi's takes a name of its own.
+set(RTMIDI_TARGETNAME_UNINSTALL rtmidi_uninstall)
 # RtAudio puts a Debug postfix "d" in the cache when it finds none there, and
 # every target of the tree would take it. An empty entry made first keeps a
 # Debug build's file names as they are.
@@ -58,7 +64,8 @@ set(CMAKE_DEBUG_POSTFIX "" CACHE STRING "Appended to the name of a target's Debu
 # A source folder outside this one is added with the folder its build goes to.
 add_subdirectory(${third_party}/glfw ${CMAKE_CURRENT_BINARY_DIR}/third_party/glfw)
 add_subdirectory(${third_party}/rtaudio ${CMAKE_CURRENT_BINARY_DIR}/third_party/rtaudio)
-set_target_properties(glfw rtaudio PROPERTIES SYSTEM ON)
+add_subdirectory(${third_party}/rtmidi ${CMAKE_CURRENT_BINARY_DIR}/third_party/rtmidi)
+set_target_properties(glfw rtaudio rtmidi PROPERTIES SYSTEM ON)
 find_package(OpenGL REQUIRED)
 
 # GLFW and the system's OpenGL, for ui_app.
@@ -68,6 +75,10 @@ target_link_libraries(mforce_lib_glfw INTERFACE glfw OpenGL::GL)
 # RtAudio, for ui_audio.
 add_library(mforce_lib_rtaudio INTERFACE)
 target_link_libraries(mforce_lib_rtaudio INTERFACE rtaudio)
+
+# RtMidi, for ui_audio.
+add_library(mforce_lib_rtmidi INTERFACE)
+target_link_libraries(mforce_lib_rtmidi INTERFACE rtmidi)
 
 # Dear ImGui's core (its demo window left out), its std::string text field
 # and imnodes, for ui_views and ui_app. Neither ships a CMake target of its own.

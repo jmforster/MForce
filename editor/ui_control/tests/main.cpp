@@ -75,6 +75,12 @@ void run_back_reason_tests();
 void run_selection_tests();
 void run_grouping_tests();
 void run_clipboard_tests();
+void run_midi_note_tests();
+void run_midi_wheel_pressure_tests();
+void run_midi_nothing_tests();
+void run_midi_kept_tests();
+void run_midi_stop_tests();
+void run_title_stamp_tests();
 namespace {
 constexpr mforce::testing::Test kTests[] = {
   {"run_control_edit_tests", run_control_edit_tests},
@@ -150,6 +156,12 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_selection_tests", run_selection_tests},
   {"run_grouping_tests", run_grouping_tests},
   {"run_clipboard_tests", run_clipboard_tests},
+  {"run_midi_note_tests", run_midi_note_tests},
+  {"run_midi_wheel_pressure_tests", run_midi_wheel_pressure_tests},
+  {"run_midi_nothing_tests", run_midi_nothing_tests},
+  {"run_midi_kept_tests", run_midi_kept_tests},
+  {"run_midi_stop_tests", run_midi_stop_tests},
+  {"run_title_stamp_tests", run_title_stamp_tests},
 };
 }  // namespace
 

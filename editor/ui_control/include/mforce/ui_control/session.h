@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 #include "mforce/ui_audio/audio_adapter.h"
+#include "mforce/ui_audio/midi_in.h"
 #include "mforce/ui_control/keyboard.h"
 #include "mforce/ui_control/live_play.h"
 #include "mforce/ui_control/pane.h"
@@ -13,6 +14,7 @@
 #include "mforce/ui_control/unsaved.h"
 #include "mforce/ui_control/watchdog.h"
 #include "mforce/ui_control/waveforms.h"
+#include "mforce/ui_model/build_stamp.h"
 #include "mforce/ui_model/open_patch.h"
 #include "mforce/ui_model/recent_files.h"
 
@@ -27,12 +29,14 @@ struct LastNote {
 // The editor's whole state. main owns one; the views are handed it and
 // change it only through the functions of edits.h, selecting.h, building.h,
 // grouping.h, clipboard.h, wiring.h, files.h, unsaved.h, playing.h,
-// generating.h, waveforms.h, listening.h, watchdog.h and pane.h. Made with
-// no device: main calls audio.open().
+// generating.h, waveforms.h, listening.h, watchdog.h, pane.h, midi.h and
+// banner.h. Made with no device and no MIDI port: main calls audio.open()
+// and open_first_midi, and fills the build stamp.
 struct Session {
   OpenPatch    open;
   AudioAdapter audio;
-  LivePlay     live{audio};
+  LivePlay     live{audio};   // keys to notes; it keeps the last wheel and pressure for each player it builds
+  MidiIn       midi;         // the MIDI port; none until one is asked for
   Keyboard     keyboard;
   Transport    transport;
   Take         take;         // the last render; empty before one
@@ -51,6 +55,8 @@ struct Session {
   // compared, never followed); null when none runs.
   const Sound* runningPlain{nullptr};
   RecentFiles  recent;
+  BuildStamp   stamp;        // when the program was built and whether a source is newer; empty in a test's session
+  bool         bannerDismissed{false};   // the stale banner's Dismiss was clicked: not shown again this session
   std::vector<std::string> selections;  // node ids, face labels, group names, in the order chosen (selecting.h)
   std::vector<std::string> groupPath;   // the groups gone into, outermost first; not saved (grouping.h)
   Vec2         levelPanning{};            // the canvas's panning inside a group; at the top the patch holds it

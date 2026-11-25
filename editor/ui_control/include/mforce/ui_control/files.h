@@ -27,7 +27,8 @@ void new_file    (Session& s);
 void save_file   (Session& s);
 void save_file_as(Session& s, const std::string& path);
 // "MForce - oboe1.json *": the file's name, "untitled" for a patch never
-// saved, a star when unsaved; "MForce" before anything is opened.
+// saved, a star when unsaved; "MForce" before anything is opened; then the
+// build stamp's suffix (title_suffix), none when the stamp is empty.
 std::string title(const Session& s);
 
 }  // namespace mforce::ui

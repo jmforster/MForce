@@ -21,6 +21,14 @@ struct Keyboard {
   bool  computerKeys{true};  // the PC Keyboard button: off, the note keys and the arrows do nothing
 };
 
+// The key numbers that name what holds a note (LivePlay's `key`): a computer
+// key is named by its ImGui key's number, which is below both of these; the
+// mouse on the on-screen piano is one key; a MIDI note is a key of its own,
+// kFirstMidiKey plus its note number.
+constexpr int kMouseKey = 1 << 20;
+constexpr int kFirstMidiKey = 1 << 21;
+constexpr int midi_key(int noteNumber) { return kFirstMidiKey + noteNumber; }
+
 // Semitones from the keyboard octave's C; nullopt: not a note key. A letter
 // is the same key in either case.
 std::optional<int> key_offset(char key);

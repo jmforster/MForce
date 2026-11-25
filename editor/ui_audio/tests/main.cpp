@@ -1,4 +1,4 @@
-// The ui_audio tests, in the order they run. None opens the sound card.
+// The ui_audio tests, in the order they run. None opens the sound card or a MIDI port.
 #include "mforce/testing/check.h"
 
 void run_adapter_lines_tests();
@@ -7,6 +7,7 @@ void run_adapter_many_swaps_tests();
 void run_adapter_allocation_tests();
 void run_adapter_unopened_tests();
 void run_line_fade_shortened_tests();
+void run_midi_in_unasked_tests();
 
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -16,6 +17,7 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_adapter_allocation_tests", run_adapter_allocation_tests},
   {"run_adapter_unopened_tests", run_adapter_unopened_tests},
   {"run_line_fade_shortened_tests", run_line_fade_shortened_tests},
+  {"run_midi_in_unasked_tests", run_midi_in_unasked_tests},
 };
 }  // namespace
 

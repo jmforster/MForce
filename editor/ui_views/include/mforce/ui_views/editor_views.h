@@ -4,6 +4,7 @@
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_views/bottom_pane.h"
 #include "mforce/ui_views/breadcrumb.h"
+#include "mforce/ui_views/build_banner.h"
 #include "mforce/ui_views/clipboard.h"
 #include "mforce/ui_views/file_dialogs.h"
 #include "mforce/ui_views/menu_bar.h"
@@ -20,8 +21,9 @@ namespace mforce::ui {
 // top, the transport under it, the status line at the bottom, the bottom
 // pane (the strips, the spectrum, the keyboard) across the window above it,
 // the properties panel down the right side, the canvas in the rest, under
-// the breadcrumb while the patch has a group; and the
-// strips popped out, each a window of its own over them.
+// the breadcrumb while the patch has a group; the
+// strips popped out, each a window of its own over them; and the stale
+// banner at the top while the program is older than a source of its own.
 class EditorViews {
 public:
   EditorViews(FileDialogs& dialogs, Clipboard& clipboard);
@@ -37,7 +39,8 @@ public:
   // Where the thing of this name was drawn last frame: a transport tab or
   // button by its words (its centre alone), a menu's item ("menu:<words>"),
   // every name the canvas and the breadcrumb keep (NodeCanvas::places,
-  // Breadcrumb::places), and every name the pane keeps (BottomPane::area).
+  // Breadcrumb::places), the banner's "banner:Dismiss", and every name the
+  // pane keeps (BottomPane::area).
   std::optional<Area> area(const std::string& name) const;
   const std::string& spectrum_readout() const { return pane_.spectrum_readout(); }
 
@@ -49,6 +52,7 @@ private:
   PropertiesPanel properties_;
   BottomPane pane_;
   StatusLine status_;
+  BuildBanner banner_;
   UnsavedPrompt prompt_;
 };
 

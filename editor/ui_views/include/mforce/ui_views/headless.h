@@ -16,7 +16,7 @@ void draw_once_headless(Session& session);
 
 // The views drawn with no window for as long as it lives, with the few acts
 // a test needs: frames (each with the sound card watched on a clock of its
-// own and followed by the requested render, as the program's loop runs it), a click (with Ctrl, or two
+// own, MIDI polled, and followed by the requested render, as the program's loop runs it), a click (with Ctrl, or two
 // as a double-click), a key, a click on a thing by its name, and imnodes'
 // selected wires read and set. Its clipboard, and ImGui's own, keep a
 // string. One at a

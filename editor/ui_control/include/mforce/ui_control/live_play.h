@@ -18,9 +18,10 @@ public:
 
   // A new player for `patch`, eight notes at once, at the adapter's rate, its
   // guard off (the adapter clips the sum of its lines), handed to the Keys
-  // line; the keys that were down are forgotten. Empty, or why there is no
-  // new player (a plain sound has no instrument to play; the engine's
-  // refusal of the build): the player before it then keeps sounding.
+  // line; the keys that were down are forgotten; the wheel and the pressure
+  // given last are given to it. Empty, or why there is no new player (a
+  // plain sound has no instrument to play; the engine's refusal of the
+  // build): the player before it then keeps sounding.
   std::string rebuild(const Patch& patch);
   // Silence on the Keys line; the keys that were down are forgotten.
   void silence();
@@ -38,8 +39,19 @@ public:
   // key already down is not played again. True when a note was sent.
   bool key_down(int key, int noteNumber, const Keyboard& how, float velocity, bool live);
   void key_up(int key);
-  void all_keys_up();
+  // Every key numbered below `limit` up at once: each held note released,
+  // the line with no carry back between them; when the line's own key goes,
+  // the line carries back to a key at or above `limit` that is still down,
+  // as key_up does.
+  void all_keys_up_below(int limit);
   std::vector<int> held_notes() const;            // the note numbers of the keys down, lowest first
+
+  // The instrument's wheel and pressure, 0 to 1: the player's now, and every
+  // player built after it.
+  void set_wheel(float v);
+  void set_pressure(float v);
+  float wheel() const { return wheel_; }
+  float pressure() const { return pressure_; }
 
   // Every sounding voice fades out; the keys still down sound no more.
   void stop();
@@ -66,6 +78,8 @@ private:
   bool sustaining_{false};                       // the current player's instrument sustains
   std::vector<Down> down_;                       // the keys down, in the order pressed
   int lineKey_{-1};                              // the key whose note the legato line plays; -1 for none
+  float wheel_{0.0f};                            // the last wheel given; a new player starts with it
+  float pressure_{0.0f};                         // and the last pressure
 };
 
 }  // namespace mforce::ui

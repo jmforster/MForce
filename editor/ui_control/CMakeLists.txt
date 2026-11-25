@@ -1,5 +1,6 @@
 mforce_module(ui_control
-  SOURCES src/building.cpp
+  SOURCES src/banner.cpp
+          src/building.cpp
           src/clipboard.cpp
           src/copies.cpp
           src/edits.cpp
@@ -10,6 +11,7 @@ mforce_module(ui_control
           src/level.cpp
           src/listening.cpp
           src/live_play.cpp
+          src/midi.cpp
           src/pane.cpp
           src/playing.cpp
           src/selecting.cpp
@@ -43,4 +45,6 @@ mforce_tests(ui_control
           tests/listening_tests.cpp
           tests/watchdog_tests.cpp
           tests/grouping_tests.cpp
-          tests/clipboard_tests.cpp)
+          tests/clipboard_tests.cpp
+          tests/midi_tests.cpp
+          tests/banner_tests.cpp)

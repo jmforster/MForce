@@ -10,13 +10,15 @@
 // and --tab NAME (note, passage, chords, drums) is the transport tab shown
 // (all for pictures); the rest set up the pane for a picture (options.h). --frames N
 // draws N frames and exits with 0, writing nothing but the --shot picture of
-// the last frame. A failure is shown in a message box ("could not start"
-// before the window is up, "stopped" after) and the exit code is 1.
+// the last frame. The first MIDI port is opened at start when there is one.
+// A failure is shown in a message box ("could not start" before the window
+// is up, "stopped" after) and the exit code is 1.
 #include <random>
 #include <stdexcept>
 #include <string>
 #include "app_loop.h"
 #include "app_window.h"
+#include "build_stamp_reader.h"
 #include "error_box.h"
 #include "options.h"
 #include "settings_folder.h"
@@ -25,6 +27,7 @@
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/generating.h"
+#include "mforce/ui_control/midi.h"
 #include "mforce/ui_control/selecting.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_model/folder_memory.h"
@@ -42,6 +45,8 @@ int main(int argc, char** argv) {
     Session session;
     session.seeds.seed(std::random_device{}());   // a new node's seed is random, kept in its file
     session.audio.open();                           // before any player is built: its rate is final here
+    open_first_midi(session);
+    session.stamp = read_build_stamp();
     if (!files.recentFiles.empty()) session.recent = read_recent_files(files.recentFiles);
     if (options.patch.empty()) new_file(session);
     else open_file(session, options.patch);

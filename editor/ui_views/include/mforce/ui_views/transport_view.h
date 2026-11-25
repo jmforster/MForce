@@ -11,8 +11,8 @@ namespace mforce::ui {
 // The transport, a strip across the top of the window: four tabs (Note,
 // Passage, Chords, Drums), the shown one the transport's mode, each with its
 // fields; then Generate (reading "Generating..." on the frame before the
-// render runs), Play (reading Stop while anything plays) and Save WAV; and
-// at the right, the last note played.
+// render runs), Play (reading Stop while anything plays), the MIDI port's
+// box and Save WAV; and at the right, the last note played.
 //   Note: the pitch (C to B) and octave, which compose the note's text and
 //     move the keyboard's octave; velocity; duration (the keyboard's note
 //     length); Live.
@@ -27,7 +27,8 @@ public:
   void draw(Session& s);
   // Where the tab or button with this label (its words as drawn) was drawn
   // last frame, its centre; none when it was not drawn. For a test to click
-  // it, or to see what it said.
+  // it, or to see what it said. The MIDI box is named by its words, and
+  // while it is open each of its items too ("(none)", a port's name).
   std::optional<Vec2> centre_of(const std::string& label) const;
 
 private:
@@ -37,6 +38,7 @@ private:
   void chords_fields(Session& s);
   void drums_fields(Session& s);
   void buttons(Session& s);
+  void midi_box(Session& s);
   void last_note_text(const Session& s);
   void text_buttons(Session& s, const char* save, const char* load, FileKind kind);
   void remember(const std::string& label);         // the last item drawn, under `label`

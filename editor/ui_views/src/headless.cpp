@@ -5,6 +5,7 @@
 #include <imgui.h>
 #include <imnodes.h>
 #include "mforce/ui_control/generating.h"
+#include "mforce/ui_control/midi.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/watchdog.h"
 #include "mforce/ui_views/editor_views.h"
@@ -106,6 +107,7 @@ void HeadlessEditor::frames(int n) {
   for (int frame = 0; frame < n; ++frame) {
     keep_up(session_);
     watch_audio(session_, clock_, true);
+    pump_midi(session_);
     clock_ += kFrameSeconds;
     ImGui::NewFrame();
     parts_->views.draw(session_);

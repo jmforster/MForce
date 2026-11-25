@@ -2,9 +2,12 @@
 // fields are in transport_fields.cpp.
 #include "mforce/ui_views/transport_view.h"
 #include <algorithm>
+#include <cstddef>
 #include <string>
+#include <vector>
 #include <imgui.h>
 #include "mforce/ui_control/generating.h"
+#include "mforce/ui_control/midi.h"
 
 namespace mforce::ui {
 
@@ -14,6 +17,7 @@ using Mode = Transport::Mode;
 
 const ImVec4 kGeneratingColour(0.75f, 0.35f, 0.10f, 1.0f);
 const ImVec4 kLastNoteColour(0.75f, 0.75f, 0.9f, 1.0f);
+constexpr float kMidiBoxWidth = 200.0f;
 
 }  // namespace
 
@@ -74,11 +78,33 @@ void TransportView::buttons(Session& s) {
     remember("Play");
   }
   ImGui::SameLine();
+  midi_box(s);
+  ImGui::SameLine();
   if (ImGui::Button("Save WAV")) {
     const std::string path = dialogs_.pick_save(FileKind::Wav, {});
     if (!path.empty()) save_wav(s, path);
   }
   remember("Save WAV");
+}
+
+// The MIDI port: "MIDI: <name>", or "MIDI: none"; the ports are asked for
+// afresh each time the box opens, "(none)" first, which closes the port.
+void TransportView::midi_box(Session& s) {
+  const std::string current = midi_port(s);
+  const std::string label = current.empty() ? std::string("MIDI: none") : "MIDI: " + current;
+  ImGui::SetNextItemWidth(kMidiBoxWidth);
+  const bool shown = ImGui::BeginCombo("##midiIn", label.c_str());
+  remember(label);
+  if (!shown) return;
+  if (ImGui::Selectable("(none)", current.empty())) close_midi(s);
+  remember("(none)");
+  const std::vector<std::string> ports = midi_ports(s);
+  for (std::size_t p = 0; p < ports.size(); ++p) {
+    // "##" and what follows it are not drawn: they keep two ports of one name apart.
+    if (ImGui::Selectable((ports[p] + "##midi" + std::to_string(p)).c_str(), ports[p] == current)) open_midi(s, int(p));
+    remember(ports[p]);
+  }
+  ImGui::EndCombo();
 }
 
 // The last note, right-aligned on the buttons' line.

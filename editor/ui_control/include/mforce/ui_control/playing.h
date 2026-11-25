@@ -20,7 +20,7 @@ void sound_follows(Session& s);
 void key_down(Session& s, int key, int noteNumber);  // a computer key: at session.keyboard's velocity
 void key_down(Session& s, int key, int noteNumber, float velocity);   // a click on the piano: where it fell
 void key_up  (Session& s, int key);
-void release_all_keys(Session& s);                   // every key down goes up: the window lost the keyboard
+void release_all_keys(Session& s);                   // the window lost the keyboard: every key down goes up but a MIDI note's
 std::vector<int> held_notes(const Session& s);       // the note numbers of the keys down, lowest first
 // Once a frame: a value the player's queue could not take is sent, a sound
 // the output has finished with is destroyed, what the live voices reported
