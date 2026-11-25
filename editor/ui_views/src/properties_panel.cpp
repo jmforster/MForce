@@ -100,17 +100,25 @@ void PropertiesPanel::choose_node(Session& s) {
   const NoteFace* f = face_named(p, one);
   const std::string shown = n ? n->id + "  (" + n->type + ")" : f ? f->label + "  (Note)" : !one.empty() ? one + "  (Group)"
                                                                                                           : std::string("(nothing)");
-  if (!ImGui::BeginCombo("node", shown.c_str())) return;
+  const bool open = ImGui::BeginCombo("node", shown.c_str());
+  places_.note_item("list:node");
+  if (!open) return;
   std::string chosen;
   bool none = ImGui::Selectable("(nothing)", one.empty());
   const std::set<std::string> named = face_nodes(p);
   for (const auto& node : p.graph.nodes)
-    if (!named.count(node.id) && ImGui::Selectable((node.id + "  (" + node.type + ")").c_str(), node.id == one))
-      chosen = node.id;
-  for (const auto& face : p.layout.faces)
+    if (!named.count(node.id)) {
+      if (ImGui::Selectable((node.id + "  (" + node.type + ")").c_str(), node.id == one)) chosen = node.id;
+      places_.note_item("list:" + node.id);
+    }
+  for (const auto& face : p.layout.faces) {
     if (ImGui::Selectable((face.label + "  (Note)").c_str(), face.label == one)) chosen = face.label;
-  for (const auto& group : p.layout.groups)
+    places_.note_item("list:" + face.label);
+  }
+  for (const auto& group : p.layout.groups) {
     if (ImGui::Selectable((group.name + "  (Group)").c_str(), group.name == one)) chosen = group.name;
+    places_.note_item("list:" + group.name);
+  }
   ImGui::EndCombo();
   if (none) select_node(s, "");
   else if (!chosen.empty()) go_to(s, chosen, std::nullopt);
@@ -143,6 +151,7 @@ void PropertiesPanel::group_panel(Session& s, const Group& group) {
     const bool nested = std::any_of(s.open.patch.layout.groups.begin(), s.open.patch.layout.groups.end(),
                                     [&](const Group& g) { return g.name == m; });
     ImGui::BulletText("%s%s", m.c_str(), nested ? "  (group)" : "");
+    places_.note_item("member:" + m);
   }
 }
 

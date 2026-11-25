@@ -49,7 +49,9 @@ public:
   void right_click_at(Vec2 at);     // the right button down and up
   void mouse_down_at(Vec2 at);      // the left button down, and kept down
   void mouse_up();                  // the left button let go where the mouse is
-  void drag(Vec2 from, Vec2 to);    // the left button down at `from`, the mouse moved in steps to `to`, let go
+  // The left button down at `from`, the mouse moved in steps to `to`, let
+  // go; with `ctrl`, Ctrl held through it.
+  void drag(Vec2 from, Vec2 to, bool ctrl = false);
   void wheel_at(Vec2 at, float notches, bool ctrl = false);   // the wheel turned, a positive number away from the hand
   void hover(Vec2 at);              // the mouse moved there, then two frames
   // Where the thing of this name was drawn last frame (EditorViews::area);
@@ -68,6 +70,7 @@ public:
   void type_text(const std::string& text);   // the characters typed, as into a field that has the keys, then a frame
   void advance_clock(double seconds) { clock_ += seconds; }   // the clock the frames watch the sound card by
   const std::string& spectrum_readout() const;   // the spectrum's words under the mouse, from the last frame
+  const std::string& canvas_tooltip() const;     // a Wormhole's tooltip under the mouse, from the last frame
   bool popup_open() const;          // whether a menu is open
   void select_link(int id);         // imnodes' own SelectLink
   int  selected_links() const;      // imnodes' own NumSelectedLinks

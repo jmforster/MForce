@@ -27,6 +27,7 @@ struct Keyboard {
 // kFirstMidiKey plus its note number.
 constexpr int kMouseKey = 1 << 20;
 constexpr int kFirstMidiKey = 1 << 21;
+constexpr int kMidiKeyLimit = kFirstMidiKey + 128;   // one past the last MIDI note's key
 constexpr int midi_key(int noteNumber) { return kFirstMidiKey + noteNumber; }
 
 // Semitones from the keyboard octave's C; nullopt: not a note key. A letter

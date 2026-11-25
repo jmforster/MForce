@@ -29,6 +29,20 @@ std::array<std::string, 2> banner_lines(const BuildStamp& stamp) {
           "Engine features added since then WILL APPEAR MISSING. Rebuild mforce_editor."};
 }
 
+std::filesystem::path build_mark(const std::filesystem::path& program) {
+  return program.parent_path() / (program.stem().string() + ".built");
+}
+
+std::optional<std::filesystem::file_time_type> built_time(const std::filesystem::path& program) {
+  std::error_code ec;
+  const auto mark = std::filesystem::last_write_time(build_mark(program), ec);
+  if (!ec) return mark;
+  ec.clear();
+  const auto own = std::filesystem::last_write_time(program, ec);
+  if (!ec) return own;
+  return std::nullopt;
+}
+
 std::string stamp_time(std::chrono::local_seconds t) {
   using namespace std::chrono;
   const local_days day = floor<days>(t);

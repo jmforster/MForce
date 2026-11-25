@@ -57,6 +57,21 @@ bool table_holds(const std::string& file, const Patch& p, const CanvasTable& t) 
   return true;
 }
 
+// No pin drawn here that has a feed is drawn unfed: a graph node's input
+// with a wire or a drive, and every pin a group stands for (it exists
+// because something crosses into it).
+bool feeds_shown(const std::string& file, const Patch& p, const CanvasTable& t) {
+  for (const auto& n : t.nodes)
+    for (const auto& pin : n.inputs) {
+      bool has = n.kind == CanvasNode::Kind::Group;
+      if (n.kind == CanvasNode::Kind::Graph)
+        for (const auto& node : p.graph.nodes)
+          if (node.id == n.name) has = node.wires.count(pin.label) || node.dynamicPins.count(pin.label);
+      if (has && !pin.fed) return std::printf("  %s: %s.%s has a feed and is drawn unfed\n", file.c_str(), n.name.c_str(), pin.label.c_str()), false;
+    }
+  return true;
+}
+
 // Every level of the patch: the top, and each group gone into.
 std::vector<std::vector<std::string>> levels(const Patch& p) {
   std::vector<std::vector<std::string>> all{{}};
@@ -126,7 +141,7 @@ void run_canvas_table_tests() {
         drawn += int(t.links.size());
         bool same = t.links.size() == again.links.size();
         for (size_t k = 0; same && k < t.links.size(); ++k) same = t.links[k].id == again.links[k].id;
-        held = held && same && table_holds(s.open.path, s.open.patch, t);
+        held = held && same && table_holds(s.open.path, s.open.patch, t) && feeds_shown(s.open.path, s.open.patch, t);
       }
       links += drawn;
       const int reads = reads_in(s.open.patch) - spans_in(s.open.patch);
@@ -136,6 +151,32 @@ void run_canvas_table_tests() {
   std::printf("  canvas table: %d patches, %d links, %d faults\n", patches, links, faults);
   CHECK(patches > 0);
   CHECK(faults == 0);
+}
+
+// In oboe1, a pin fed from outside the level it is drawn at: fed, and
+// naming its source, with no wire drawn to it.
+void run_canvas_outside_feed_tests() {
+  Session s;
+  open_file(s, "patches/library/winds/oboe1.json");
+  const Patch& p = s.open.patch;
+  const auto pin_at = [&](const std::string& group, const std::string& node, const std::string& label) {
+    std::vector<std::string> path = path_to(p, group);
+    path.push_back(group);
+    CanvasNames names;
+    const CanvasTable t = canvas_table(p, path, s.offered, names);
+    for (const auto& n : t.nodes)
+      for (const auto& pin : n.inputs)
+        if (n.name == node && pin.label == label) {
+          for (const auto& l : t.links)
+            if (l.to == pin.id) return CanvasPin{};      // its wire is drawn: not what this looks for
+          return pin;
+        }
+    return CanvasPin{};
+  };
+  const CanvasPin source1 = pin_at("Drive", "Drive_inputs", "source1");
+  CHECK(source1.fed && source1.outside == "WhiteNoise");
+  const CanvasPin line = pin_at("Delay", "Delay_line", "source");
+  CHECK(line.fed && line.outside == "Damp_lpf");
 }
 
 void run_canvas_rewire_tests() {

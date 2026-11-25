@@ -26,9 +26,10 @@ void pump_midi(Session& s);
 std::vector<std::string> midi_ports(Session& s);
 std::string midi_port(const Session& s);             // the port open; empty for none
 // Opens the port (the one open before it closed first): status "MIDI in:
-// <name>", or the library's words for why not.
+// <name>", or the library's words for why not. Every note a MIDI key holds
+// is let go first, as close_midi does.
 void open_midi(Session& s, int port);
-void close_midi(Session& s);                         // no port; nothing said
+void close_midi(Session& s);                         // every MIDI-held note let go, then no port; nothing said
 // At start: the first port when there is one, as open_midi; nothing said when
 // there is none or it does not open.
 void open_first_midi(Session& s);

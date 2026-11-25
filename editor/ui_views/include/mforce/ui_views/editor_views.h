@@ -43,6 +43,7 @@ public:
   // pane keeps (BottomPane::area).
   std::optional<Area> area(const std::string& name) const;
   const std::string& spectrum_readout() const { return pane_.spectrum_readout(); }
+  const std::string& canvas_tooltip() const { return canvas_.tooltip(); }   // NodeCanvas::tooltip
 
 private:
   MenuBar menu_;

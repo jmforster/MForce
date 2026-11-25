@@ -54,6 +54,14 @@ void run_cut_and_fields() {
   b.editor.press_key("Z", false, true);
 
   b.editor.settle();
+  b.editor.click_at(b.grip("node:env"));
+  b.editor.clipboard().set_text("");
+  REQUIRE(b.editor.click_on("menu:Edit"));
+  REQUIRE(b.editor.click_on("menu:Copy"));                    // Edit > Copy: the selection's fragment
+  CHECK(holds_fragment(b) && b.editor.clipboard().text().find("\"env\"") != std::string::npos);
+  CHECK(b.s.status == "Copied 1 node" && holds(b.s));
+
+  b.editor.settle();
   b.editor.click_at(b.grip("node:osc"));
   b.editor.clipboard().set_text("wobble");
   REQUIRE(b.editor.click_on("field:name"));                   // the name field has the keyboard

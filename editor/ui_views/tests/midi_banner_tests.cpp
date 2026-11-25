@@ -1,14 +1,17 @@
 // The transport's MIDI box and the stale banner under the headless editor,
 // by the mouse: the box drawn with no port, opened, and "(none)" chosen from
-// it; the banner drawn while stale, not when the stamp is fresh or empty, and
-// gone for the session once its Dismiss is clicked.
+// it, which lets a MIDI-held note go; the banner drawn while stale, not when
+// the stamp is fresh or empty, and gone for the session once its Dismiss is
+// clicked.
 #include "mforce/testing/check.h"
 #include "mforce/ui_control/banner.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/midi.h"
+#include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/session.h"
 #include "mforce/ui_views/headless.h"
 #include <string>
+#include <vector>
 
 using namespace mforce;
 using namespace mforce::ui;
@@ -26,12 +29,17 @@ void run_midi_box_gesture_tests() {
   ed.frames(2);
   CHECK(ed.drawn("MIDI: none"));                         // no port open
   CHECK(!ed.drawn("(none)") && !ed.popup_open());
+  midi_message(s, MidiMessage{0x90, 60, 100});           // a note a MIDI key holds, fed by hand
+  REQUIRE(held_notes(s) == std::vector<int>{60});
   const std::string status = s.status;
   REQUIRE(ed.click("MIDI: none"));                       // the box opens: the ports asked for, "(none)" first
   CHECK(ed.popup_open() && ed.drawn("(none)"));
-  REQUIRE(ed.click("(none)"));                           // chosen: no port, nothing said
+  ed.frames(2);                                          // the list's first frame is laid out unseen: its items move
+  REQUIRE(ed.click("(none)"));                           // chosen: no port, its held note let go, nothing said
+  ed.frames(2);
   CHECK(!ed.popup_open() && !ed.drawn("(none)"));
-  CHECK(midi_port(s).empty() && s.status == status);
+  CHECK(midi_port(s).empty() && held_notes(s).empty());
+  CHECK(s.status == status);
   CHECK(ed.drawn("MIDI: none"));
 }
 

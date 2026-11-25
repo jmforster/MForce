@@ -2,6 +2,9 @@
 #include "level.h"
 #include <algorithm>
 #include <iterator>
+#include <string>
+#include <vector>
+#include "mforce/ui_model/groups.h"
 
 namespace mforce::ui::stepping {
 
@@ -19,16 +22,18 @@ bool has_group(const Patch& p, std::string_view name) {
 
 bool forget_what_went(Session& s) {
   const Patch& p = s.open.patch;
-  std::erase_if(s.selections, [&](const std::string& name) {
-    return !has_node(p, name) && !has_face(p, name) && !has_group(p, name);
-  });
   std::erase_if(s.offered, [&](const auto& offer) { return !has_node(p, offer.first); });
   bool ended = false;
   if (!s.listening.empty() && !has_node(p, s.listening)) {
     s.listening.clear();
     ended = true;
   }
-  return level::follow_path(s) || ended;
+  ended = level::follow_path(s) || ended;
+  const std::vector<std::string> shown = shown_at(p, s.groupPath);
+  std::erase_if(s.selections, [&](const std::string& name) {
+    return std::find(shown.begin(), shown.end(), name) == shown.end();
+  });
+  return ended;
 }
 
 }  // namespace mforce::ui::stepping

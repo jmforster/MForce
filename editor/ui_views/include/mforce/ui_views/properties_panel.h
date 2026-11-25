@@ -28,8 +28,10 @@ namespace mforce::ui {
 class PropertiesPanel {
 public:
   void draw(Session& s);
-  // Where its name fields were drawn last frame: "field:name" (a node's or a
-  // face's), "field:group name".
+  // Where things were drawn last frame: its name fields, "field:name" (a
+  // node's or a face's) and "field:group name"; the node list, "list:node",
+  // and while it is open each of its items, "list:<name>"; a group's
+  // members, "member:<name>".
   const Places& places() const { return places_; }
 
 private:

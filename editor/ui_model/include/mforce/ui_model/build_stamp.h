@@ -2,6 +2,7 @@
 #include <array>
 #include <chrono>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -12,9 +13,9 @@ namespace mforce::ui {
 // shows what the source no longer says. All empty in a session no program
 // filled (a test's).
 struct BuildStamp {
-  std::string built;    // the program file's time, "11-24 14:41" (stamp_time); empty: not known
+  std::string built;    // the last build's time (built_time), "11-24 14:41" (stamp_time); empty: not known
   std::string commit;   // the checkout's commit, its first seven characters; empty: none read
-  std::string newer;    // the newest source file when it is newer than the program, "edit.h (11-24 15:02)"; else empty
+  std::string newer;    // the newest source file when it is newer than the last build, "edit.h (11-24 15:02)"; else empty
 };
 
 bool stale(const BuildStamp& stamp);                // a source file is newer than the program
@@ -25,6 +26,16 @@ std::string title_suffix(const BuildStamp& stamp);
 // <newer> is newer." and "Engine features added since then WILL APPEAR
 // MISSING. Rebuild mforce_editor."
 std::array<std::string, 2> banner_lines(const BuildStamp& stamp);
+
+// The mark the build leaves beside the program each time it builds it or
+// finds it built: the program's name with ".built" ("mforce_editor.built").
+std::filesystem::path build_mark(const std::filesystem::path& program);
+// The time a stamp compares the sources against and shows: the build mark's
+// when there is one, else the program file's own; none when neither is
+// there. A source edited that no build needs again (a header nothing
+// compiled includes) is then older than the next build, not newer than the
+// program for ever.
+std::optional<std::filesystem::file_time_type> built_time(const std::filesystem::path& program);
 
 // "MM-DD HH:MM" of a local time, the year left out.
 std::string stamp_time(std::chrono::local_seconds t);

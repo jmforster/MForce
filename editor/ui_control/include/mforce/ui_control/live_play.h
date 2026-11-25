@@ -39,11 +39,11 @@ public:
   // key already down is not played again. True when a note was sent.
   bool key_down(int key, int noteNumber, const Keyboard& how, float velocity, bool live);
   void key_up(int key);
-  // Every key numbered below `limit` up at once: each held note released,
-  // the line with no carry back between them; when the line's own key goes,
-  // the line carries back to a key at or above `limit` that is still down,
-  // as key_up does.
-  void all_keys_up_below(int limit);
+  // Every key numbered from `first` up to, not including, `limit` up at
+  // once: each held note released, the line with no carry back between
+  // them; when the line's own key goes, the line carries back to a key
+  // outside the range that is still down, as key_up does.
+  void keys_up_in(int first, int limit);
   std::vector<int> held_notes() const;            // the note numbers of the keys down, lowest first
 
   // The instrument's wheel and pressure, 0 to 1: the player's now, and every

@@ -51,8 +51,16 @@ void note_pin(Places& places, int node, const std::string& owner, const std::str
   places.note("pin:" + owner + "." + label, Area{Vec2{x - kPinSpot, y - kPinSpot}, Vec2{x + kPinSpot, y + kPinSpot}});
 }
 
+// After a pin's label, what feeds it from outside the level, in the grey the
+// panel names a pin's source in; nothing when its feeds are drawn here.
+void outside_source(const CanvasPin& pin) {
+  if (pin.outside.empty()) return;
+  ImGui::SameLine();
+  ImGui::TextDisabled("<- %s", pin.outside.c_str());
+}
+
 // An input row: its name, and on a pin holding a number with nothing feeding
-// it, the number.
+// it, the number; a feed from outside the level is named.
 void input_row(const Node* n, const CanvasPin& pin, const ImVec4& textColour) {
   ImNodes::PushAttributeFlag(ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
   if (pin.look == Look::Setting) {
@@ -60,6 +68,7 @@ void input_row(const Node* n, const CanvasPin& pin, const ImVec4& textColour) {
     ImNodes::BeginInputAttribute(pin.id, pin.fed ? ImNodesPinShape_QuadFilled : ImNodesPinShape_Quad);
     ImGui::TextColored(kDynamicText, "%s", pin.label.c_str());
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", pin_tooltip(pin).c_str());
+    outside_source(pin);
     ImNodes::EndInputAttribute();
     ImNodes::PopColorStyle();
   } else {
@@ -76,6 +85,7 @@ void input_row(const Node* n, const CanvasPin& pin, const ImVec4& textColour) {
     } else {
       ImGui::TextColored(textColour, "%s", pin.label.c_str());
     }
+    outside_source(pin);
     ImNodes::EndInputAttribute();
   }
   ImNodes::PopAttributeFlag();

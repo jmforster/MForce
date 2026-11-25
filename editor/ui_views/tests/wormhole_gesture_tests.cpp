@@ -1,8 +1,11 @@
 // Wormholes by the mouse: a right click on a wire routes it through a pair,
 // a right click on a wire that runs through one says why not, a half
-// selected shows the span's ghost, and a double-click jumps to the twin.
+// selected or under the mouse shows the span's ghost and the tooltip names
+// the twin, a double-click jumps to the twin and centres it, and a wire made
+// by hand between two Wormholes pairs them.
 #include "gesture_bench.h"
 #include "mforce/ui_control/grouping.h"
+#include <cmath>
 
 using namespace gesture_bench;
 
@@ -61,6 +64,50 @@ void run_jump() {
   b.editor.frames(2);
   CHECK(b.s.groupPath == (Names{"Group"}) && b.s.selections == (Names{"Wormhole2"}) && holds(b.s));
   CHECK(b.drawn("node:Wormhole2") && b.drawn("ghost:Wormhole2") == false);   // the near half is not shown here
+  const auto twin = b.editor.area("node:Wormhole2");       // its place at the canvas's middle
+  REQUIRE(twin.has_value());
+  const Vec2 middle{b.editor.canvas_origin().x + b.editor.canvas_size().x * 0.5f,
+                    b.editor.canvas_origin().y + b.editor.canvas_size().y * 0.5f};
+  CHECK(std::fabs(twin->lo.x - middle.x) < 4.0f && std::fabs(twin->lo.y - middle.y) < 4.0f);
+}
+
+// The mouse over each half of a pair: the ghost of the span and the tooltip
+// naming the twin; over an unpaired Wormhole, the words that say so.
+void run_hover() {
+  Patch p = span_patch();
+  (void)add_node(p, "Wormhole", "Lone", 5, Vec2{40, 330});
+  Bench b(p);
+  b.editor.right_click_at(wire_between(b, "pin:osc.out", "pin:filt.source"));
+  b.editor.settle();
+  REQUIRE(b.editor.hover_on("node:Wormhole"));
+  CHECK(b.editor.canvas_tooltip() == "twin: Wormhole2 — in main\ndouble-click: jump" && b.drawn("ghost:Wormhole"));
+  REQUIRE(b.editor.hover_on("node:Wormhole2"));
+  CHECK(b.editor.canvas_tooltip() == "twin: Wormhole — in main\ndouble-click: jump" && b.drawn("ghost:Wormhole2"));
+  CHECK(!b.drawn("ghost:Wormhole"));                         // the mouse left it, and it is not selected
+  REQUIRE(b.editor.hover_on("node:Lone"));
+  CHECK(b.editor.canvas_tooltip() == "unpaired wormhole — wire it to another Wormhole to open the far end");
+  CHECK(!b.drawn("ghost:Lone"));
+  b.editor.hover(b.empty());
+  CHECK(b.editor.canvas_tooltip().empty() && holds(b.s));
+}
+
+// Two Wormholes paired by hand: a wire dragged from one's output to the
+// other's input; the pairing's words, and the span between them not drawn.
+void run_pair_by_hand() {
+  Patch p = span_patch();
+  (void)add_node(p, "Wormhole", "WA", 5, Vec2{40, 330});
+  (void)add_node(p, "Wormhole", "WB", 6, Vec2{500, 330});
+  Bench b(p);
+  const auto out = b.editor.area("pin:WA.out"), in = b.editor.area("pin:WB.source");
+  REQUIRE(out && in);
+  b.editor.drag(out->centre(), in->centre());
+  CHECK(node_of(b.s, "WB")->wires.at("source") == (std::vector<Wire>{Wire{"WA"}}));
+  CHECK(b.s.status == "wormhole pair linked — span hidden; hover or select either half to see it" && holds(b.s));
+  CanvasNames names;
+  bool spanDrawn = false;
+  for (const auto& l : canvas_table(b.s.open.patch, b.s.groupPath, b.s.offered, names).links)
+    spanDrawn = spanDrawn || l.reader.node == "WB";
+  CHECK(!spanDrawn);
 }
 
 }  // namespace
@@ -69,4 +116,6 @@ void run_wormhole_gesture_tests() {
   std::printf("wormholes by the mouse: a wire routed, refused, the ghost, the jump\n");
   run_route_and_ghost();
   run_jump();
+  run_hover();
+  run_pair_by_hand();
 }

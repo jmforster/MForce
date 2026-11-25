@@ -106,21 +106,22 @@ void LivePlay::key_up(int key) {
   lineKey_ = -1;
 }
 
-// The keys below `limit` other than the line's go first, with no carry back
+// The keys in the range other than the line's go first, with no carry back
 // (on an instrument that sustains such a key holds no note of its own); the
 // line's key, when it is one of them, goes last, by key_up, which carries the
 // line back to a key still down or releases it.
-void LivePlay::all_keys_up_below(int limit) {
+void LivePlay::keys_up_in(int first, int limit) {
+  const auto in = [&](int key) { return key >= first && key < limit; };
   const int line = lineKey_;
   for (auto it = down_.begin(); it != down_.end();) {
-    if (it->key >= limit || it->key == line) {
+    if (!in(it->key) || it->key == line) {
       ++it;
       continue;
     }
     if (player_ && it->id != 0 && !sustaining_) player_->note_off(it->id);
     it = down_.erase(it);
   }
-  if (line >= 0 && line < limit) key_up(line);
+  if (line >= 0 && in(line)) key_up(line);
 }
 
 void LivePlay::set_wheel(float v) {

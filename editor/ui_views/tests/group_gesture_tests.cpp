@@ -74,6 +74,73 @@ void run_add_remove_ungroup() {
   CHECK(b.s.open.patch.layout.groups.empty() && b.drawn("node:osc") && holds(b.s));
 }
 
+// The selection holds only what the level shows: the moved node is not
+// left selected unseen, so Delete takes nothing from inside the group; the
+// same after Remove from inside the group, and after an Undo that puts a
+// selected node back inside it.
+void run_selection_follows_level() {
+  Bench b;
+  group_osc_and_env(b);
+  b.editor.right_click_at(b.grip("node:lfo"));
+  REQUIRE(b.editor.click_on("menu:Add to group (1)"));
+  REQUIRE(b.editor.click_on("menu:Group"));
+  CHECK(b.s.selections.empty() && holds(b.s));
+  b.editor.press_delete();
+  CHECK(node_of(b.s, "lfo") != nullptr && holds(b.s));
+  b.editor.double_click_at(b.grip("group:Group"));
+  b.editor.settle();
+  b.editor.right_click_at(b.grip("node:lfo"));
+  REQUIRE(b.editor.click_on("menu:Remove from 'Group'"));
+  CHECK(b.s.selections.empty() && holds(b.s));
+  b.editor.settle();
+  REQUIRE(b.editor.click_on("crumb:0"));
+  b.editor.click_at(b.grip("node:lfo"));
+  CHECK(b.s.selections == (Names{"lfo"}));
+  b.editor.press_key("Z", false, true);                       // the Remove undone: lfo back inside
+  CHECK(group_of(b.s, "Group")->members.back() == "lfo" && b.s.selections.empty() && holds(b.s));
+  b.editor.press_delete();
+  CHECK(node_of(b.s, "lfo") != nullptr);
+}
+
+// The group's menu's "Open" goes in, as the double-click does.
+void run_menu_open() {
+  Bench b;
+  group_osc_and_env(b);
+  b.editor.right_click_at(b.grip("group:Group"));
+  REQUIRE(b.editor.click_on("menu:Open"));
+  CHECK(b.s.groupPath == (Names{"Group"}) && b.drawn("node:osc") && b.drawn("crumb:1") && holds(b.s));
+}
+
+// The panel's node list: a node inside a group, chosen with the mouse, goes
+// to its level and is selected there.
+void run_node_list() {
+  Bench b;
+  group_osc_and_env(b);
+  REQUIRE(b.editor.click_on("list:node"));
+  REQUIRE(b.editor.click_on("list:env"));
+  CHECK(b.s.groupPath == (Names{"Group"}) && b.s.selections == (Names{"env"}) && b.drawn("node:env") && holds(b.s));
+}
+
+// A group that holds another: its node counts every node under it, and its
+// panel lists its members, the group among them.
+void run_nested_counts() {
+  Bench b;
+  group_osc_and_env(b);
+  b.editor.click_at(b.grip("group:Group"));
+  b.editor.ctrl_click_at(b.grip("node:lfo"));
+  b.editor.right_click_at(b.grip("node:lfo"));
+  REQUIRE(b.editor.click_on("menu:Group selection (2)"));
+  b.editor.settle();
+  REQUIRE(group_of(b.s, "Group2") != nullptr);
+  CanvasNames names;
+  int under = -1;
+  for (const auto& n : canvas_table(b.s.open.patch, b.s.groupPath, b.s.offered, names).nodes)
+    if (n.name == "Group2") under = n.under;
+  CHECK(under == 3);                                          // osc, env and lfo: the nested group's two counted
+  CHECK(b.s.selections == (Names{"Group2"}) && b.drawn("member:Group") && b.drawn("member:lfo") && holds(b.s));
+  CHECK(!b.drawn("member:osc"));                              // a member of the group inside, not of this one
+}
+
 void run_rename_in_panel() {
   Bench b;
   group_osc_and_env(b);
@@ -131,6 +198,10 @@ void run_group_gesture_tests() {
   run_group_and_levels();
   run_group_pins();
   run_add_remove_ungroup();
+  run_selection_follows_level();
+  run_menu_open();
+  run_node_list();
+  run_nested_counts();
   run_rename_in_panel();
   run_delete();
   run_listen();

@@ -19,6 +19,10 @@ void note_on(Session& s, int note, int velocity) {
   if (s.live.key_down(midi_key(note), note, s.keyboard, v, true)) s.lastNote = {note, v};
 }
 
+// Every note a MIDI key holds goes up: a port closed or left never sends
+// their note offs.
+void let_midi_notes_go(Session& s) { s.live.keys_up_in(kFirstMidiKey, kMidiKeyLimit); }
+
 }  // namespace
 
 // The status byte's upper half is the message, its lower half the channel,
@@ -45,11 +49,15 @@ std::vector<std::string> midi_ports(Session& s) { return s.midi.ports(); }
 std::string midi_port(const Session& s) { return s.midi.open_port(); }
 
 void open_midi(Session& s, int port) {
+  let_midi_notes_go(s);
   const std::string why = s.midi.open(port);
   s.status = why.empty() ? "MIDI in: " + s.midi.open_port() : why;
 }
 
-void close_midi(Session& s) { s.midi.close(); }
+void close_midi(Session& s) {
+  let_midi_notes_go(s);
+  s.midi.close();
+}
 
 void open_first_midi(Session& s) {
   if (s.midi.ports().empty()) return;

@@ -87,8 +87,9 @@ void TransportView::buttons(Session& s) {
   remember("Save WAV");
 }
 
-// The MIDI port: "MIDI: <name>", or "MIDI: none"; the ports are asked for
-// afresh each time the box opens, "(none)" first, which closes the port.
+// The MIDI port: "MIDI: <name>", or "MIDI: none"; while the box is open the
+// ports are asked for afresh each frame, "(none)" first, which closes the
+// port.
 void TransportView::midi_box(Session& s) {
   const std::string current = midi_port(s);
   const std::string label = current.empty() ? std::string("MIDI: none") : "MIDI: " + current;

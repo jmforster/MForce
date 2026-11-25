@@ -141,6 +141,24 @@ void run_midi_kept_tests() {
   CHECK(until_quiet(s));
 }
 
+// Closing the port, or choosing another, lets every MIDI-held note go: their
+// note offs will never come.
+void run_midi_close_tests() {
+  Session s;
+  open_file(s, kOboe);
+  send(s, 0x90, 60, 100);
+  key_down(s, 600, 64);                                  // a computer key is left alone
+  (void)run(s, 10);
+  close_midi(s);
+  CHECK((held_notes(s) == std::vector<int>{64}));
+  key_up(s, 600);
+  CHECK(until_quiet(s));
+  send(s, 0x90, 62, 100);
+  open_midi(s, -1);                                      // another port, even one that does not open
+  CHECK(held_notes(s).empty() && !s.status.empty());
+  CHECK(until_quiet(s));
+}
+
 void run_midi_stop_tests() {
   Session s;
   open_file(s, kOboe);

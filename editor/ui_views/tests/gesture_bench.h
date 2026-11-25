@@ -62,9 +62,10 @@ struct Bench {
   bool drawn(const std::string& place) const { return editor.area(place).has_value(); }
 };
 
-// What must hold after any gesture: each selected name and each drawn thing
-// names something there is, and the path names only groups, each in the one
-// before.
+// What must hold after any gesture: each selected name is shown at the
+// level (so it names something there is and the canvas can show it
+// selected), each drawn thing names something there is, and the path names
+// only groups, each in the one before.
 inline bool holds(const Session& s) {
   const Patch& p = s.open.patch;
   const auto exists = [&](const std::string& n) {
@@ -77,7 +78,8 @@ inline bool holds(const Session& s) {
     return false;
   };
   bool ok = valid_depth(p, s.groupPath) == s.groupPath.size();
-  for (const auto& n : s.selections) ok = ok && exists(n);
+  const Names shown = shown_at(p, s.groupPath);
+  for (const auto& n : s.selections) ok = ok && exists(n) && std::find(shown.begin(), shown.end(), n) != shown.end();
   CanvasNames names;
   for (const auto& n : canvas_table(p, s.groupPath, s.offered, names).nodes)
     ok = ok && (n.kind == CanvasNode::Kind::Output || exists(n.name));

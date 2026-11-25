@@ -40,7 +40,8 @@ std::vector<std::string> imnodes_selection(const CanvasTable& t) {
 // and a click, a box, a drag of all it holds. On the frame the button is let
 // go after going down on the canvas, the record takes imnodes' selection,
 // with a Ctrl and a click on a pin (which imnodes takes for the start of a
-// wire, near the pin's hover radius) toggling the pin's owner. On every
+// wire, near the pin's hover radius) toggling the pin's owner; a Ctrl and a
+// drag out of a pin is a wire and toggles nothing. On every
 // other frame with the button up, imnodes is given the record's names shown
 // here.
 void NodeCanvas::carry_selection(Session& s, const CanvasTable& t) {
@@ -62,6 +63,11 @@ void NodeCanvas::carry_selection(Session& s, const CanvasTable& t) {
   }
   if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && pressedHere_) {
     pressedHere_ = false;
+    const ImGuiIO& io = ImGui::GetIO();
+    if (!ctrlPin_.empty() && io.MouseDragMaxDistanceSqr[0] > io.MouseDragThreshold * io.MouseDragThreshold) {
+      ctrlPin_.clear();                             // a drag out of the pin: a wire, not a toggle
+      ctrlDeselect_ = false;
+    }
     std::vector<std::string> names = imnodes_selection(t);
     if (!ctrlPin_.empty()) {
       const auto it = std::find(names.begin(), names.end(), ctrlPin_);

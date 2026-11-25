@@ -173,16 +173,38 @@ void add_link(CanvasTable& t, CanvasNames& names, std::optional<int> from, std::
   t.links.push_back(CanvasLink{names.link(key), *from, *to, reader, feed, look});
 }
 
+void mark_one_fed(CanvasTable& t, int id) {
+  for (auto& n : t.nodes)
+    for (auto& pin : n.inputs)
+      if (pin.id == id) pin.fed = true;
+}
+
+// The pin `id` of the table is fed by `w` from outside the level: it is
+// fed, and names the source.
+void note_outside(CanvasTable& t, int id, const Wire& w) {
+  for (auto& n : t.nodes)
+    for (auto& pin : n.inputs)
+      if (pin.id == id) {
+        pin.outside += (pin.outside.empty() ? "" : ", ") + w.source + (w.tap ? " (tap)" : "");
+        pin.fed = true;
+      }
+}
+
 // One feed or drive of `n`, drawn when both its ends stand for something
-// here and not both for one group.
+// here and not both for one group; when only its taking end does, that pin
+// names the source instead.
 void link_one(CanvasTable& t, CanvasNames& names, const Level& at, const Node& n, const std::string& name,
               std::size_t feed, const Wire& w, bool drive) {
   const Node* source = node_named(at.patch, w.source);
-  if (n.type == "Wormhole" && source && source->type == "Wormhole") return;   // the span is never drawn
   std::string fromGroup, toGroup;
+  if (n.type == "Wormhole" && source && source->type == "Wormhole") {   // the span is never drawn; its pin is fed
+    if (const auto to = taking(at, n.id, name, feed, drive, toGroup)) mark_one_fed(t, *to);
+    return;
+  }
   const auto from = giving(at, w.source, w.tap, fromGroup);
   const auto to = taking(at, n.id, name, feed, drive, toGroup);
   if (!fromGroup.empty() && fromGroup == toGroup) return;
+  if (!from && to) note_outside(t, *to, w);
   const auto look = drive ? CanvasLink::Look::Dynamic : w.tap ? CanvasLink::Look::Tap : CanvasLink::Look::Plain;
   add_link(t, names, from, to, PinEnd{drive ? Kind::SettingPin : Kind::Input, n.id, name}, feed, look);
 }
@@ -200,7 +222,8 @@ void add_links(CanvasTable& t, const Level& at, CanvasNames& names) {
            PinEnd{Kind::PatchOutput, {}, {}}, 0, CanvasLink::Look::Plain);
 }
 
-// Each pin a link reaches is marked fed.
+// Each pin a link reaches is marked fed too (one fed from outside the level,
+// or by a Wormhole's span, is already).
 void mark_fed(CanvasTable& t) {
   std::set<int> reached;
   for (const auto& l : t.links) {
@@ -208,8 +231,8 @@ void mark_fed(CanvasTable& t) {
     reached.insert(l.to);
   }
   for (auto& n : t.nodes) {
-    for (auto& pin : n.inputs) pin.fed = reached.count(pin.id) != 0;
-    for (auto& pin : n.outputs) pin.fed = reached.count(pin.id) != 0;
+    for (auto& pin : n.inputs) pin.fed = pin.fed || reached.count(pin.id) != 0;
+    for (auto& pin : n.outputs) pin.fed = pin.fed || reached.count(pin.id) != 0;
   }
 }
 

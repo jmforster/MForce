@@ -216,8 +216,9 @@ void HeadlessEditor::mouse_up() {
   frames(2);
 }
 
-void HeadlessEditor::drag(Vec2 from, Vec2 to) {
+void HeadlessEditor::drag(Vec2 from, Vec2 to, bool ctrl) {
   constexpr int kSteps = 4;
+  if (ctrl) ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, true);
   mouse_down_at(from);
   for (int k = 1; k <= kSteps; ++k) {
     const float t = float(k) / float(kSteps);
@@ -225,6 +226,10 @@ void HeadlessEditor::drag(Vec2 from, Vec2 to) {
     frames(1);
   }
   mouse_up();
+  if (ctrl) {
+    ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
+    frames(1);
+  }
 }
 
 void HeadlessEditor::wheel_at(Vec2 at, float notches, bool ctrl) {
@@ -295,6 +300,8 @@ void HeadlessEditor::type_text(const std::string& text) {
 }
 
 const std::string& HeadlessEditor::spectrum_readout() const { return parts_->views.spectrum_readout(); }
+
+const std::string& HeadlessEditor::canvas_tooltip() const { return parts_->views.canvas_tooltip(); }
 
 bool HeadlessEditor::popup_open() const {
   return ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);

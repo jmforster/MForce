@@ -57,18 +57,20 @@ void NodeCanvas::draw_ghosts(const Session& s, const CanvasTable& t) {
 // While a Wormhole is under the mouse: whether it has a twin, which, and
 // where the twin is.
 void NodeCanvas::wormhole_tooltip(const Session& s, const CanvasTable& t) {
+  tooltip_.clear();
   int hovered = -1;
   if (!ImNodes::IsNodeHovered(&hovered)) return;
   const CanvasNode* half = t.node(hovered);
   if (!half || half->kind != CanvasNode::Kind::Graph || half->type != "Wormhole") return;
   const std::string twin = wormhole_twin(s.open.patch, half->name);
   if (twin.empty()) {
-    ImGui::SetTooltip("unpaired wormhole — wire it to another Wormhole to open the far end");
-    return;
+    tooltip_ = "unpaired wormhole — wire it to another Wormhole to open the far end";
+  } else {
+    const std::string holder = group_holding(s.open.patch, twin);
+    const std::string where = holder.empty() ? std::string("in main") : "inside '" + holder + "'";
+    tooltip_ = "twin: " + twin + " — " + where + "\ndouble-click: jump";
   }
-  const std::string holder = group_holding(s.open.patch, twin);
-  const std::string where = holder.empty() ? std::string("in main") : "inside '" + holder + "'";
-  ImGui::SetTooltip("twin: %s — %s\ndouble-click: jump", twin.c_str(), where.c_str());
+  ImGui::SetTooltip("%s", tooltip_.c_str());
 }
 
 }  // namespace mforce::ui

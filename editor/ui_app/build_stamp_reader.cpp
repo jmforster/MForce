@@ -3,8 +3,8 @@
 #include <exception>
 #include <filesystem>
 #include <iterator>
+#include <optional>
 #include <string>
-#include <system_error>
 #include <vector>
 #include "build_sources.h"
 #ifdef _WIN32
@@ -50,9 +50,9 @@ BuildStamp read_build_stamp() {
   BuildStamp stamp;
   const fs::path program = program_file();
   if (program.empty()) return stamp;
-  std::error_code ec;
-  const fs::file_time_type built = fs::last_write_time(program, ec);
-  if (ec) return stamp;
+  const std::optional<fs::file_time_type> time = built_time(program);
+  if (!time) return stamp;
+  const fs::file_time_type built = *time;
   stamp.built = local_stamp(built);
   stamp.commit = read_commit(fs::path(build_sources::kGit));
   const std::vector<fs::path> folders(std::begin(build_sources::kFolders), std::end(build_sources::kFolders));

@@ -74,7 +74,7 @@ void run_paste_refusals() {
   paste_text(s, R"J({"mforceClip":1,"nodes":[]})J", std::nullopt);
   CHECK(s.status == "Paste: fragment had no nodes");
   paste_text(s, R"J({"mforceClip":1,"nodes":[{"id":"x","type":"NoSuchSource"}]})J", std::nullopt);
-  CHECK(s.status.rfind("Paste failed (graph restored): ", 0) == 0 && s.status.find("NoSuchSource") != std::string::npos);
+  CHECK(s.status.rfind("Paste failed: ", 0) == 0 && s.status.find("NoSuchSource") != std::string::npos);
   CHECK(s.open.patch == before && steps(s) == 0);
 }
 
@@ -90,6 +90,21 @@ void run_cut() {
   CHECK(s.open.patch == before);
   paste_text(s, text, std::nullopt);
   CHECK(node_of(s, "lfo2") && s.status == "Pasted 1 node (lfo2)");
+
+  // A cut never deletes what it did not copy: a group stays.
+  select_nodes(s, {"env", "osc"});
+  group_selection(s);
+  REQUIRE(s.selections == (Names{"Group"}));
+  const Patch grouped = s.open.patch;
+  const size_t was = steps(s);
+  CHECK(cut_text(s).empty());
+  CHECK(s.status == "Cut: nothing copyable selected (Note/Output/Mixer/groups are v2) — Delete removes a group");
+  CHECK(s.open.patch == grouped && steps(s) == was);
+  select_nodes(s, {"Group", "lfo"});                          // some cut, some skipped: the copy's words
+  CHECK(!cut_text(s).empty() && s.status == "Copied 1 node (uncopyable selection skipped)");
+  CHECK(!node_of(s, "lfo") && node_of(s, "osc") && !s.open.patch.layout.groups.empty());
+  select_nodes(s, {});
+  CHECK(cut_text(s).empty() && s.status == "Cut: nothing selected");
 }
 
 void run_duplicate_and_replace() {

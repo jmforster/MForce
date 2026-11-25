@@ -32,6 +32,15 @@ add_custom_command(TARGET mforce_editor PRE_LINK
   COMMAND ${CMAKE_COMMAND} -DEXE=$<TARGET_FILE:mforce_editor> -P ${PROJECT_SOURCE_DIR}/cmake/RenameAside.cmake
   VERBATIM)
 
+# The build's mark beside the program (build_mark in ui_model's
+# build_stamp.h): touched by every build, after the program is built or found
+# built, so the stamp measures the sources against the last build. A custom
+# target with no output runs on every build; ALL puts it in every build.
+add_custom_target(mforce_editor_built ALL
+  COMMAND ${CMAKE_COMMAND} -E touch $<TARGET_FILE_DIR:mforce_editor>/mforce_editor.built
+  VERBATIM)
+add_dependencies(mforce_editor_built mforce_editor)
+
 # The build stamp's sources (build_stamp_reader.h): the include and src
 # folders of every module the program is built from, found by walking what it
 # links (the library targets mforce_lib_* and mforce_json are not modules),

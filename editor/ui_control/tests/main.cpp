@@ -80,6 +80,7 @@ void run_midi_wheel_pressure_tests();
 void run_midi_nothing_tests();
 void run_midi_kept_tests();
 void run_midi_stop_tests();
+void run_midi_close_tests();
 void run_title_stamp_tests();
 namespace {
 constexpr mforce::testing::Test kTests[] = {
@@ -161,6 +162,7 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_midi_nothing_tests", run_midi_nothing_tests},
   {"run_midi_kept_tests", run_midi_kept_tests},
   {"run_midi_stop_tests", run_midi_stop_tests},
+  {"run_midi_close_tests", run_midi_close_tests},
   {"run_title_stamp_tests", run_title_stamp_tests},
 };
 }  // namespace

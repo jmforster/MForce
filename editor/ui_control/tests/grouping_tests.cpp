@@ -109,8 +109,12 @@ void run_add_remove_ungroup() {
   select_node(s, "lfo");
   add_to_group(s, "Group");
   CHECK(s.status == "1 node(s) -> 'Group'" && group_of(s, "Group")->members == (Names{"env", "osc", "lfo"}));
+  CHECK(s.selections.empty());                                // lfo is not shown here any more
+  open_group(s, "Group");
+  select_node(s, "lfo");
   remove_from_group(s);
   CHECK(s.status == "removed from group" && group_of(s, "Group")->members == (Names{"env", "osc"}));
+  go_up(s, 0);
   wire(s, end(Kind::Output, "lfo"), end(Kind::Input, "l", "source"));
   select_node(s, "lfo");
   const size_t before = steps(s);
@@ -124,6 +128,7 @@ void run_add_remove_ungroup() {
   undo(s);
   CHECK(group_of(s, "Group") != nullptr);
 
+  open_group(s, "Group");
   select_nodes(s, {"env", "osc"});
   remove_from_group(s);                                       // the last members leave: the group goes
   CHECK(s.open.patch.layout.groups.empty());
@@ -228,6 +233,29 @@ void run_go_to() {
   CHECK(s.status == "'nope' names nothing to go to");
 }
 
+// The selection holds only what the level shows: after Add to group, after
+// Remove from inside the group, and after an Undo that puts a selected thing
+// back inside one; and Delete then takes nothing unseen.
+void run_selection_follows_level() {
+  Session s;
+  start_grouped(s);
+  select_node(s, "lfo");
+  add_to_group(s, "Group");
+  CHECK(s.selections.empty());
+  delete_these(s, {}, s.selections);
+  CHECK(control_fixture::node_of(s, "lfo") != nullptr);       // nothing deleted unseen
+  open_group(s, "Group");
+  select_node(s, "lfo");
+  remove_from_group(s);                                       // lfo goes up a level, out of sight
+  CHECK(s.selections.empty() && s.groupPath == (Names{"Group"}));
+  go_up(s, 0);
+  select_node(s, "lfo");
+  undo(s);                                                    // lfo back inside the group
+  CHECK(group_of(s, "Group")->members.back() == "lfo" && s.selections.empty());
+  redo(s);                                                    // and out again: shown, but not reselected
+  CHECK(s.selections.empty());
+}
+
 }  // namespace
 
 void run_selection_tests() {
@@ -240,6 +268,7 @@ void run_grouping_tests() {
   run_group_selection();
   run_group_inside();
   run_add_remove_ungroup();
+  run_selection_follows_level();
   run_rename_and_delete_group();
   run_paths();
   run_oboe1_grouping();

@@ -45,7 +45,7 @@ std::vector<int> sounding_notes(Session& s) {
 
 void key_up(Session& s, int key) { s.live.key_up(key); }
 
-void release_all_keys(Session& s) { s.live.all_keys_up_below(kFirstMidiKey); }
+void release_all_keys(Session& s) { s.live.keys_up_in(0, kFirstMidiKey); }
 
 std::vector<int> held_notes(const Session& s) { return s.live.held_notes(); }
 

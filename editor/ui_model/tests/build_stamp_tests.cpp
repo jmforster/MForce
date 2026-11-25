@@ -79,6 +79,23 @@ void run_newest_source_tests() {
   fs::remove_all(root, ignored);
 }
 
+// The time the stamp measures against: the build's mark beside the program
+// when there is one, else the program's own; none when neither is there.
+void run_built_time_tests() {
+  const fs::path root = fresh("built");
+  const fs::path program = root / "mforce_editor.exe";
+  CHECK(build_mark(program) == root / "mforce_editor.built");
+  CHECK(!built_time(program).has_value());
+  write(program, "program");
+  const auto own = fs::last_write_time(program);
+  CHECK(built_time(program) == own);
+  write(build_mark(program), "");
+  fs::last_write_time(build_mark(program), own + std::chrono::hours(5));   // a later build found it built
+  CHECK(built_time(program) == own + std::chrono::hours(5));
+  std::error_code ignored;
+  fs::remove_all(root, ignored);
+}
+
 void run_read_commit_tests() {
   const fs::path root = fresh("git");
   // A loose ref.

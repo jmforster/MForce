@@ -47,6 +47,9 @@ public:
   // as "pin:<group>.<label>"), "menu:<words>" for an item of its open menu,
   // and the listening mark, as "mark:<node>".
   const Places& places() const { return places_; }
+  // The words of the tooltip a Wormhole under the mouse showed last frame;
+  // empty when none showed.
+  const std::string& tooltip() const { return tooltip_; }
 
 private:
   // node_canvas.cpp: a frame.
@@ -91,6 +94,7 @@ private:
   std::string menuNode_;                           // the thing whose menu is open
   CanvasNode::Kind menuKind_{CanvasNode::Kind::Graph};   // and what it is
   Places places_;
+  std::string tooltip_;                            // the Wormhole tooltip's words, this frame
 };
 
 }  // namespace mforce::ui

@@ -28,11 +28,15 @@ std::string copy_text(Session& s);
 // group that is open and become the selection; listening is left alone.
 // "Pasted N node(s) (first, ...)", or with " — K unresolvable ref(s)
 // dropped"; "Paste: clipboard empty", "Paste: clipboard is not an MForce
-// fragment", "Paste: fragment had no nodes", "Paste failed (graph
-// restored): <why>".
+// fragment", "Paste: fragment had no nodes", "Paste failed: <why>" when the
+// reader or the engine refuses it (nothing changed), "Paste failed (graph
+// restored): <why>" when joining the open group failed after it applied.
 void paste_text(Session& s, std::string_view text, std::optional<Vec2> at);
-// copy_text, then the things copied deleted (none that was skipped): one
-// step. The copy's words stay in status.
+// copy_text, then the things copied deleted (none that was skipped, so a
+// selected group stays): one step. The copy's words stay in status. With
+// nothing copied, empty, nothing deleted, and "Cut: nothing selected" or
+// "Cut: nothing copyable selected (Note/Output/Mixer/groups are v2) —
+// Delete removes a group".
 std::string cut_text(Session& s);
 // A copy and a paste of the one node, at (30, 30) from it, into the group
 // that is open, without the clipboard: its constants, settings, strings,
@@ -40,7 +44,9 @@ std::string cut_text(Session& s);
 // selection. Refused on a Note, a Channel and a Mixer.
 void duplicate(Session& s, std::string_view node);
 // The node made a node of `type` (replace_node); the selection and
-// listening follow to the new node. "Replaced A with B (N wire(s) kept)",
+// listening follow to the new node; the take's strip and pop-outs do not
+// (the take never rendered it: empty until the next Generate).
+// "Replaced A with B (N wire(s) kept)",
 // or with "; dropped: x, y" naming what had no place. Refused on a Note,
 // a Channel and a Mixer.
 void replace_with(Session& s, std::string_view node, std::string_view type);

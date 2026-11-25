@@ -42,8 +42,11 @@ struct CanvasPin {
   Look look{Look::Param};
   std::string label;            // the pin's, setting's or field's name; "out", "tap", or the output's source;
                                 // on a group, "member.pin" in and "out" or the member's name out
-  bool fed{false};              // a feed, a drive or the output reaches it
+  bool fed{false};              // a feed, a drive or the output reaches it, drawn here or not
   std::string driver;           // a setting's pin: the node that drives it; empty when nothing does
+  // What feeds it from outside the level, whose wire is not drawn here
+  // ("Damp_lpf", "WhiteNoise (tap)", several joined by ", "); empty when none.
+  std::string outside;
 };
 
 // What hovering a setting's pin on the canvas says: the setting set once a
@@ -100,7 +103,8 @@ struct CanvasTable {
 // face's field for a face's node, a group's pin for what is inside it, a
 // Wormhole's output for its tap; a feed with an end nothing here stands
 // for, or with both ends in one group, and the span between two Wormholes,
-// are not drawn.
+// are not drawn. A pin drawn here that such a feed reaches from outside the
+// level is still fed, and names that source (CanvasPin::outside).
 CanvasTable canvas_table(const Patch& patch, const std::vector<std::string>& path,
                          const std::set<std::pair<std::string, std::string>>& offered, CanvasNames& names);
 

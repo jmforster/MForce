@@ -86,7 +86,7 @@ void paste_text(Session& s, std::string_view text, std::optional<Vec2> at) {
   } catch (const std::exception& e) {
     const std::string why = e.what();
     const bool plain = why == "clipboard is not an MForce fragment" || why == "fragment had no nodes";
-    s.status = (plain ? "Paste: " : "Paste failed (graph restored): ") + why;
+    s.status = (plain ? "Paste: " : "Paste failed: ") + why;
     return;
   }
   const Vec2 offset = paste_offset(s.open.patch, f, at);
@@ -96,7 +96,9 @@ void paste_text(Session& s, std::string_view text, std::optional<Vec2> at) {
         for (const auto& id : done.ids) (void)copying::join_open(p, s, id);
         return Change::Structure;
       })) {
-    s.status = "Paste failed (graph restored): " + s.status;
+    // The engine's paste refuses before it changes anything; only a refusal
+    // after it applied (joining the open group) had a patch to put back.
+    s.status = (done.ids.empty() ? "Paste failed: " : "Paste failed (graph restored): ") + s.status;
     return;
   }
   select_nodes(s, done.ids);
@@ -104,11 +106,17 @@ void paste_text(Session& s, std::string_view text, std::optional<Vec2> at) {
   s.status = pasted_words(done);
 }
 
+// A cut never deletes what it did not copy: a selected group stays, and
+// Delete is the way to remove one.
 std::string cut_text(Session& s) {
   int skipped = 0;
   const std::vector<std::string> ids = copyable(s, skipped);
   const std::string text = copy_text(s);
-  if (text.empty()) return {};
+  if (text.empty()) {
+    s.status = s.selections.empty() ? "Cut: nothing selected"
+                                     : "Cut: nothing copyable selected (Note/Output/Mixer/groups are v2) — Delete removes a group";
+    return {};
+  }
   const std::string words = s.status;
   delete_these(s, {}, ids);
   for (const auto& id : ids)
