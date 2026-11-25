@@ -40,7 +40,7 @@ namespace {
 std::vector<std::string> drawn_names(const Session& s) {
   CanvasNames names;
   std::vector<std::string> out;
-  for (const auto& n : canvas_table(s.open.patch, s.offered, names).nodes)
+  for (const auto& n : canvas_table(s.open.patch, s.groupPath, s.offered, names).nodes)
     if (n.kind != CanvasNode::Kind::Output) out.push_back(n.name);
   return out;
 }

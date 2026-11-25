@@ -4,6 +4,7 @@
 #include <string>
 #include "mforce/patch/layout.h"
 #include "mforce/ui_control/session.h"
+#include "mforce/ui_views/clipboard.h"
 #include "mforce/ui_views/places.h"
 
 namespace mforce::ui {
@@ -15,8 +16,10 @@ void draw_once_headless(Session& session);
 
 // The views drawn with no window for as long as it lives, with the few acts
 // a test needs: frames (each with the sound card watched on a clock of its
-// own and followed by the requested render, as the program's loop runs it), a click, a key, a click on a transport tab or
-// button by its label, and imnodes' selected wires read and set. One at a
+// own and followed by the requested render, as the program's loop runs it), a click (with Ctrl, or two
+// as a double-click), a key, a click on a thing by its name, and imnodes'
+// selected wires read and set. Its clipboard, and ImGui's own, keep a
+// string. One at a
 // time: it holds the contexts while it lives.
 class HeadlessEditor {
 public:
@@ -39,7 +42,10 @@ public:
   Vec2 piano_origin() const;        // the on-screen piano's top-left corner, from the last frame
   // The mouse as a hand moves it, at a point on screen: it arrives, rests two
   // frames, then each change of a button is a frame of its own.
-  void click_at(Vec2 at);           // the left button down and up
+  void click_at(Vec2 at);           // the left button down and up; two at one point within a third of a second are a double-click
+  void ctrl_click_at(Vec2 at);      // the left button down and up with Ctrl held through it
+  void double_click_at(Vec2 at);    // two clicks at one point, the second within ImGui's double-click time
+  void settle();                    // frames enough that the next click is no double-click
   void right_click_at(Vec2 at);     // the right button down and up
   void mouse_down_at(Vec2 at);      // the left button down, and kept down
   void mouse_up();                  // the left button let go where the mouse is
@@ -52,6 +58,9 @@ public:
   bool click_on(const std::string& name);
   bool right_click_on(const std::string& name);
   bool hover_on(const std::string& name);
+  bool ctrl_click_on(const std::string& name);
+  bool double_click_on(const std::string& name);
+  Clipboard& clipboard();           // the views' clipboard: a string, never the system's
   // A key down for a frame and up, with Shift or Ctrl held through it: "Left",
   // "Right", "Up", "Down", "Home", "End", "=", "-", "0", "Keypad+", "Keypad-",
   // "Delete", "Space", "Enter", or a letter "A" to "Z".

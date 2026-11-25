@@ -35,6 +35,10 @@ void run_pop_out_mouse_tests();
 void run_columns_typed_tests();
 void run_pop_out_window_kept_tests();
 
+void run_select_gesture_tests();
+void run_group_gesture_tests();
+void run_clipboard_gesture_tests();
+void run_wormhole_gesture_tests();
 namespace {
 constexpr mforce::testing::Test kTests[] = {
   {"run_headless_census_tests", run_headless_census_tests},
@@ -70,6 +74,10 @@ constexpr mforce::testing::Test kTests[] = {
   {"run_pop_out_mouse_tests", run_pop_out_mouse_tests},
   {"run_columns_typed_tests", run_columns_typed_tests},
   {"run_pop_out_window_kept_tests", run_pop_out_window_kept_tests},
+  {"run_select_gesture_tests", run_select_gesture_tests},
+  {"run_group_gesture_tests", run_group_gesture_tests},
+  {"run_clipboard_gesture_tests", run_clipboard_gesture_tests},
+  {"run_wormhole_gesture_tests", run_wormhole_gesture_tests},
 };
 }  // namespace
 

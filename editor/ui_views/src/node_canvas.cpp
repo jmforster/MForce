@@ -1,5 +1,5 @@
-// The canvas's frame: the table made, the record shown, the nodes and links
-// drawn, then what the person did carried to ui_control.
+// The canvas's frame: the table made for the level shown, the record shown,
+// the nodes and links drawn, then what the person did carried to ui_control.
 #include "mforce/ui_views/node_canvas.h"
 #include <algorithm>
 #include <optional>
@@ -8,8 +8,7 @@
 #include <imnodes.h>
 #include "mforce/ui_control/building.h"
 #include "mforce/ui_control/edits.h"
-#include "mforce/ui_control/selecting.h"
-#include "mforce/ui_model/canvas_view.h"
+#include "mforce/ui_control/grouping.h"
 #include "canvas_look.h"
 
 namespace mforce::ui {
@@ -30,7 +29,7 @@ bool same_links(const std::vector<CanvasLink>& a, const std::vector<CanvasLink>&
 
 bool mouse_held() { return ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Middle); }
 
-// Where the record places a drawn node; none for one it places nowhere.
+// Where the record places a drawn thing; none for one it places nowhere.
 std::optional<Vec2> record_pos(const Patch& p, const CanvasNode& n) {
   const Layout& l = p.layout;
   if (n.kind == CanvasNode::Kind::Output) return l.outputPos;
@@ -39,15 +38,22 @@ std::optional<Vec2> record_pos(const Patch& p, const CanvasNode& n) {
       if (f.label == n.name) return f.pos;
     return std::nullopt;
   }
+  if (n.kind == CanvasNode::Kind::Group) {
+    for (const auto& g : l.groups)
+      if (g.name == n.name) return g.pos;
+    return std::nullopt;
+  }
   const auto it = l.positions.find(n.name);
   return it == l.positions.end() ? std::nullopt : std::optional<Vec2>(it->second);
 }
 
 }  // namespace
 
-// The record's positions and panning, unless the user is moving them now.
+NodeCanvas::NodeCanvas(Clipboard& clipboard) : clipboard_(clipboard) {}
+
+// The record's positions and the level's panning, unless the user is moving them now.
 void NodeCanvas::show_record(const Session& s, const CanvasTable& t) {
-  shownPanning_ = canvas_panning(s.open.patch);
+  shownPanning_ = shown_panning(s);
   if (gesture_) return;
   ImNodes::EditorContextResetPanning(im(shownPanning_));
   for (const auto& n : t.nodes)
@@ -79,20 +85,15 @@ void NodeCanvas::carry_moves(Session& s, const CanvasTable& t) {
   gesture_ = held && (moved || gesture_);
 }
 
-// A click on a node or face selects it, on the Output node or the empty
-// canvas selects nothing; the record's selection is what imnodes shows,
-// except while the left button is down: imnodes drags what it holds selected,
-// and that is how the Output node, which the record never selects, is moved.
-void NodeCanvas::carry_selection(Session& s, const CanvasTable& t) {
-  if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && overCanvas_) {
-    int hovered = -1;
-    const CanvasNode* n = ImNodes::IsNodeHovered(&hovered) ? t.node(hovered) : nullptr;
-    select_node(s, n ? n->name : std::string());
+// Each drawn thing's box, by its kind's name.
+void NodeCanvas::note_places(const CanvasTable& t) {
+  for (const auto& n : t.nodes) {
+    const ImVec2 lo = ImNodes::GetNodeScreenSpacePos(n.id), size = ImNodes::GetNodeDimensions(n.id);
+    const std::string name = n.kind == CanvasNode::Kind::Group    ? "group:" + n.name
+                             : n.kind == CanvasNode::Kind::Output ? std::string("node:(Output)")
+                                                                  : "node:" + n.name;
+    places_.note(name, Area{vec(lo), Vec2{lo.x + size.x, lo.y + size.y}});
   }
-  if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) return;
-  ImNodes::ClearNodeSelection();
-  for (const auto& n : t.nodes)
-    if (!selected_one(s).empty() && n.name == selected_one(s)) ImNodes::SelectNode(n.id);
 }
 
 void NodeCanvas::draw(Session& s) {
@@ -103,7 +104,7 @@ void NodeCanvas::draw(Session& s) {
     seenOpened_ = s.opened;
     ImNodes::ClearLinkSelection();
   }
-  const CanvasTable table = canvas_table(s.open.patch, s.offered, names_);
+  const CanvasTable table = canvas_table(s.open.patch, s.groupPath, s.offered, names_);
   if (!same_links(table.links, drawnLinks_)) ImNodes::ClearLinkSelection();   // a selected slot may now be another wire
   drawnLinks_ = table.links;
   origin_ = vec(ImGui::GetCursorScreenPos());
@@ -114,13 +115,17 @@ void NodeCanvas::draw(Session& s) {
   overCanvas_ = ImGui::IsWindowHovered();
   show_record(s, table);
   draw_nodes(s, table);
+  draw_ghosts(s, table);
   draw_links(table);
   ImNodes::MiniMap(kMiniMapShare, ImNodesMiniMapLocation_BottomRight);
   ImNodes::EndNodeEditor();
-  open_menus(table);
+  note_places(table);
+  wormhole_tooltip(s, table);
+  open_menus(s, table);
   carry_wiring(s, table);
   carry_moves(s, table);
   carry_selection(s, table);
+  carry_double_click(s, table);
   carry_keys(s, table);
   carry_wheel(s);
   draw_menus(s);

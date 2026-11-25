@@ -64,6 +64,13 @@ std::vector<std::string> group_outputs(const Patch& patch, const std::vector<std
 // then the faces, then the groups, whose holder is the last name of `path`
 // (none: the top).
 std::vector<std::string> shown_at(const Patch& patch, const std::vector<std::string>& path);
+// What stands for `thing` (a node, a face, a group) at the level `path`:
+// itself when it is shown there (a face's node: its face), else the
+// shown group that holds it; empty when nothing shown there stands for it.
+std::string shown_for(const Patch& patch, const std::vector<std::string>& path, std::string_view thing);
+// A Wormhole's twin: the first Wormhole it feeds, else the first that feeds
+// it; empty when it has none.
+std::string wormhole_twin(const Patch& patch, std::string_view node);
 // How long a prefix of `path` still names a level: each entry a group, the
 // first held by none, each later one held by the one before it.
 std::size_t valid_depth(const Patch& patch, const std::vector<std::string>& path);

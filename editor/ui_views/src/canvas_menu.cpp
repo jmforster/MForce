@@ -1,24 +1,24 @@
-// The canvas's menus: the create menu, opened by a right click on empty
-// canvas at the mouse, holding create_menu()'s; and a node's or a Note's own
-// menu, opened by a right click on it, holding Delete and, on a node, Listen.
+// The canvas's menus: a right click let go over a thing opens its menu
+// (canvas_thing_menu.cpp), over a wire routes it through a pair of
+// Wormholes, over empty canvas opens the create menu: Paste, then
+// create_menu()'s.
 #include <cstddef>
 #include <string>
 #include <vector>
 #include <imgui.h>
 #include <imnodes.h>
 #include "mforce/ui_control/building.h"
-#include "mforce/ui_control/listening.h"
+#include "mforce/ui_control/clipboard.h"
+#include "mforce/ui_control/selecting.h"
 #include "mforce/ui_views/node_canvas.h"
 #include "canvas_look.h"
+#include "canvas_popups.h"
 
 namespace mforce::ui {
 
 using namespace canvas_look;   // the canvas's colours and conversions by their short names
 
 namespace {
-
-constexpr const char* kPopup = "create";
-constexpr const char* kNodePopup = "node";
 
 // A family's items as a submenu; the type chosen, or none.
 const CreateItem* family_menu(const CreateFamily& f) {
@@ -31,6 +31,10 @@ const CreateItem* family_menu(const CreateFamily& f) {
   return chosen;
 }
 
+}  // namespace
+
+namespace canvas_popups {
+
 const CreateItem* families_menu(const std::vector<CreateFamily>& families) {
   const CreateItem* chosen = nullptr;
   for (const auto& f : families)
@@ -38,48 +42,44 @@ const CreateItem* families_menu(const std::vector<CreateFamily>& families) {
   return chosen;
 }
 
-}  // namespace
+}  // namespace canvas_popups
 
-// A right click let go over a node or a Note opens its menu (never the
-// Output node's); over empty canvas, the create menu, its point kept in the
-// record's coordinates: the screen point less the canvas's origin and its
-// panning.
-void NodeCanvas::open_menus(const CanvasTable& t) {
+// A right click let go over a thing (never the Output node) opens its menu,
+// the thing alone selected first when it is not selected; over a wire, the
+// wire is routed through wormholes at once; over empty canvas, the create
+// menu, its point kept in the record's coordinates: the screen point less
+// the canvas's origin and its panning.
+void NodeCanvas::open_menus(Session& s, const CanvasTable& t) {
   if (!overCanvas_ || !ImGui::IsMouseReleased(ImGuiMouseButton_Right)) return;
   int hovered = -1;
   if (ImNodes::IsNodeHovered(&hovered)) {
     const CanvasNode* n = t.node(hovered);
     if (!n || n->kind == CanvasNode::Kind::Output) return;
     menuNode_ = n->name;
-    menuFace_ = n->kind == CanvasNode::Kind::Face;
-    ImGui::OpenPopup(kNodePopup);
+    menuKind_ = n->kind;
+    bool chosen = false;
+    for (const auto& name : s.selections) chosen = chosen || name == n->name;
+    if (!chosen) select_node(s, n->name);
+    ImGui::OpenPopup(n->kind == CanvasNode::Kind::Group ? canvas_popups::kGroup : canvas_popups::kThing);
     return;
   }
-  if (ImNodes::IsLinkHovered(&hovered) || ImNodes::IsPinHovered(&hovered)) return;
+  if (ImNodes::IsLinkHovered(&hovered)) {
+    if (const CanvasLink* l = t.link(hovered)) route_wire(s, l->reader, l->feed);
+    return;
+  }
+  if (ImNodes::IsPinHovered(&hovered)) return;
   const ImVec2 mouse = ImGui::GetMousePos();
   const Vec2 panning = vec(ImNodes::EditorContextGetPanning());
   menuAt_ = Vec2{mouse.x - origin_.x - panning.x, mouse.y - origin_.y - panning.y};
-  ImGui::OpenPopup(kPopup);
+  ImGui::OpenPopup(canvas_popups::kCreate);
 }
 
-void NodeCanvas::draw_menus(Session& s) {
-  if (ImGui::BeginPopup(kNodePopup)) {
-    const bool remove = ImGui::MenuItem("Delete");
-    places_.note_item("menu:Delete");
-    bool listen = false;
-    const bool tapped = s.listening == menuNode_;
-    if (!menuFace_) {
-      ImGui::Separator();
-      const char* words = tapped ? "Stop listening here" : "Listen here";
-      listen = ImGui::MenuItem(words);
-      places_.note_item(std::string("menu:") + words);
-    }
-    ImGui::EndPopup();
-    if (remove) delete_these(s, {}, {menuNode_});
-    else if (listen && tapped) stop_listening(s);
-    else if (listen) listen_at(s, menuNode_);
-  }
-  if (!ImGui::BeginPopup(kPopup)) return;
+// The create menu: Paste (at the click), then the favourites, the families
+// and the Experimental shelf.
+void NodeCanvas::create_items(Session& s) {
+  const bool paste = ImGui::MenuItem("Paste", "Ctrl+V");
+  places_.note_item("menu:Paste");
+  ImGui::Separator();
   const CreateItem* chosen = nullptr;
   for (size_t k = 0; k < menu_.favourites.size(); ++k) {
     if (k == 1) ImGui::Separator();
@@ -88,18 +88,24 @@ void NodeCanvas::draw_menus(Session& s) {
     places_.note_item("menu:" + item.label);
   }
   ImGui::Separator();
-  if (const CreateItem* c = families_menu(menu_.main)) chosen = c;
+  if (const CreateItem* c = canvas_popups::families_menu(menu_.main)) chosen = c;
   if (!menu_.experimental.empty()) {
     ImGui::Separator();
     if (ImGui::BeginMenu("Experimental")) {
-      if (const CreateItem* c = families_menu(menu_.experimental)) chosen = c;
+      if (const CreateItem* c = canvas_popups::families_menu(menu_.experimental)) chosen = c;
       ImGui::EndMenu();
     }
   }
   ImGui::EndPopup();
-  if (!chosen) return;
-  if (chosen->type.empty()) create_note(s, menuAt_);
-  else create_node(s, chosen->type, menuAt_);
+  if (paste) paste_text(s, clipboard_.text(), menuAt_);
+  else if (chosen && chosen->type.empty()) create_note(s, menuAt_);
+  else if (chosen) create_node(s, chosen->type, menuAt_);
+}
+
+void NodeCanvas::draw_menus(Session& s) {
+  if (ImGui::BeginPopup(canvas_popups::kThing)) thing_menu(s);
+  if (ImGui::BeginPopup(canvas_popups::kGroup)) group_menu(s);
+  if (ImGui::BeginPopup(canvas_popups::kCreate)) create_items(s);
 }
 
 }  // namespace mforce::ui

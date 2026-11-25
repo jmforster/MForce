@@ -1,13 +1,14 @@
 // mforce_editor, the patch editor.
 //
-//   mforce_editor [patch.json] [--frames N] [--shot FILE] [--select NAME] [--tab NAME]
+//   mforce_editor [patch.json] [--frames N] [--shot FILE] [--select NAME[,NAME...]] [--tab NAME]
 //                 [--generate] [--pane NAME] [--columns N] [--popout NAME] [--collapse] [--listen NAME]
+//                 [--group NAME]
 //
 // Run from the repository root. A patch named is opened at start; with none,
-// a new patch is shown, as File > New gives. --select NAME selects that node
-// or face before the first frame, and --tab NAME (note, passage, chords,
-// drums) the transport tab shown (both for pictures); the rest set up the
-// pane for a picture (options.h). --frames N
+// a new patch is shown, as File > New gives. --group NAME goes into that
+// group, --select NAME,... selects those things before the first frame,
+// and --tab NAME (note, passage, chords, drums) is the transport tab shown
+// (all for pictures); the rest set up the pane for a picture (options.h). --frames N
 // draws N frames and exits with 0, writing nothing but the --shot picture of
 // the last frame. A failure is shown in a message box ("could not start"
 // before the window is up, "stopped" after) and the exit code is 1.
@@ -19,6 +20,7 @@
 #include "error_box.h"
 #include "options.h"
 #include "settings_folder.h"
+#include "system_clipboard.h"
 #include "win32_file_dialogs.h"
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
@@ -43,12 +45,13 @@ int main(int argc, char** argv) {
     if (!files.recentFiles.empty()) session.recent = read_recent_files(files.recentFiles);
     if (options.patch.empty()) new_file(session);
     else open_file(session, options.patch);
-    if (!options.select.empty()) select_node(session, options.select);
     if (!options.tab.empty()) set_transport(session, with_tab(session.transport, options.tab));
   apply_picture_options(session, options);
+    if (!options.select.empty()) select_nodes(session, selected_names(options.select));
     FolderMemory folders = files.folders.empty() ? FolderMemory{} : read_folder_memory(files.folders);
     Win32FileDialogs dialogs(folders);
-    EditorViews views(dialogs);
+    SystemClipboard clipboard;
+    EditorViews views(dialogs, clipboard);
     run(window, session, views, options);
     if (!files.recentFiles.empty()) write_recent_files(session.recent, files.recentFiles);
     if (!files.folders.empty()) write_folder_memory(folders, files.folders);

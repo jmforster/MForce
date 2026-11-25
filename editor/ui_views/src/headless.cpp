@@ -24,11 +24,27 @@ public:
   std::string pick_save(FileKind, const std::string&) override { return {}; }
 };
 
+// ImGui's own clipboard, for a text field's Ctrl+C and Ctrl+V: a string the
+// contexts keep, never the system's.
+void keep_clipboard(std::string& kept) {
+  ImGuiPlatformIO& platform = ImGui::GetPlatformIO();
+  platform.Platform_ClipboardUserData = &kept;
+  // Captureless lambdas: plain function pointers, as C#'s static delegates.
+  platform.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) {
+    *static_cast<std::string*>(ImGui::GetPlatformIO().Platform_ClipboardUserData) = text ? text : "";
+  };
+  platform.Platform_GetClipboardTextFn = [](ImGuiContext*) -> const char* {
+    return static_cast<std::string*>(ImGui::GetPlatformIO().Platform_ClipboardUserData)->c_str();
+  };
+}
+
 // The two contexts, made by the constructor and destroyed by the destructor
 // however the drawing ends.
 struct Contexts {
   ImGuiContext* gui;
+  std::string clipboard;                           // ImGui's own clipboard text (keep_clipboard)
   Contexts() : gui(ImGui::CreateContext()) {
+    keep_clipboard(clipboard);
     ImNodes::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
@@ -59,12 +75,25 @@ ImGuiKey key_named(const std::string& key) {
   throw std::invalid_argument("press_key: no key named " + key);
 }
 
+// The views' clipboard: the string ImGui's own clipboard keeps, so a copy
+// on the canvas and a text field's Ctrl+V meet, as on the system's.
+class KeptClipboard final : public Clipboard {
+public:
+  explicit KeptClipboard(std::string& kept) : kept_(kept) {}
+  std::string text() override { return kept_; }
+  void set_text(const std::string& text) override { kept_ = text; }
+
+private:
+  std::string& kept_;
+};
+
 }  // namespace
 
 struct HeadlessEditor::Parts {
   Contexts contexts;
   CancelledDialogs dialogs;
-  EditorViews views{dialogs};
+  KeptClipboard clipboard{contexts.clipboard};
+  EditorViews views{dialogs, clipboard};
 };
 
 HeadlessEditor::HeadlessEditor(Session& session) : parts_(std::make_unique<Parts>()), session_(session) {}
@@ -151,6 +180,24 @@ void HeadlessEditor::click_at(Vec2 at) {
   click_button(ImGuiMouseButton_Left);
 }
 
+void HeadlessEditor::ctrl_click_at(Vec2 at) {
+  hover(at);
+  ImGuiIO& io = ImGui::GetIO();
+  io.AddKeyEvent(ImGuiMod_Ctrl, true);
+  frames(1);
+  click_button(ImGuiMouseButton_Left);
+  io.AddKeyEvent(ImGuiMod_Ctrl, false);
+  frames(1);
+}
+
+void HeadlessEditor::double_click_at(Vec2 at) {
+  click_at(at);
+  click_at(at);
+}
+
+// ImGui's double-click time is 0.30 s: twenty frames are a third of a second.
+void HeadlessEditor::settle() { frames(20); }
+
 void HeadlessEditor::right_click_at(Vec2 at) {
   hover(at);
   click_button(ImGuiMouseButton_Right);
@@ -204,6 +251,22 @@ bool HeadlessEditor::right_click_on(const std::string& name) {
   return true;
 }
 
+bool HeadlessEditor::ctrl_click_on(const std::string& name) {
+  const auto a = area(name);
+  if (!a) return false;
+  ctrl_click_at(a->centre());
+  return true;
+}
+
+bool HeadlessEditor::double_click_on(const std::string& name) {
+  const auto a = area(name);
+  if (!a) return false;
+  double_click_at(a->centre());
+  return true;
+}
+
+Clipboard& HeadlessEditor::clipboard() { return parts_->clipboard; }
+
 bool HeadlessEditor::hover_on(const std::string& name) {
   const auto a = area(name);
   if (!a) return false;
@@ -242,7 +305,9 @@ int HeadlessEditor::selected_links() const { return ImNodes::NumSelectedLinks();
 void draw_once_headless(Session& session) {
   const Contexts contexts;
   CancelledDialogs dialogs;
-  EditorViews views(dialogs);
+  std::string kept;
+  KeptClipboard clipboard(kept);
+  EditorViews views(dialogs, clipboard);
   for (int frame = 0; frame < kFrames; ++frame) {
     ImGui::NewFrame();
     views.draw(session);

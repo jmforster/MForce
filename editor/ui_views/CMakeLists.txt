@@ -1,9 +1,13 @@
 mforce_module(ui_views
   SOURCES src/bottom_pane.cpp
+          src/breadcrumb.cpp
           src/canvas_gestures.cpp
           src/canvas_menu.cpp
           src/canvas_nodes.cpp
+          src/canvas_select.cpp
           src/canvas_table.cpp
+          src/canvas_thing_menu.cpp
+          src/canvas_wormholes.cpp
           src/create_menu.cpp
           src/editor_views.cpp
           src/headless.cpp
@@ -36,4 +40,8 @@ mforce_tests(ui_views
           tests/strip_gesture_tests.cpp
           tests/listen_menu_tests.cpp
           tests/strip_limit_tests.cpp
-          tests/pop_out_gesture_tests.cpp)
+          tests/pop_out_gesture_tests.cpp
+          tests/select_gesture_tests.cpp
+          tests/group_gesture_tests.cpp
+          tests/clipboard_gesture_tests.cpp
+          tests/wormhole_gesture_tests.cpp)

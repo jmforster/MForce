@@ -4,6 +4,7 @@
 #include <imgui.h>
 #include "mforce/ui_control/building.h"
 #include "mforce/ui_control/edits.h"
+#include "mforce/ui_control/grouping.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_model/canvas_view.h"
 
@@ -15,7 +16,7 @@ constexpr float kPanStep = 100.0f;                 // the pan buttons' step
 constexpr float kRightPart = 330.0f;               // room for the counts and the buttons
 
 void pan_by(Session& s, float x, float y) {
-  const Vec2 p = canvas_panning(s.open.patch);
+  const Vec2 p = shown_panning(s);
   pan_canvas(s, Vec2{p.x + x, p.y + y});
 }
 

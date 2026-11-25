@@ -1,7 +1,12 @@
 #include "mforce/ui_views/menu_bar.h"
+#include <exception>
 #include <filesystem>
+#include <optional>
+#include <string>
 #include <imgui.h>
+#include "mforce/patch/fragment_text.h"
 #include "mforce/ui_control/building.h"
+#include "mforce/ui_control/clipboard.h"
 #include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/files.h"
 #include "mforce/ui_control/generating.h"
@@ -19,7 +24,7 @@ bool shortcut(ImGuiKeyChord keys) { return ImGui::Shortcut(keys, ImGuiInputFlags
 
 }  // namespace
 
-MenuBar::MenuBar(FileDialogs& dialogs) : dialogs_(dialogs) {}
+MenuBar::MenuBar(FileDialogs& dialogs, Clipboard& clipboard) : dialogs_(dialogs), clipboard_(clipboard) {}
 
 void MenuBar::open(Session& s) {
   const std::string path = dialogs_.pick_open(FileKind::Patch);
@@ -44,8 +49,36 @@ void MenuBar::shortcuts(Session& s) {
   if (ImGui::GetIO().WantTextInput) return;
   if (shortcut(ImGuiMod_Ctrl | ImGuiKey_Z)) undo(s);
   if (shortcut(ImGuiMod_Ctrl | ImGuiKey_Y)) redo(s);
+  if (shortcut(ImGuiMod_Ctrl | ImGuiKey_X))
+    if (const std::string text = cut_text(s); !text.empty()) clipboard_.set_text(text);
+  if (shortcut(ImGuiMod_Ctrl | ImGuiKey_C))
+    if (const std::string text = copy_text(s); !text.empty()) clipboard_.set_text(text);
+  if (shortcut(ImGuiMod_Ctrl | ImGuiKey_V)) paste_text(s, clipboard_.text(), std::nullopt);
   if (shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_A)) restart_audio(s, "by hand");
   if (ImGui::IsKeyPressed(ImGuiKey_Space, false)) play_or_stop(s);
+}
+
+// Cut and Copy with something selected; Paste with a fragment on the clipboard.
+void MenuBar::clipboard_items(Session& s) {
+  const bool any = !s.selections.empty();
+  const bool cut = ImGui::MenuItem("Cut", "Ctrl+X", false, any);
+  places_.note_item("menu:Cut");
+  const bool copy = ImGui::MenuItem("Copy", "Ctrl+C", false, any);
+  places_.note_item("menu:Copy");
+  const std::string held = clipboard_.text();
+  bool fragment = !held.empty();
+  try {
+    if (fragment) (void)fragment_from_text(held);
+  } catch (const std::exception&) {
+    fragment = false;
+  }
+  const bool paste = ImGui::MenuItem("Paste", "Ctrl+V", false, fragment);
+  places_.note_item("menu:Paste");
+  if (cut)
+    if (const std::string text = cut_text(s); !text.empty()) clipboard_.set_text(text);
+  if (copy)
+    if (const std::string text = copy_text(s); !text.empty()) clipboard_.set_text(text);
+  if (paste) paste_text(s, held, std::nullopt);
 }
 
 void MenuBar::play_or_stop(Session& s) {
@@ -87,6 +120,8 @@ void MenuBar::draw(Session& s) {
   if (edit) {
     if (ImGui::MenuItem("Undo", "Ctrl+Z", false, !s.open.history.past.empty())) undo(s);
     if (ImGui::MenuItem("Redo", "Ctrl+Y", false, !s.open.history.future.empty())) redo(s);
+    ImGui::Separator();
+    clipboard_items(s);
     ImGui::Separator();
     if (ImGui::MenuItem("Restart audio", "Ctrl+Shift+A")) restart_audio(s, "by hand");
     places_.note_item("menu:Restart audio");

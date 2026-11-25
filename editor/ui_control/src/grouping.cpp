@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 #include "mforce/patch/edit.h"
+#include "mforce/ui_control/edits.h"
 #include "mforce/ui_control/listening.h"
 #include "mforce/ui_control/playing.h"
 #include "mforce/ui_control/selecting.h"
@@ -150,6 +151,24 @@ void go_up(Session& s, std::size_t depth) {
   if (depth >= s.groupPath.size()) return;
   std::vector<std::string> to(s.groupPath.begin(), s.groupPath.begin() + std::ptrdiff_t(depth));
   if (level::set_path(s, std::move(to))) sound_follows(s);
+}
+
+void go_to(Session& s, std::string_view thing, std::optional<Vec2> canvasSize) {
+  const Patch& p = s.open.patch;
+  if (!has_node(p, thing) && !has_face(p, thing) && !has_group(p, thing)) {
+    s.status = "'" + std::string(thing) + "' names nothing to go to";
+    return;
+  }
+  std::string shown(thing);
+  for (const auto& f : p.layout.faces)
+    for (const auto& [field, id] : f.fields)
+      if (id == thing) shown = f.label;
+  if (level::set_path(s, path_to(p, shown))) sound_follows(s);
+  select_node(s, shown);
+  const auto at = level::place_of(s.open.patch, shown);
+  if (!canvasSize || !at) return;
+  const Vec2 centred{canvasSize->x * 0.5f - at->x, canvasSize->y * 0.5f - at->y};
+  pan_canvas(s, centred);
 }
 
 void listen_at_group(Session& s, std::string_view group) {

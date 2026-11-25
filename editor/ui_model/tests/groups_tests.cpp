@@ -94,6 +94,18 @@ void run_paths() {
   CHECK(valid_depth(p, {"Outer", "Inner"}) == 2 && valid_depth(p, {"Inner"}) == 0);
   CHECK(valid_depth(p, {"Outer", "nope"}) == 1);
   CHECK(nodes_under(p, "Outer") == (Names{"a", "d"}));
+  CHECK(shown_for(p, {}, "a") == "Outer" && shown_for(p, {"Outer"}, "a") == "Inner");
+  CHECK(shown_for(p, {"Outer", "Inner"}, "a") == "a" && shown_for(p, {"Outer"}, "c").empty());
+  CHECK(shown_for(p, {}, "c") == "c");
+  Node w1;
+  w1.id = "w1";
+  w1.type = "Wormhole";
+  w1.wires["source"] = {Wire{"a"}};
+  Node w2 = w1;
+  w2.id = "w2";
+  w2.wires["source"] = {Wire{"w1"}};
+  p.graph.nodes.insert(p.graph.nodes.end(), {w1, w2});
+  CHECK(wormhole_twin(p, "w1") == "w2" && wormhole_twin(p, "w2") == "w1" && wormhole_twin(p, "a").empty());
 }
 
 }  // namespace

@@ -210,6 +210,24 @@ void run_oboe1_grouping() {
   CHECK(s.open.patch == before);
 }
 
+// Going to a thing's level from anywhere; a group moved like a node.
+void run_go_to() {
+  Session s;
+  start_grouped(s);
+  select_node(s, "env");
+  group_selection(s);                                         // Group2 {env} at the top, beside Group {osc}
+  edit_position(s, "Group2", Vec2{7, 8});
+  CHECK(group_of(s, "Group2")->pos == (Vec2{7, 8}));
+  go_to(s, "osc", Vec2{400, 300});
+  CHECK(s.groupPath == (Names{"Group"}) && s.selections == (Names{"osc"}) && s.levelPanning == (Vec2{200, 150}));
+  go_to(s, "Note1", std::nullopt);
+  CHECK(s.groupPath.empty() && s.selections == (Names{"Note1"}));
+  go_to(s, "__perf_frequency", std::nullopt);                // a face's node: its face
+  CHECK(s.selections == (Names{"Note1"}));
+  go_to(s, "nope", std::nullopt);
+  CHECK(s.status == "'nope' names nothing to go to");
+}
+
 }  // namespace
 
 void run_selection_tests() {
@@ -225,4 +243,5 @@ void run_grouping_tests() {
   run_rename_and_delete_group();
   run_paths();
   run_oboe1_grouping();
+  run_go_to();
 }

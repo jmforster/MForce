@@ -17,7 +17,8 @@ constexpr ImGuiWindowFlags kMainFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindo
 
 }  // namespace
 
-EditorViews::EditorViews(FileDialogs& dialogs) : menu_(dialogs), transport_(dialogs), prompt_(dialogs) {}
+EditorViews::EditorViews(FileDialogs& dialogs, Clipboard& clipboard)
+    : menu_(dialogs, clipboard), transport_(dialogs), canvas_(clipboard), prompt_(dialogs) {}
 
 EditorViews::~EditorViews() = default;
 
@@ -25,6 +26,8 @@ std::optional<Area> EditorViews::area(const std::string& name) const {
   if (auto c = transport_.centre_of(name)) return Area{*c, *c};
   if (auto a = menu_.places().area(name)) return a;
   if (auto a = canvas_.places().area(name)) return a;
+  if (auto a = breadcrumb_.places().area(name)) return a;
+  if (auto a = properties_.places().area(name)) return a;
   return pane_.area(name);
 }
 
@@ -45,6 +48,7 @@ void EditorViews::draw(Session& session) {
   const float paneHeight = BottomPane::height(session, view->WorkSize.y - ImGui::GetFrameHeight());
   const float upper = room.y - paneHeight - kStatusHeight - 2.0f * spacing;
   ImGui::BeginChild("canvas", ImVec2(room.x - kPanelWidth, upper), ImGuiChildFlags_Borders);
+  if (Breadcrumb::shown(session)) breadcrumb_.draw(session);
   canvas_.draw(session);
   ImGui::EndChild();
   ImGui::SameLine();

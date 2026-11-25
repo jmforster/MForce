@@ -56,9 +56,9 @@ void run_canvas_selection_tests() {
   editor.frames(3);
   editor.click_canvas_corner();                           // the canvas takes the keyboard
   CanvasNames names;
-  (void)canvas_table(s.open.patch, s.offered, names);     // the same names the canvas gave
+  (void)canvas_table(s.open.patch, s.groupPath, s.offered, names);     // the same names the canvas gave
   int second = -1;
-  for (const auto& l : canvas_table(s.open.patch, s.offered, names).links)
+  for (const auto& l : canvas_table(s.open.patch, s.groupPath, s.offered, names).links)
     if (l.reader.node == "l" && l.feed == 1) second = l.id;
   REQUIRE(second > 0);
   editor.select_link(second);
@@ -104,7 +104,7 @@ void run_pin_tooltip_tests() {
   (void)feed_setting(p, "env", "timeScale", "lfo3");
   CanvasNames names;
   std::set<std::pair<std::string, std::string>> offered;
-  const CanvasTable t = canvas_table(p, offered, names);
+  const CanvasTable t = canvas_table(p, {}, offered, names);
   bool seen = false;
   for (const auto& n : t.nodes)
     for (const auto& pin : n.inputs) {

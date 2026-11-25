@@ -3,11 +3,15 @@
 #include "mforce/ui_views/properties_panel.h"
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <optional>
+#include <string>
 #include <set>
 #include <imgui.h>
 #include <imgui_stdlib.h>
 #include "mforce/ui_control/building.h"
 #include "mforce/ui_control/edits.h"
+#include "mforce/ui_control/grouping.h"
 #include "mforce/ui_control/selecting.h"
 
 namespace mforce::ui {
@@ -32,6 +36,13 @@ std::set<std::string> face_nodes(const Patch& p) {
     for (const auto& [field, id] : f.fields) ids.insert(id);
   return ids;
 }
+
+constexpr ImVec4 kGroupName(0.75f, 0.6f, 0.9f, 1.0f);   // a group's name: lavender
+constexpr ImVec4 kGroupWord(0.5f, 0.5f, 0.5f, 1.0f);
+constexpr ImVec4 kRefusal(0.9f, 0.4f, 0.4f, 1.0f);
+constexpr ImVec4 kMembersWord(0.7f, 0.7f, 0.7f, 1.0f);
+constexpr float kGroupFieldWidth = 180.0f;
+constexpr std::size_t kGroupNameLimit = 63;        // a name of at most 63 characters
 
 // A drag's speed: a two-hundredth of the range, or of the number's size.
 float speed_for(float lo, float hi, float v) {
@@ -84,24 +95,63 @@ bool PropertiesPanel::number_field(const char* label, const std::string& key, fl
 // then the faces. A thing another hides on the canvas can be chosen here.
 void PropertiesPanel::choose_node(Session& s) {
   const Patch& p = s.open.patch;
-  const Node* n = node_named(p, selected_one(s));
-  const NoteFace* f = face_named(p, selected_one(s));
-  const std::string shown = n ? n->id + "  (" + n->type + ")" : f ? f->label + "  (Note)" : std::string("(nothing)");
+  const std::string& one = selected_one(s);
+  const Node* n = node_named(p, one);
+  const NoteFace* f = face_named(p, one);
+  const std::string shown = n ? n->id + "  (" + n->type + ")" : f ? f->label + "  (Note)" : !one.empty() ? one + "  (Group)"
+                                                                                                          : std::string("(nothing)");
   if (!ImGui::BeginCombo("node", shown.c_str())) return;
-  if (ImGui::Selectable("(nothing)", selected_one(s).empty())) select_node(s, "");
+  std::string chosen;
+  bool none = ImGui::Selectable("(nothing)", one.empty());
   const std::set<std::string> named = face_nodes(p);
   for (const auto& node : p.graph.nodes)
-    if (!named.count(node.id) && ImGui::Selectable((node.id + "  (" + node.type + ")").c_str(), node.id == selected_one(s)))
-      select_node(s, node.id);
+    if (!named.count(node.id) && ImGui::Selectable((node.id + "  (" + node.type + ")").c_str(), node.id == one))
+      chosen = node.id;
   for (const auto& face : p.layout.faces)
-    if (ImGui::Selectable((face.label + "  (Note)").c_str(), face.label == selected_one(s))) select_node(s, face.label);
+    if (ImGui::Selectable((face.label + "  (Note)").c_str(), face.label == one)) chosen = face.label;
+  for (const auto& group : p.layout.groups)
+    if (ImGui::Selectable((group.name + "  (Group)").c_str(), group.name == one)) chosen = group.name;
   ImGui::EndCombo();
+  if (none) select_node(s, "");
+  else if (!chosen.empty()) go_to(s, chosen, std::nullopt);
+}
+
+// A group: its name, a field to rename it (on Enter, the refusal under it),
+// and its members.
+void PropertiesPanel::group_panel(Session& s, const Group& group) {
+  ImGui::TextColored(kGroupName, "%s", group.name.c_str());
+  ImGui::SameLine();
+  ImGui::TextColored(kGroupWord, "(Group)");
+  if (groupTyped_ != group.name) {
+    groupTyped_ = group.name;
+    groupText_ = group.name;
+    groupRefused_.clear();
+  }
+  ImGui::SetNextItemWidth(kGroupFieldWidth);
+  const bool entered = ImGui::InputText("##groupName", &groupText_, ImGuiInputTextFlags_EnterReturnsTrue);
+  places_.note_item("field:group name");
+  if (entered) {
+    rename(s, group.name, groupText_.substr(0, kGroupNameLimit));
+    const bool kept = std::any_of(s.open.patch.layout.groups.begin(), s.open.patch.layout.groups.end(),
+                                  [&](const Group& g) { return g.name == group.name; });
+    groupRefused_ = kept && groupText_ != group.name ? s.status : std::string();
+  }
+  if (!groupRefused_.empty()) ImGui::TextColored(kRefusal, "%s", groupRefused_.c_str());
+  ImGui::Separator();
+  ImGui::TextColored(kMembersWord, "Members");
+  for (const auto& m : group.members) {
+    const bool nested = std::any_of(s.open.patch.layout.groups.begin(), s.open.patch.layout.groups.end(),
+                                    [&](const Group& g) { return g.name == m; });
+    ImGui::BulletText("%s%s", m.c_str(), nested ? "  (group)" : "");
+  }
 }
 
 // The name of the node or face selected: typed, then renamed by the editor's rules.
 void PropertiesPanel::name_field(Session& s, const std::string& name) {
   std::string to;
-  if (text_field("name", "name/" + name, name, to) && to != name) rename(s, name, to);
+  const bool applied = text_field("name", "name/" + name, name, to);
+  places_.note_item("field:name");
+  if (applied && to != name) rename(s, name, to);
 }
 
 // A face: its name, and each of the note's fields with the node that reads it.
@@ -121,6 +171,7 @@ void PropertiesPanel::face_panel(Session& s, const NoteFace& face) {
 }
 
 void PropertiesPanel::draw(Session& s) {
+  places_.clear();
   if (seenOpened_ != s.opened) {                    // another patch: nothing in flight belongs to it
     draggedKey_.clear();
     typedKey_.clear();
@@ -128,6 +179,16 @@ void PropertiesPanel::draw(Session& s) {
   }
   if (!s.open.patch.graph.nodes.empty() || !s.open.patch.layout.faces.empty()) choose_node(s);
   // An edit below may change the patch; each part copies what it names first.
+  if (s.selections.size() > 1) {
+    ImGui::Text("%d selected", int(s.selections.size()));
+    return;
+  }
+  for (const auto& g : s.open.patch.layout.groups)
+    if (g.name == selected_one(s)) {
+      const Group group = g;
+      group_panel(s, group);
+      return;
+    }
   if (const Node* n = node_named(s.open.patch, selected_one(s))) {
     const Node node = *n;
     node_panel(s, node);

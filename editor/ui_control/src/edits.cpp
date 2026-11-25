@@ -37,6 +37,7 @@ void edit_string(Session& s, std::string_view node, std::string_view name, std::
 
 void edit_position(Session& s, std::string_view nodeOrFace, Vec2 pos) {
   (void)step(s, kMove, [&](Patch& p) {
+    if (has_group(p, nodeOrFace)) return move_group(p, nodeOrFace, pos);
     return has_face(p, nodeOrFace) ? move_face(p, nodeOrFace, pos) : move_node(p, nodeOrFace, pos);
   });
 }

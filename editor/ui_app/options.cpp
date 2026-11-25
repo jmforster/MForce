@@ -1,6 +1,10 @@
 #include "options.h"
+#include <algorithm>
+#include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include "mforce/ui_control/generating.h"
+#include "mforce/ui_control/grouping.h"
 #include "mforce/ui_control/listening.h"
 #include "mforce/ui_control/pane.h"
 #include "mforce/ui_control/waveforms.h"
@@ -11,7 +15,8 @@ namespace {
 
 const char* const kUsage =
     "usage: mforce_editor [patch.json] [--frames N] [--shot FILE] [--select NAME] [--tab note|passage|chords|drums]"
-    " [--generate] [--pane waveforms|spectrum|keyboard] [--columns N] [--popout NAME] [--collapse] [--listen NAME]";
+    " [--generate] [--pane waveforms|spectrum|keyboard] [--columns N] [--popout NAME] [--collapse] [--listen NAME]"
+    " [--group NAME]";
 
 int frame_count(const std::string& text) {
   try {
@@ -39,6 +44,7 @@ Options read_options(int argc, char** argv) {
     else if (arg == "--popout" && hasValue) o.popout = argv[++i];
     else if (arg == "--collapse") o.collapse = true;
     else if (arg == "--listen" && hasValue) o.listen = argv[++i];
+    else if (arg == "--group" && hasValue) o.group = argv[++i];
     else if (!arg.empty() && arg[0] != '-' && o.patch.empty()) o.patch = arg;
     else throw std::runtime_error(kUsage);
   }
@@ -48,7 +54,22 @@ Options read_options(int argc, char** argv) {
   return o;
 }
 
+std::vector<std::string> selected_names(const std::string& select) {
+  std::vector<std::string> names;
+  std::size_t start = 0;
+  while (start <= select.size()) {
+    const std::size_t comma = std::min(select.find(',', start), select.size());
+    if (comma > start) names.push_back(select.substr(start, comma - start));
+    start = comma + 1;
+  }
+  return names;
+}
+
 void apply_picture_options(Session& s, const Options& o) {
+  if (!o.group.empty()) {
+    go_to(s, o.group, std::nullopt);
+    open_group(s, o.group);
+  }
   if (!o.listen.empty()) listen_at(s, o.listen);
   if (o.generate) generate(s);
   if (o.pane == "spectrum") show_pane_tab(s, Pane::Tab::Spectrum);

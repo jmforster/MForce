@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <optional>
 #include <string_view>
 #include "mforce/patch/layout.h"
 
@@ -34,6 +35,9 @@ void ungroup          (Session& s, std::string_view group);
 void open_group       (Session& s, std::string_view group);
 // The breadcrumb: up to `depth` (0 is the patch). Ends listening.
 void go_up            (Session& s, std::size_t depth);
+// To the level `thing` (a node, a face or a group) is shown at, and it
+// alone selected; with `canvasSize`, the canvas's panning centres it.
+void go_to            (Session& s, std::string_view thing, std::optional<Vec2> canvasSize);
 // Listening at the group's output_node; refused for a group that has none.
 void listen_at_group  (Session& s, std::string_view group);
 // The panning the canvas shows: the patch's at the top, the level's inside

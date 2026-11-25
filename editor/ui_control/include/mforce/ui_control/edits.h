@@ -20,7 +20,8 @@ void edit_value   (Session& s, std::string_view node, std::string_view pin, floa
 // A scalar or a string setting: then the sound follows the patch.
 void edit_setting (Session& s, std::string_view node, std::string_view name, float v);
 void edit_string  (Session& s, std::string_view node, std::string_view name, std::string v);
-// Where a node or a face (by its label), or the Output node, sits: no sound changes.
+// Where a node, a face (by its label) or a group (by its name), or the
+// Output node, sits: no sound changes.
 void edit_position(Session& s, std::string_view nodeOrFace, Vec2 pos);
 void edit_output_position(Session& s, Vec2 pos);
 // The canvas's panning: at the top kept in the patch, inside a group the

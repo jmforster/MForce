@@ -1,4 +1,5 @@
 #pragma once
+#include "mforce/ui_views/places.h"
 #include <string>
 #include "mforce/patch/node.h"
 #include "mforce/patch/type_declarations.h"
@@ -6,8 +7,11 @@
 
 namespace mforce::ui {
 
-// The panel down the right side. At its top a chooser of what the canvas
-// draws (each node no face names, each face). Then, for a node: its name
+// The panel down the right side. At its top a chooser of each node no face
+// names, each face and each group; choosing one inside a group goes to its
+// level. Then, with several selected, "N selected"; for a group: its name
+// in lavender, a name field applied on Enter with a refusal under it in
+// red, and its members; for a node: its name
 // field, its type in its family's colour, its pins with their hints, its
 // settings, each setting that can be driven once a note with a mark that
 // offers its pin on the node. For a face: its name field and its six
@@ -24,12 +28,16 @@ namespace mforce::ui {
 class PropertiesPanel {
 public:
   void draw(Session& s);
+  // Where its name fields were drawn last frame: "field:name" (a node's or a
+  // face's), "field:group name".
+  const Places& places() const { return places_; }
 
 private:
   // properties_panel.cpp: the chooser, the name field, a face.
   void choose_node(Session& s);
   void name_field(Session& s, const std::string& name);
   void face_panel(Session& s, const NoteFace& face);
+  void group_panel(Session& s, const Group& group);
   // A text field holding `now`, keyed by `key`: true, with the text in `out`,
   // on the frame it applies.
   bool text_field(const char* label, const std::string& key, const std::string& now, std::string& out);
@@ -56,6 +64,10 @@ private:
   std::string typedKey_;
   std::string typed_;
   int seenOpened_{-1};                             // session.opened when the state above was kept
+  std::string groupTyped_;                         // a group's name field: the group it is for, and its text
+  std::string groupText_;
+  std::string groupRefused_;                       // why the last name entered there was refused
+  Places places_;
 };
 
 }  // namespace mforce::ui

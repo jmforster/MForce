@@ -1,5 +1,6 @@
-// The canvas's table over every measured patch as the editor opens it: each
-// feed, dynamic pin and output is one link; no two pins or links share an
+// The canvas's table over every measured patch as the editor opens it, at
+// each of its levels: each feed, dynamic pin and output is one link at one
+// level (the span between two Wormholes at none); no two pins or links share an
 // integer; a face's node is not drawn and its readers' links start at the
 // face; a link's integer is the same on the next frame. For a handful, each
 // link's two ends wired again on a copy make the same feed. And the create
@@ -13,11 +14,13 @@
 #include "mforce/ui_control/wiring.h"
 #include "mforce/ui_views/canvas_table.h"
 #include "mforce/ui_views/create_menu.h"
+#include "mforce/ui_model/groups.h"
 #include <cstdio>
 #include <filesystem>
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 using namespace mforce;
 using namespace mforce::ui;
@@ -51,8 +54,33 @@ bool table_holds(const std::string& file, const Patch& p, const CanvasTable& t) 
     if (from.kind == PinEnd::Kind::Output || from.kind == PinEnd::Kind::Tap)
       if (faceNodes.count(from.node)) return std::printf("  %s: a link from a face's node\n", file.c_str()), false;
   }
-  if (int(t.links.size()) != reads_in(p)) return std::printf("  %s: %zu links, %d reads\n", file.c_str(), t.links.size(), reads_in(p)), false;
   return true;
+}
+
+// Every level of the patch: the top, and each group gone into.
+std::vector<std::vector<std::string>> levels(const Patch& p) {
+  std::vector<std::vector<std::string>> all{{}};
+  for (const auto& g : p.layout.groups) {
+    std::vector<std::string> path = path_to(p, g.name);
+    path.push_back(g.name);
+    all.push_back(path);
+  }
+  return all;
+}
+
+// The reads no level draws: the span between two Wormholes.
+int spans_in(const Patch& p) {
+  const auto wormhole = [&](const std::string& id) {
+    for (const auto& n : p.graph.nodes)
+      if (n.id == id) return n.type == "Wormhole";
+    return false;
+  };
+  int n = 0;
+  for (const auto& node : p.graph.nodes)
+    if (node.type == "Wormhole")
+      for (const auto& [pin, feeds] : node.wires)
+        for (const auto& w : feeds) n += wormhole(w.source) ? 1 : 0;
+  return n;
 }
 
 // Each link's two ends, decoded and wired again, name its own feed: a pin
@@ -90,12 +118,20 @@ void run_canvas_table_tests() {
       open_file(s, entry.path().generic_string());
       ++patches;
       CanvasNames names;
-      const CanvasTable t = canvas_table(s.open.patch, s.offered, names);
-      const CanvasTable again = canvas_table(s.open.patch, s.offered, names);
-      links += int(t.links.size());
-      bool same = t.links.size() == again.links.size();
-      for (size_t k = 0; same && k < t.links.size(); ++k) same = t.links[k].id == again.links[k].id;
-      if (!table_holds(s.open.path, s.open.patch, t) || !same) ++faults;
+      int drawn = 0;
+      bool held = true;
+      for (const auto& level : levels(s.open.patch)) {       // each read is drawn at one level, once
+        const CanvasTable t = canvas_table(s.open.patch, level, s.offered, names);
+        const CanvasTable again = canvas_table(s.open.patch, level, s.offered, names);
+        drawn += int(t.links.size());
+        bool same = t.links.size() == again.links.size();
+        for (size_t k = 0; same && k < t.links.size(); ++k) same = t.links[k].id == again.links[k].id;
+        held = held && same && table_holds(s.open.path, s.open.patch, t);
+      }
+      links += drawn;
+      const int reads = reads_in(s.open.patch) - spans_in(s.open.patch);
+      if (drawn != reads) std::printf("  %s: %d links over its levels, %d reads\n", s.open.path.c_str(), drawn, reads);
+      if (!held || drawn != reads) ++faults;
     }
   std::printf("  canvas table: %d patches, %d links, %d faults\n", patches, links, faults);
   CHECK(patches > 0);
@@ -107,7 +143,7 @@ void run_canvas_rewire_tests() {
     Session s;
     open_file(s, file);
     CanvasNames names;
-    const CanvasTable t = canvas_table(s.open.patch, s.offered, names);
+    const CanvasTable t = canvas_table(s.open.patch, s.groupPath, s.offered, names);
     const bool ok = rewires(s, t);
     if (!ok) std::printf("  %s: a link's two ends do not wire back to its feed\n", file);
     CHECK(ok);

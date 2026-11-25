@@ -9,6 +9,7 @@ add_executable(mforce_editor WIN32
   options.cpp
   screenshot.cpp
   settings_folder.cpp
+  system_clipboard.cpp
   win32_file_dialogs.cpp)
 mforce_compile_rules(mforce_editor)
 target_link_libraries(mforce_editor PRIVATE

@@ -212,6 +212,30 @@ std::vector<std::string> shown_at(const Patch& patch, const std::vector<std::str
   return shown;
 }
 
+std::string shown_for(const Patch& patch, const std::vector<std::string>& path, std::string_view thing) {
+  std::string at(thing);
+  for (const auto& f : patch.layout.faces)
+    for (const auto& [field, id] : f.fields)
+      if (id == thing) at = f.label;
+  const std::vector<std::string> chain = path_to(patch, at);
+  if (chain.size() < path.size() || !std::equal(path.begin(), path.end(), chain.begin())) return {};
+  return chain.size() == path.size() ? at : chain[path.size()];
+}
+
+std::string wormhole_twin(const Patch& patch, std::string_view node) {
+  const Node* self = node_named(patch, node);
+  if (!self || self->type != "Wormhole") return {};
+  for (const auto& n : patch.graph.nodes)
+    if (n.type == "Wormhole" && n.id != node)
+      for (const auto& [pin, feeds] : n.wires)
+        for (const auto& w : feeds)
+          if (w.source == node) return n.id;
+  for (const auto& [pin, feeds] : self->wires)
+    for (const auto& w : feeds)
+      if (w.source != node && is_wormhole(patch, w.source)) return w.source;
+  return {};
+}
+
 std::size_t valid_depth(const Patch& patch, const std::vector<std::string>& path) {
   std::string holder;
   for (std::size_t d = 0; d < path.size(); ++d) {
