@@ -622,7 +622,8 @@ reversible; say so if you want any another way.
 
 13. **What the pictures and the review added** (the fix wave).
     - **Arrange.** 14 of the 131 patches, `oboe1` and `piano_default`
-      among them, were saved with groups. Their members' positions were
+      among them, were saved with groups or note faces (7 of them with
+      groups; counted again for slice 5). Their members' positions were
       made for the old editor's collapsed groups and overlap when the
       nodes are shown plainly, as this slice shows them. Nothing is
       rearranged on open, so a save after a tweak keeps your layout.

@@ -391,7 +391,54 @@ session; REVIEW R33 under Resolved; the list of selected things is
 `selections` at his word) AND ITS BUILD BEGAN AT ONCE, in session XXVII.
 His verdict on R32 is still open. Slice 5 is built as slice 4 ran (rules and gate script from
 `renders/scratch/ed4/` into `renders/scratch/ed5/`, base = the commit that
-records the signature, base gate numbers from `renders/scratch/ed4/s4`). R24 (where BACKLOG row
+records the signature, base gate numbers from `renders/scratch/ed4/s4`).
+SLICE 5 (ARRANGE) IS BUILT AND ON MATT'S DESK (2026-11-24, session XXVII;
+REVIEW R34, beside R32 for slice 4, neither tried by hand yet; report
+`docs/autonomy/refactor/reports/2026-11-24-editor-slice5.md`; the page's
+section 6 holds the thirty-five rulings, 1 to 27 from the first step's
+check of the page against the code, 28 to 35 from the review). COMMITS:
+`ba975cae` (the record: `engine/patch` gains `check()`'s two rules for
+groups, the group edits, `fragment_of`, `paste`, `replace_node`,
+`fragment_text.h`; an edit that empties a group takes it, kept in
+`adopt`), `550b3216` (the control: `Session::selected` is now the list
+`selections`; `groupPath`; `ui_model/groups.h` with the boundary worked
+out from the wiring; `selecting.h`, `grouping.h`, `clipboard.h`),
+`0bf3a0c4` (the views: the canvas draws one level, groups as nodes,
+wormholes, the breadcrumb, the menus; a `Clipboard` handed to the views),
+`6a3bdab5` (MIDI in behind `ui_audio/midi_in.h`, what a message does in
+`ui_control/midi.h`; the build stamp and its banner), `843992d8` (the fix
+wave). AT THE CLOSE: `python tools/gates.py` ALL GATES PASS, 17,276
+checks; NOTHING THAT RENDERS CHANGED (the engine's diff is `patch` only,
+1,135 lines); the editor is 11,225 lines of code and 6,621 of tests,
+largest file 327 lines, nothing in the baseline. THE REVIEW: one Major
+(a node moved into a group stayed selected, unseen, and Delete took it;
+shown from the mouse), four Minor, four Notes; the parity check found 32
+of 38 lines done and the rest closed by the wave. TWO SIGNED RULINGS WERE
+AMENDED AND PUT BACK TO MATT IN R34: Cut leaves a group (a cut never
+deletes what it did not copy), and the build stamp measures against the
+last build, not the program's link time. HOW IT RAN, FOR SLICE 6: (a) the
+read of the old code took exact numbers, words and the old code's own
+reasons the first time (`renders/scratch/ed5/briefs/read.md` is the
+brief), and the page was written from it; (b) the first step was "the
+page against the code", not a second read; (c) THE FIRST EXECUTOR'S
+CONTEXT WAS THREE QUARTERS FULL BY THE END OF THE VIEWS: a second took
+MIDI, the stamp and the fix wave, with the first step's findings for its
+part saved to a file (`renders/scratch/ed5/s1/findings_midi_stamp.md`):
+plan the hand-over and save step 1's whole report to a file when it
+arrives; (d) "assert what must still hold after each gesture" needs the
+invariant written out in the brief (the tests asked whether a selected
+name existed, not whether it was shown, and the Major passed them); (e) a
+click on a thing that has just appeared needs two frames before it lands
+(one test passed with its handler dead until it waited); (f) follow a
+ruling's sentence to its end before it is signed (Cut on a group; the
+stamp's false STALE). NEXT: Matt's verdicts on R32 and R34 at the window;
+SLICE 6'S PAGE (Shape: tables and arrays in the panel; the Envelope,
+Curve, Segment and Shaper editors; the shape editor window; the partials
+and formant strips with the scrubber; the mapping table; audition; the
+crash log; 40 capabilities, about 2,810 old lines, no engine work known),
+THE LAST SLICE, written from a read of the old code as slice 5's was, for
+his signature; no slice 6 code before it. Usage: weekly Fable 61 percent
+when slice 4's build began, 67 when slice 5's did. R24 (where BACKLOG row
 8 goes) and R23 (two DUN renders) still await him. GIT: main pushed to origin 2026-11-24 at Matt's word
 (it had run 36 commits ahead). Usage: weekly Fable 35 percent at the session's start.
 Everything below this

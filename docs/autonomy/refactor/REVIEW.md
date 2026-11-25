@@ -91,8 +91,81 @@ slice's only proof.
      (`docs/architecture/editor-parity.md`). Slice 4's 19 lines were each
      checked against the code (A8).
   5. Slice 5 (Arrange: groups, wormholes, the clipboard, several nodes
-     selected, MIDI in): its page is signed (R33, under Resolved) and
-     its build is under way.
+     selected, MIDI in) is built too: R34, below.
+
+**R34 — the editor, slice 5: arrange** (2026-11-24, commits `ba975cae`,
+`550b3216`, `0bf3a0c4`, `6a3bdab5`, fix wave `843992d8`; page
+`docs/architecture/editor-slice5.md`, signed 2026-11-24 (R33), its section
+6 the thirty-five rulings made while building; report
+`docs/autonomy/refactor/reports/2026-11-24-editor-slice5.md`). Every gate
+passes (17,276 checks); nothing that renders changed. Every gesture
+below runs under a test that moves the mouse or presses the key, except
+where the list says not. It sits on top of slice 4 (R32), which you have
+not tried yet either: one run of the editor shows both.
+- **Start it** from the repo root:
+  `build\editor\ui_app\Release\mforce_editor.exe patches\library\winds\oboe1.json`
+  Press F first: the file's saved view frames its groups partly off
+  screen.
+- **Groups.** The oboe has three (Breath, Drive, Delay), each one purple
+  node with a pin for each wire that crosses its edge. Double-click one
+  to go in; the breadcrumb above the canvas goes back up. Inside Drive,
+  `Drive_inputs.source1` reads "<- WhiteNoise": it is fed from outside
+  the group.
+- **Select several.** Drag a box on empty canvas; Ctrl and a click adds
+  or takes out, on a node or on one of its pins; drag any of them and
+  all move, one Undo. The panel says "N selected".
+- **Make and change groups.** Select two nodes, right-click one, "Group
+  selection (2)". Then "Add to group", "Remove from", "Ungroup" (a
+  group's menu), and a group's name in the panel (Enter applies it).
+  Select a group and press Delete: it goes with everything in it, and one
+  Undo brings it all back.
+- **Wormholes.** Right-click a wire: it now runs through two small violet
+  nodes, and the status line says so. Select one to see the span to its
+  twin; double-click to jump to the twin. The oboe has a pair already,
+  one half in Delay and one in Drive.
+- **Copy, cut, paste.** Ctrl+C, Ctrl+V, Ctrl+X, the Edit menu, "Copy (n)"
+  on a node's menu, "Paste" at the top of the create menu (it lands where
+  you clicked). Open a second editor and paste there: it goes through
+  the system's clipboard. Ctrl+V while typing in a field pastes into the
+  field.
+- **Duplicate and Replace with** on a node's menu. Replace a WhiteNoise
+  with a RedNoise: its wires stay, and the status names anything the new
+  type had no place for.
+- **Listen to a group**: "Listen here" on its menu, or the "Listen: Patch
+  | Group" switch at the breadcrumb's right while inside one.
+- **MIDI, which no test can try at a real port.** With a keyboard plugged
+  in before the start, its keys should hold notes (Live checked or not),
+  the wheel and aftertouch should reach the patch, and the transport's
+  "MIDI:" box should name it. Plugged in later: open the box and choose
+  it.
+- **The build stamp.** The window's title ends "[build MM-DD HH:MM
+  @commit]". The red banner should appear only when a source is newer
+  than the last build; if you see it now, say so.
+- **Decided without you, each reversible** (the report's section 6): a
+  new group is selected when made; F inside a group frames it at the
+  top-left rather than centring it; a pin fed from outside the level you
+  are in names its source in grey; a failed paste says "Paste failed:"
+  and why; the node list in the panel also lists groups; the stale
+  banner measures against the last build, not the program's own time
+  (the page's ruling 14, amended: a header that nothing compiles would
+  otherwise have said STALE for ever).
+- **Yours to say:**
+  1. What is wrong or missing at the window, in any words.
+  2. **Cut on a group.** The page you signed said Delete and Cut on a
+     group both take everything in it. I changed Cut: a group cannot be
+     copied, so cutting one would destroy what never reached the
+     clipboard. Cut now leaves the group and says so; Delete takes it.
+     Say if you want Cut to take it anyway.
+  3. **A copy carries its seed** (the page's ruling 2, as you signed): a
+     copied or duplicated noise node plays the same noise as its
+     original. Still yours to turn round.
+  4. Lines to strike from or add to the parity list
+     (`docs/architecture/editor-parity.md`). Slice 5's 38 lines were each
+     checked against the code (A9).
+  5. Slice 6 (Shape: tables, the Envelope, Curve, Segment and Shaper
+     editors, the shape editor window, partials and formants with the
+     scrubber, the mapping table, audition, the crash log) is the last.
+     Its page is not written yet.
 
 **R24 — Part 8: build** (2026-11-23, commits `5df7dee`, `270bfaa`,
 `97e24ad`, `e5b0760`, `6445a39`, `4f99fab`, fix wave `3ba6354`; design

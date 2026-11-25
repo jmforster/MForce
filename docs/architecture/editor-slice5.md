@@ -2,7 +2,10 @@
 
 Status: **SIGNED by Matt 2026-11-24 ("Go ahead."), the seventeen rulings
 of section 4 as written, the session's list named `selections` at his
-word. The build began the same day.**
+word. BUILT the same day (report
+`docs/autonomy/refactor/reports/2026-11-24-editor-slice5.md`, REVIEW R34).
+Section 6 says what the build changed; where it differs from an earlier
+section it is the decision. It amends rulings 3 and 14 of section 4.**
 Parent: `editor.md` (signed 2026-11-23; its three rules, five modules and
 limits hold here unchanged). What it must restore is row 5 of
 `editor-parity.md`, A1: 38 lines of the list, about 1,720 lines of the old
@@ -375,3 +378,190 @@ straight into the caller's variable (no copy). The alternatives are a
 `out` of C#, which hides at the call site which arguments are results).
 The name was chosen as a past participle, like `Change` is a noun for
 what an edit did: the type says what the call left behind.
+
+## 6. What the build changed (2026-11-24)
+
+A first step, read only, checked this page against today's code block by
+block before any brief was written. It found nine places where the signed
+text and the code disagreed and twenty-one questions the page did not
+answer. Each was ruled on then (1 to 27), and eight more at the review
+(28 to 35). Ruling 30 amends section 4's ruling 3 (Cut on a group) and
+ruling 31 its ruling 14 (what the build stamp measures against). "C" and
+"Q" numbers are that first step's contradictions and questions. Report:
+`docs/autonomy/refactor/reports/2026-11-24-editor-slice5.md`.
+
+### The record
+
+1. **An edit that takes the last member out of a group takes the group
+   too**, and so on up through any group that leaves empty in turn (C1,
+   Q1). This is the record's: `remove_node`, `remove_face`, `regroup` and
+   `remove_group` all keep it, so no function of the editor has to
+   remember it. It changes what `remove_node` and `remove_face` do today
+   in one case (they leave the empty group; a test builds one,
+   `face_edit_tests.cpp:154`, and is changed with them). `check()` still
+   accepts an empty group that a file brings. `add_group` with no members
+   is refused.
+2. **`check()`'s new sentences**, in the form of the ones beside them, at
+   the member's path: `'m' is a member of 'A' and of 'B': a name is in one
+   group at most`; `'m' is listed twice in group 'G'`; `'G' holds itself,
+   through 'H'` (or `'G' holds itself` when it lists its own name).
+3. **A pasted node's name** (Q4): its own id when it is free. Otherwise
+   its stem, which is the id less its trailing digits (the whole id when
+   that leaves nothing), with the first free number from 2: "Sine2" onto a
+   patch that has "Sine2" gives "Sine3" (never the bare "Sine"); "BP0"
+   onto BP0 to BP3 gives "BP4"; "Reverb" onto "Reverb" gives "Reverb2".
+4. **`paste`'s `dropped`** (Q6) counts every feed dropped, a dynamic pin's
+   drive included. A pin left with no feed takes its declared default, as
+   it does when its feed is removed today.
+5. **A fragment's text** (C4, Q5): the codec's fragment under one marker
+   key, `{"mforceClip": 1, "nodes": [...], "positions": {...}}`, one line.
+   Reading: a text that is not JSON, or has no `"mforceClip": 1`, throws
+   "clipboard is not an MForce fragment"; one with no nodes throws
+   "fragment had no nodes"; anything else the reader refuses throws the
+   reader's own sentence. The old `mode` key is neither written nor
+   accepted.
+6. **`replace_node` never refuses for something it carries** (C5, Q7). It
+   carries by name what the new type takes and names the rest in
+   `dropped`:
+   - a pin's constant, when the new type has a signal pin of that name
+     that takes a number;
+   - a setting, when the new type has a setting of that name and the
+     value is inside its range; an enum by its LABEL, not its index;
+   - a string, by name;
+   - the arrays, when the new type declares exactly the columns the old
+     node holds; otherwise none of them;
+   - a dynamic pin, when the new type has a setting of that name that may
+     be driven;
+   - each wire into it, to the pin of the same name when that pin takes
+     that source; each wire out of it, when its reader takes the new type;
+     the patch's output, when the new type may be one;
+   - the seed, the position, the group it is in.
+   `dropped` names only what held something: a constant, setting or string
+   that differed from the old type's default, the arrays when there were
+   any, each dynamic pin, each wire (by its pin's name; "output" for the
+   patch's). `wiresKept` counts the wires moved.
+7. **A tap of a Wormhole** (Q20): `check()` does not change. The canvas
+   offers no tap pin on one; a file that has such a tap keeps it, drawn
+   from the Wormhole's one output pin.
+
+### Groups on the canvas
+
+8. **A group's out pins are one a source, not one a wire** (C2, Q2):
+   `Boundary::out` holds each (member, plain or tap) that something outside
+   reads, once; every wire from it leaves from that one pin. The Delay
+   group of four measured patches has two wires from one source: one pin.
+   With exactly one plain source the pin is labelled "out", as before;
+   otherwise each is labelled by its member (and ".tap").
+   `Boundary::in` stays one a wire (a member's pin and feed), labelled
+   "member.pin" as before.
+9. **A drive of a setting that crosses the edge is drawn like any wire**
+   (to a gold pin on the group) **and is not counted by the two-output
+   rule**, as the old rule did not count it (C3, Q3). A note face's field
+   read from outside is drawn the same way and not counted either (Q10;
+   the old reason, Matt 2026-09-07, stands).
+10. **`output_node`'s "has an output" means a signal** (Q9): a part is
+    never a group's output.
+11. **`shown_at` leaves out the nodes a note face names** (C8): a face is
+    shown, its nodes never are, as on today's canvas.
+12. **A group's rename uses the old group words** (C9): "name is empty";
+    "'.' not allowed"; "'__' prefix is reserved"; "name already in use by a
+    node: X" (a node or a face); "name already in use: X" (another group).
+    A node's and a face's rename keep today's words.
+13. **The two selections** (step 1's C3, accepted as written): while the
+    left button is down imnodes owns the selection; on the frame it is
+    released over the canvas the record takes imnodes' (the Output node
+    left out), before anything is pushed back; on every other frame with
+    the button up imnodes is given the record's names that are shown at
+    the level. Ctrl and a click on a pin toggles the pin's owner. A right
+    click on a thing outside the selection selects it alone first (nothing
+    in imnodes reads the right button: the old comment that it did was
+    wrong).
+14. **A change of level selects nothing; the jump selects the twin**
+    (Q11), so its ghost shows where you came from. Listen ends whenever
+    the path changes other than by going deeper, as before.
+15. **The file keeps the top level's panning only** (Q12). A level's
+    panning inside a group, and the panning remembered for each depth, are
+    the session's and go at New and Open.
+16. **The breadcrumb shows when the patch has a group or the path is not
+    empty**, as before (Q13). The canvas moves down by the bar's height
+    when the first group is made.
+17. **The path follows** (step 1's B3): New and Open clear it; a rename of
+    a group in it renames the entry; an ungroup, a delete, a regroup, or
+    an undo or redo that leaves an entry that is not a group, or not held
+    by the entry before it, cuts the path there (and Listen ends, as for
+    any change that is not deeper).
+18. **The ghost is drawn in the editor's own window so that it shows over
+    the grid** (C7). A picture is the proof.
+19. **`route_wire`** (Q19): the wire to the patch's Output can be routed,
+    as the old one could. A setting's drive is not: the status says "a
+    setting's wire is not routed through wormholes".
+
+### The clipboard and its relatives
+
+20. **Each further paste lands another (60, 60) on, with no memory of the
+    last paste** (Q8): the offset is (60, 60) times the least k from 1 for
+    which no node of the patch sits where the fragment's first node would
+    land.
+21. **"Replace with" is offered on a graph node that is not a Channel or a
+    Mixer; "Duplicate" on the same, and neither on a Note** (Q7), which is
+    the old list for Replace and Copy's skip list for Duplicate.
+22. **No path from a test to the real clipboard** (Q15): the views take a
+    `Clipboard`, and both headless contexts replace ImGui's own two
+    clipboard functions with ones that keep a string, so a text field
+    under test cannot reach it either.
+
+### MIDI in
+
+23. **The program opens the first port at start when there is one**, as
+    before, and says nothing when there is none or it fails (C6, Q16).
+    `main` asks; a session never opens one by itself, so no test does.
+24. **The last wheel and pressure are given again to a player built
+    after them** (the session keeps them). **MIDI-held notes are not let
+    go when the window loses the keyboard** (their key-ups still arrive);
+    Stop lets everything go. A MIDI note is the last note, as a held key's
+    is. RtMidi's errors are caught inside `MidiIn` and returned as words.
+25. **Key numbers** (Q18): `ui_control/keyboard.h` owns the two ranges
+    that are not computer keys, the mouse's and MIDI's, and the view's own
+    constant for the mouse goes.
+
+### The build stamp
+
+26. **What counts** (Q17): the `.h`, `.hpp` and `.cpp` files under the
+    `include` and `src` folders of each module the editor is built from,
+    and `editor/ui_app`'s own; not tests, not CMake files. The folders and
+    the repository's `.git` are written into the program by its CMake file
+    at configure time. The commit is read at start from `HEAD`, through a
+    loose ref, `packed-refs` or a worktree's `gitdir:`; when none reads,
+    the suffix has no commit.
+27. **The stamp is the session's** (made by `main`, read by `title` and by
+    the banner, dismissed for the session by its button). Local time, in
+    the old form (month-day hour:minute).
+
+### Ruled at the review (2026-11-24)
+
+28. **The selection holds only what the level shows.** After every step,
+    every Undo and Redo and every change of level, a name that
+    `shown_at(patch, groupPath)` does not list leaves the selection (the
+    review's Major: a node moved into a group stayed selected, unseen, and
+    Delete took it).
+29. **A pin fed from outside the level is drawn fed and names its
+    source**, after its label, in grey. The wire itself is not drawn at
+    that level, as before. (The review: such a pin looked unwired, and a
+    wire dragged onto it replaced a feed nobody could see.)
+30. **Cut never deletes what it did not copy.** This amends the page's
+    ruling 3 for Cut: a group is not copied (ruling 10 of the page), so
+    Cut leaves it and says so; Delete takes a group and all under it, as
+    signed.
+31. **The stamp compares against the last build, not the program's link
+    time**: the build touches a file beside the program each time it
+    builds it or finds it built. This amends ruling 26, under which a
+    header no compiled file includes, once edited, said STALE for ever:
+    the false STALE the old code's own comment warned of.
+32. **A replaced node's strip and pop-outs are not carried** to the new
+    node: the take never rendered it. They are empty until the next
+    Generate, as in the old editor.
+33. **A paste the reader refuses says "Paste failed: <why>"**; nothing was
+    changed, so nothing was "restored".
+34. **Ctrl and a click on a pin toggles its owner; Ctrl and a drag out of
+    a pin makes a wire and leaves the selection.**
+35. **Closing or switching the MIDI port lets its held notes go.**

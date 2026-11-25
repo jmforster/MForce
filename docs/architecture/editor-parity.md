@@ -16,11 +16,11 @@ never-working things. Of the 229, slice 1 covers 65, the five slices to
 come 153, and 11 are not coming back (A2). The line counts in A1 are the
 old file's lines behind each slice's capabilities, as a measure of size.
 
-Where it stands (2026-11-24): slices 1 to 4 are built, and each was
+Where it stands (2026-11-24): slices 1 to 5 are built, and each was
 then checked against the code line by line by an agent that had not
-written it (A5, A6, A7, A8). Slices 1 to 3 have been tried by hand (REVIEW
-R30); slice 4 awaits that (R32). Slices 5 and 6 remain: 31 and 40
-capabilities by the first count, plus the parts the checks moved to them.
+written it (A5 to A9). Slices 1 to 3 have been tried by hand (REVIEW
+R30); slices 4 and 5 await that (R32, R34). Slice 6 remains: 40
+capabilities by the first count, plus the parts the checks moved to it.
 
 ## A1. The slices from here
 
@@ -35,7 +35,7 @@ Generate exists.
 | 2. Build | DONE 2026-11-23 (checked line by line: A6). a new patch; the create menu (families, the Experimental shelf, Note, Output); delete; wire, unwire, taps, the wiring refusals; the note face as one node; dynamic pins (promote, demote, feed, unfeed); rename; the instrument's polyphony, sustaining, onsets and glide; canvas fit and pan keys; the status bar's counts | 41, and from slice 1's area the 7 not done and the open parts of the 8 (A5); about 1,450 lines | the rest of the edits in `patch/edit.h` |
 | 3. Generate | DONE 2026-11-24 (checked line by line: A7). the transport's four tabs (Note, Passage, Chords, Drums); Generate, Play, Stop; Save WAV; passage and chord files; the Live checkbox and holding several keys; a plain sound's sound; continuous play | 26; about 1,240 lines | the live player holds more than one line; a plain sound played live |
 | 4. See | DONE 2026-11-24 (checked line by line: A8). the waveform strips (output and every node) with zoom, scroll, columns and pop-outs; the spectrum; the Listen tap; the audio device's watchdog and restart | 15; about 790 lines | a node's signal read out of a render (exists) and out of a live voice (Listen) |
-| 5. Arrange | groups (make, open, add to, remove from, rename, ungroup, the breadcrumb); wormholes; copy, cut, paste, duplicate, replace-with; multiple selection; MIDI in; the build-stamp banner | 31; about 1,720 lines | `Fragment` edits in `patch/edit.h` |
+| 5. Arrange | DONE 2026-11-24 (checked line by line: A9). groups (make, open, add to, remove from, rename, ungroup, the breadcrumb); wormholes; copy, cut, paste, duplicate, replace-with; multiple selection; MIDI in; the build-stamp banner | 31; about 1,720 lines | `Fragment` edits in `patch/edit.h` |
 | 6. Shape | tables and arrays in the panel; the Envelope, Curve, Segment and Shaper editors; the shape editor window; the partials and formant strips with the scrubber; the mapping table; audition; the crash log | 40; about 2,810 lines | none known |
 
 Slice 1 took one session from signature to desk. My estimate for the rest,
@@ -170,6 +170,20 @@ heard; the page's ruling 34 and REVIEW R32). Eight details of the old
 strips and spectrum that the first read had wrong are listed in the
 page's section 7.
 
+## A9. Slice 5, checked
+
+Built 2026-11-24 (report R34). The reviewer then checked each of the 38
+lines this list gave to slice 5 against the code: 32 done, 4 done in part,
+1 never to be added (the theme file: there never was one), 1 gone with the
+second clipboard. The four parts were closed in the same wave by rulings
+made at the review: a thing moved to another level stayed selected,
+unseen, and Delete took it; inside a group a pin fed from outside looked
+unwired; and the build stamp could say STALE where no rebuild cleared it.
+The read this slice's page was written from had already corrected the
+list in three places: Cut and the Edit menu's items belonged to the
+clipboard that is not coming back, a MIDI pitch bend did nothing, and a
+right click never selected a node by itself.
+
 ## B. The list
 
 Line ranges are the old file's. [U] a user used it; [H] a headless or test
@@ -180,10 +194,10 @@ stands. "slice N" is the table of A1.
 
 - [U] Launch with a patch path as the only argument and have it loaded, or a "Patch not found" / "Failed to load" status (12374-12403) — done in slice 1
 - [U] Launch with no argument and get a fresh Patch graph (Sine, Envelope, Output) (12378, 1200-1222) — done in slice 2
-- [U] See the window title "MForce - <file> - Patch Graph|Node Graph" or "(unsaved)", plus a build-stamp suffix (12468-12484) — done in slice 1 (the file and the star); the build stamp: slice 5; the mode label went with the mode flag (A2.1)
+- [U] See the window title "MForce - <file> - Patch Graph|Node Graph" or "(unsaved)", plus a build-stamp suffix (12468-12484) — done in slice 1 (the file and the star); the build stamp: done in slice 5; the mode label went with the mode flag (A2.1)
 - [U] See a fixed docked layout on every launch: Transport top, Node Editor centre, Properties right 22%, Waveforms/Spectrum/Keyboard tabs bottom 28% (12633-12669); rebuilt each launch, so docking is not persisted (12406, 12638-12641) — done in slice 1 (layout; section 10 "decided in the slice that needs them")
 - [U] Collapse the bottom pane to a sliver and restore its height with a chevron at its top-right corner (11739-11773) — done in slice 4 (the pane is a fixed share of the window, so restoring gives the share back; the arrow sits at the tab bar's right end)
-- [U] See a red banner when the exe is older than an engine source, with Dismiss (11775-11798, 11803) — slice 5
+- [U] See a red banner when the exe is older than an engine source, with Dismiss (11775-11798, 11803) — done in slice 5 (stale means a source of a module the editor is built from is newer than the last build; the words name mforce_editor)
 - [U] Window placed on the primary monitor's work area, 1400x900 (12297-12307) — done (the size in slice 1, its place on the work area in slice 2)
 - [U] Single-click a drag field to type a number (ConfigDragClickToInputText) (12327-12329) — done in slice 2
 - [H] Run with a console attached when the first argument starts with "-" (12805-12820) — deleted by section 10 ("the headless comparison modes")
@@ -202,7 +216,7 @@ File menu (12499-12577):
 - [U] File > Quit through the unsaved-changes check (12572-12575) — done in slice 1 (closing asks)
 
 Edit menu (12584-12610):
-- [U] Edit > Cut / Copy / Paste on the in-process clipboard, enabled by selection / content (12586-12591) — slice 5 (this is one of the two clipboards; see section 10 "the second clipboard")
+- [U] Edit > Cut / Copy / Paste on the in-process clipboard, enabled by selection / content (12586-12591) — done in slice 5, on the system's clipboard (the one kept); Cut is new on it
 - [U] Edit > Parameter mapping... (patch graph only) (12593-12595) — slice 6
 - [U] Edit > Convert to Patch graph / Convert to Node graph (12597-12601, 9608-9786) — deleted by section 10 ("the node-graph mode flag")
 - [U] Edit > Restart audio (Ctrl+Shift+A) (12603-12608) — done in slice 4
@@ -212,7 +226,7 @@ Menu-bar play items (12612-12628):
 - [U] Stream (S): play the graph continuously (12622-12623) — deleted by section 10 ("its own streaming DSP graph")
 
 Canvas right-click create menu (9873-9976):
-- [U] Paste (Ctrl+V) at the top of the create menu, OS-clipboard fragment (9877-9879) — slice 5
+- [U] Paste (Ctrl+V) at the top of the create menu, OS-clipboard fragment (9877-9879) — done in slice 5 (it lands where you clicked; the old one ignored the click)
 - [U] Note (patch graph only; greyed "Note (patch graph only)" otherwise) (9883-9897) — done in slice 2 (greyed on a plain sound)
 - [U] Curve, Envelope, Var, Range quick items (9898-9901) — done in slice 2 (each of the four once: not repeated in its family; decided)
 - [U] Output when none exists, else greyed "Output (exists)" (9903-9914) — not needed: the Output node is always on the canvas (slice 1)
@@ -231,10 +245,10 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] S (no Ctrl): Stream, or Stop when playing, unless typing (12684-12689); collides with the QWERTY note key S (4787) when PC Keyboard is on — deleted by section 10 ("its own streaming DSP graph")
 - [U] F: centre the canvas on all nodes (13274-13295) — done in slice 2
 - [U] Arrow keys (held): pan the canvas, Shift faster; active whenever no text field has focus (13297-13306) — done in slice 2: Shift with an arrow pans, at the old Shift speed; a plain arrow is the octave or the note length (ruling 10)
-- [U] Ctrl+C / Ctrl+V with the editor HOVERED: OS-clipboard copy/paste (13098-13105) — slice 5
-- [U] Ctrl+X / Ctrl+C / Ctrl+V with the editor FOCUSED: in-process clipboard cut/copy/paste (13308-13313); both pairs fire on one press when the editor is focused and hovered (unclear: double paste) — slice 5 / section 10 ("the second clipboard")
+- [U] Ctrl+C / Ctrl+V with the editor HOVERED: OS-clipboard copy/paste (13098-13105) — done in slice 5 (wherever the mouse is, unless a text field has the keyboard)
+- [U] Ctrl+X / Ctrl+C / Ctrl+V with the editor FOCUSED: in-process clipboard cut/copy/paste (13308-13313); both pairs fire on one press when the editor is focused and hovered (unclear: double paste) — done in slice 5 on the system's clipboard; one press is one paste
 - [U] Ctrl+Shift+A: restart the audio stream, anywhere (13315-13320) — done in slice 4 (not while a text field has the keyboard, which is what the old code did)
-- [U] Delete or Backspace with the editor focused: delete selected wires, then selected nodes (13322-13353) — done in slice 2 (the selected wires, then the selected node; several nodes at once: slice 5)
+- [U] Delete or Backspace with the editor focused: delete selected wires, then selected nodes (13322-13353) — done in slice 2 (the selected wires, then the selected node; several at once, and a group with everything in it: done in slice 5)
 - [U] Delete in the Audition patch list, then Enter to confirm / Esc to cancel (5265-5270, 5297-5302) — slice 6
 - [U] QWERTY note keys, two zones (Z row + home row one octave down; Q row + number row at the octave) when PC Keyboard is on, not with Ctrl, not typing (4775-4840, 7060-7096) — done in slice 1
 - [U] Up/Down: octave -1/+1 (0..20); Left/Right: halve/double the note duration (0.05..30 s), while PC Keyboard is on (7097-7106) — done in slice 1
@@ -251,19 +265,19 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] See grid lines, rounded nodes, 2.5 px wires (12343-12348) — done (the grid and the rounding in slice 1, the wire's width in slice 2)
 - [D] Canvas zoom: none exists (imnodes 0.x has no zoom; the wheel pans, 13012-13025)
 - [U] Click a node to select it; one selected node drives Properties (13089-13096) — done in slice 1
-- [U] Box-select and Ctrl+click multi-select (imnodes built-ins, not coded here; used by Group selection/Copy, 9981-9985, 10204-10208) — slice 5 (checked: imnodes selects several, the canvas keeps one)
-- [U] Ctrl+click an already selected node (or one of its pins) to DESELECT it, with "deselected" status (13027-13071) — slice 5 (with multiple selection)
+- [U] Box-select and Ctrl+click multi-select (imnodes built-ins, not coded here; used by Group selection/Copy, 9981-9985, 10204-10208) — done in slice 5 (the record holds the list; it takes the canvas's selection when the button is released)
+- [U] Ctrl+click an already selected node (or one of its pins) to DESELECT it, with "deselected" status (13027-13071) — done in slice 5
 - [U] Drag nodes to move them; positions tracked app-side so group drill-in keeps them (280-287, 12819-12831) — done in slice 1
 - [U] Right-click empty canvas: create menu at the click point (13231-13270) — done in slice 2
-- [U] Right-click a node: node menu; right-click a collapsed group: group menu (13250-13260, 10409-10436) — the node's menu with Delete: done in slice 2; the rest of it and the group's menu: slice 5
-- [U] Right-click a wire: route it through a new wormhole pair (13234-13248, 8335-8392) — slice 5
-- [U] Double-click a collapsed group to drill in (13073-13087) — slice 5
-- [U] Double-click a wormhole to jump to its twin (12993-13006) — slice 5
+- [U] Right-click a node: node menu; right-click a collapsed group: group menu (13250-13260, 10409-10436) — the node's menu with Delete: done in slice 2; the rest of it and the group's menu: done in slice 5 (a right click on a thing outside the selection selects it alone first)
+- [U] Right-click a wire: route it through a new wormhole pair (13234-13248, 8335-8392) — done in slice 5 (the status says what happened, or why not on a wire that already touches a Wormhole; Undo takes it back)
+- [U] Double-click a collapsed group to drill in (13073-13087) — done in slice 5
+- [U] Double-click a wormhole to jump to its twin (12993-13006) — done in slice 5 (the twin is centred and selected)
 - [U] Auto grid layout (220 px columns, wrap at 900) for New and for files with no positions (12454-12466, 1168-1171) — done in slice 1 (place_unplaced_nodes, 13.1)
 - [U] Unplaced nodes of a positioned file laid out as a dependency-column strip below the saved layout (2031-2131) — done in slice 1 (place_unplaced_nodes)
 - [U] Corrupt positions (|x| or |y| >= 1e7) ignored with a stderr line (2012-2021) — done in slice 2 (such a node is placed afresh; no line is printed)
 - [U] Saved panning restored on load and written on save (2140-2146, 2934-2937, 3091-3094) — done in slice 1 (13.2)
-- [U] Node title colour by registry family, Output/Note/Curve their own (155-169); body a pale tint (171-181); hover lift (8111-8117); selection shows imnodes blue (8111-8113) — done in slice 2; the theme file: slice 5
+- [U] Node title colour by registry family, Output/Note/Curve their own (155-169); body a pale tint (171-181); hover lift (8111-8117); selection shows imnodes blue (8111-8113) — done in slice 2; the theme file: struck, there never was one (the slice's ruling 15)
 - [U] Node body: input pins with name and, unconnected, the constant (%.3f) (8140-8163); input-only pins grey (8151-8153) — done (the name and the constant in slice 1, as %.3g, decided; input-only pins grey in slice 2)
 - [U] Non-empty string settings printed on the node body (8135-8137) — done in slice 2
 - [U] Output pins right-aligned; the tap pin small, teal, quad (8204-8225) — done in slice 1 (tap drawn)
@@ -272,7 +286,7 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 
 ### 5. Node operations
 
-- [U] Add a registered node at the right-click point; it joins the open group when drilled in (9803-9821) — at the point: done in slice 2; joining the open group: slice 5, with groups
+- [U] Add a registered node at the right-click point; it joins the open group when drilled in (9803-9821) — at the point: done in slice 2; joining the open group: done in slice 5
 - [U] A new node's id: a global counter (75-76, 342); its label (= saved id): display name ("Source" stripped; Channel/Mixer/Output/Parameter/Note/Curve) then Name2, Name3... (141-153, 610-621) — done in slice 2 (the record's id is the node's identity; the counter went)
 - [U] A new node's defaults: pin constants from param descriptors, input-only pins at 0, settings at descriptor defaults, arrays from the live object (463-536, 417-438); an Envelope is ADSR 0.05/0.1/0.7/0.2 (383-388); a Curve gets knots (0,0),(1,1) (9806-9813) — declared defaults, the Envelope's ADSR and the Curve's two knots: done in slice 2; the other table types' starting rows from the type's own: slice 6, with tables
 - [U] Seeds: a new node gets none (jsonSeed -1, 257-263); a loaded "seed" is carried verbatim and re-emitted on save (1645-1648, 2810-2815, 3053-3057) — done in slice 2: a new node is given a random seed (ruling 4); a file's seed carried since slice 1
@@ -281,11 +295,11 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Wire: drag from output pin to input pin (or back); a single-input pin's old wire is replaced, a multi pin takes more (13107-13206) — done in slice 2
 - [U] Wiring refuses with a status sentence: Formant-only pins, PartialSet-only pins, Mixer.channels needs a Channel (759-797, 13154-13170) — done in slice 2 (the engine's check() refuses and words it)
 - [U] Wiring refuses a normal wire that would close a cycle (self-wire included), "Cycle - close loops through a tap pin"; tap wires may close loops (1026-1056, 13171-13178) — done in slice 2
-- [U] Wire from a node's tap pin: the consumer reads the previous sample (103-106, 984-989); saved as {"tap": id} (2723-2726, 2742-2746) and reloaded onto the tap pin (1897-1917); no tap on a Wormhole (531-533) — the tap wire: done in slice 2; no tap pin on a Wormhole: slice 5, with wormholes
+- [U] Wire from a node's tap pin: the consumer reads the previous sample (103-106, 984-989); saved as {"tap": id} (2723-2726, 2742-2746) and reloaded onto the tap pin (1897-1917); no tap on a Wormhole (531-533) — the tap wire: done in slice 2; no tap pin on a Wormhole: done in slice 5
 - [U] Unwire by dragging a wire off its input pin (EnableLinkDetachWithDragClick) (8145, 13208-13229); the pin falls back to its constant (800-814, 954-1002) — done in slice 2 (the pin takes its declared default, ruling 6)
 - [U] Rename a node in Properties (Enter commits): refuses empty, ".", leading "__", a taken node or group name; rewrites refs in extras, dynamic pins, group members (8444-8461, 2505-2565) — done in slice 2 (applies on Enter or when the field loses the keyboard; a refusal shows in the status line)
-- [U] Duplicate (node menu): same type, pin constants and settings and strings copied by index, offset +30,+30; arrays, dynamic pins, seed not copied (10438-10473) — slice 5
-- [U] Replace with (node menu): any registered type; same-named pin constants, settings and dynamic pins carried; wires remapped by pin name, unmappable ones dropped and named in the status; label refs, Listen tap and selection follow (10079-10187, 10485-10505) — slice 5
+- [U] Duplicate (node menu): same type, pin constants and settings and strings copied by index, offset +30,+30; arrays, dynamic pins, seed not copied (10438-10473) — done in slice 5 (a copy and a paste of the one node: its arrays, dynamic pins, seed and the wires into it, in the group you are in)
+- [U] Replace with (node menu): any registered type; same-named pin constants, settings and dynamic pins carried; wires remapped by pin name, unmappable ones dropped and named in the status; label refs, Listen tap and selection follow (10079-10187, 10485-10505) — done in slice 5 (strings, arrays and the seed carried too; an enum by its label; what has no place is named)
 - [U] Edit a pin constant in Properties: InputFloat, step 1% of value, x10 fast step; erases a carried extra of that name (8483-8515) — done in slice 1
 - [U] Edit a constant on an input-only pin that the file gave one (8517-8549, 96-101) — done in slice 1 (checked)
 - [U] Dynamic pins: click the circle beside a non-structural setting to promote it (gold quad pin appears, unwired, hollow) or demote it (pin and wire dropped, stowed scalar restored) (8565-8605) — done in slice 2
@@ -302,34 +316,34 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Load: the file's per-field PerformNodes are merged into faces by layout "faces", else greedy-packed in file order, stragglers given their own pin (1564-1579, 1806-1877) — done in slice 2
 - [U] Save: one PerformNode per WIRED face pin, id kept from the file or a fresh __perf_<field>[n], prepended, comments kept, layout "faces" with each face's position (2634-2663, 2841-2847, 2939-2948) — done in slice 2 (a Note's node that nothing reads goes when its last reader does, and one a file brings in unread goes at open)
 - [U] Rename a Note face (its face label) in Properties (8444-8461) — done in slice 2
-- [U] A face's fields never count as a group's signal output (2475-2480) — slice 5
+- [U] A face's fields never count as a group's signal output (2475-2480) — done in slice 5
 
 ### 7. Groups
 
-- [U] Group selection (node menu, "(n)"): refuses the Output node and selections with more than one outward signal, naming them; name Group/Group2...; placed at the centroid; nested when drilled in (9978-10056, 10524-10538) — slice 5
-- [U] See a collapsed group as a purple node: name, "n nodes (double-click)", one input pin per boundary input labelled "member.pin", one "out" pin (8234-8313, 2433-2503) — slice 5
-- [U] Wire onto a collapsed group's projected pins (wires the real pin) and see boundary wires drawn to the face (13110-13120, 8315-8333, 12837-12881) — slice 5
-- [U] Group menu: Listen here / Stop listening here, Open, Ungroup (10415-10436, 10058-10077) — slice 5 (Listen: see section 8)
-- [U] Add to group (n) with the two-output rule on a trial membership; Remove from '<group>' to the parent level (10540-10630) — slice 5
-- [U] Rename a group in Properties, same name rules, shared namespace with node ids; see its members list (8403-8434, 2567-2591) — slice 5
-- [U] Breadcrumb bar "Patch > Group > ...", click to go up (12704-12719) — slice 5
-- [U] Drill-in frames the level's content; drill-out restores the pan you left (12752-12800) — slice 5
-- [U] Groups saved in layout "groups" (name, members, pos), dead members dropped with a stderr line at load (2604-2611, 1961-1995) — done in slice 1 (kept in the file) / slice 5 (drawn)
+- [U] Group selection (node menu, "(n)"): refuses the Output node and selections with more than one outward signal, naming them; name Group/Group2...; placed at the centroid; nested when drilled in (9978-10056, 10524-10538) — done in slice 5 (the new group is selected)
+- [U] See a collapsed group as a purple node: name, "n nodes (double-click)", one input pin per boundary input labelled "member.pin", one "out" pin (8234-8313, 2433-2503) — done in slice 5 ("n nodes" counts the nodes under it; one out pin a source)
+- [U] Wire onto a collapsed group's projected pins (wires the real pin) and see boundary wires drawn to the face (13110-13120, 8315-8333, 12837-12881) — done in slice 5 (inside a group, a pin fed from outside the level names its source)
+- [U] Group menu: Listen here / Stop listening here, Open, Ungroup (10415-10436, 10058-10077) — done in slice 5
+- [U] Add to group (n) with the two-output rule on a trial membership; Remove from '<group>' to the parent level (10540-10630) — done in slice 5 (the Output node is no node of the record, so it cannot be added)
+- [U] Rename a group in Properties, same name rules, shared namespace with node ids; see its members list (8403-8434, 2567-2591) — done in slice 5
+- [U] Breadcrumb bar "Patch > Group > ...", click to go up (12704-12719) — done in slice 5
+- [U] Drill-in frames the level's content; drill-out restores the pan you left (12752-12800) — done in slice 5 (the view inside a group is the session's; the file keeps the top level's)
+- [U] Groups saved in layout "groups" (name, members, pos), dead members dropped with a stderr line at load (2604-2611, 1961-1995) — done in slice 1 (kept in the file) / done in slice 5 (drawn; a member that names nothing refuses the file, where the old editor dropped it: the slice's ruling 4)
 
 ### 8. Listen tap and wormholes
 
 - [U] Listen here / Stop listening here on any node with an output (node menu), "<)))" marker on the node; the patch keeps running and only the monitored signal moves; monitored at volume 1; never saved (575-578, 10514-10522, 8124-8127, 2832-2836, 2857-2863, 3140-3147, 3823-3830) — done in slice 4 (for the keys and a running plain sound, never a render; on every node's menu but a Note's; a node that gives no signal is refused in the status line; the keys sound it even with nothing wired to the Output)
-- [U] Breadcrumb "Listen: Patch | Group" toggle inside a group (12720-12748); drill-out returns the ears to the patch (12801-12811) — slice 5 (the toggle); the tap itself: done in slice 4
-- [U] Wormhole node pair: a wire that teleports; mini one-row violet face; the span between two Wormholes is hidden (8068-8105, 12859-12866) — slice 5
-- [U] Hover or select a wormhole half to ghost the span to its twin; tooltip names the twin and its group; "unpaired" tooltip (12919-13010) — slice 5
-- [U] Wiring two wormholes pairs them, with a status sentence (13191-13201) — slice 5
+- [U] Breadcrumb "Listen: Patch | Group" toggle inside a group (12720-12748); drill-out returns the ears to the patch (12801-12811) — done in slice 5 (the toggle); the tap itself: done in slice 4
+- [U] Wormhole node pair: a wire that teleports; mini one-row violet face; the span between two Wormholes is hidden (8068-8105, 12859-12866) — done in slice 5
+- [U] Hover or select a wormhole half to ghost the span to its twin; tooltip names the twin and its group; "unpaired" tooltip (12919-13010) — done in slice 5
+- [U] Wiring two wormholes pairs them, with a status sentence (13191-13201) — done in slice 5
 
 ### 9. Clipboard (two of them), undo
 
-- [U] OS-clipboard copy (node menu "Copy (n)", Ctrl+C over the editor): the selection's saved form as a JSON fragment; Note, Output, Parameter, Mixer, Channel and groups skipped (10189-10254, 10475-10483) — slice 5
-- [U] OS-clipboard paste (create menu, Ctrl+V over the editor): refuses a fragment of the other graph mode; fresh labels; internal refs renamed, refs that name a node in the target kept, others dropped and counted; +60,+60; joins the open group; merged through save and reload, restored on failure (10256-10406) — slice 5
-- [U] In-process clipboard: Edit menu and Ctrl+X/C/V with the editor focused; copies pin constants, settings, strings, arrays, seed, polyphony, sustaining, onsets and internal wires; pastes +40 per successive paste; skips a second Output, a second Mixer, wrong-mode types (9348-9606) — slice 5 / deleted by section 10 ("the second clipboard"; which of the two is "second" is not said)
-- [U] Cut = copy then delete the selection (9596-9606) — slice 5
+- [U] OS-clipboard copy (node menu "Copy (n)", Ctrl+C over the editor): the selection's saved form as a JSON fragment; Note, Output, Parameter, Mixer, Channel and groups skipped (10189-10254, 10475-10483) — done in slice 5 (the fragment's text is the record's own, under the key "mforceClip")
+- [U] OS-clipboard paste (create menu, Ctrl+V over the editor): refuses a fragment of the other graph mode; fresh labels; internal refs renamed, refs that name a node in the target kept, others dropped and counted; +60,+60; joins the open group; merged through save and reload, restored on failure (10256-10406) — done in slice 5 (one edit of the record, not a reload: Listen stays; a name taken gets the next free number)
+- [U] In-process clipboard: Edit menu and Ctrl+X/C/V with the editor focused; copies pin constants, settings, strings, arrays, seed, polyphony, sustaining, onsets and internal wires; pastes +40 per successive paste; skips a second Output, a second Mixer, wrong-mode types (9348-9606) — not coming back (A2.1): this is the second clipboard; its roads (the Edit menu, Ctrl+X/C/V) go to the system's since slice 5
+- [U] Cut = copy then delete the selection (9596-9606) — done in slice 5 on the system's clipboard (a cut never takes what it did not copy, so it leaves a group)
 - [D] Undo/redo: none exists. The shape editor's comment says "the editor has no undo stack" (5400-5401); grep finds no undo, redo or Ctrl+Z. Slice 2's undo is new, not a restoration. — none existed; undo and redo are new, done in slice 2 (A3)
 
 ### 10. Properties panel (generic)
@@ -393,8 +407,8 @@ Node right-click menu (10409-10633): see sections 5, 7, 8, 9 below.
 - [U] Held notes: envelopes gated on key-down, released on key-up with the longest release plus the reflection allowance; MultiplexSource graphs fall back to scheduled notes (4319-4433, 4435-4471) — done (on a patch marked sustaining in slice 1; on any patch, with Live, in slice 3)
 - [U] Sustaining patches play as a mono legato line: overlap slurs the living voice, a gap cuts the previous release with a 3 ms fade, lifting the sounding key slurs back to a still-held key (4228-4237, 4359-4394, 4437-4462) — done (the line and the slur in slice 1; the 3 ms cut and the slur back to a key still held in slice 3)
 - [U] Live instrument cached and rebuilt only after an edit, "Instrument rebuilt: N voices, M ms" status (4212-4270) — done in slice 1 (rebuild/swap, 4.2)
-- [U] MIDI in: first port auto-opened at start; combo "MIDI: name|none" re-enumerating ports, "(none)" closes (4645-4694, 8002-8032) — slice 5
-- [U] MIDI note on/off (velocity per note), CC1 mod wheel and channel pressure into the instrument state (4696-4744) — slice 5
+- [U] MIDI in: first port auto-opened at start; combo "MIDI: name|none" re-enumerating ports, "(none)" closes (4645-4694, 8002-8032) — done in slice 5
+- [U] MIDI note on/off (velocity per note), CC1 mod wheel and channel pressure into the instrument state (4696-4744) — done in slice 5 (pitch bend, the sustain pedal and poly aftertouch do nothing, as in the old code)
 - [D] MIDI sustain pedal, pitch bend, poly aftertouch: explicitly deferred, ignored (4739-4742)
 - [U] AUDIO line in the Keyboard tab: voices=N, pre-clip and post-clip peaks, green/yellow/red, decaying (3286-3292, 3636-3643, 7041-7058) — done (the peak, decaying, in slice 1; voices=N and the three colours in slice 2; the peak before the clip in slice 3)
 - [U] Soft clip on the mix; no polyphony scaling (3509-3515, 3624-3627) — done in slice 1 (checked: the clip follows the instrument's peak guard, which is on unless a test turns it off)
